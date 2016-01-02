@@ -1,0 +1,88 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+
+  vars:
+    dev_env_dir: /usr/local/dev-env
+
+  tasks:
+
+    - name: Check Sudo Password
+      command: ls
+      become: yes
+      become_method: sudo
+
+    - name: Update Homebrew
+      homebrew: update_homebrew=yes
+
+    - name: Install Docker toolbox
+      homebrew_cask: name=dockertoolbox state=present
+
+    - name: Create local docker dev machine
+      command: docker-machine create dev -d virtualbox --virtualbox-disk-size 50000 --virtualbox-cpu-count 1 --virtualbox-memory 4096 --engine-opt dns=8.8.8.8 --engine-opt dns=8.8.4.4 --engine-opt dns=172.17.42.1 --engine-opt bip=172.17.42.1/24
+      register: command_result
+      failed_when: "'FAILED' in command_result.stderr"
+
+    - name: Start dev
+      command: /usr/local/bin/docker-machine start dev
+      register: command_result
+      failed_when: "'FAILED' in command_result.stderr"
+
+    - name: Get docker-machine ip
+      shell: "docker-machine ip dev"
+      register: ip_machine
+
+    - name: Install docker-machine-nfs
+      get_url: url=https://raw.githubusercontent.com/sparkfabrik/docker-machine-nfs/master/docker-machine-nfs.sh dest=/usr/local/bin/docker-machine-nfs mode=0755 force=yes
+
+    - name: Configure docker-machine-nfs
+      command: /usr/local/bin/docker-machine-nfs dev
+      ignore_errors: True
+
+    - name: Create resolver directory
+      file: path=/etc/resolver state=directory mode=0755
+      become: yes
+      become_method: sudo
+
+    - name: Create docker.loc resolver file
+      file: path=/etc/resolver/docker.loc state=touch mode=0755
+      become: yes
+      become_method: sudo
+
+    - name: Add configuration to /etc/resolver/docker.loc
+      lineinfile: dest=/etc/resolver/docker.loc state=present line="nameserver 172.17.42.1"
+      become: yes
+      become_method: sudo
+
+    - name: Start dnsdock container
+      shell: "{{ item }}"
+      with_items:
+        - "eval $(docker-machine env dev) && docker rm -vf dnsdock || true"
+        - "eval $(docker-machine env dev) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.42.1:53:53/udp tonistiigi/dnsdock:v1.10.0"
+
+    - name: Add static routing
+      shell: "route delete 172.17.0.0 && route -n add -net 172.17.0.0 {{ ip_machine.stdout }}"
+      become: yes
+      become_method: sudo
+      register: command_result
+      failed_when: "'FAILED' in command_result.stderr"
+
+    - name: Clear dns cache
+      command: killall -HUP mDNSResponder
+      become: yes
+      become_method: sudo
+
+    - name: Add staff group to sudoers to run route command with no password
+      lineinfile: 
+        dest: /etc/sudoers
+        state: present
+        line: '%staff ALL=(ALL) NOPASSWD: /sbin/route'
+      become: yes
+      become_method: sudo
+
+    - name: Create launchctl script to run docker-machine at runtime
+      file:
+        src: "{{ dev_env_dir }}/config/osx/com.docker.machine.dev.plist"
+        dest: ~/Library/LaunchAgents/com.docker.machine.dev.plist
+        state: link
+        force: yes
