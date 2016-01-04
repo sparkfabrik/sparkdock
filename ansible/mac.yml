@@ -19,7 +19,7 @@
       homebrew_cask: name=dockertoolbox state=present
 
     - name: Create local docker dev machine
-      command: docker-machine create dev -d virtualbox --virtualbox-disk-size 50000 --virtualbox-cpu-count 1 --virtualbox-memory 4096 --engine-opt dns=8.8.8.8 --engine-opt dns=8.8.4.4 --engine-opt dns=172.17.42.1 --engine-opt bip=172.17.42.1/24
+      command: docker-machine create dev -d virtualbox --virtualbox-disk-size 50000 --virtualbox-cpu-count 1 --virtualbox-memory 4096 --engine-opt dns=172.17.42.1  --engine-opt dns=8.8.8.8 --engine-opt dns=8.8.4.4 --engine-opt bip=172.17.42.1/24
       register: command_result
       failed_when: "'FAILED' in command_result.stderr"
 
