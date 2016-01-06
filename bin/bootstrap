@@ -20,7 +20,7 @@ echo -e "\n\n"
 
 ## Check out a copy of this repo (first time only) ##
 echo 'Checking out Sparkdock repo...'
-git clone git@github.com:sparkfabrik/sparkdock.git /usr/local/dev-env 2>/dev/null
+git clone https://github.com/sparkfabrik/sparkdock.git /usr/local/dev-env 2>/dev/null
 cd /usr/local/dev-env && git fetch && git reset --hard origin/master
 
 ## Run Ansible Playbook ##
