@@ -15,14 +15,6 @@
     - name: Update Homebrew
       homebrew: update_homebrew=yes
 
-    - name: Get dockertoolbox pkg
-      get_url: url=https://github.com/docker/toolbox/releases/download/v1.9.1j/DockerToolbox-1.9.1j.pkg dest=/tmp
-
-    - name: Install docker toolbox
-      command: installer -pkg /tmp/DockerToolbox-1.9.1j.pkg -target /
-      become: yes
-      become_method: sudo
-
     - name: Create local docker dev machine
       command: docker-machine create dev -d virtualbox --virtualbox-disk-size 50000 --virtualbox-cpu-count 1 --virtualbox-memory 4096 --engine-opt dns=172.17.42.1  --engine-opt dns=8.8.8.8 --engine-opt dns=8.8.4.4 --engine-opt bip=172.17.42.1/24
       register: command_result
