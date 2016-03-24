@@ -12,8 +12,18 @@
       become: yes
       become_method: sudo
 
-    - name: Update Homebrew
-      homebrew: update_homebrew=yes
+    - name: Install dnsmasq
+      homebrew: name=dnsmasq state=present
+
+    - name: Configure dnsmasq
+      file:
+        src: "{{ dev_env_dir }}/config/osx/dnsmasq.conf"
+        dest: /usr/local/etc/dnsmasq.conf
+        state: link
+        force: yes
+
+    - name: Link dnsmasq
+      homebrew: name=dnsmasq state=linked
 
     - name: Create local docker dev machine
       command: docker-machine create dev -d virtualbox --virtualbox-disk-size 50000 --virtualbox-cpu-count 1 --virtualbox-memory 4096 --engine-opt dns=172.17.42.1  --engine-opt dns=8.8.8.8 --engine-opt dns=8.8.4.4 --engine-opt bip=172.17.42.1/24
@@ -41,13 +51,18 @@
       become: yes
       become_method: sudo
 
-    - name: Create docker.loc resolver file
-      file: path=/etc/resolver/docker.loc state=touch mode=0755
+    - name: Delete docker.loc old file if present
+      file: path=/etc/resolver/docker.loc state=absent mode=0755
       become: yes
       become_method: sudo
 
-    - name: Add configuration to /etc/resolver/docker.loc
-      lineinfile: dest=/etc/resolver/docker.loc state=present line="nameserver 172.17.42.1"
+    - name: Create loc resolver file
+      file: path=/etc/resolver/loc state=touch mode=0755
+      become: yes
+      become_method: sudo
+
+    - name: Add configuration to /etc/resolver/loc
+      lineinfile: dest=/etc/resolver/loc state=present line="nameserver 127.0.0.1"
       become: yes
       become_method: sudo
 
@@ -70,7 +85,7 @@
       become_method: sudo
 
     - name: Add staff group to sudoers to run route command with no password
-      lineinfile: 
+      lineinfile:
         dest: /etc/sudoers
         state: present
         line: '%staff ALL=(ALL) NOPASSWD: /sbin/route'

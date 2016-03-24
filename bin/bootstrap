@@ -27,4 +27,4 @@ cd /usr/local/dev-env && git fetch && git reset --hard origin/master
 echo 'Handing Playbook to Ansible (will require your sudo password)...'
 echo -e "\n\n"
 chmod +x  /usr/local/dev-env/config/osx/run-machine.sh
-ansible-playbook /usr/local/dev-env/ansible/mac.yml -i 127.0.0.1, --ask-become-pass -vvv
+ansible-playbook /usr/local/dev-env/ansible/mac.yml -i 127.0.0.1, --ask-become-pass -v
