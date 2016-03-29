@@ -12,6 +12,9 @@
       become: yes
       become_method: sudo
 
+    - name: Install or upgrade docker toolbox
+      homebrew_cask: dockertoolbox state=present
+
     - name: Install dnsmasq
       homebrew: name=dnsmasq state=present
 
