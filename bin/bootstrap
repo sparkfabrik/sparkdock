@@ -7,6 +7,10 @@ if [[ $? != 0 ]] ; then
     ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
 else
     brew update
+    brew cleanup
+    brew cask cleanup
+    brew uninstall --force brew-cask
+    brew update
 fi
 echo -e "\n\n"
 
