@@ -15,3 +15,10 @@ It will install the following packages:
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/bootstrap)
 ```
+
+# OSX Troubleshooting
+
+1) Check if dnsmasq is running with `brew services`, to be sure run `brew services restart dnsmasq`
+2) Check if dnsmasq configurations is equal to: https://github.com/sparkfabrik/sparkdock/blob/master/config/osx/dnsmasq.conf
+3) Check if the static routing is still active, to be sure run `sudo route -n add -net 172.17.0.0 $(docker-machine ip dev)`
+4) Check if dnsdock container is running `docker ps | grep dnsdock`
