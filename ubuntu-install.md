@@ -25,7 +25,7 @@ no-hosts
 ```
 
 `service dnsmasq restart`
-`docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp tonistiigi/dnsdock:v1.10.0`
+`docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp aacebedo/dnsdock:latest-amd64`
 
 
 

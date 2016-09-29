@@ -73,7 +73,7 @@
       shell: "{{ item }}"
       with_items:
         - "eval $(docker-machine env dev) && docker rm -vf dnsdock || true"
-        - "eval $(docker-machine env dev) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.42.1:53:53/udp tonistiigi/dnsdock:v1.10.0"
+        - "eval $(docker-machine env dev) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.42.1:53:53/udp aacebedo/dnsdock:latest-amd64"
 
     - name: Add static routing
       shell: "route delete 172.17.0.0 && route -n add -net 172.17.0.0 {{ ip_machine.stdout }}"
