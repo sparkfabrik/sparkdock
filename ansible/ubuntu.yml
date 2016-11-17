@@ -1,55 +1,74 @@
 ---
 - hosts: 127.0.0.1
   connection: local
-  sudo: true
+  become: true
+  become_user: root
   
   vars:
-    dev_env_dir: /usr/local/dev-env
+    apt_key_url: hkp://p80.pool.sks-keyservers.net:80
+    apt_key_sig: 58118E89F3A912897C070ADBF76221572C52609D
+    apt_repository: deb https://apt.dockerproject.org/repo {{ ansible_lsb.id|lower }}-{{ ansible_lsb.codename|lower }} main
 
   tasks:
-
-    - name: Gather kernel version
-      command: uname -r
-      register: kernel_version
       
-    - name: Gather current user's name
-      command: whoami
-      register: current_user
+    - name: Add Docker repo key
+      shell: "apt-key adv --keyserver {{ apt_key_url }} --recv-keys {{ apt_key_sig }}"
+
+    - name: HTTPS APT transport for Docker repository
+      apt:
+        name: apt-transport-https
+        state: present
 
     - name: Add docker repository to apt lists
-      apt_repository: repo='deb deb https://apt.dockerproject.org/repo ubuntu-{{ ansible_distribution_release|lower }} main' state=present filename='docker-engine'
+      apt_repository:
+        repo: "{{ apt_repository }}"
+        mode: '644'
+        update_cache: yes
+        state: present
 
     - name: Install the base required dependencies and suggested packages
       apt:
-        update-cache: yes
-        with_items:
-          - linux-image-extra-{{ kernel_version }}
+        pkg:
+          - "linux-image-extra-{{ ansible_kernel }}"
           - linux-image-extra-virtual
           - dnsmasq
+          - apt-transport-https
+          - ca-certificates
           - docker-engine
           - git
+        state: latest
+        update_cache: yes
 
     - name: Allow current user to execute docker commands
-      user: name={{ current_user }} groups=docker append=yes
+      user: name={{ ansible_ssh_user }} groups=docker append=yes
+
+    - name: Check if docker-compose binary exists
+      stat: path=/usr/local/bin/docker-compose
+      register: docker_compose_bin
 
     - name: Install docker-compose
-      command: "{{ item }} chdir=/tmp/"
-        with_items:
-          - "curl -L https://github.com/docker/compose/releases/download/1.7.0/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose"
-          - "chmod +x /usr/local/bin/docker-compose"
-    
+      shell: "curl -L https://github.com/docker/compose/releases/download/1.8.0/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose"
+      when: not docker_compose_bin.stat.exists
+
     - name: Configure dnsmasq to play well with dnsdock
       copy:
-        content: "server=/loc/172.17.0.1\nexcept-interface=docker0\ndomain-needed\ncache-size=0"
+        content: "server=/loc/172.17.42.1\nexcept-interface=docker0\ndomain-needed\ncache-size=0"
         dest: /etc/dnsmasq.d/docker-resolver
-        
+
+    - name: Create docker-dnsmasq conf
+      command: creates=/etc/dnsmasq.d/docker cp {{ playbook_dir }}/config/linux/docker_dnsmasq_conf /etc/dnsmasq.d/docker
+    - name: Update current user groups"
+      shell: newgrp docker
+      become: no
+
     - name: Start dnsdock resolver
-      shell: "docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp aacebedo/dnsdock:v1.15.0-amd64"
+      shell: "sg docker -c 'docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.42.1:53:53/udp aacebedo/dnsdock:v1.15.0-amd64'"
+      become: no
 
+    - name: Add dnsdock to resolv.conf
+      copy:
+        content: "nameserver 172.17.42.1\n"
+        dest: /etc/resolvconf/resolv.conf.d/head
 
-
-TODO:
-
-* check for sudo tu play well with the rest of the script (namely putting user in the correct groups)
-* verify the content of dnsmasq config file
-* overall syntax check etc
+    - name: Restart resolvconf
+      service: name=resolvconf state=restarted
