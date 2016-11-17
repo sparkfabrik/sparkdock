@@ -4,7 +4,7 @@
 echo "Installing or updating Ansible (will require your sudo password)..."
 which -s ansible-playbook
 if [[ $? != 0 ]] ; then
-    sudo apt-add-repository ppa:ansible/ansible
+    sudo apt-add-repository ppa:ansible/ansible -y
     sudo apt-get update && sudo apt-get install ansible
 fi
 echo -e "\n\n"
@@ -20,4 +20,7 @@ echo -e "\n\n"
 ansible-playbook /tmp/dev-env/ansible/ubuntu.yml -i 127.0.0.1,
 
 echo -e "\n\n"
-echo "Local development environment configured!\nTo use docker you need to close your session and login again. BE WARNED that closing your shell/term-emulator will not suffice. You need to log out from your desktop environment, or if you prefer, reboot your system.\nEnjoy!"
+echo "Local development environment configured!"
+echo "To use docker you need to CLOSE YOUR SESSION AND LOGIN AGAIN."
+echo "Be warned that closing your shell/term-emulator will not suffice. You need to log out from your desktop environment, or if you prefer, just reboot your system."
+echo "Enjoy!"
