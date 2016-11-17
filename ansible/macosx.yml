@@ -20,7 +20,7 @@
 
     - name: Configure dnsmasq
       file:
-        src: "{{ dev_env_dir }}/config/osx/dnsmasq.conf"
+        src: "{{ dev_env_dir }}/config/macosx/dnsmasq.conf"
         dest: /usr/local/etc/dnsmasq.conf
         state: link
         force: yes
@@ -97,7 +97,7 @@
 
     - name: Create launchctl script to run docker-machine at runtime
       file:
-        src: "{{ dev_env_dir }}/config/osx/com.docker.machine.dev.plist"
+        src: "{{ dev_env_dir }}/config/macosx/com.docker.machine.dev.plist"
         dest: ~/Library/LaunchAgents/com.docker.machine.dev.plist
         state: link
         force: yes

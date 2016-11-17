@@ -11,7 +11,7 @@
       <string>com.docker.machine.dev</string>
       <key>ProgramArguments</key>
       <array>
-          <string>/usr/local/dev-env/config/osx/run-machine.sh</string>
+          <string>/usr/local/dev-env/config/macosx/run-machine.sh</string>
       </array>
       <key>RunAtLoad</key>
       <true/>

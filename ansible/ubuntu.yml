@@ -70,5 +70,3 @@
 
     - name: Restart resolvconf
       service: name=resolvconf state=restarted
-
-    - debug: msg="Local development environment configured! To use docker you need to close your session and login again. BE WARNED that closing your shell/term-emulator will not suffice. You need to log out from your desktop environment, or if you prefer, reboot your system.\nEnjoy!"
