@@ -1,11 +1,19 @@
 #!/bin/bash
 
-## Install or Update Ansible ##
-echo "Installing or updating Ansible (will require your sudo password)..."
+## Install Ansible ##
+echo "Installing ansible (will require your sudo password)..."
 which -s ansible-playbook
 if [[ $? != 0 ]] ; then
     sudo apt-add-repository ppa:ansible/ansible -y
     sudo apt-get update && sudo apt-get install ansible
+fi
+echo -e "\n\n"
+
+## Install git ##
+echo "Installing git..."
+which -s git
+if [[ $? != 0 ]] ; then
+    sudo apt-get install git
 fi
 echo -e "\n\n"
 

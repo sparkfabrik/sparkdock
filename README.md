@@ -8,7 +8,7 @@ It will install the following packages:
 * Start dnsdock container alongside dnsmasq proxy resolver
 * Docker toolbox (MacOSX only)
 * Install and configure docker-machine-nfs (MacOSX only)
-* Install a launchscript to automatically start the docker vm (MacOSX)
+* Install a launchscript to automatically start the docker vm (MacOSX only)
 
 ##
 
@@ -57,5 +57,5 @@ If something goes awry, please:
 
 This package is maintained by [SparkFabrik](https://www.sparkfabrik.com)'s staff, mostly by Paolo Mainardi (MacOSX configuration) and Paolo Pustorino (Ubuntu configuration).
 
-Contributions are welcome, mostly for other OSes or Linux distro support.  
+Contributions are welcome, in particular it would be great to have playbooks for other OSes or Linux distro.  
 Send us PRs, open issues if you encounter bugs, talk about this stuff in your blog and - most important - **use docker!** ;)
