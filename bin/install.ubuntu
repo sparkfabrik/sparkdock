@@ -1,5 +1,13 @@
 #!/bin/bash
 
+## Check Ubuntu version ##
+echo "Checking for Ubuntu to be a supported version..."
+if ! [[ $( lsb_release -rs ) =~ ^(14\.04|15\.10|16\.04)$ ]] ; then
+   echo "This script is supposed to be executed on a version of Ubuntu Linux among 14.04 LTS, 14.10 and 16.04 LTS. Please use a supported version."
+   exit 0
+fi
+echo -e "\n\n"
+
 ## Install Ansible ##
 echo "Installing ansible (will require your sudo password)..."
 which -s ansible-playbook
