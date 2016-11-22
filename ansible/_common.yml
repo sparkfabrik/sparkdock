@@ -1,0 +1,2 @@
+docker_compose_version: 1.8.0
+dnsdock_image: aacebedo/dnsdock:v1.15.0-amd64
