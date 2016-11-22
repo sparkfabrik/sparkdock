@@ -7,6 +7,11 @@
 
   tasks:
 
+    - name: Read common variables
+      include_vars:
+        file: _common.yml
+        name: common
+
     - name: Check Sudo Password
       command: ls
       become: yes
@@ -20,7 +25,7 @@
 
     - name: Configure dnsmasq
       file:
-        src: "{{ dev_env_dir }}/config/osx/dnsmasq.conf"
+        src: "{{ dev_env_dir }}/config/macosx/dnsmasq.conf"
         dest: /usr/local/etc/dnsmasq.conf
         state: link
         force: yes
@@ -73,7 +78,7 @@
       shell: "{{ item }}"
       with_items:
         - "eval $(docker-machine env dev) && docker rm -vf dnsdock || true"
-        - "eval $(docker-machine env dev) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.42.1:53:53/udp aacebedo/dnsdock:v1.15.0-amd64"
+        - "eval $(docker-machine env dev) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.42.1:53:53/udp {{ common.dnsdock_image }}"
 
     - name: Add static routing
       shell: "route delete 172.17.0.0 && route -n add -net 172.17.0.0 {{ ip_machine.stdout }}"
@@ -97,7 +102,7 @@
 
     - name: Create launchctl script to run docker-machine at runtime
       file:
-        src: "{{ dev_env_dir }}/config/osx/com.docker.machine.dev.plist"
+        src: "{{ dev_env_dir }}/config/macosx/com.docker.machine.dev.plist"
         dest: ~/Library/LaunchAgents/com.docker.machine.dev.plist
         state: link
         force: yes
