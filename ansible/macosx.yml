@@ -4,13 +4,10 @@
 
   vars:
     dev_env_dir: /usr/local/dev-env
+    docker_compose_version: 1.8.0
+    dnsdock_image: aacebedo/dnsdock:v1.15.0-amd64
 
   tasks:
-
-    - name: Read common variables
-      include_vars:
-        file: _common.yml
-        name: common
 
     - name: Check Sudo Password
       command: ls
@@ -34,7 +31,7 @@
       homebrew: name=dnsmasq state=linked
 
     - name: Create local docker dev machine
-      command: docker-machine create dev -d virtualbox --virtualbox-disk-size 50000 --virtualbox-cpu-count 1 --virtualbox-memory 4096 --engine-opt dns=172.17.42.1  --engine-opt dns=8.8.8.8 --engine-opt dns=8.8.4.4 --engine-opt bip=172.17.42.1/24
+      command: docker-machine create dev -d virtualbox --virtualbox-disk-size {{ VM_DISK }} --virtualbox-cpu-count 1 --virtualbox-memory {{ VM_RAM }} --engine-opt dns=172.17.42.1  --engine-opt dns=8.8.8.8 --engine-opt dns=8.8.4.4 --engine-opt bip=172.17.42.1/24
       register: command_result
       failed_when: "'FAILED' in command_result.stderr"
 
@@ -78,7 +75,7 @@
       shell: "{{ item }}"
       with_items:
         - "eval $(docker-machine env dev) && docker rm -vf dnsdock || true"
-        - "eval $(docker-machine env dev) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.42.1:53:53/udp {{ common.dnsdock_image }}"
+        - "eval $(docker-machine env dev) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.42.1:53:53/udp {{ dnsdock_image }}"
 
     - name: Add static routing
       shell: "route delete 172.17.0.0 && route -n add -net 172.17.0.0 {{ ip_machine.stdout }}"
