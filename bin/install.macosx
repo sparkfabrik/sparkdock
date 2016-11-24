@@ -50,4 +50,4 @@ fi
 echo 'Handing Playbook to Ansible (will require your sudo password)...'
 echo -e "\n\n"
 chmod +x  /usr/local/dev-env/config/macosx/run-machine.sh
-ansible-playbook /usr/local/dev-env/ansible/macosx.yml -i 127.0.0.1 --extra-vars "VM_RAM=$RAM  VM_DISK=$DISK", --ask-become-pass -v
+ansible-playbook /usr/local/dev-env/ansible/macosx.yml -i 127.0.0.1 --extra-vars "VM_RAM=$RAM  VM_DISK=$DISK" --ask-become-pass -v

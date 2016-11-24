@@ -3,19 +3,16 @@
   connection: local
   become: true
   become_user: root
-  
+
   vars:
     apt_key_url: hkp://p80.pool.sks-keyservers.net:80
     apt_key_sig: 58118E89F3A912897C070ADBF76221572C52609D
     apt_repository: deb https://apt.dockerproject.org/repo {{ ansible_lsb.id|lower }}-{{ ansible_lsb.codename|lower }} main
+    docker_compose_version: 1.8.0
+    dnsdock_image: aacebedo/dnsdock:v1.15.0-amd64
 
 
   tasks:
-      
-    - name: Read common variables
-      include_vars:
-        file: _common.yml
-        name: common
 
     - name: Add Docker repo key
       shell: "apt-key adv --keyserver {{ apt_key_url }} --recv-keys {{ apt_key_sig }}"
@@ -53,7 +50,7 @@
       register: docker_compose_bin
 
     - name: Install docker-compose
-      shell: "curl -L https://github.com/docker/compose/releases/download/{{ common.docker_compose_version }}/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose"
+      shell: "curl -L https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose"
       when: not docker_compose_bin.stat.exists
 
     - name: Configure dnsmasq to play well with dnsdock
@@ -66,7 +63,7 @@
       become: no
 
     - name: Start dnsdock resolver
-      shell: "sg docker -c 'docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp {{ common.dnsdock_image }}'"
+      shell: "sg docker -c 'docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp {{ dnsdock_image }}'"
       become: no
 
     - name: Add dnsdock to resolv.conf
