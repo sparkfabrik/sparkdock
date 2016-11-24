@@ -97,7 +97,7 @@
       become: yes
       become_method: sudo
 
-    - name: Create launchctl script to run docker-machine at runtime
+    - name: Create launchctl script to run docker-machine and add routing tables
       file:
         src: "{{ dev_env_dir }}/config/macosx/com.docker.machine.dev.plist"
         dest: ~/Library/LaunchAgents/com.docker.machine.dev.plist
