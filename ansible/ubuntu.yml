@@ -58,12 +58,18 @@
         content: "server=/loc/172.17.0.1\nbind-interfaces\nexcept-interface=docker0\ndomain-needed\ncache-size=0"
         dest: /etc/dnsmasq.d/dnsdock-resolver
 
+    - name: Stop dnsmasq before activating dnsdock
+      service: name=dnsmasq state=stopped
+
     - name: Update current user groups
       shell: newgrp docker
       become: no
 
     - name: Start dnsdock resolver
-      shell: "sg docker -c 'docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp {{ dnsdock_image }}'"
+      shell: "{{ item  }}"
+      with_items:
+        - "sg docker -c 'docker rm -vf dnsdock || true'"
+        - "sg docker -c 'docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp {{ dnsdock_image }}'"
       become: no
 
     - name: Add dnsdock to resolv.conf
@@ -73,3 +79,6 @@
 
     - name: Restart resolvconf
       service: name=resolvconf state=restarted
+
+    - name: Start dnsmasq
+      service: name=dnsmasq state=started
