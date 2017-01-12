@@ -40,9 +40,9 @@ If something goes awry, please:
 
 ### MacOSX quick checks
 
-* Check if dnsmasq is running with `brew services`, to be sure run `brew services restart dnsmasq`
+* Check if dnsmasq is running with `brew services`, to be sure run `brew services restart dnsmasq` then `ps aux | grep dnsmasq` to check if the process is running.
 * Check if dnsmasq configurations is equal to: https://github.com/sparkfabrik/sparkdock/blob/master/config/osx/dnsmasq.conf
-* Check if the static routing is still active, to be sure run `sudo route -n add -net 172.17.0.0 $(docker-machine ip dev)`
+* Check if the static routing is still active, to be sure run `sudo route -n add -net 172.16.0.0/12 $(docker-machine ip dev)`
 * Check if dnsdock container is running `docker ps | grep dnsdock`
 
 ### Ubuntu quick checks
