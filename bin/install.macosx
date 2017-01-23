@@ -56,5 +56,12 @@ then
   ## Run Ansible Playbook ##
   chmod +x  /usr/local/dev-env/config/macosx/run-machine.sh
   ansible-playbook /usr/local/dev-env/ansible/macosx.yml -i 127.0.0.1 --extra-vars "VM_RAM=$RAM  VM_DISK=$DISK" -v
+
+  ## Configure dotrc message.
+  echo -e "\n"
+  echo -e "Now remember to add to your .bashrc or .zshrc the following command:\n"
+  echo -n 'eval "$(dinghy env)"'
+  echo -e "\n"
+  echo -e 'Thanks for installing sparkdock,'
 fi
 
