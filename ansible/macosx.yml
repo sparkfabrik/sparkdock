@@ -78,7 +78,7 @@
         - "eval $(docker-machine env dev) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.42.1:53:53/udp {{ dnsdock_image }}"
 
     - name: Add static routing
-      shell: "route delete 172.17.0.0 && route -n add -net 172.17.0.0 {{ ip_machine.stdout }}"
+      shell: "route delete 172.17.0.0 && sudo route -n add -net 172.16.0.0/12 {{ ip_machine.stdout }}"
       become: yes
       become_method: sudo
       register: command_result
