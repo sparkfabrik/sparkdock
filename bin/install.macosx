@@ -63,6 +63,6 @@ then
   echo -e "Now remember to add to your .bashrc or .zshrc the following command:\n"
   echo -n 'eval "$(dinghy env)"'
   echo -e "\n"
-  echo -e 'Thanks for installing sparkdock,'
+  echo -e 'Thanks for installing sparkdock, enjoy a dockerized world!'
 fi
 
