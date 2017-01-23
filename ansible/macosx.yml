@@ -4,7 +4,10 @@
 
   vars:
     dev_env_dir: /usr/local/dev-env
-    docker_compose_version: 1.8.0
+    docker_compose_version: 1.10.0
+    docker_compose_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/4b5c36d5db034cdbdcdeae2044f73a01297e2046/Formula/docker-compose.rb
+    docker_version: 1.13.0
+    docker_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/cb63ea86976554c64bb591a3cff9565f4f3e3d95/Formula/docker.rb
     dnsdock_image: aacebedo/dnsdock:v1.15.0-amd64
 
   tasks:
@@ -14,8 +17,45 @@
       become: yes
       become_method: sudo
 
-    - name: Install or upgrade docker toolbox
-      homebrew_cask: name=docker-toolbox state=present
+    - name: Uninstall docker and dinghy binaries.
+      command: brew uninstall --force docker docker-machine docker-compose dinghy || true
+
+    - name: Manually clean docker binaries binaries.
+      command: rm -rf /usr/local/bin/docker /usr/local/bin/docker-machine /usr/local/bin/docker-compose /usr/local/bin/docker-machine-driver /usr/local/bin/docker-machine-nfs*
+
+    - name: Install docker binaries with brew.
+      shell: "{{ item }}"
+      with_items:
+        - "brew install {{ docker_hash }}"
+        - "brew install {{ docker_compose_hash }}"
+        - "brew install docker-machine"
+
+    - name: Link latest docker binaries
+      command: brew link --overwrite docker docker-machine docker-compose
+
+    - name: Remove legacy dev docker-machine.
+      shell: docker-machine stop dev -y && docker-machine rm dev -y || true
+
+    - name: Remove dinghy docker-machine.
+      shell: docker-machine stop dinghy -y && docker-machine rm dinghy -y || true
+
+    - name: Install dinghy.
+      homebrew: name=dinghy state=present
+
+    - name: Set dinghy home.
+      file: path=~/.dinghy state=directory
+
+    - name: Configure dinghy preferences.
+      file:
+        src: "{{ dev_env_dir }}/config/macosx/dinghy/preferences.yml"
+        dest: ~/.dinghy/preferences.yml
+        state: link
+        force: yes
+
+    - name: Create dinghy machine.
+      shell: >
+        unset DOCKER_HOST DOCKER_CERT_PATH DOCKER_MACHINE_IP DOCKER_MACHINE_NAME DOCKER_TLS_VERIFY
+        && dinghy create --provider virtualbox --memory {{ VM_RAM }} --disk {{ VM_DISK }}
 
     - name: Install dnsmasq
       homebrew: name=dnsmasq state=present
@@ -27,29 +67,17 @@
         state: link
         force: yes
 
-    - name: Link dnsmasq
+    - name: Link dnsmasq.
       homebrew: name=dnsmasq state=linked
 
-    - name: Create local docker dev machine
-      command: docker-machine create dev -d virtualbox --virtualbox-disk-size {{ VM_DISK }} --virtualbox-cpu-count 1 --virtualbox-memory {{ VM_RAM }} --engine-opt dns=172.17.42.1  --engine-opt dns=8.8.8.8 --engine-opt dns=8.8.4.4 --engine-opt bip=172.17.42.1/24
-      register: command_result
-      failed_when: "'FAILED' in command_result.stderr"
-
-    - name: Start dev
-      command: /usr/local/bin/docker-machine start dev
-      register: command_result
-      failed_when: "'FAILED' in command_result.stderr"
+    - name: Restart dnsmasq.
+      command: brew services restart dnsmasq
+      become: yes
+      become_method: sudo
 
     - name: Get docker-machine ip
-      shell: "docker-machine ip dev"
+      shell: "docker-machine ip dinghy"
       register: ip_machine
-
-    - name: Install docker-machine-nfs
-      get_url: url=https://raw.githubusercontent.com/adlogix/docker-machine-nfs/master/docker-machine-nfs.sh dest=/usr/local/bin/docker-machine-nfs mode=0755 force=yes
-
-    - name: Configure docker-machine-nfs
-      command: /usr/local/bin/docker-machine-nfs dev
-      ignore_errors: True
 
     - name: Create resolver directory
       file: path=/etc/resolver state=directory mode=0755
@@ -74,11 +102,12 @@
     - name: Start dnsdock container
       shell: "{{ item }}"
       with_items:
-        - "eval $(docker-machine env dev) && docker rm -vf dnsdock || true"
-        - "eval $(docker-machine env dev) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.42.1:53:53/udp {{ dnsdock_image }}"
+        - "eval $(dinghy env) && docker rm -vf dnsdock || true"
+        - "eval $(dinghy env) && docker rm -vf dinghy_http_proxy || true"
+        - "eval $(dinghy env) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp {{ dnsdock_image }}"
 
     - name: Add static routing
-      shell: "route delete 172.17.0.0 && sudo route -n add -net 172.16.0.0/12 {{ ip_machine.stdout }}"
+      shell: "route delete 172.17.0.0 && route -n add -net 172.16.0.0/12 {{ ip_machine.stdout }}"
       become: yes
       become_method: sudo
       register: command_result

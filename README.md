@@ -4,10 +4,9 @@ This is an automatic MacOSX and Ubuntu Linux Docker provisioner, based on Ansibl
 
 It will install the following packages:
 
-* Create and start a standard docker dev machine
+* Install and upgrade docker, docker-machine
+* Install and configure dinghy
 * Start dnsdock container alongside dnsmasq proxy resolver
-* Docker toolbox (MacOSX only)
-* Install and configure docker-machine-nfs (MacOSX only)
 * Install a launchscript to automatically start the docker vm (MacOSX only)
 
 ##
@@ -42,8 +41,19 @@ If something goes awry, please:
 
 * Check if dnsmasq is running with `brew services`, to be sure run `brew services restart dnsmasq` then `ps aux | grep dnsmasq` to check if the process is running.
 * Check if dnsmasq configurations is equal to: https://github.com/sparkfabrik/sparkdock/blob/master/config/osx/dnsmasq.conf
-* Check if the static routing is still active, to be sure run `sudo route -n add -net 172.16.0.0/12 $(docker-machine ip dev)`
+* Check if the static routing is still active, to be sure run `sudo route -n add -net 172.16.0.0/12 $(docker-machine ip dinghy)`
 * Check if dnsdock container is running `docker ps | grep dnsdock`
+* Check dinghy services, you should see something like this:
+
+```
+❯ dinghy status
+   VM: running
+  NFS: running
+ FSEV: running
+  DNS: stopped
+PROXY: stopped
+
+```
 
 ### Ubuntu quick checks
 
@@ -57,5 +67,5 @@ If something goes awry, please:
 
 This package is maintained by [SparkFabrik](https://www.sparkfabrik.com)'s staff, mostly by Paolo Mainardi (MacOSX configuration) and Paolo Pustorino (Ubuntu configuration).
 
-Contributions are welcome, in particular it would be great to have playbooks for other OSes or Linux distro.  
+Contributions are welcome, in particular it would be great to have playbooks for other OSes or Linux distro.
 Send us PRs, open issues if you encounter bugs, talk about this stuff in your blog and - most important - **use docker!** ;)

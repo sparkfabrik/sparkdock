@@ -1,53 +1,67 @@
 #!/usr/bin/env bash
-
-## Install or Update Homebrew ##
-echo 'Installing or Updating Homebrew...'
-which -s brew
-if [[ $? != 0 ]] ; then
-    ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-else
-    brew update
-    brew cleanup
-    brew cask cleanup
-    brew uninstall --force brew-cask
-    brew update
-    brew cask update
-fi
-echo -e "\n\n"
-
-
-## Install or Update Ansible ##
-echo 'Installing or Updating Ansible...'
-which -s ansible-playbook
-if [[ $? != 0 ]] ; then
-	brew install ansible
-fi
-echo -e "\n\n"
-
-## Check out a copy of this repo (first time only) ##
-echo 'Checking out Sparkdock repo...'
-git clone https://github.com/sparkfabrik/sparkdock.git /usr/local/dev-env 2>/dev/null
-cd /usr/local/dev-env && git fetch && git reset --hard origin/master
-
-## Read user input for RAM and disk size
-read -p "Please tell me how much RAM the docker machine will use in MB (4096)? " answer
-if [ "$answer" = '' ];
+RED='\033[0;31m'
+NC='\033[0m'
+echo -e "Sparkdock installer: Doker based on dinghy + dns tools (dnsdock, dnsmasq)."
+echo -e "\n"
+echo -e "${RED}Please note that this installer will remove your local docker machine, that includes all the data stored in. Are you sure to continue (y/n) ?${NC}"
+read -n 1 -r
+if [[ $REPLY =~ ^[Yy]$ ]]
 then
-  RAM=4096
-else
-  RAM=$answer
+  ## Install or Update Homebrew ##
+  sudo head -n1 /dev/null
+  echo -e "\n"
+  echo -e "Installing or Updating Homebrew..."
+  which -s brew
+  if [[ $? != 0 ]] ; then
+      ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+  else
+      brew update
+      brew cleanup
+      brew uninstall --force brew-cask
+      brew update
+  fi
+
+  ## Install or Update Ansible ##
+  echo -e "\n"
+  echo 'Installing or Updating Ansible...'
+  which -s ansible-playbook
+  if [[ $? != 0 ]] ; then
+    brew install ansible
+  fi
+
+  ## Check out a copy of this repo (first time only) ##
+  echo -e "\n"
+  echo 'Checking out Sparkdock repo...'
+  git clone https://github.com/sparkfabrik/sparkdock.git /usr/local/dev-env 2>/dev/null
+  cd /usr/local/dev-env && git fetch && git checkout feature/dinghy-migration
+
+  ## Read user input for RAM and disk size
+  echo -e "\n"
+  read -p "Please tell me how much RAM the docker machine will use in MB (4096)? " answer
+  if [ "$answer" = '' ];
+  then
+    RAM=4096
+  else
+    RAM=$answer
+  fi
+  echo -e "\n"
+  read -p "Please tell me how big should the docker machine disk will be in MB (60000)? " answer
+  if [ "$answer" = '' ];
+  then
+    DISK=60000
+  else
+    DISK=$answer
+  fi
+
+  ## Run Ansible Playbook ##
+  chmod +x  /usr/local/dev-env/config/macosx/run-machine.sh
+  ansible-playbook /usr/local/dev-env/ansible/macosx.yml -i 127.0.0.1 --extra-vars "VM_RAM=$RAM  VM_DISK=$DISK" -v
+
+  ## Configure dotrc message.
+  echo -e "\n"
+  echo -e "Now remember to add to your .bashrc or .zshrc the following command:\n"
+  echo -n 'eval "$(dinghy env)"'
+  echo -e "\n"
+  echo -e 'Thanks for installing sparkdock,'
 fi
 
-read -p "Please tell me how big should the docker machine disk will be in MB (60000)? " answer
-if [ "$answer" = '' ];
-then
-  DISK=60000
-else
-  DISK=$answer
-fi
-
-## Run Ansible Playbook ##
-echo 'Handing Playbook to Ansible (will require your sudo password)...'
-echo -e "\n\n"
-chmod +x  /usr/local/dev-env/config/macosx/run-machine.sh
-ansible-playbook /usr/local/dev-env/ansible/macosx.yml -i 127.0.0.1 --extra-vars "VM_RAM=$RAM  VM_DISK=$DISK" --ask-become-pass -v
