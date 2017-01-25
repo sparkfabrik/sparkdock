@@ -9,8 +9,6 @@ if [[ $REPLY =~ ^[Yy]$ ]]
 then
   ## Install or Update Homebrew ##
   echo -e "\n"
-  sudo head -n1 /dev/null
-  echo -e "\n"
   echo -e "Installing or Updating Homebrew..."
   which -s brew
   if [[ $? != 0 ]] ; then
