@@ -26,7 +26,10 @@ then
   which -s ansible-playbook
   if [[ $? != 0 ]] ; then
     brew install ansible
+  else 
+    brew upgrade ansible
   fi
+  
 
   ## Check out a copy of this repo (first time only) ##
   echo -e "\n"
@@ -56,7 +59,7 @@ then
   ## Run Ansible Playbook ##
   chmod +x  /usr/local/dev-env/config/macosx/run-machine.sh
   chmod +x  /usr/local/dev-env/config/macosx/fsevent-start.sh
-  sudo ln -s /usr/local/dev-env/config/macosx/fsevent-start.sh /usr/local/bin/fsevent-start
+  sudo ln -fs /usr/local/dev-env/config/macosx/fsevent-start.sh /usr/local/bin/fsevent-start
   ansible-playbook /usr/local/dev-env/ansible/macosx.yml -i 127.0.0.1 --extra-vars "VM_RAM=$RAM  VM_DISK=$DISK" --ask-become-pass -v
 
   ## Configure dotrc message.
