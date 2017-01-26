@@ -60,6 +60,7 @@ then
   chmod +x  /usr/local/dev-env/config/macosx/run-machine.sh
   chmod +x  /usr/local/dev-env/config/macosx/fsevent-start.sh
   sudo ln -fs /usr/local/dev-env/config/macosx/fsevent-start.sh /usr/local/bin/fsevent-start
+  unset DOCKER_CERT_PATH DOCKER_HOST DOCKER_MACHINE DOCKER_TLS_VERIFY
   ansible-playbook /usr/local/dev-env/ansible/macosx.yml -i 127.0.0.1 --extra-vars "VM_RAM=$RAM  VM_DISK=$DISK" --ask-become-pass -v
 
   ## Configure dotrc message.
