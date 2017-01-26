@@ -34,7 +34,7 @@ then
   ## Check out a copy of this repo (first time only) ##
   echo -e "\n"
   echo 'Checking out Sparkdock repo...'
-  sudo mkdir -p /usr/local/dev-env && sudo chown `whoami`:20  /usr/local/dev-env
+  sudo rm -rf /usr/local/dev-env && mkdir -p /usr/local/dev-env && sudo chown `whoami`:20  /usr/local/dev-env
   git clone https://github.com/sparkfabrik/sparkdock.git /usr/local/dev-env
   cd /usr/local/dev-env && git fetch && git reset --hard origin/master
 
