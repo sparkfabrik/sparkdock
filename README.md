@@ -55,6 +55,13 @@ PROXY: stopped
 
 ```
 
+### MacOSX filesytem events
+
+With the latest release of sparkdock we introduced the use of the daemon "fsevents_to_vm" (https://github.com/codekitchen/fsevents_to_vm) which is a simple daemon act to migrate osx fsevents filesystem over ssh to the docker-machine, as NFS does not support them.
+
+To check if the daemon is running run `ps aux | grep fsevents_to_vm` if you don't see any process, you can run it again by typing `/usr/local/bin/fsevent-start`.
+
+
 ### Ubuntu quick checks
 
 * Check if dnsmasq can actually start or dnsdock is binding port 53 on 0.0.0.0
