@@ -30,7 +30,9 @@ then
     brew upgrade ansible
   fi
   
-
+  # Install standard utilities.
+  brew install wget curl
+ 
   ## Check out a copy of this repo (first time only) ##
   echo -e "\n"
   USER=`whoami`
