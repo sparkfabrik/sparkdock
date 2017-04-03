@@ -41,6 +41,9 @@
 
     - name: Tap dinghy (our fork).
       homebrew_tap: tap=paolomainardi/dinghy state=present
+      
+    - name: Tap boneyard (our fork).
+      homebrew_tap: tap=paolomainardi/boneyard state=present
 
     - name: Install dinghy.
       homebrew: name=dinghy state=present
