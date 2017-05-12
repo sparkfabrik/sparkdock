@@ -43,7 +43,7 @@
       homebrew_tap: tap=paolomainardi/dinghy state=present
 
     - name: Install dinghy.
-      homebrew: name=dinghy state=present
+      homebrew: name=paolomainardi/dinghy/dinghy state=present
 
     - name: Set dinghy home.
       file: path=~/.dinghy state=directory
