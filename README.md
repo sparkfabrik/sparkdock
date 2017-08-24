@@ -29,6 +29,14 @@ Just issue
 bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.ubuntu)
 ```
 
+### Debian
+
+Just issue (tested on Debian stretch 9.1)
+
+```
+bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/debian.ubuntu)
+```
+
 ## Troubleshooting
 
 ### General
