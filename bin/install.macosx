@@ -32,6 +32,9 @@ then
   
   # Install standard utilities.
   brew install wget curl
+  
+  # Install virtualbox.
+  brew cask install virtualbox
  
   ## Check out a copy of this repo (first time only) ##
   echo -e "\n"
