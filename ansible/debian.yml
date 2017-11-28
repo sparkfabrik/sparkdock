@@ -8,7 +8,7 @@
     apt_key_url: hkp://p80.pool.sks-keyservers.net:80
     apt_key_sig: 58118E89F3A912897C070ADBF76221572C52609D
     apt_repository: deb https://apt.dockerproject.org/repo {{ ansible_lsb.id|lower }}-{{ ansible_lsb.codename|lower }} main
-    docker_compose_version: 1.10.0
+    docker_compose_version: 1.17.1
     dnsdock_image: aacebedo/dnsdock:v1.15.0-amd64
 
 
