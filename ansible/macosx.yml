@@ -5,7 +5,7 @@
   vars:
     dev_env_dir: /usr/local/dev-env
     docker_compose_version: 1.17.1
-    docker_compose_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/2de4f932222431213bc6c3ff88d5647008475fe5/Formula/docker-compose.rbx\
+    docker_compose_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/2de4f932222431213bc6c3ff88d5647008475fe5/Formula/docker-compose.rb
     docker_version: v17.11.0-ce
     docker_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/75f0315c2cebd037500aeef404b3661b2d74e464/Formula/docker.rb
     dnsdock_image: aacebedo/dnsdock:v1.15.0-amd64
