@@ -33,7 +33,7 @@ cd /tmp/dev-env && git fetch && git reset --hard origin/master
 ## Run Ansible Playbook ##
 echo 'Handing Playbook to Ansible...'
 echo -e "\n\n"
-ansible-playbook /tmp/dev-env/ansible/ubuntu.yml -i 127.0.0.1,
+ansible-playbook /tmp/dev-env/ansible/ubuntu16.yml -i 127.0.0.1,
 
 echo -e "\n\n"
 echo "Local development environment configured!"
