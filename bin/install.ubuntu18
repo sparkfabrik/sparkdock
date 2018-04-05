@@ -2,8 +2,8 @@
 
 ## Check Ubuntu version ##
 echo "Checking for Ubuntu to be a supported version..."
-if ! [[ $( lsb_release -rs ) =~ ^(17\.04|17\.10)$ ]] ; then
-   echo "This script is supposed to be executed on a version of Ubuntu Linux between 17.04 and 17.10. Please use a supported version."
+if ! [[ $( lsb_release -rs ) =~ ^(18\.04)$ ]] ; then
+   echo "This script is supposed to be executed on Ubuntu Linux 18.04-nightly before the official release. Please use a supported version."
    exit 0
 fi
 echo -e "\n\n"
@@ -33,7 +33,7 @@ cd /tmp/dev-env && git fetch && git reset --hard origin/master
 ## Run Ansible Playbook ##
 echo 'Handing Playbook to Ansible...'
 echo -e "\n\n"
-ansible-playbook /tmp/dev-env/ansible/ubuntu17.yml -i 127.0.0.1,
+ansible-playbook /tmp/dev-env/ansible/ubuntu18.yml -i 127.0.0.1,
 
 echo -e "\n\n"
 echo "Local development environment configured!"
