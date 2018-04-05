@@ -34,7 +34,7 @@
           - linux-image-extra-virtual
           - dnsmasq
           - apt-transport-https
-          - ca-certificatejs
+          - ca-certificates
           - docker-ce
           - git
         state: latest
