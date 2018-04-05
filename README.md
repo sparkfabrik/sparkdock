@@ -15,7 +15,7 @@ It will install the following packages:
 
 ### MacOSX
 
-Just issue
+To install on MacOSX, no matter which version, issue
 
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.macosx)
@@ -23,18 +23,41 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 
 ### Ubuntu
 
-Just issue
+Installation on Ubuntu depends on your OS version. Currently we are supporting all versions from 14.04 LTS up to 18.04 LTS (nightly build).  
+Support for 18.04 is experimental and we are planning to make it easier to install it in the future.
+
+So far you have to choose the right package for you OS version. If you are in doubt, you can discover which version you are running with `lsb_release -id` command.
+
+#### Up to 16.04 LTS (included)
+
+Issue
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.ubuntu)
+bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.ubuntu16)
+```
+
+#### 17.04 and 17.10
+
+Issue
+
+```
+bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.ubuntu17)
+```
+
+#### From 18.04 up (experimental)
+
+Issue
+
+```
+bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.ubuntu18)
 ```
 
 ### Debian
 
-Just issue (tested on Debian stretch 9.1)
+The provisioner has been tested on Debian Stretch 9.1 only. With newer versions YMMV. To install on Debian, issue
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/debian.ubuntu)
+bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.debian)
 ```
 
 ## Troubleshooting
