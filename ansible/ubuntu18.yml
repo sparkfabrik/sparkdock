@@ -5,8 +5,8 @@
   become_user: root
 
   vars:
-    apt_repository: deb [arch=amd64] https://download.docker.com/linux/ubuntu artful stable
-    docker_compose_version: 1.20.1
+    apt_repository: deb [arch=amd64] https://download.docker.com/linux/ubuntu {{ ansible_lsb.id|lower }}-{{ ansible_lsb.codename|lower }} stable
+    docker_compose_version: 1.21.0
     dnsdock_image: aacebedo/dnsdock:v1.16.4-amd64
 
 
@@ -32,7 +32,6 @@
         pkg:
           - "linux-image-extra-{{ ansible_kernel }}"
           - linux-image-extra-virtual
-          - dnsmasq
           - apt-transport-https
           - ca-certificates
           - docker-ce
@@ -51,13 +50,13 @@
       shell: "curl -L https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose"
       when: not docker_compose_bin.stat.exists
 
-    - name: Configure dnsmasq to play well with dnsdock
-      copy:
-        content: "server=/loc/172.17.0.1\nbind-interfaces\nexcept-interface=docker0\ndomain-needed\ncache-size=0"
-        dest: /etc/dnsmasq.d/dnsdock-resolver
-
-    - name: Stop dnsmasq before activating dnsdock
-      service: name=dnsmasq state=stopped
+    - name: Configure systemd-resolved to play well with dnsdock
+      lineinfile:
+        path: /etc/dnsmasq.d/dnsdock-resolver
+        line: "DNS=172.17.0.1"
+    - lineinfile:
+        path: /etc/dnsmasq.d/dnsdock-resolver
+        line: "Domains=~sparkfabrik.loc"
 
     - name: Update current user groups
       shell: newgrp docker
@@ -70,8 +69,5 @@
         - "sg docker -c 'docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp {{ dnsdock_image }}'"
       become: no
 
-    - name: Restart resolvconf
+    - name: Restart systemd-resolved
       service: name=systemd-resolved state=restarted
-
-    - name: Start dnsmasq
-      service: name=dnsmasq state=started
