@@ -52,10 +52,10 @@
 
     - name: Configure systemd-resolved to play well with dnsdock
       lineinfile:
-        path: /etc/dnsmasq.d/dnsdock-resolver
+        path: /etc/systemd/resolved.conf
         line: "DNS=172.17.0.1"
     - lineinfile:
-        path: /etc/dnsmasq.d/dnsdock-resolver
+        path: /etc/systemd/resolved.conf
         line: "Domains=~sparkfabrik.loc"
 
     - name: Update current user groups
