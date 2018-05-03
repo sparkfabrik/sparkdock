@@ -4,7 +4,9 @@
   become: true
   become_user: root
 
-- include: ubuntu/ubuntu16.yml
-  when: ansible_distribution_major_version <= '16'
-- include: ubuntu/ubuntu18.yml
-  when: ansible_distribution_major_version >= '17'
+- name: Importing Ubuntu 16-
+  import_playbook: ubuntu/ubuntu16.yml
+  when: ansible_distribution_major_version|int <= 16
+- name: Importing Ubuntu 17+
+  import_playbook: ubuntu/ubuntu18.yml
+  when: ansible_distribution_major_version|int >= 17

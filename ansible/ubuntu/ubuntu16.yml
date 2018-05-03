@@ -1,5 +1,10 @@
 ---
-- vars:
+- hosts: 127.0.0.1
+  connection: local
+  become: true
+  become_user: root
+
+  vars:
     apt_key_url: hkp://p80.pool.sks-keyservers.net:80
     apt_key_sig: 58118E89F3A912897C070ADBF76221572C52609D
     apt_repository: deb https://apt.dockerproject.org/repo {{ ansible_lsb.id|lower }}-{{ ansible_lsb.codename|lower }} main
