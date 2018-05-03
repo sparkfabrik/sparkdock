@@ -23,33 +23,14 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 
 ### Ubuntu
 
-Installation on Ubuntu depends on your OS version. Currently we are supporting all versions from 14.04 LTS up to 18.04 LTS (nightly build).  
-Support for 18.04 is experimental and we are planning to make it easier to install it in the future.
+We are currently supporting all versions from 14.04 LTS up to 18.04 LTS.  
+18.04 support is finally stable and the installation procedure is now totally uninstrusive on systems that ships with `systemd-resolved` (namely 17.04+).  
+The new installer automatically selects the correct packages and configurations for your OS version.
 
-So far you have to choose the right package for you OS version. If you are in doubt, you can discover which version you are running with `lsb_release -id` command.
-
-#### Up to 16.04 LTS (included)
-
-Issue
+To install just issue
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.ubuntu16)
-```
-
-#### 17.04 and 17.10
-
-Issue
-
-```
-bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.ubuntu17)
-```
-
-#### From 18.04 up (experimental)
-
-Issue
-
-```
-bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.ubuntu18)
+bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.ubuntu)
 ```
 
 ### Debian
