@@ -56,7 +56,7 @@
         line: "DNS=172.17.0.1"
     - lineinfile:
         path: /etc/systemd/resolved.conf
-        line: "Domains=~sparkfabrik.loc"
+        line: "Domains=~loc"
 
     - name: Update current user groups
       shell: newgrp docker
