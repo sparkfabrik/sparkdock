@@ -34,6 +34,7 @@
           - ca-certificates
           - docker-ce
           - git
+          - make
         state: latest
         update_cache: yes
 
