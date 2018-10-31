@@ -77,6 +77,13 @@ If something goes awry, please:
 PROXY: stopped
 
 ```
+* Clear the system DNS cache with the following commands:
+
+```
+sudo dscacheutil -flushcache
+sudo killall -HUP mDNSResponder
+```
+
 
 ### MacOSX filesytem events
 
