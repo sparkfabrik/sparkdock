@@ -15,7 +15,7 @@ It will install the following packages:
 
 ### MacOSX
 
-Just issue
+To install on MacOSX, no matter which version, issue
 
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.macosx)
@@ -23,7 +23,14 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 
 ### Ubuntu
 
-Just issue
+We are currently supporting all versions from 14.04 LTS up to 18.04 LTS.  
+18.04 support is finally stable (but for docker, read on) and the installation procedure is now totally uninstrusive on systems that ships with `systemd-resolved` (namely 17.04+).  
+The new installer automatically selects the correct packages and configurations for your OS version.
+
+**Important note on docker**: due to [some delay in releasing a stable bionic package](https://github.com/docker/for-linux/issues/290) we are relying on `test` official repo channel. This means ATTOW we are running `docker-ce 18.05rc1`. If you experience any issue, please change your repository back to `artful stable`.  
+Stable support will be available as soon as available (probably in june 2018).
+
+To install just issue
 
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.ubuntu)
@@ -31,10 +38,10 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 
 ### Debian
 
-Just issue (tested on Debian stretch 9.1)
+The provisioner has been tested on Debian Stretch 9.1 only. With newer versions YMMV. To install on Debian, issue
 
 ```
-bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/debian.ubuntu)
+bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.debian)
 ```
 
 ## Troubleshooting
@@ -70,6 +77,13 @@ If something goes awry, please:
 PROXY: stopped
 
 ```
+* Clear the system DNS cache with the following commands:
+
+```
+sudo dscacheutil -flushcache
+sudo killall -HUP mDNSResponder
+```
+
 
 ### MacOSX filesytem events
 

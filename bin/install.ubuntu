@@ -2,8 +2,8 @@
 
 ## Check Ubuntu version ##
 echo "Checking for Ubuntu to be a supported version..."
-if ! [[ $( lsb_release -rs ) =~ ^(14\.04|15\.10|16\.04)$ ]] ; then
-   echo "This script is supposed to be executed on a version of Ubuntu Linux among 14.04 LTS, 14.10 and 16.04 LTS. Please use a supported version."
+if ! [[ $( lsb_release -rs ) =~ ^(14\.04|15\.10|16\.04|16.10|17.04|17.10|18.04)$ ]] ; then
+   echo "This script is supposed to be executed on a version of Ubuntu Linux between 14.04 LTS and 18.04 LTS. Please use a supported version."
    exit 0
 fi
 echo -e "\n\n"
