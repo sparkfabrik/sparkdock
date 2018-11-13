@@ -79,6 +79,10 @@
       shell: "minikube ip "
       register: ip_machine
 
+    - name: Configure nfs
+      command: echo "/Users -alldirs -mapall="$(id -u)":"$(id -g)" $(minikube ip)" | sudo tee -a /etc/exports && sudo nfsd restart
+      ignore_errors: True
+
 
     - name: Create resolver directory
       file: path=/etc/resolver state=directory mode=0755
