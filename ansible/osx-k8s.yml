@@ -6,9 +6,13 @@
     dev_env_dir: /usr/local/dev-env
     docker_compose_version: 1.17.1
     docker_compose_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/2de4f932222431213bc6c3ff88d5647008475fe5/Formula/docker-compose.rb
-    minikube_version: v17.11.0-ce
-    minikube_version: https://raw.githubusercontent.com/Homebrew/homebrew-core/75f0315c2cebd037500aeef404b3661b2d74e464/Formula/docker.rb
+    #minikube_version: v17.11.0-ce
+    #minikube_version: https://raw.githubusercontent.com/Homebrew/homebrew-core/75f0315c2cebd037500aeef404b3661b2d74e464/Formula/docker.rb
+    docker_version: v18.03.0-ce
+    docker_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/9acb0c963f36f974fd20ca4a3b5b7d94bb3e23b1/Formula/docker.rb
+
     dnsdock_image: aacebedo/dnsdock:v1.15.0-amd64
+
 
   tasks:
     - name: Check Sudo Password
@@ -27,10 +31,10 @@
       with_items:
         - "brew install {{ docker_hash }}"
         - "brew install {{ docker_compose_hash }}"
-        - "brew install docker-machine"
+
 
     - name: Link latest docker binaries
-      command: brew link --overwrite docker docker-machine docker-compose
+      command: brew link --overwrite docker docker-compose
 
     - name: Remove legacy dev docker-machine.
       shell: docker-machine stop dev -y && docker-machine rm dev -y || true
@@ -38,26 +42,20 @@
     - name: Remove dinghy docker-machine.
       shell: docker-machine stop dinghy -y && docker-machine rm dinghy -y || true
 
-    - name: Tap dinghy (our fork).
-      homebrew_tap: tap=paolomainardi/dinghy state=present
+    - name: Remove minikube.
+      shell: minikube stop -y && minikube delete -y || true
 
-    - name: Install dinghy.
-      homebrew: name=paolomainardi/dinghy/dinghy state=present
+    - name: Install minikube.
+      #homebrew: name=minikube state=present
+      command: brew cask install minikube || true
 
-    - name: Set dinghy home.
-      file: path=~/.dinghy state=directory
+    - name: Set minikube home.
+      file: path=~/.minikube state=directory
 
-    - name: Configure dinghy preferences.
-      file:
-        src: "{{ dev_env_dir }}/config/macosx/dinghy/preferences.yml"
-        dest: ~/.dinghy/preferences.yml
-        state: link
-        force: yes
-
-    - name: Create dinghy machine.
-      shell: >
-        unset DOCKER_HOST DOCKER_CERT_PATH DOCKER_MACHINE_IP DOCKER_MACHINE_NAME DOCKER_TLS_VERIFY
-        && dinghy create --provider virtualbox --memory {{ VM_RAM }} --disk {{ VM_DISK }}
+    #- name: Create minikube machine.
+    #  shell: >
+    #    unset DOCKER_HOST DOCKER_CERT_PATH DOCKER_MACHINE_IP DOCKER_MACHINE_NAME DOCKER_TLS_VERIFY
+    #    && dinghy create --provider virtualbox --memory {{ VM_RAM }} --disk {{ VM_DISK }}
 
     - name: Install dnsmasq
       homebrew: name=dnsmasq state=present
@@ -77,16 +75,10 @@
       become: yes
       become_method: sudo
 
-    - name: Get docker-machine ip
-      shell: "docker-machine ip dinghy"
+    - name: Get minikube ip
+      shell: "minikube ip "
       register: ip_machine
 
-    - name: Install docker-machine-nfs
-      get_url: url=https://raw.githubusercontent.com/adlogix/docker-machine-nfs/master/docker-machine-nfs.sh dest=/usr/local/bin/docker-machine-nfs mode=0755 force=yes
-
-    - name: Configure docker-machine-nfs
-      command: /usr/local/bin/docker-machine-nfs dinghy
-      ignore_errors: True
 
     - name: Create resolver directory
       file: path=/etc/resolver state=directory mode=0755
@@ -111,12 +103,11 @@
     - name: Start dnsdock container
       shell: "{{ item }}"
       with_items:
-        - "eval $(dinghy env) && docker rm -vf dnsdock || true"
-        - "eval $(dinghy env) && docker rm -vf dinghy_http_proxy || true"
-        - "eval $(dinghy env) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp {{ dnsdock_image }}"
+        - "eval $(minikube docker-env) && docker rm -vf dnsdock || true"
+        - "eval $(minikube docker-env) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp {{ dnsdock_image }}"
 
     - name: Add static routing
-      shell: "route delete 172.17.0.0 && route -n add -net 172.16.0.0/12 {{ ip_machine.stdout }}"
+      shell: "route delete 172.16.0.0 && route -n add -net 172.17.0.0/12 {{ ip_machine.stdout }}"
       become: yes
       become_method: sudo
       register: command_result
@@ -135,9 +126,9 @@
       become: yes
       become_method: sudo
 
-    - name: Create launchctl script to run docker-machine and add routing tables
+    - name: Create launchctl script to run minikube and add routing tables
       file:
-        src: "{{ dev_env_dir }}/config/macosx/com.docker.machine.dev.plist"
-        dest: ~/Library/LaunchAgents/com.docker.machine.dev.plist
+        src: "{{ dev_env_dir }}/config/macosx/com.minikube.dev.plist"
+        dest: ~/Library/LaunchAgents/com.minikube.dev.plist
         state: link
         force: yes

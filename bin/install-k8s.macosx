@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+RED='\033[0;31m'
+NC='\033[0m'
+echo -e "Sparkdock installer: Doker based on minikube + dns tools (dnsdock, dnsmasq)."
+echo -e "\n"
+echo -e "${RED}Please note that this installer will remove your local docker machine, that includes all the data stored in. Are you sure to continue (y/n) ?${NC}"
+read -n 1 -r
+if [[ $REPLY =~ ^[Yy]$ ]]
+then
+  ## Install or Update Homebrew ##
+  echo -e "\n"
+  echo -e "Installing or Updating Homebrew..."
+  which -s brew
+  if [[ $? != 0 ]] ; then
+      ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+  else
+      brew update
+      brew cleanup
+      brew uninstall --force brew-cask
+      brew update
+  fi
+
+  ## Install or Update Ansible ##
+  echo -e "\n"
+  echo 'Installing or Updating Ansible...'
+  which -s ansible-playbook
+  if [[ $? != 0 ]] ; then
+    brew install ansible
+  else
+    brew upgrade ansible
+  fi
+
+  # Install standard utilities.
+  brew install wget curl
+
+  # Install virtualbox.
+  brew cask install virtualbox
+
+  ## Check out a copy of this repo (first time only) ##
+  echo -e "\n"
+  USER=`whoami`
+  echo 'Checking out Sparkdock repo...'
+  sudo rm -rf /usr/local/dev-env && \
+  sudo mkdir -p /usr/local/dev-env && \
+  sudo chown ${USER}:20  /usr/local/dev-env
+  git clone https://github.com/sparkfabrik/sparkdock.git /usr/local/dev-env
+  cd /usr/local/dev-env && git fetch && git reset --hard origin/master
+
+  ## Read user input for RAM and disk size
+  echo -e "\n"
+  read -p "Please tell me how much RAM the docker machine will use in MB (4096)? " answer
+  if [ "$answer" = '' ];
+  then
+    RAM=4096
+  else
+    RAM=$answer
+  fi
+  echo -e "\n"
+  read -p "Please tell me how big should the docker machine disk will be in MB (60000)? " answer
+  if [ "$answer" = '' ];
+  then
+    DISK=60000
+  else
+    DISK=$answer
+  fi
+
+  ## Run Ansible Playbook ##
+  chmod +x  /usr/local/dev-env/config/macosx/run-machine.sh
+  chmod +x  /usr/local/dev-env/config/macosx/fsevent-start-k8s.sh
+  sudo ln -fs /usr/local/dev-env/config/macosx/fsevent-start-k8s.sh /usr/local/bin/fsevent-start
+  unset DOCKER_CERT_PATH DOCKER_HOST DOCKER_MACHINE DOCKER_TLS_VERIFY
+  ansible-playbook /usr/local/dev-env/ansible/osx-k8s.yml -i 127.0.0.1 --extra-vars "VM_RAM=$RAM  VM_DISK=$DISK" --ask-become-pass -v
+
+  ## Configure dotrc message.
+  echo -e "\n"
+  echo -e "Now remember to add to your .bashrc or .zshrc the following command:\n"
+  echo -n 'eval "$(mikikube env)"'
+  echo -e "\n"
+  echo -e 'Thanks for installing sparkdock, enjoy a dockerized world!'
+fi
+
