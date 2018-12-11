@@ -9,6 +9,7 @@
     docker_version: v18.03.0-ce
     docker_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/9acb0c963f36f974fd20ca4a3b5b7d94bb3e23b1/Formula/docker.rb
     dnsdock_image: aacebedo/dnsdock:v1.15.0-amd64
+    docker_machine_nfs: 0.5.2
 
   tasks:
 
@@ -83,7 +84,7 @@
       register: ip_machine
 
     - name: Install docker-machine-nfs
-      get_url: url=https://raw.githubusercontent.com/adlogix/docker-machine-nfs/master/docker-machine-nfs.sh dest=/usr/local/bin/docker-machine-nfs mode=0755 force=yes
+      get_url: url=https://raw.githubusercontent.com/adlogix/docker-machine-nfs/0.5.2/docker-machine-nfs.sh dest=/usr/local/bin/docker-machine-nfs mode=0755 force=yes
 
     - name: Configure docker-machine-nfs
       command: /usr/local/bin/docker-machine-nfs dinghy
