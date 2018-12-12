@@ -71,6 +71,12 @@ then
   unset DOCKER_CERT_PATH DOCKER_HOST DOCKER_MACHINE DOCKER_TLS_VERIFY
   ansible-playbook /usr/local/dev-env/ansible/macosx.yml -i 127.0.0.1 --extra-vars "VM_RAM=$RAM  VM_DISK=$DISK" --ask-become-pass -v
 
+  ## Ensure IP forwarding within the dinghy machine. ##
+  echo -e "\n"
+  echo -e "Adding IP forwarding within the dinghy machine."
+  echo -e "> docker-machine ssh dinghy sudo iptables -P FORWARD ACCEPT"
+  docker-machine ssh dinghy sudo iptables -P FORWARD ACCEPT
+
   ## Configure dotrc message.
   echo -e "\n"
   echo -e "Now remember to add to your .bashrc or .zshrc the following command:\n"
