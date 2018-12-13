@@ -27,7 +27,6 @@
     - name: Install docker binaries with brew.
       shell: "{{ item }}"
       with_items:
-        - "brew install {{ docker_hash }}"
         - "brew install {{ docker_compose_hash }}"
         - "brew install docker-machine"
 
