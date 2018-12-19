@@ -23,11 +23,11 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 
 ### Ubuntu
 
-We are currently supporting all versions from 14.04 LTS up to 18.04 LTS.  
-18.04 support is finally stable (but for docker, read on) and the installation procedure is now totally uninstrusive on systems that ships with `systemd-resolved` (namely 17.04+).  
+We are currently supporting all versions from 14.04 LTS up to 18.04 LTS.
+18.04 support is finally stable (but for docker, read on) and the installation procedure is now totally uninstrusive on systems that ships with `systemd-resolved` (namely 17.04+).
 The new installer automatically selects the correct packages and configurations for your OS version.
 
-**Important note on docker**: due to [some delay in releasing a stable bionic package](https://github.com/docker/for-linux/issues/290) we are relying on `test` official repo channel. This means ATTOW we are running `docker-ce 18.05rc1`. If you experience any issue, please change your repository back to `artful stable`.  
+**Important note on docker**: due to [some delay in releasing a stable bionic package](https://github.com/docker/for-linux/issues/290) we are relying on `test` official repo channel. This means ATTOW we are running `docker-ce 18.05rc1`. If you experience any issue, please change your repository back to `artful stable`.
 Stable support will be available as soon as available (probably in june 2018).
 
 To install just issue
@@ -68,22 +68,29 @@ If something goes awry, please:
 * Check if dnsdock container is running `docker ps | grep dnsdock`
 * Check dinghy services, you should see something like this:
 
-```
+```bash
 ❯ dinghy status
    VM: running
   NFS: running
  FSEV: running
   DNS: stopped
 PROXY: stopped
-
 ```
+
 * Clear the system DNS cache with the following commands:
 
-```
+```bash
 sudo dscacheutil -flushcache
 sudo killall -HUP mDNSResponder
 ```
 
+* Enable IP forwarding inside dinghy
+
+If you restarted dinghy, either by `dinghy restart` or by `dinghy stop && dinghy up`, you should enable the IP forwarding. We do this on the startup of the OS, in the  launchctl script, but if the machine is restarted we should enable it again.
+
+```bash
+docker-machine ssh dinghy sudo iptables -P FORWARD ACCEPT
+```
 
 ### MacOSX filesytem events
 
