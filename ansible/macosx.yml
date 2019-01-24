@@ -4,10 +4,10 @@
 
   vars:
     dev_env_dir: /usr/local/dev-env
-    docker_compose_version: 1.21.1
-    docker_compose_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/5234dbdd96a51c8117e7d645f2629e07da6124a7/Formula/docker-compose.rb
-    docker_version: v18.03.0-ce
-    docker_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/9acb0c963f36f974fd20ca4a3b5b7d94bb3e23b1/Formula/docker.rb
+    docker_compose_version: 1.23.2
+    docker_compose_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/d86239c145d0d3470efa51441f5337548e1f853f/Formula/docker-compose.rb
+    docker_version: v18.09.1
+    docker_hash: https://raw.githubusercontent.com/Homebrew/homebrew-core/b7b10c8ec4673edb0fd315fac6537e5fcacd9d78/Formula/docker.rb
     dnsdock_image: aacebedo/dnsdock:v1.15.0-amd64
     docker_machine_nfs: 0.5.2
 
