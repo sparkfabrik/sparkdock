@@ -137,6 +137,12 @@
       become: yes
       become_method: sudo
 
+    - name: Enable IP FORWARD
+      shell: 'docker-machine ssh dinghy -t sudo ''sudo chmod uo+w /var/lib/boot2docker/bootlocal.sh;  echo "sysctl net.ipv4.ip_forward=1" >> /var/lib/boot2docker/bootlocal.sh'''
+
+    - name: Set static iptables to FORWARD ACCEPT
+      shell: "docker-machine ssh dinghy sudo iptables -P FORWARD ACCEPT"
+
     - name: Create launchctl script to run docker-machine and add routing tables
       file:
         src: "{{ dev_env_dir }}/config/macosx/com.docker.machine.dev.plist"
