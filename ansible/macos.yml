@@ -1,0 +1,13 @@
+---
+  - hosts: 127.0.0.1
+    connection: local
+    become: true
+    become_user: root
+
+  - name: Importing playbook for macOs 10.15
+    import_playbook: macos/macos10.15.yml
+    when: ansible_distribution_version | regex_search('^(10.15)')
+
+  - name: Importing playbook for macOs 10.14
+    import_playbook: macos/macos10.14.yml
+    when: ansible_distribution_version | regex_search('^(10.14)')
