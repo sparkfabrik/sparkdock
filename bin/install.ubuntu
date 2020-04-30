@@ -8,21 +8,9 @@ if ! [[ $( lsb_release -rs ) =~ ^(14\.04|15\.10|16\.04|16.10|17.04|17.10|18.04|2
 fi
 echo -e "\n\n"
 
-## Install Ansible ##
-echo "Installing ansible (will require your sudo password)..."
-which -s ansible-playbook
-if [[ $? != 0 ]] ; then
-    sudo apt-add-repository ppa:ansible/ansible -y
-    sudo apt-get update && sudo apt-get install ansible
-fi
-echo -e "\n\n"
-
-## Install git ##
-echo "Installing git..."
-which -s git
-if [[ $? != 0 ]] ; then
-    sudo apt-get install git
-fi
+## Install base dependencies  ##
+echo "Installing..."
+sudo apt-get -y install git ansible
 echo -e "\n\n"
 
 ## Check out a copy of this repo (first time only) ##
