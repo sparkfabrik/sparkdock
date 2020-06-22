@@ -1,0 +1,185 @@
+---
+  - hosts: 127.0.0.1
+    connection: local
+
+    vars:
+      dev_env_dir: /usr/local/dev-env
+      dnsdock_image: aacebedo/dnsdock:v1.15.0-amd64
+      docker_machine_nfs: 0.5.3
+
+    tasks:
+
+      - name: Check Sudo Password
+        command: ls
+        become: yes
+        become_method: sudo
+
+      - name: Uninstall docker and dinghy binaries.
+        command: brew uninstall --force docker docker-machine docker-compose dinghy || true
+
+      - name: Manually clean docker binaries binaries.
+        command: rm -rf /usr/local/bin/docker /usr/local/bin/docker-machine /usr/local/bin/docker-compose /usr/local/bin/docker-machine-driver /usr/local/bin/docker-machine-nfs*
+
+      - name: Install docker binaries with brew.
+        shell: "{{ item }}"
+        with_items:
+          - "brew install docker"
+          - "brew install docker-compose"
+          - "brew install docker-machine"
+
+      - name: Link latest docker binaries
+        command: brew link --overwrite docker docker-machine docker-compose
+
+      - name: Remove legacy dev docker-machine.
+        shell: docker-machine stop dev -y && docker-machine rm dev -y || true
+
+      - name: Remove dinghy docker-machine.
+        shell: docker-machine stop dinghy -y && docker-machine rm dinghy -y || true
+
+      - name: Tap dinghy (our fork).
+        homebrew_tap: tap=alessiopiazza/dinghy state=present
+
+      - name: Install dinghy.
+        homebrew: name=alessiopiazza/dinghy/dinghy state=present
+
+      - name: Set dinghy home.
+        file: path=~/.dinghy state=directory
+
+      - name: Configure dinghy preferences.
+        file:
+          src: "{{ dev_env_dir }}/config/macosx/dinghy/preferences.yml"
+          dest: ~/.dinghy/preferences.yml
+          state: link
+          force: yes
+
+      - name: Create dinghy machine.
+        shell: >
+          unset DOCKER_HOST DOCKER_CERT_PATH DOCKER_MACHINE_IP DOCKER_MACHINE_NAME DOCKER_TLS_VERIFY
+          && dinghy create --provider virtualbox --memory {{ VM_RAM }} --disk {{ VM_DISK }}
+
+      - name: clean up fsevents_to_vm source files
+        file:
+          path: /tmp/fsevents_to_vm
+          state: absent
+
+      - name: Remove stale fsevents_to_vm dependency installed by dinghy
+        command: gem uninstall fsevents_to_vm -n /usr/local/bin
+        become: yes
+        become_method: sudo
+
+      - name: clone alessiopiazza/fsevents_to_vm to fix net-ssh 2.9 issue with openssl 2.0
+        git:
+          repo: git@github.com:alessiopiazza/fsevents_to_vm.git
+          dest: /tmp/fsevents_to_vm
+
+      - name: Build gem locally
+        command: chdir=/tmp/fsevents_to_vm gem build fsevents_to_vm.gemspec
+        become: yes
+        become_method: sudo
+
+      - name: Install fsevents_to_vm gem
+        command: chdir=/tmp/fsevents_to_vm gem install fsevents_to_vm -n /usr/local/bin
+        become: yes
+        become_method: sudo
+
+      - name: clean up fsevents_to_vm source files
+        file:
+          path: /tmp/fsevents_to_vm
+          state: absent
+
+      - name: Install dnsmasq
+        homebrew: name=dnsmasq state=present
+
+      - name: Configure dnsmasq
+        file:
+          src: "{{ dev_env_dir }}/config/macosx/dnsmasq.conf"
+          dest: /usr/local/etc/dnsmasq.conf
+          state: link
+          force: yes
+
+      - name: Link dnsmasq.
+        homebrew: name=dnsmasq state=linked
+
+      - name: Restart dnsmasq.
+        command: brew services restart dnsmasq
+        become: yes
+        become_method: sudo
+
+      - name: Get docker-machine ip
+        shell: "docker-machine ip dinghy"
+        register: ip_machine
+
+      - name: Install docker-machine-nfs
+        get_url: url=https://raw.githubusercontent.com/adlogix/docker-machine-nfs/{{ docker_machine_nfs }}/docker-machine-nfs.sh dest=/usr/local/bin/docker-machine-nfs mode=0755 force=yes
+
+      - name: Configure docker-machine-nfs
+        command: /usr/local/bin/docker-machine-nfs dinghy
+
+      - name: Create resolver directory
+        file: path=/etc/resolver state=directory mode=0755
+        become: yes
+        become_method: sudo
+
+      - name: Delete docker.loc old file if present
+        file: path=/etc/resolver/docker.loc state=absent mode=0755
+        become: yes
+        become_method: sudo
+
+      - name: Create loc resolver file
+        file: path=/etc/resolver/loc state=touch mode=0755
+        become: yes
+        become_method: sudo
+
+      - name: Add configuration to /etc/resolver/loc
+        lineinfile: dest=/etc/resolver/loc state=present line="nameserver 127.0.0.1"
+        become: yes
+        become_method: sudo
+
+      - name: Start dnsdock container
+        shell: "{{ item }}"
+        with_items:
+          - "eval $(dinghy env) && docker rm -vf dnsdock || true"
+          - "eval $(dinghy env) && docker rm -vf dinghy_http_proxy || true"
+          - "eval $(dinghy env) && docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock --name dnsdock -p 172.17.0.1:53:53/udp {{ dnsdock_image }}"
+
+      - name: Add static routing
+        shell: "route delete 172.17.0.0 && route delete 172.16/12 && route -n add -net 172.16.0.0/12 {{ ip_machine.stdout }}"
+        become: yes
+        become_method: sudo
+        register: command_result
+        failed_when: "'FAILED' in command_result.stderr"
+
+      - name: Clear dns cache
+        command: killall -HUP mDNSResponder
+        become: yes
+        become_method: sudo
+
+      - name: Add staff group to sudoers to run route command with no password
+        lineinfile:
+          dest: /etc/sudoers
+          state: present
+          line: '%staff ALL=(ALL) NOPASSWD: /sbin/route'
+        become: yes
+        become_method: sudo
+
+      - name: Enable IP FORWARD
+        shell: 'docker-machine ssh dinghy -t sudo ''sudo chmod uo+w /var/lib/boot2docker/bootlocal.sh;  echo "sysctl net.ipv4.ip_forward=1" >> /var/lib/boot2docker/bootlocal.sh'''
+
+      - name: Set static iptables to FORWARD ACCEPT
+        shell: "docker-machine ssh dinghy sudo iptables -P FORWARD ACCEPT"
+
+      - name: Create launchctl script to run docker-machine and add routing tables
+        file:
+          src: "{{ dev_env_dir }}/config/macosx/com.docker.machine.dev.plist"
+          dest: ~/Library/LaunchAgents/com.docker.machine.dev.plist
+          state: link
+          force: yes
+
+      - name: Test DNSDOCK - Run dummy container
+        shell: eval "$(dinghy env)" && docker run -d -e DNSDOCK_ALIAS=test1.redis.docker.loc --name redis-test redis:alpine
+
+      - name: Test DNSDOCK - Run dummy container
+        shell: ping -c1 test1.redis.docker.loc
+
+      - name: Test DNSDOCK - Run dummy container
+        shell: eval "$(dinghy env)" && docker kill redis-test && docker rm redis-test
