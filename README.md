@@ -31,7 +31,7 @@ Depending on the shell you are using (**HINT**: you can discover it by opening a
 
 ### Ubuntu
 
-We are currently supporting all versions from 14.04 LTS up to 18.04 LTS.  
+We are currently supporting all versions from 14.04 LTS up to 20.04 LTS.  
 18.04 support is finally stable (but for docker, read on) and the installation procedure is now totally uninstrusive on systems that ships with `systemd-resolved` (namely 17.04+).  
 The new installer automatically selects the correct packages and configurations for your OS version.
 
