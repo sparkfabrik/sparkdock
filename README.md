@@ -21,7 +21,7 @@ To install on MacOSX, no matter which version, issue
 bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.macosx)
 ```
 
-If success, last step is to add on your shell profile file, the following line `eval "$(dinght env)"`.
+If success, last step is to add on your shell profile file, the following line `eval "$(dinghy env)"`.
 
 Depending on the shell you are using (**HINT**: you can discover it by opening a terminal andh run `echo $SHELL`):
 
