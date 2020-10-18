@@ -58,16 +58,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 
 Please find hints and troubleshooting information on our company playbook: http://playbook.sparkfabrik.com/guides/local-development-environment-configuration
 
-### Error: Cannot link a not running container
-
-With the introduction of docker 1.13, the "exec" command seems to expect that all the containers linked should be in a running state, in order to attach a shell on it.
-
-Maybe you've encountered this problem when using "bin/e": `ERROR: Cannot link to a non running container: /prj_blackfire_agent_1 AS /prj_drupal_1/blackfire`
-
-To fix that, as we are using `blackfire` as a default service, you have to add to your .bashrc/.zshrc, your blackfire configurations tokens, as specified here: https://playbook.sparkfabrik.com/guides/local-development-environment-usage#profiling-with-blackfire-io, to grab your tokens just access this page: https://blackfire.io/account
-
-If something goes awry, please:
-
 ### Linux
 
 #### Clear the DNS cache or restart systemd-resolved
