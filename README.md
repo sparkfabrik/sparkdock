@@ -68,6 +68,38 @@ To fix that, as we are using `blackfire` as a default service, you have to add t
 
 If something goes awry, please:
 
+### Linux
+
+#### Clear the DNS cache or restart systemd-resolved
+
+Open a terminal and run: 
+
+```
+systemctl restart systemd-resolved
+```
+
+To check the status of `systemd-resolved` run: `resolvectl status` from the command line and you 
+should see something like this:
+
+```
+Global
+       LLMNR setting: no                  
+MulticastDNS setting: no                  
+  DNSOverTLS setting: no                  
+      DNSSEC setting: no                  
+    DNSSEC supported: no                  
+  Current DNS Server: 172.17.0.1          
+         DNS Servers: 172.17.0.1          
+          DNS Domain: ~loc                
+          DNSSEC NTA: 10.in-addr.arpa     
+                      16.172.in-addr.arpa 
+                      168.192.in-addr.arpa
+                      17.172.in-addr.arpa 
+                      18.172.in-addr.arpa 
+                      19.172.in-addr.arpa 
+                      20.172.in-addr.arpa 
+```
+
 ### MacOSX quick checks
 
 * Check if dnsmasq is running with `brew services`, to be sure run `brew services restart dnsmasq` then `ps aux | grep dnsmasq` to check if the process is running.
@@ -91,7 +123,6 @@ PROXY: stopped
 sudo dscacheutil -flushcache
 sudo killall -HUP mDNSResponder
 ```
-
 
 ### MacOSX filesytem events
 
