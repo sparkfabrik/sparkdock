@@ -53,3 +53,17 @@
 
     - name: Restart systemd-resolved
       service: name=systemd-resolved state=restarted
+
+    - name: Copy dnsdock start script
+      file:
+        src: "{{ dev_env_dir }}/config/ubuntu/bin/run-dnsdock"
+        dest: /usr/local/bin/run-dnsdock
+        state: link
+        force: yes
+
+    - name: Copy dinghy-http-proxy start script
+      file:
+        src: "{{ dev_env_dir }}/config/ubuntu/bin/run-dinghy-proxy"
+        dest: /usr/local/bin/run-dinghy-proxy
+        state: link
+        force: yes
