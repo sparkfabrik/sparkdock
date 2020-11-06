@@ -33,12 +33,12 @@
       when: not docker_compose_bin.stat.exists
 
     - name: Configure systemd-resolved to play well with dnsdock
-      lineinfile:
-        path: /etc/systemd/resolved.conf
-        line: "DNS=172.17.0.1"
-    - lineinfile:
-        path: /etc/systemd/resolved.conf
-        line: "Domains=~loc"
+      copy:
+        dest: '/etc/systemd/resolved.conf.d/dnsdock.conf'
+        content: |
+          [Resolve]
+          DNS=172.17.0.1
+          Domains=~loc
 
     - name: Update current user groups
       shell: newgrp docker
