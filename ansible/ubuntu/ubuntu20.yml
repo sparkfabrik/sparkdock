@@ -6,8 +6,9 @@
 
   vars:
     docker_compose_version: 1.25.5
-    dnsdock_image: aacebedo/dnsdock:v1.16.4-amd64
-
+    dnsdock_image: aacebedo/dnsdock:v1.16.4-amd64   
+    dev_env_dir: /tmp/dev-env
+ 
   tasks:
     - name: Install the base required dependencies and suggested packages
       apt:
