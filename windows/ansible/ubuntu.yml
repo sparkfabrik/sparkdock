@@ -1,0 +1,41 @@
+---
+- hosts: 127.0.0.1
+  connection: local
+  become: true
+  become_user: root
+
+  vars:
+    docker_compose_version: 1.25.5
+ 
+  tasks:
+    - name: Install the base required dependencies and suggested packages
+      apt:
+        pkg:
+          - apt-transport-https
+          - ca-certificates
+          - docker.io
+          - git
+          - make
+          - curl
+        state: latest
+        update_cache: yes
+
+    - name: Allow current user to execute docker commands
+      user: name={{ ansible_ssh_user }} groups=docker append=yes
+
+    - name: Check if docker-compose binary exists
+      stat: path=/usr/local/bin/docker-compose
+      register: docker_compose_bin
+
+    - name: Install docker-compose
+      shell: "curl -L https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose"
+      when: not docker_compose_bin.stat.exists
+
+    - name: Create directory for systemd-resolved custom conf
+      file:
+        path: /etc/systemd/resolved.conf.d
+        state: directory
+
+    - name: Update current user groups
+      shell: newgrp docker
+      become: no

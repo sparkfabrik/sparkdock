@@ -52,6 +52,36 @@ The provisioner has been tested on Debian Stretch 9.1 only. With newer versions 
 bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.debian)
 ```
 
+### Windows
+
+The provisioner scripts work only on Windows 10 Pro or Enterprise edition from the version 2004. To install all features, you should clone the sparkdock and after it, you should run Windows PowerShell as an Administrator. Then you can run two scripts in this way:
+
+```
+powershell.exe -noprofile -executionpolicy bypass -file .\EnableHyperVAndWsl.ps1
+```
+
+and after your pc is restarted
+
+```
+powershell.exe -noprofile -executionpolicy bypass -file .\ConfigureLocalDevEnv.ps1
+```
+
+After your pc is restarted, you open Ubuntu 20.04 and create your user. All you need to do is insert your username and password.
+
+![Alt Text](/windows/docs/ubuntuCredentials.png)
+
+Don't forget to install docker in Ubuntu:
+
+```
+bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/windows/bin/install.ubuntu)
+```
+
+Then you should configure properly docker desktop in this way:
+
+![Alt Text](/windows/docs/useWsl2.png)
+
+![Alt Text](/windows/docs/wslIntegration.png)
+
 ## Troubleshooting
 
 ### General
@@ -128,6 +158,30 @@ To check if the daemon is running run `ps aux | grep fsevents_to_vm` if you don'
 * Check you are running dnsmasq with the default configuration in `/etc/dnsmasq.conf` (you really should use `/etc/dnsmasq.d` to store personal config files!)
 * Are your user in the `docker` group?
 * Did your read the last notice about loggin' out, then in again to make unix know your user was added to such group?
+
+### Windows tips
+
+Don’t install or clone anything in the mnt/c default folder. It’s better for the performance if you use the Linux filesystem and not the folder that Windows mounts into your Linux distribution
+
+When you clone some project with one or more containers, remember to check if the docker-compose.yml file exposes the ports of your applications if it doesn’t, add the docker-compose.override.yml file and expose the ports
+
+If you encounter these errors in Ubuntu you can solve them with few steps.
+
+* ERROR: Couldn’t connect to Docker daemon at http+docker://localunixsocket – is it running?
+
+```
+sudo groupadd docker
+sudo usermod -aG docker $USER
+newgrp docker
+sudo service docker start
+```
+
+* Service ‘app’ failed to build: cgroups: cannot find cgroup mount destination: unknown
+
+```
+sudo mkdir /sys/fs/cgroup/system
+sudo mount -t cgroup -o none,name=system cgroup /sys/fs/cgroup/system
+```
 
 ## Maintainer
 
