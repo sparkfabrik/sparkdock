@@ -6,6 +6,7 @@
 
   vars:
     docker_compose_version: 1.25.5
+    dinghy_proxy_image: codekitchen/dinghy-http-proxy:2.6.2 
  
   tasks:
     - name: Install the base required dependencies and suggested packages
@@ -31,11 +32,20 @@
       shell: "curl -L https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose"
       when: not docker_compose_bin.stat.exists
 
-    - name: Create directory for systemd-resolved custom conf
-      file:
-        path: /etc/systemd/resolved.conf.d
-        state: directory
-
     - name: Update current user groups
       shell: newgrp docker
+      become: no
+
+    - name: Start dinghy http proxy
+      shell: "{{ item  }}"
+      with_items:
+        - "sg docker -c 'docker rm -vf dinghy-http-proxy || true'"
+        - "sg docker -c 'docker run -d --restart=always \
+                        -v /var/run/docker.sock:/tmp/docker.sock:ro \
+                        -p 80:80 -p 443:443 -p 19322:19322/udp \
+                        -e CONTAINER_NAME=http-proxy \
+                        -e DNS_IP=127.0.0.1 \
+                        -e DOMAIN_TLD=loc \
+                        --name windows-http-proxy \
+                        {{ dinghy_proxy_image }}'"
       become: no

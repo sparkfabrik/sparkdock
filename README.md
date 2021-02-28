@@ -70,7 +70,7 @@ After your pc is restarted, you open Ubuntu 20.04 and create your user. All you 
 
 ![Alt Text](/windows/docs/ubuntuCredentials.png)
 
-Don't forget to install docker in Ubuntu:
+Don't forget to install docker and other stuff in Ubuntu:
 
 ```
 bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/windows/bin/install.ubuntu)
@@ -163,7 +163,20 @@ To check if the daemon is running run `ps aux | grep fsevents_to_vm` if you don'
 
 Don’t install or clone anything in the mnt/c default folder. It’s better for the performance if you use the Linux filesystem and not the folder that Windows mounts into your Linux distribution
 
-When you clone some project with one or more containers, remember to check if the docker-compose.yml file exposes the ports of your applications if it doesn’t, add the docker-compose.override.yml file and expose the ports
+When you clone some project with one or more containers, remember to check if the docker-compose.yml file has VIRTUAL_HOST='alias/aliases of my application/applications' as param of environments section of your service, if it doesn't, add the docker-compose.override.yml file with this param.
+For more details about the use of VIRTUAL_HOST go to this site: https://github.com/codekitchen/dinghy-http-proxy
+
+If you add the VIRTUAL_HOST you should change your hosts file on Windows. For example: 
+
+```
+VIRTUAL_HOST=myapp.loc
+```
+
+You should run this command in powershell to add the alias myapp.loc to your hosts file
+
+```
+Set-CHostsEntry -IPAddress 127.0.0.1 -HostName 'myapp.loc'
+```
 
 If you encounter these errors in Ubuntu you can solve them with few steps.
 

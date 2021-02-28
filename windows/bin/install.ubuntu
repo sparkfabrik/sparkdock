@@ -20,7 +20,7 @@ fi
 
 ## Install base dependencies  ##
 echo "Installing..."
-sudo apt-get updates
+sudo apt-get update
 sudo apt-get -y install git ansible
 echo -e "\n\n"
 

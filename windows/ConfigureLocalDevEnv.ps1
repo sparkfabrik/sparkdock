@@ -64,6 +64,19 @@ function Add-Wsl-Config {
     New-Item -Path $usersDirectory -Name ".wslconfig" -ItemType "file" -Value $fileContent
 }
 
+function Install-Carbon-Utility {
+    Write-Information -MessageData "----------------------------------Install Carbon Utility to handle hosts----------------------------------" -InformationAction Continue
+   try {
+        choco install carbon
+        Import-Module 'Carbon'
+        $programFilesPath = Get-ChildItem Env:ProgramFiles;
+        $carbonImportScriptPath = $programFilesPath + '\WindowsPowerShell\Modules\Carbon\Import-Carbon.ps1';
+        powershell.exe -noprofile -executionpolicy bypass -file $carbonImportScriptPath
+   } catch {
+        Write-Error "Error during the installation of Carbon with choco error: $_"
+   }
+}
+
 if ((Get-WindowsOptionalFeature -FeatureName Microsoft-Hyper-V-All -Online).State -eq 'Enabled') {
     try {
         Install-Wsl2
@@ -71,6 +84,7 @@ if ((Get-WindowsOptionalFeature -FeatureName Microsoft-Hyper-V-All -Online).Stat
         Install-Docker
         Install-Vs-Code
         Add-Wsl-Config
+        Install-Carbon-Utility
         Restart-Computer
     } catch {
         Write-Error "Script error: $_"
