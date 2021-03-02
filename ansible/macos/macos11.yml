@@ -1,0 +1,65 @@
+---
+  - hosts: 127.0.0.1
+    connection: local
+
+    vars:
+      dev_env_dir: /usr/local/dev-env
+
+    tasks:
+
+      - name: Check Sudo Password
+        command: ls
+        become: yes
+        become_method: sudo
+
+      - name: Uninstall docker binaries
+        command: brew uninstall --force docker docker-compose || true
+
+      - name: Manually clean docker binaries
+        command: rm -rf /usr/local/bin/docker /usr/local/bin/docker-compose
+
+      - name: Install docker with brew
+        shell: "{{ item }}"
+        with_items:
+          - "brew install docker"
+          - "brew install docker-compose"
+
+      - name: Link latest docker binaries
+        command: brew link --overwrite docker docker-compose
+
+      - name: Create resolver directory
+        file: path=/etc/resolver state=directory mode=0755
+        become: yes
+        become_method: sudo
+
+      - name: Delete docker.loc old file if present
+        file: path=/etc/resolver/docker.loc state=absent mode=0755
+        become: yes
+        become_method: sudo
+
+      - name: Create loc resolver file
+        file: path=/etc/resolver/loc state=touch mode=0755
+        become: yes
+        become_method: sudo
+
+      - name: Add nameserver line to /etc/resolver/loc
+        lineinfile: dest=/etc/resolver/loc state=present line="nameserver 127.0.0.1"
+        become: yes
+        become_method: sudo
+      
+      - name: Add port line to /etc/resolver/loc
+        lineinfile: dest=/etc/resolver/loc state=present line="port 19322"
+        become: yes
+        become_method: sudo
+
+      - name: Clear dns cache
+        command: killall -HUP mDNSResponder
+        become: yes
+        become_method: sudo
+
+      - name: Copy dinghy-http-proxy start script
+        file:
+          src: "{{ dev_env_dir }}/config/macosx/bin/run-dinghy-proxy"
+          dest: /usr/local/bin/run-dinghy-proxy
+          state: link
+          force: yes

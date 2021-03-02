@@ -6,8 +6,8 @@ echo -e "Sparkdock installer: Doker based on dinghy + dns tools (dnsdock, dnsmas
 echo -e "\n"
 
 echo "Checking for macOS supported version..."
-if ! [[ $( sw_vers -productVersion ) =~ ^(10.15|10.14) ]] ; then
-   echo -e "${RED}Sorry, this script is supposed to be executed on macOs Catalina or Mojave. Please use a supported version.${NC}"
+if ! [[ $( sw_vers -productVersion ) =~ ^(10.15|10.14|11.[0-9]+) ]] ; then
+   echo -e "${RED}Sorry, this script is supposed to be executed on macOS Catalina (10.14), Mojave (10.15), or Big Sur (11.x). Please use a supported version.${NC}"
    exit 0
 fi
 echo -e "\n\n"
@@ -43,7 +43,7 @@ then
   brew install wget curl
 
   # Install virtualbox.
-  brew cask install virtualbox
+  brew install virtualbox
 
   ## Check out a copy of this repo (first time only) ##
   echo -e "\n"
