@@ -183,3 +183,10 @@
 
       - name: Test DNSDOCK - Run dummy container
         shell: eval "$(dinghy env)" && docker kill redis-test && docker rm redis-test
+
+      - name: Copy dinghy-http-proxy start script
+        file:
+          src: "{{ dev_env_dir }}/config/macosx/bin/run-dinghy-proxy"
+          dest: /usr/local/bin/run-dinghy-proxy
+          state: link
+          force: yes
