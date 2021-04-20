@@ -44,7 +44,17 @@
         content: |
           [Resolve]
           DNS=172.17.0.1
-          Domains=~loc
+          Domains=~loc ~docker
+    
+    - name: Create a command to get informations from dnsdock
+      copy:
+        dest: '/usr/local/bin/dnslbls'
+        content: |
+          #!/bin/bash
+          curl --silent http://dnsdock.docker/services | jq -r '.[] | "Image name: " + .Image + "\nDNS: " + .Aliases[0] + "\nIP: " + .IPs[0] + "\n"'
+
+    - name: Make dnslbls executable
+      file: dest=/usr/local/bin/dnslbls mode=a+x
 
     - name: Update current user groups
       shell: newgrp docker
