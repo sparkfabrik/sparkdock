@@ -17,6 +17,8 @@ docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock \
 -e CONTAINER_NAME=dinghy-http-proxy \
 -e DOMAIN_TLD=loc \
 --name dinghy-http-proxy \
+-p 80:80 \
+-p 443:443 \
 -p 172.17.0.1:53:19322/udp \
 -v /var/run/docker.sock:/tmp/docker.sock:ro \
 "${DINGHY_HTTP_PROXY_VERSION}"
