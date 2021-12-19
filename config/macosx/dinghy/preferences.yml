@@ -1,9 +1,0 @@
----
-:preferences:
-  :proxy_disabled: true
-  :fsevents_disabled: false
-  :unfs_disabled: true
-  :create:
-    provider: virtualbox
-    memory: 4096
-    disk: 50000

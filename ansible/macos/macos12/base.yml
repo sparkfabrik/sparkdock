@@ -1,0 +1,111 @@
+---
+  - hosts: 127.0.0.1
+    connection: local
+
+    vars:
+      dev_env_dir: /opt/sparkdock
+
+    tasks:
+      - name: Install Docker for Desktop
+        community.general.homebrew_cask:
+          name: docker
+          state: present
+
+      - name: Install Google cloud sdk
+        community.general.homebrew_cask:
+          name: google-cloud-sdk
+          state: present
+
+      - name: Install cloud native dependencies
+        community.general.homebrew:
+          name:
+            - docker-completion
+            - docker-compose
+            - docker-credential-helper-ecr
+            - kubernetes-cli
+            - kind
+            - awscli
+          state: present
+
+      - name: Install system packages
+        community.general.homebrew:
+          name:
+            - neofetch
+            - gpg
+            - yadm
+          state: present
+
+      - name: Install development packages
+        community.general.homebrew:
+          name:
+            - node@16
+            - yarn
+            - yarn-completion
+            - php@8.0
+            - golang
+          state: present
+
+      - name: Install system packages from brew
+        community.general.homebrew_cask:
+          name:
+            - iterm2
+            - visual-studio-code
+            - toggl-track
+            - slack
+            - zoom
+          state: present
+
+      - name: Create resolver directory
+        file: path=/etc/resolver state=directory mode=0755
+        become: yes
+        become_method: sudo
+
+      - name: Create loc resolver file
+        file: path=/etc/resolver/loc state=touch mode=0755
+        become: yes
+        become_method: sudo
+
+      - name: Add nameserver line to /etc/resolver/loc
+        lineinfile: dest=/etc/resolver/loc state=present line="nameserver 127.0.0.1"
+        become: yes
+        become_method: sudo
+
+      - name: Add port line to /etc/resolver/loc
+        lineinfile: dest=/etc/resolver/loc state=present line="port 19322"
+        become: yes
+        become_method: sudo
+
+      - name: Clear dns cache
+        command: killall -HUP mDNSResponder
+        become: yes
+        become_method: sudo
+
+      - name: Copy dinghy-http-proxy start script
+        copy:
+          src: "{{ dev_env_dir }}/config/macos/bin/run-dinghy-proxy"
+          dest: /usr/local/bin/run-dinghy-proxy
+          force: yes
+          mode: uog+rwx
+        become: yes
+        become_method: sudo
+
+      - name: Copy get serial number script
+        copy:
+          src: "{{ dev_env_dir }}/config/macos/bin/ayse-get-sm"
+          dest: /usr/local/bin/ayse-get-sm
+          force: yes
+          mode: uog+rwx
+        become: yes
+        become_method: sudo
+
+      - name: Copy custom us keyboard layout
+        tags: keyboard
+        copy:
+          src: "config/keyboard/en-intl-alt-gr-dead-keys.keylayout"
+          dest: "~/Library/Keyboard Layouts"
+
+      - name: Copy custom sane keybindings
+        tags: keyboard
+        copy:
+          src: "config/keyboard/DefaultKeyBinding.dict"
+          dest: "~/Library/KeyBindings"
