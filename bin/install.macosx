@@ -1,89 +1,72 @@
-#!/usr/bin/env bash
+#!/usr/bin/env -S zsh 
 RED='\033[0;31m'
 NC='\033[0m'
 
-echo -e "Sparkdock installer: Doker based on dinghy + dns tools (dnsdock, dnsmasq)."
-echo -e "\n"
+# Cleaning the TTY.
+clear
 
-echo "Checking for macOS supported version..."
-if ! [[ $( sw_vers -productVersion ) =~ ^(10.15|10.14|11.[0-9]+) ]] ; then
-   echo -e "${RED}Sorry, this script is supposed to be executed on macOS Catalina (10.14), Mojave (10.15), or Big Sur (11.x). Please use a supported version.${NC}"
+print () {
+    echo -e "\e[1m\e[93m[ \e[92m•\e[93m ] \e[4m$1\e[0m"
+}
+
+print "Sparkdock installer: This is a MacOS provisioner, to bootstrap the system."
+
+print "Checking for macOS supported version..."
+if ! [[ $( sw_vers -productVersion ) =~ ^(12.[0-9]+|11.[0-9]+) ]] ; then
+   print  "${RED}Sorry, this script is supposed to be executed on macOS Big Sur (11.x) and Monterey (12.x). Please use a supported version.${NC}"
    exit 0
 fi
-echo -e "\n\n"
 
-echo -e "${RED}Please note that this installer will remove your local docker machine, that includes all the data stored in. Are you sure to continue (y/n) ?${NC}"
-read -n 1 -r
-if [[ $REPLY =~ ^[Yy]$ ]]
-then
-  ## Install or Update Homebrew ##
-  echo -e "\n"
-  echo -e "Installing or Updating Homebrew..."
-  which -s brew
-  if [[ $? != 0 ]] ; then
-      ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-  else
-      brew update
-      brew cleanup
-      brew uninstall --force brew-cask
-      brew update
-  fi
-
-  ## Install or Update Ansible ##
-  echo -e "\n"
-  echo 'Installing or Updating Ansible...'
-  which -s ansible-playbook
-  if [[ $? != 0 ]] ; then
-    brew install ansible
-  else
-    brew upgrade ansible
-  fi
-
-  # Install standard utilities.
-  brew install wget curl
-
-  # Install virtualbox.
-  brew install virtualbox
-
-  ## Check out a copy of this repo (first time only) ##
-  echo -e "\n"
-  USER=`whoami`
-  echo 'Checking out Sparkdock repo...'
-  sudo rm -rf /usr/local/dev-env && \
-  sudo mkdir -p /usr/local/dev-env && \
-  sudo chown ${USER}:20  /usr/local/dev-env
-  git clone https://github.com/sparkfabrik/sparkdock.git /usr/local/dev-env
-  cd /usr/local/dev-env && git fetch && git reset --hard origin/features/osx-catalina
-
-  ## Read user input for RAM and disk size
-  echo -e "\n"
-  read -p "Please tell me how much RAM the docker machine will use in MB (4096)? " answer
-  if [ "$answer" = '' ];
-  then
-    RAM=4096
-  else
-    RAM=$answer
-  fi
-  echo -e "\n"
-  read -p "Please tell me how big should the docker machine disk will be in MB (60000)? " answer
-  if [ "$answer" = '' ];
-  then
-    DISK=60000
-  else
-    DISK=$answer
-  fi
-
-  ## Run Ansible Playbook ##
-  chmod +x  /usr/local/dev-env/config/macosx/run-machine.sh
-  chmod +x  /usr/local/dev-env/config/macosx/fsevent-start.sh
-  sudo ln -fs /usr/local/dev-env/config/macosx/fsevent-start.sh /usr/local/bin/fsevent-start
-  unset DOCKER_CERT_PATH DOCKER_HOST DOCKER_MACHINE DOCKER_TLS_VERIFY
-  ansible-playbook /usr/local/dev-env/ansible/macos.yml -i 127.0.0.1 --extra-vars "VM_RAM=$RAM  VM_DISK=$DISK" --ask-become-pass -v
-
-  ## Configure dotrc message.
-  echo -e "\n"
-  echo -e "Now remember to add to your .bashrc or .zshrc the following command:\n"
-  echo -n 'eval "$(dinghy env)"'
-  echo -e "\n"
-  echo -e 'Thanks for installing sparkdock, enjoy a dockerized world!'
+## Install or Update Homebrew ##
+print "Installing or Updating Homebrew..."
+BREW_EXISTS=$(which -s brew)
+if [[ ${BREW_EXISTS} != 0 ]] ; then
+    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/paolomainardi/.zprofile
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+else
+    brew update
+    brew cleanup
+    brew uninstall --force brew-cask
+    brew update
 fi
+
+## Install or Update Ansible ##
+print 'Installing or Updating Ansible...'
+which -s ansible-playbook
+if [[ $? != 0 ]] ; then
+  brew install ansible
+else
+  brew upgrade ansible
+fi
+
+# Install rosetta2.
+print 'Installing Rosetta2...'
+ARCH=$(arch)
+if [[ $ARCH == "arm64" ]]; then
+  softwareupdate --install-rosetta
+fi 
+
+# Install standard utilities.
+print 'Installing base packages with brew...'
+brew install git curl
+
+## Check out a copy of this repo (first time only) 
+# USER=`whoami`
+print 'Checking out Sparkdock repo...'
+sudo rm -rf /opt/sparkdock && \
+sudo mkdir -p /opt/sparkdock && \
+sudo chown $(id -u):$(id -g) /opt/sparkdock
+git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
+cd /opt/sparkdock && git fetch && git reset --hard origin/features/osx-catalina
+
+## Run Ansible Playbook 
+print "Run ansible playboook..."
+ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass -vvvv
+
+## Configure dotrc message.
+print "Now remember to add to your .bashrc or .zshrc the following command:\n"
+brew info google-cloud-sdk
+
+print 'Thanks for installing sparkdock, enjoy a dockerized world!'
+ 

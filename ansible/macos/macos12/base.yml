@@ -1,0 +1,77 @@
+---
+  - hosts: 127.0.0.1
+    connection: local
+
+    vars:
+      dev_env_dir: /opt/
+
+    tasks:
+      - name: Install Docker for Desktop
+        community.general.homebrew_cask:
+          name: docker
+          state: present
+
+      - name: Install Google cloud sdk
+        community.general.homebrew_cask:
+          name: google-cloud-sdk
+          state: present
+
+      - name: Install cloud native dependencies
+        community.general.homebrew:
+          name: 
+            - docker-completion
+            - docker-compose
+            - docker-credential-helper-ecr
+            - kubernetes-cli
+            - kind
+            - awscli
+          state: present
+      
+      - name: Install system packages
+        community.general.homebrew:
+          name: 
+            - neofetch
+            - slack
+            - toggl-track
+            - yadm
+            - visual-studio-code
+            - zoomus
+          state: present
+      
+      - name: Install system packages from brew
+        community.general.homebrew_cask:
+          name: 
+            - iterm2
+          state: present
+
+      - name: Create resolver directory
+        file: path=/etc/resolver state=directory mode=0755
+        become: yes
+        become_method: sudo
+
+      - name: Create loc resolver file
+        file: path=/etc/resolver/loc state=touch mode=0755
+        become: yes
+        become_method: sudo
+
+      - name: Add nameserver line to /etc/resolver/loc
+        lineinfile: dest=/etc/resolver/loc state=present line="nameserver 127.0.0.1"
+        become: yes
+        become_method: sudo
+      
+      - name: Add port line to /etc/resolver/loc
+        lineinfile: dest=/etc/resolver/loc state=present line="port 19322"
+        become: yes
+        become_method: sudo
+
+      - name: Clear dns cache
+        command: killall -HUP mDNSResponder
+        become: yes
+        become_method: sudo
+
+      #- name: Copy dinghy-http-proxy start script
+      #  file:
+      #    src: "{{ dev_env_dir }}/config/macosx/bin/run-dinghy-proxy"
+      #    dest: /usr/local/bin/run-dinghy-proxy
+      #    state: link
+      #    force: yes

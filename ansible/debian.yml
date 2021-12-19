@@ -11,7 +11,6 @@
     docker_compose_version: 1.17.1
     dnsdock_image: aacebedo/dnsdock:v1.15.0-amd64
 
-
   tasks:
 
     - name: Add Docker repo key
