@@ -62,7 +62,7 @@ cd /opt/sparkdock && git fetch && git reset --hard origin/features/osx-catalina
 
 ## Run Ansible Playbook
 print "Run ansible playboook..."
-ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass -vvvv
+ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass
 
 ## Configure dotrc message.
 print "Now remember to add to your .bashrc or .zshrc the following command:\n"

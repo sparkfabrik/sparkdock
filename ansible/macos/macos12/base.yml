@@ -3,7 +3,7 @@
     connection: local
 
     vars:
-      dev_env_dir: /opt/
+      dev_env_dir: /opt/sparkdock
 
     tasks:
       - name: Install Docker for Desktop
@@ -81,15 +81,31 @@
         become_method: sudo
 
       - name: Copy dinghy-http-proxy start script
-        file:
+        copy:
           src: "{{ dev_env_dir }}/config/macos/bin/run-dinghy-proxy"
           dest: /usr/local/bin/run-dinghy-proxy
-          state: link
           force: yes
+          mode: uog+rwx
+        become: yes
+        become_method: sudo
 
       - name: Copy get serial number script
-        file:
+        copy:
           src: "{{ dev_env_dir }}/config/macos/bin/ayse-get-sm"
           dest: /usr/local/bin/ayse-get-sm
-          state: link
           force: yes
+          mode: uog+rwx
+        become: yes
+        become_method: sudo
+
+      - name: Copy custom us keyboard layout
+        tags: keyboard
+        copy:
+          src: "config/keyboard/en-intl-alt-gr-dead-keys.keylayout"
+          dest: "~/Library/Keyboard Layouts"
+
+      - name: Copy custom sane keybindings
+        tags: keyboard
+        copy:
+          src: "config/keyboard/DefaultKeyBinding.dict"
+          dest: "~/Library/KeyBindings"

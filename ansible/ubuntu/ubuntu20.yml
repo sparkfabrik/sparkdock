@@ -6,9 +6,9 @@
 
   vars:
     docker_compose_version: 1.25.5
-    dnsdock_image: aacebedo/dnsdock:v1.16.4-amd64   
+    dnsdock_image: aacebedo/dnsdock:v1.16.4-amd64
     dev_env_dir: /tmp/dev-env
- 
+
   tasks:
     - name: Install the base required dependencies and suggested packages
       apt:
@@ -72,4 +72,10 @@
         src: "{{ dev_env_dir }}/config/ubuntu/bin/run-dinghy-proxy"
         dest: /usr/local/bin/run-dinghy-proxy
         state: link
+        force: yes
+
+    - name: Copy dinghy-http-proxy start script
+      file:
+        src: "config/keyboard/en-intl-alt-gr-dead-keys.keylayout"
+        dest: ~/Library/Keyboard\ Layouts
         force: yes
