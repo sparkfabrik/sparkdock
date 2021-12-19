@@ -1,4 +1,4 @@
-#!/usr/bin/env -S zsh 
+#!/usr/bin/env -S zsh
 RED='\033[0;31m'
 NC='\033[0m'
 
@@ -45,13 +45,13 @@ print 'Installing Rosetta2...'
 ARCH=$(arch)
 if [[ $ARCH == "arm64" ]]; then
   softwareupdate --install-rosetta
-fi 
+fi
 
 # Install standard utilities.
 print 'Installing base packages with brew...'
 brew install git curl
 
-## Check out a copy of this repo (first time only) 
+## Check out a copy of this repo (first time only)
 # USER=`whoami`
 print 'Checking out Sparkdock repo...'
 sudo rm -rf /opt/sparkdock && \
@@ -60,7 +60,7 @@ sudo chown $(id -u):$(id -g) /opt/sparkdock
 git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
 cd /opt/sparkdock && git fetch && git reset --hard origin/features/osx-catalina
 
-## Run Ansible Playbook 
+## Run Ansible Playbook
 print "Run ansible playboook..."
 ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass -vvvv
 
@@ -69,4 +69,3 @@ print "Now remember to add to your .bashrc or .zshrc the following command:\n"
 brew info google-cloud-sdk
 
 print 'Thanks for installing sparkdock, enjoy a dockerized world!'
- 

@@ -18,7 +18,7 @@
 
       - name: Install cloud native dependencies
         community.general.homebrew:
-          name: 
+          name:
             - docker-completion
             - docker-compose
             - docker-credential-helper-ecr
@@ -26,18 +26,28 @@
             - kind
             - awscli
           state: present
-      
+
       - name: Install system packages
         community.general.homebrew:
-          name: 
+          name:
             - neofetch
             - gpg
             - yadm
           state: present
-      
+
+      - name: Install development packages
+        community.general.homebrew:
+          name:
+            - node@16
+            - yarn
+            - yarn-completion
+            - php@8.0
+            - golang
+          state: present
+
       - name: Install system packages from brew
         community.general.homebrew_cask:
-          name: 
+          name:
             - iterm2
             - visual-studio-code
             - toggl-track
@@ -59,7 +69,7 @@
         lineinfile: dest=/etc/resolver/loc state=present line="nameserver 127.0.0.1"
         become: yes
         become_method: sudo
-      
+
       - name: Add port line to /etc/resolver/loc
         lineinfile: dest=/etc/resolver/loc state=present line="port 19322"
         become: yes
@@ -72,14 +82,14 @@
 
       - name: Copy dinghy-http-proxy start script
         file:
-          src: "{{ dev_env_dir }}/config/macosx/bin/run-dinghy-proxy"
+          src: "{{ dev_env_dir }}/config/macos/bin/run-dinghy-proxy"
           dest: /usr/local/bin/run-dinghy-proxy
           state: link
           force: yes
 
       - name: Copy get serial number script
         file:
-          src: "{{ dev_env_dir }}/config/macosx/bin/ayse-get-sm"
+          src: "{{ dev_env_dir }}/config/macos/bin/ayse-get-sm"
           dest: /usr/local/bin/ayse-get-sm
           state: link
           force: yes
