@@ -31,17 +31,18 @@
         community.general.homebrew:
           name: 
             - neofetch
-            - slack
-            - toggl-track
+            - gpg
             - yadm
-            - visual-studio-code
-            - zoomus
           state: present
       
       - name: Install system packages from brew
         community.general.homebrew_cask:
           name: 
             - iterm2
+            - visual-studio-code
+            - toggl-track
+            - slack
+            - zoom
           state: present
 
       - name: Create resolver directory
@@ -69,9 +70,16 @@
         become: yes
         become_method: sudo
 
-      #- name: Copy dinghy-http-proxy start script
-      #  file:
-      #    src: "{{ dev_env_dir }}/config/macosx/bin/run-dinghy-proxy"
-      #    dest: /usr/local/bin/run-dinghy-proxy
-      #    state: link
-      #    force: yes
+      - name: Copy dinghy-http-proxy start script
+        file:
+          src: "{{ dev_env_dir }}/config/macosx/bin/run-dinghy-proxy"
+          dest: /usr/local/bin/run-dinghy-proxy
+          state: link
+          force: yes
+
+      - name: Copy get serial number script
+        file:
+          src: "{{ dev_env_dir }}/config/macosx/bin/ayse-get-sm"
+          dest: /usr/local/bin/ayse-get-sm
+          state: link
+          force: yes

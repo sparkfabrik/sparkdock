@@ -1,8 +1,8 @@
 # Sparkdock
 
-This is an automatic MacOSX and Ubuntu Linux Docker provisioner, based on Ansible.
+This is an automatic MacOS and Ubuntu Linux system provisioner, based on Ansible.
 
-It will install the following packages:
+It will install the following packages 
 
 * Install and upgrade docker, docker-machine
 * Install and configure dinghy
