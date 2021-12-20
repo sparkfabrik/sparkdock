@@ -38,10 +38,10 @@
       - name: Install development packages
         community.general.homebrew:
           name:
-            - node@16
+            - node
             - yarn
             - yarn-completion
-            - php@8.0
+            - php
             - golang
           state: present
 
