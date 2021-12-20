@@ -9,63 +9,13 @@ print () {
     echo -e "\e[1m\e[93m[ \e[92m•\e[93m ] \e[4m$1\e[0m"
 }
 
-print "Sparkdock installer: This is a MacOS provisioner, to bootstrap the system."
+## Print some useful messages.
+print "Now remember to add to your .bashrc or .zshrc the following commands:\n"
 
-print "Checking for macOS supported version..."
-if ! [[ $( sw_vers -productVersion ) =~ ^(12.[0-9]+|11.[0-9]+) ]] ; then
-   print  "${RED}Sorry, this script is supposed to be executed on macOS Big Sur (11.x) and Monterey (12.x). Please use a supported version.${NC}"
-   exit 0
-fi
-
-## Install or Update Homebrew ##
-print "Installing or Updating Homebrew..."
-BREW_EXISTS=$(which -s brew)
-if [[ ${BREW_EXISTS} != 0 ]] ; then
-    /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/paolomainardi/.zprofile
-    eval "$(/opt/homebrew/bin/brew shellenv)"
-else
-    brew update
-    brew cleanup
-    brew uninstall --force brew-cask
-    brew update
-fi
-
-## Install or Update Ansible ##
-print 'Installing or Updating Ansible...'
-which -s ansible-playbook
-if [[ $? != 0 ]] ; then
-  brew install ansible
-else
-  brew upgrade ansible
-fi
-
-# Install rosetta2.
-print 'Installing Rosetta2...'
-ARCH=$(arch)
-if [[ $ARCH == "arm64" ]]; then
-  softwareupdate --install-rosetta
-fi
-
-# Install standard utilities.
-print 'Installing base packages with brew...'
-brew install git curl
-
-## Check out a copy of this repo (first time only)
-# USER=`whoami`
-print 'Checking out Sparkdock repo...'
-sudo rm -rf /opt/sparkdock && \
-sudo mkdir -p /opt/sparkdock && \
-sudo chown $(id -u):$(id -g) /opt/sparkdock
-git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
-
-## Run Ansible Playbook
-print "Run ansible playboook..."
-cd /opt/sparkdock
-ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass
-
-## Configure dotrc message.
-print "Now remember to add to your .bashrc or .zshrc the following command:\n"
 brew info google-cloud-sdk
 
+echo ""
+echo ""
+print "IMPORTANT: To finish the installation you must configure this: https://docs.brew.sh/Shell-Completion"
+echo ""
 print 'Thanks for installing sparkdock, enjoy a dockerized world!'
