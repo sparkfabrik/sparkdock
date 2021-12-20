@@ -58,10 +58,10 @@ sudo rm -rf /opt/sparkdock && \
 sudo mkdir -p /opt/sparkdock && \
 sudo chown $(id -u):$(id -g) /opt/sparkdock
 git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
-cd /opt/sparkdock && git fetch && git reset --hard origin/features/osx-catalina
 
 ## Run Ansible Playbook
 print "Run ansible playboook..."
+cd /opt/sparkdock
 ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass
 
 ## Configure dotrc message.
