@@ -19,13 +19,14 @@
       - name: Install cloud native dependencies
         community.general.homebrew:
           name:
+            - awscli
             - docker-completion
             - docker-compose
             - docker-credential-helper-ecr
             - kubernetes-cli
             - kind
             - kubectx
-            - awscli
+            - stern
           state: present
 
       - name: Install system packages
