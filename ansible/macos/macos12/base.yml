@@ -24,6 +24,7 @@
             - docker-credential-helper-ecr
             - kubernetes-cli
             - kind
+            - kubectx
             - awscli
           state: present
 
