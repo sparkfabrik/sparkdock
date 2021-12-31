@@ -26,6 +26,7 @@
             - kubernetes-cli
             - kind
             - kubectx
+            - skaffold
             - stern
           state: present
 
