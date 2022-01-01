@@ -37,6 +37,7 @@
             - gpg
             - thefuck
             - yadm
+            - tmux
           state: present
 
       - name: Install development packages
