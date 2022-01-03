@@ -24,6 +24,7 @@
             - docker-compose
             - docker-credential-helper-ecr
             - kubernetes-cli
+            - k9s
             - kind
             - kubectx
             - skaffold
