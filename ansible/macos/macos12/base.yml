@@ -38,6 +38,7 @@
             - gpg
             - thefuck
             - yadm
+            - tmate
             - tmux
           state: present
 
