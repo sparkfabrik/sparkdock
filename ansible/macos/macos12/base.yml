@@ -52,9 +52,10 @@
             - golang
           state: present
 
-      - name: Install system packages from brew
+      - name: Install system packages from cask
         community.general.homebrew_cask:
           name:
+            - cameracontroller
             - iterm2
             - visual-studio-code
             - toggl-track
