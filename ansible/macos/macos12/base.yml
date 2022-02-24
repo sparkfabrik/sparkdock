@@ -93,6 +93,9 @@
         command: killall -HUP mDNSResponder
         become: yes
         become_method: sudo
+        
+      - name: Ensures /usr/local/bin dir exists
+        file: path=/usr/local/bin state=directory
 
       - name: Copy dinghy-http-proxy start script
         copy:
