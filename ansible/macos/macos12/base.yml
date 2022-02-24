@@ -53,11 +53,16 @@
             - golang
           state: present
 
+      - name: Tap a homebrew/cask-drivers
+        community.general.homebrew_tap:
+          name: homebrew/dupes
+          state: homebrew/cask-drivers
+
       - name: Install system packages from cask
         community.general.homebrew_cask:
           name:
-            - cameracontroller
             - iterm2
+            - cameracontroller
             - visual-studio-code
             - toggl-track
             - slack
