@@ -55,7 +55,7 @@
 
       - name: Tap a homebrew/cask-drivers
         community.general.homebrew_tap:
-          name: homebrew/dupes
+          name: homebrew/cask-drivers
           state: present
 
       - name: Install system packages from cask
