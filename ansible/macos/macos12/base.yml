@@ -20,7 +20,6 @@
         community.general.homebrew:
           name:
             - awscli
-            - docker-completion
             - docker-compose
             - docker-credential-helper-ecr
             - imagemagick
