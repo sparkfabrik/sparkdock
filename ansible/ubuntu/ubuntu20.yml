@@ -40,7 +40,7 @@
 
     - name: Configure systemd-resolved to play well with dnsdock
       copy:
-        dest: '/etc/systemd/resolved.conf.d/dnsdock.conf'
+        dest: "/etc/systemd/resolved.conf.d/dnsdock.conf"
         content: |
           [Resolve]
           DNS=172.17.0.1
@@ -67,6 +67,13 @@
         state: link
         force: yes
 
+    - name: Copy dnsdock test script
+      file:
+        src: "{{ dev_env_dir }}/config/bin/test-dnsdock"
+        dest: /usr/local/bin/test-dnsdock
+        state: link
+        force: yes
+
     - name: Copy dinghy-http-proxy start script
       file:
         src: "{{ dev_env_dir }}/config/ubuntu/bin/run-dinghy-proxy"
@@ -74,8 +81,9 @@
         state: link
         force: yes
 
-    - name: Copy dinghy-http-proxy start script
+    - name: Copy dinghy-http-proxy test script
       file:
-        src: "config/keyboard/en-intl-alt-gr-dead-keys.keylayout"
-        dest: ~/Library/Keyboard\ Layouts
+        src: "{{ dev_env_dir }}/config/bin/test-dinghy-proxy"
+        dest: /usr/local/bin/test-dinghy-proxy
+        state: link
         force: yes
