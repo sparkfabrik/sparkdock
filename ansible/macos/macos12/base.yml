@@ -93,7 +93,7 @@
         command: killall -HUP mDNSResponder
         become: yes
         become_method: sudo
-        
+
       - name: Ensures /usr/local/bin dir exists
         file: path=/usr/local/bin state=directory
         become: yes
@@ -102,6 +102,15 @@
         copy:
           src: "{{ dev_env_dir }}/config/macos/bin/run-dinghy-proxy"
           dest: /usr/local/bin/run-dinghy-proxy
+          force: yes
+          mode: uog+rwx
+        become: yes
+        become_method: sudo
+
+      - name: Copy dinghy proxy test script
+        copy:
+          src: "{{ dev_env_dir }}/config/bin/test-dinghy-proxy"
+          dest: /usr/local/bin/test-dinghy-proxy
           force: yes
           mode: uog+rwx
         become: yes
