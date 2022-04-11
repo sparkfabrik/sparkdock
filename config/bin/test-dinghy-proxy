@@ -5,7 +5,7 @@ GREEN='\033[0;32m'
 NC='\033[0m'
 
 ID=$(docker run -d -e VIRTUAL_HOST=nginx.sparkfabrik.loc nginx:alpine)
-CONTENT=$(curl -s nginx.sparkfabrik.lasdfoc)
+CONTENT=$(curl -s nginx.sparkfabrik.loc)
 echo ${CONTENT} | grep -q 'Welcome to nginx'
 if [ $? -eq 0 ]
 then
