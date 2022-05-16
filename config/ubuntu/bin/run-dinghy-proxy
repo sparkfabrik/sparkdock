@@ -11,7 +11,8 @@ if docker ps -a | grep 'dinghy-http-proxy' > /dev/null; then
 fi
 
 echo "Now starting a new dinghy-http-proxy container..."
-docker pull ghcr.io/sparkfabrik/dinghy-http-proxy:latest
+IMAGE=codekitchen/dinghy-http-proxy:2.7.0
+docker pull ${IMAGE}
 docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock \
 -e DNS_IP=127.0.0.1 \
 -e CONTAINER_NAME=dinghy-http-proxy \
@@ -21,4 +22,4 @@ docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock \
 -p 443:443 \
 -p 172.17.0.1:53:19322/udp \
 -v /var/run/docker.sock:/tmp/docker.sock:ro \
-ghcr.io/sparkfabrik/dinghy-http-proxy:latest
+ ${IMAGE}
