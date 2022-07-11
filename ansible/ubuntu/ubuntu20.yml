@@ -95,3 +95,27 @@
         group: root
         mode: '0755'
         force: yes
+
+    - name: Install google cloud sdk
+      block:
+      - name: Add packages.cloud.google.com PPA key
+        apt_key:
+          url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+          state: present
+        become: yes
+
+      - name: Add packages.cloud.google.com PPA
+        apt_repository:
+          repo: deb https://packages.cloud.google.com/apt cloud-sdk main
+          filename: google-cloud-sdk
+          state: present
+        become: yes
+
+      - name: Install packages
+        apt:
+          pkg:
+            - google-cloud-sdk
+            - kubectl
+          state: present
+          update_cache: yes
+        become: yes
