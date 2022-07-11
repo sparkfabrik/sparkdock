@@ -5,7 +5,7 @@
   become_user: root
 
   vars:
-    docker_compose_version: 1.25.5
+    docker_compose_version: 1.29.2
     dnsdock_image: aacebedo/dnsdock:v1.16.4-amd64
     dev_env_dir: /tmp/dev-env
 
