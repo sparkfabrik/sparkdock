@@ -9,7 +9,7 @@ fi
 echo -e "\n\n"
 
 ## Add ansible PPA for versions < 20.04.
-if [[ $(lsb_release -rs) != "20.04" ]]; then
+if [[ $(lsb_release -rs) != "20.04" && $(lsb_release -rs) != "22.04" ]]; then
 echo "Add PPA repository for Ubuntu < 20.04."
 which -s ansible-playbook
 if [[ $? != 0 ]] ; then
