@@ -11,7 +11,7 @@
 
   tasks:
 
-    - name: get the username running the deploy
+    - name: Getting the username running the provisioner
       become: false
       local_action: command whoami
       register: local_username
@@ -29,7 +29,7 @@
         update_cache: yes
 
     - name: Allow current user to execute docker commands
-      user: name={{ local_username }} groups=docker append=yes
+      user: name={{ local_username.stdout }} groups=docker append=yes
 
     - name: Check if docker-compose binary exists
       stat: path=/usr/local/bin/docker-compose
@@ -37,6 +37,7 @@
 
     - name: Install docker-compose
       shell: "curl -L https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose"
+      warn: false
       when: not docker_compose_bin.stat.exists
 
     - name: Create directory for systemd-resolved custom conf
