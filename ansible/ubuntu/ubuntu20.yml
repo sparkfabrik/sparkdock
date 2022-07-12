@@ -10,6 +10,12 @@
     dev_env_dir: /tmp/dev-env
 
   tasks:
+
+    - name: get the username running the deploy
+      become: false
+      local_action: command whoami
+      register: local_username
+
     - name: Install the base required dependencies and suggested packages
       apt:
         pkg:
@@ -23,7 +29,7 @@
         update_cache: yes
 
     - name: Allow current user to execute docker commands
-      user: name={{ ansible_user }} groups=docker append=yes
+      user: name={{ local_username }} groups=docker append=yes
 
     - name: Check if docker-compose binary exists
       stat: path=/usr/local/bin/docker-compose
