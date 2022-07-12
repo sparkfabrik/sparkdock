@@ -23,7 +23,7 @@
         update_cache: yes
 
     - name: Allow current user to execute docker commands
-      user: name={{ ansible_ssh_user }} groups=docker append=yes
+      user: name={{ ansible_user }} groups=docker append=yes
 
     - name: Check if docker-compose binary exists
       stat: path=/usr/local/bin/docker-compose
