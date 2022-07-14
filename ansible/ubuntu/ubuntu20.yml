@@ -5,11 +5,17 @@
   become_user: root
 
   vars:
-    docker_compose_version: 1.25.5
+    docker_compose_version: 1.29.2
     dnsdock_image: aacebedo/dnsdock:v1.16.4-amd64
     dev_env_dir: /tmp/dev-env
 
   tasks:
+
+    - name: Getting the username running the provisioner
+      become: false
+      local_action: command whoami
+      register: local_username
+
     - name: Install the base required dependencies and suggested packages
       apt:
         pkg:
@@ -23,7 +29,7 @@
         update_cache: yes
 
     - name: Allow current user to execute docker commands
-      user: name={{ ansible_ssh_user }} groups=docker append=yes
+      user: name={{ local_username.stdout }} groups=docker append=yes
 
     - name: Check if docker-compose binary exists
       stat: path=/usr/local/bin/docker-compose
@@ -31,6 +37,8 @@
 
     - name: Install docker-compose
       shell: "curl -L https://github.com/docker/compose/releases/download/{{ docker_compose_version }}/docker-compose-`uname -s`-`uname -m` > /usr/local/bin/docker-compose && chmod +x /usr/local/bin/docker-compose"
+      args:
+        warn: false
       when: not docker_compose_bin.stat.exists
 
     - name: Create directory for systemd-resolved custom conf
@@ -61,29 +69,61 @@
       service: name=systemd-resolved state=restarted
 
     - name: Copy dnsdock start script
-      file:
+      copy:
         src: "{{ dev_env_dir }}/config/ubuntu/bin/run-dnsdock"
         dest: /usr/local/bin/run-dnsdock
-        state: link
+        owner: root
+        group: root
+        mode: '0755'
         force: yes
 
     - name: Copy dnsdock test script
-      file:
+      copy:
         src: "{{ dev_env_dir }}/config/bin/test-dnsdock"
         dest: /usr/local/bin/test-dnsdock
-        state: link
+        owner: root
+        group: root
+        mode: '0755'
         force: yes
 
     - name: Copy dinghy-http-proxy start script
-      file:
+      copy:
         src: "{{ dev_env_dir }}/config/ubuntu/bin/run-dinghy-proxy"
         dest: /usr/local/bin/run-dinghy-proxy
-        state: link
+        owner: root
+        group: root
+        mode: '0755'
         force: yes
 
     - name: Copy dinghy-http-proxy test script
-      file:
+      copy:
         src: "{{ dev_env_dir }}/config/bin/test-dinghy-proxy"
         dest: /usr/local/bin/test-dinghy-proxy
-        state: link
+        owner: root
+        group: root
+        mode: '0755'
         force: yes
+
+    - name: Install google cloud sdk
+      block:
+      - name: Add packages.cloud.google.com PPA key
+        apt_key:
+          url: https://packages.cloud.google.com/apt/doc/apt-key.gpg
+          state: present
+        become: yes
+
+      - name: Add packages.cloud.google.com PPA
+        apt_repository:
+          repo: deb https://packages.cloud.google.com/apt cloud-sdk main
+          filename: google-cloud-sdk
+          state: present
+        become: yes
+
+      - name: Install packages
+        apt:
+          pkg:
+            - google-cloud-sdk
+            - kubectl
+          state: present
+          update_cache: yes
+        become: yes
