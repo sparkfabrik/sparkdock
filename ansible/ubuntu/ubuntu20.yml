@@ -21,7 +21,7 @@
         pkg:
           - apt-transport-https
           - ca-certificates
-          - docker-ce
+          - docker.io
           - git
           - make
           - curl
