@@ -57,6 +57,20 @@
           name: homebrew/cask-drivers
           state: present
 
+      - name: Tap a homebrew/cask-
+      s
+        community.general.homebrew_tap:
+          name: homebrew/cask-fonts
+          state: present
+    
+      - name: Install some custom fonts
+        community.general.homebrew_cask:
+          name:
+            - font-droid-sans-mono-nerd-font
+            - font-inconsolata-nerd-font
+            - font-fira-code-nerd-font
+          state: present
+
       - name: Install system packages from cask
         community.general.homebrew_cask:
           name:
