@@ -57,8 +57,7 @@
           name: homebrew/cask-drivers
           state: present
 
-      - name: Tap a homebrew/cask-
-      s
+      - name: Tap a homebrew/cask-fonts
         community.general.homebrew_tap:
           name: homebrew/cask-fonts
           state: present
