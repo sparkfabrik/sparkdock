@@ -123,6 +123,7 @@
         apt:
           pkg:
             - google-cloud-sdk
+            - google-cloud-sdk-gke-gcloud-auth-plugin
             - kubectl
           state: present
           update_cache: yes
