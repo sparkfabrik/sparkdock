@@ -2,14 +2,14 @@
 
 ## Check Ubuntu version ##
 echo "Checking for Ubuntu to be a supported version..."
-if ! [[ $( lsb_release -rs ) =~ ^(14\.04|15\.10|16\.04|16.10|17.04|17.10|18.04|20.04)$ ]] ; then
-   echo "This script is supposed to be executed on a version of Ubuntu Linux between 14.04 LTS and 20.04 LTS. Please use a supported version."
+if ! [[ $( lsb_release -rs ) =~ ^(14\.04|15\.10|16\.04|16.10|17.04|17.10|18.04|20.04|22.04)$ ]] ; then
+   echo "This script is supposed to be executed on a version of Ubuntu Linux between 14.04 LTS and 22.04 LTS. Please use a supported version."
    exit 0
 fi
 echo -e "\n\n"
 
 ## Add ansible PPA for versions < 20.04.
-if [[ $(lsb_release -rs) != "20.04" ]]; then
+if [[ $(lsb_release -rs) != "20.04" && $(lsb_release -rs) != "22.04" ]]; then
 echo "Add PPA repository for Ubuntu < 20.04."
 which -s ansible-playbook
 if [[ $? != 0 ]] ; then
@@ -20,7 +20,7 @@ fi
 
 ## Install base dependencies  ##
 echo "Installing..."
-sudo apt-get updates
+sudo apt-get update
 sudo apt-get -y install git ansible
 echo -e "\n\n"
 

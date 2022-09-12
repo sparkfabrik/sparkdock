@@ -1,0 +1,16 @@
+#!/bin/sh
+
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+NC='\033[0m'
+
+ID=$(docker run -d -e VIRTUAL_HOST=nginx.sparkfabrik.loc nginx:alpine)
+CONTENT=$(curl -s nginx.sparkfabrik.loc)
+echo ${CONTENT} | grep -q 'Welcome to nginx'
+if [ $? -eq 0 ]
+then
+  echo ${GREEN}PASS${NC}: "Congratulation, dinghy proxy is working as expected"
+else
+  echo ${RED}FAIL${NC}: "Cannot reach the domain"
+fi
+docker rm -vf ${ID} > /dev/null
