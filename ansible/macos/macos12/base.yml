@@ -42,6 +42,7 @@
           - neofetch
           - gpg
           - thefuck
+          - jq
           - yadm
           - tmate
           - tmux
