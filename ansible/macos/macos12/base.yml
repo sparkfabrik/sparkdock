@@ -154,6 +154,3 @@
       copy:
         src: "config/keyboard/DefaultKeyBinding.dict"
         dest: "~/Library/KeyBindings"
-
-    - name: Run dinghy-http-proxy start script
-      command: /usr/local/bin/run-dinghy-proxy
