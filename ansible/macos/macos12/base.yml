@@ -4,6 +4,9 @@
 
   vars:
     dev_env_dir: /opt/sparkdock
+    homebrew_prefix: "{{ (ansible_machine == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
+    homebrew_install_path: "{{ homebrew_prefix }}/Homebrew"
+    homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
 
   tasks:
     - name: Install Docker for Desktop
@@ -17,7 +20,7 @@
         state: present
 
     - name: Install gcloud components
-      command: "/opt/homebrew/bin/gcloud components install gke-gcloud-auth-plugin gsutil"
+      command: "{{ homebrew_brew_bin_path }}/gcloud components install gke-gcloud-auth-plugin gsutil"
       register: command_result
       changed_when: "'All components are up to date' not in command_result.stderr"
 
