@@ -63,3 +63,6 @@
           dest: /usr/local/bin/run-dinghy-proxy
           state: link
           force: yes
+
+      - name: Run dinghy-http-proxy start script
+        command: /usr/local/bin/run-dinghy-proxy
