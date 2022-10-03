@@ -17,7 +17,7 @@
         state: present
 
     - name: Install gcloud components
-      command: "/opt/homebrew/bin/gcloud components install gke-gcloud-auth-plugin gsutil"
+      command: "/usr/local/Caskroom/google-cloud-sdk/latest/google-cloud-sdk/bin/gcloud components install gke-gcloud-auth-plugin gsutil"
       register: command_result
       changed_when: "'All components are up to date' not in command_result.stderr"
 
@@ -154,3 +154,6 @@
       copy:
         src: "config/keyboard/DefaultKeyBinding.dict"
         dest: "~/Library/KeyBindings"
+
+    - name: Run dinghy-http-proxy start script
+      command: /usr/local/bin/run-dinghy-proxy
