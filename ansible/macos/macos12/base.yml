@@ -13,11 +13,13 @@
       community.general.homebrew_cask:
         name: docker
         state: present
+        install_options: force
 
     - name: Install Google cloud sdk
       community.general.homebrew_cask:
         name: google-cloud-sdk
         state: present
+        install_options: force
 
     - name: Install gcloud components
       command: "{{ homebrew_brew_bin_path }}/gcloud components install gke-gcloud-auth-plugin gsutil"
@@ -38,7 +40,7 @@
           - skaffold
           - stern
         state: present
-
+        
     - name: Install system packages
       community.general.homebrew:
         name:
@@ -89,6 +91,7 @@
           - slack
           - zoom
         state: present
+        install_options: force
 
     - name: Create resolver directory
       file: path=/etc/resolver state=directory mode=0755
