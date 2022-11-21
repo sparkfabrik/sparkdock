@@ -51,6 +51,7 @@
           - yadm
           - tmate
           - tmux
+          - watch
         state: present
 
     - name: Install development packages
