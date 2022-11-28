@@ -13,7 +13,7 @@ print "Sparkdock installer: This is a MacOS provisioner, to bootstrap the system
 
 print "Checking for macOS supported version..."
 if ! [[ $( sw_vers -productVersion ) =~ ^(12.[0-9]+|11.[0-9]+) ]] ; then
-   print  "${RED}Sorry, this script is supposed to be executed on macOS Big Sur (11.x) and Monterey (12.x). Please use a supported version.${NC}"
+   print  "${RED}Sorry, this script is supposed to be executed on macOS Big Sur (11.x), Monterey (12.x) and Ventura (13.x). Please use a supported version.${NC}"
    exit 0
 fi
 
