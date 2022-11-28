@@ -4,8 +4,12 @@
     become: true
     become_user: root
 
+  - name: Importing playbook for macOS 13
+    import_playbook: macos/macos/base.yml
+    when: ansible_distribution_version | regex_search('^(13.[0-9]+)')
+
   - name: Importing playbook for macOS 12
-    import_playbook: macos/macos12/base.yml
+    import_playbook: macos/macos/base.yml
     when: ansible_distribution_version | regex_search('^(12.[0-9]+)')
 
   - name: Importing playbook for macOS 11
