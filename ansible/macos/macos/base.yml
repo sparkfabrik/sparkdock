@@ -46,6 +46,8 @@
         name:
           - neofetch
           - gpg
+          - gpg2
+          - pinentry-mac
           - thefuck
           - jq
           - yadm
