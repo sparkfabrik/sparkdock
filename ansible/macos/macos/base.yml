@@ -60,6 +60,7 @@
     - name: Install development packages
       community.general.homebrew:
         name:
+          - hub
           - node
           - yarn
           - yarn-completion
