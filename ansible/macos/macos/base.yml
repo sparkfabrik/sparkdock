@@ -33,6 +33,7 @@
           - docker-compose
           - docker-credential-helper-ecr
           - imagemagick
+          - mas
           - kubernetes-cli
           - k9s
           - kind
