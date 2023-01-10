@@ -65,6 +65,7 @@
           - yarn-completion
           - php
           - golang
+          - gitleaks
         state: present
 
     - name: Tap a homebrew/cask-drivers
