@@ -15,18 +15,27 @@
           - docker-compose
         state: absent
 
+    - name: Ensure not present cask packages
+      tags: cask
+      community.general.homebrew_cask:
+        name:
+          - toggl-track
+        state: absent
+
     - name: Upgrade all packages
       community.general.homebrew:
         update_homebrew: true
         upgrade_all: true
 
     - name: Install Docker for Desktop
+      tags: cask
       community.general.homebrew_cask:
         name: docker
         state: present
         install_options: force
 
     - name: Install Google cloud sdk
+      tags: cask
       community.general.homebrew_cask:
         name: google-cloud-sdk
         state: present
@@ -91,6 +100,7 @@
         state: present
 
     - name: Install some custom fonts
+      tags: cask
       community.general.homebrew_cask:
         name:
           - font-droid-sans-mono-nerd-font
@@ -99,6 +109,7 @@
         state: present
 
     - name: Install system packages from cask
+      tags: cask
       community.general.homebrew_cask:
         name:
           - iterm2
