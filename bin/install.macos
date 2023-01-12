@@ -64,6 +64,10 @@ print "Run ansible playboook..."
 cd /opt/sparkdock
 ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass
 
+## Copy sparkdock.macos to /usr/local/bin
+sudo ln -s $PWD/bin/sparkdock.macos /usr/local/bin
+sudo chmod +x /usr/local/bin/sparkdock
+
 ## Print some useful messages.
 print "Now remember to add to your .bashrc or .zshrc the following commands:\n"
 
