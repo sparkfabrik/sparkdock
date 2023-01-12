@@ -11,8 +11,9 @@ clear
 if [ "$1" != "skip-update" ] ; then
     cd /opt/sparkdock
     git fetch
-    git reset --hard origin/feature/self-update
+    git reset --hard origin/master
     /opt/sparkdock/$0 skip-update
+    exit $?
 fi
 
 print () {
@@ -29,3 +30,7 @@ print "Sparkdock provisioner: Updating your system in progress..."
 
 print "Run ansible playboook..."
 ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass
+
+print "Installation done with success, thanks for your time."
+
+exit 0
