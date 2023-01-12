@@ -64,7 +64,7 @@ sleep 60
 /usr/local/bin/run-dinghy-proxy
 
 ## Copy sparkdock.macos to /usr/local/bin
-sudo ln -s $PWD/bin/sparkdock.macos /usr/local/bin
+sudo ln -s $PWD/bin/sparkdock.macos /usr/local/bin/sparkdock
 sudo chmod +x /usr/local/bin/sparkdock
 
 ## Print some useful messages.
