@@ -10,9 +10,10 @@
 
   tasks:
     - name: Ensure not present packages
-      name:
-        - docker-compose
-      state: absent
+      community.general.homebrew:
+        name:
+          - docker-compose
+        state: absent
 
     - name: Upgrade all packages
       community.general.homebrew:
