@@ -57,6 +57,12 @@ print "Run ansible playboook..."
 cd /opt/sparkdock
 ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass
 
+# Run dinghy-http-proxy.
+print "Run docker http proxy..."
+open --background -a Docker
+sleep 60
+/usr/local/bin/run-dinghy-proxy
+
 ## Copy sparkdock.macos to /usr/local/bin
 sudo ln -s $PWD/bin/sparkdock.macos /usr/local/bin/sparkdock
 sudo chmod +x /usr/local/bin/sparkdock
