@@ -12,7 +12,7 @@ if [ "$1" != "skip-update" ] ; then
     cd /opt/sparkdock
     git fetch
     git reset --hard origin/master
-    /opt/sparkdock/$0 skip-update
+    $0 skip-update
     exit $?
 fi
 
