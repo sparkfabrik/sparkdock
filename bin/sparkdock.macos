@@ -1,0 +1,30 @@
+#!/usr/bin/env -S zsh
+set -e
+
+BASE_DIR="$(dirname "$(readlink -f "$0")")"
+
+source ${BASE_DIR}/common/utils.sh
+
+# Updating myself.
+if [ "$1" != "skip-update" ] ; then
+    cd /opt/sparkdock
+    git fetch
+    git reset --hard origin/master
+    $0 skip-update
+    exit $?
+fi
+
+# Cleaning the TTY.
+clear
+sparkdockfetch
+
+print "Checking for macOS supported version..."
+checkMacosVersion
+
+print "Sparkdock provisioner: Updating your system in progress..."
+print "Run ansible playboook..."
+ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass
+
+print "Installation done with success, thanks for your time."
+
+exit 0

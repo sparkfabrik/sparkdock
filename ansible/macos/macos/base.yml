@@ -9,6 +9,17 @@
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
 
   tasks:
+    - name: Ensure not present packages
+      community.general.homebrew:
+        name:
+          - docker-compose
+        state: absent
+
+    - name: Upgrade all packages
+      community.general.homebrew:
+        update_homebrew: true
+        upgrade_all: true
+
     - name: Install Docker for Desktop
       community.general.homebrew_cask:
         name: docker
@@ -40,7 +51,7 @@
           - skaffold
           - stern
         state: present
-        
+
     - name: Install system packages
       community.general.homebrew:
         name:
