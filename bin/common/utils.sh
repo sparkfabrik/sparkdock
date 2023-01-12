@@ -5,7 +5,6 @@ print () {
     echo -e "\e[1m\e[93m[ \e[92m•\e[93m ] \e[4m$1\e[0m" }
 
 checkMacosVersion() {
-    print "Checking for macOS supported version..."
     if ! [[ $( sw_vers -productVersion ) =~ ^(13.[0-9]+|12.[0-9]+|11.[0-9]+) ]] ; then
         print  "${RED}Sorry, this script is supposed to be executed on macOS Big Sur (11.x), Monterey (12.x) and Ventura (13.x). Please use a supported version.${NC}"
         return 1
