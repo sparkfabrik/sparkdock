@@ -12,6 +12,7 @@
     - name: Ensure not present packages
       community.general.homebrew:
         name:
+          - docker
           - docker-compose
         state: absent
 
