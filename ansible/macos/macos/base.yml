@@ -71,6 +71,7 @@
       community.general.homebrew:
         name:
           - gh
+          - glab
           - node
           - yarn
           - yarn-completion
