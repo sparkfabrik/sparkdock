@@ -1,6 +1,7 @@
 #!/usr/bin/env -S zsh
 
 BASE_DIR="$(dirname "$(readlink -f "$0")")"
+source ${BASE_DIR}/common/utils.sh
 
 # Cleaning the TTY.
 clear
