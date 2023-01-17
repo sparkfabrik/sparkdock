@@ -104,7 +104,6 @@
           - iterm2
           - cameracontroller
           - visual-studio-code
-          - toggl-track
           - slack
           - zoom
         state: present
