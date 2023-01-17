@@ -108,12 +108,6 @@
           - zoom
         state: present
         install_options: force
-    
-    - name: Install packages from App Store
-      community.general.mas:
-        id:
-          - 1291898086 # Toggl track
-        state: present
 
     - name: Create resolver directory
       file: path=/etc/resolver state=directory mode=0755
