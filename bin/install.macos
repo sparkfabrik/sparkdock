@@ -49,6 +49,9 @@ if [[ $ARCH == "arm64" ]]; then
   softwareupdate --install-rosetta
 fi
 
+# Install xcode command line tools.
+xcode-select --install
+
 # Install standard utilities.
 print 'Installing base packages with brew...'
 brew install git curl
