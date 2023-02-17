@@ -67,6 +67,7 @@
           - neofetch
           - gpg
           - gpg2
+          - jless
           - pinentry-mac
           - thefuck
           - jq
