@@ -11,7 +11,7 @@ if docker ps -a | grep 'dinghy-http-proxy' > /dev/null; then
 fi
 
 echo "Now starting a new dinghy-http-proxy container..."
-IMAGE=codekitchen/dinghy-http-proxy:2.7.0
+IMAGE=codekitchen/dinghy-http-proxy:2.7.1
 docker pull ${IMAGE}
 docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock \
 -e DNS_IP=127.0.0.1 \
