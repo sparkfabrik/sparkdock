@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 echo "Starting a dinghy-http-proxy container..."
-IMAGE=codekitchen/dinghy-http-proxy:2.7.0
+IMAGE=codekitchen/dinghy-http-proxy:2.7.1
 docker pull ${IMAGE}
 docker rm -vf http-proxy || true
 docker run -d --restart=always \
