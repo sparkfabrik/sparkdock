@@ -12,6 +12,9 @@ checkMacosVersion() {
     return 0
 }
 
+# Architecture.
+ARCH=$(arch)
+
 # Cleaning the TTY.
 clear
 sparkdockfetch
@@ -25,9 +28,12 @@ print "Installing or Updating Homebrew..."
 BREW_EXISTS=$(which -s brew)
 if [[ ${BREW_EXISTS} != 0 ]] ; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    if [ -d "/opt/homebrew/bin" ] ; then
+    if [ "${ARCH}" == "arm64" ]; then
       echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/${USER}/.zprofile
       eval "$(/opt/homebrew/bin/brew shellenv)"
+    else
+      echo 'eval "$(/usr/local/bin/brew shellenv)"' >> /Users/${USER}/.zprofile
+      eval "$(/usr/local/bin/brew shellenv)"
     fi
 else
     brew update
