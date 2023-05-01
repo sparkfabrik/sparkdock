@@ -25,8 +25,10 @@ print "Installing or Updating Homebrew..."
 BREW_EXISTS=$(which -s brew)
 if [[ ${BREW_EXISTS} != 0 ]] ; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-    echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/${USER}/.zprofile
-    eval "$(/opt/homebrew/bin/brew shellenv)"
+    if [ -d "/opt/homebrew/bin" ] ; then
+      echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/${USER}/.zprofile
+      eval "$(/opt/homebrew/bin/brew shellenv)"
+    fi
 else
     brew update
     brew cleanup
