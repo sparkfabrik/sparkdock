@@ -115,6 +115,7 @@
           - visual-studio-code
           - slack
           - zoom
+          - MonitorControl
         state: present
         install_options: force
 
