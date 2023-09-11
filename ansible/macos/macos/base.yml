@@ -70,6 +70,8 @@
           - jless
           - pinentry-mac
           - thefuck
+          - fzf
+          - navi
           - jq
           - yadm
           - tmate
