@@ -1,5 +1,5 @@
 #!/bin/bash
-DNSDOCK_VERSION=${1:-aacebedo\/dnsdock:v1.16.4-amd64}
+DNSDOCK_VERSION=${1:-aacebedo\/dnsdock:v1.17.0-amd64}
 if docker ps -a | grep 'dnsdock' > /dev/null; then
     echo -n "Found a dnsdock container, removing it..."
     docker rm -vf dnsdock 1> /dev/null
