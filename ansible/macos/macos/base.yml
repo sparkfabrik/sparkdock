@@ -13,7 +13,7 @@
       community.general.homebrew:
         name:
           - docker-compose
-          - php
+          - php@8.0
         state: absent
 
     - name: Ensure not present cask packages
