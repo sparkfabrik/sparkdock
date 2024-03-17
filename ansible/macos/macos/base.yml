@@ -13,6 +13,7 @@
       community.general.homebrew:
         name:
           - docker-compose
+          - php
         state: absent
 
     - name: Ensure not present cask packages
@@ -87,7 +88,7 @@
           - node
           - yarn
           - yarn-completion
-          - php
+          - php@8.1
           - golang
           - gitleaks
         state: present
