@@ -93,12 +93,15 @@
           - golang
           - gitleaks
         state: present
-        
-    - name: Link php 8.2 
+
+    - name: Install Github Copilot CLI
+      ansible.builtin.command: gh extension install github/gh-copilot
+
+    - name: Link php 8.2
       community.general.homebrew:
         name: php@8.2
         state: linked
-        
+
     - name: Tap a homebrew/cask-fonts
       community.general.homebrew_tap:
         name: homebrew/cask-fonts
