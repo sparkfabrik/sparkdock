@@ -94,9 +94,6 @@
           - gitleaks
         state: present
 
-    - name: Install Github Copilot CLI
-      ansible.builtin.command: gh extension install github/gh-copilot
-
     - name: Link php 8.2
       community.general.homebrew:
         name: php@8.2
