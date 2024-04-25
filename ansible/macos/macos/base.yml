@@ -87,7 +87,6 @@
           - gh
           - glab
           - node
-          - yarn
           - yarn-completion
           - corepack
           - php@8.2
