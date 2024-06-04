@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+
+# The certs are only red by dinghy on startup.
+# Rerun the script to update the certs.
+mkdir -p ~/.dinghy/certs
+
 echo "Starting a dinghy-http-proxy container..."
 IMAGE=codekitchen/dinghy-http-proxy:2.7.1
 docker pull ${IMAGE}

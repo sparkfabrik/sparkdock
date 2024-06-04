@@ -10,10 +10,15 @@ if docker ps -a | grep 'dinghy-http-proxy' > /dev/null; then
     docker rm -vf dinghy-http-proxy 1> /dev/null
 fi
 
+# The certs are only red by dinghy on startup.
+# Rerun the script to update the certs.
+mkdir -p ~/.dinghy/certs
+
 echo "Now starting a new dinghy-http-proxy container..."
 IMAGE=codekitchen/dinghy-http-proxy:2.7.1
 docker pull ${IMAGE}
 docker run --restart=always -d -v /var/run/docker.sock:/var/run/docker.sock \
+-v ~/.dinghy/certs:/etc/nginx/certs \
 -e DNS_IP=127.0.0.1 \
 -e CONTAINER_NAME=dinghy-http-proxy \
 -e DOMAIN_TLD=loc \
