@@ -96,6 +96,11 @@
           - gitleaks
         state: present
 
+    - name: Link node 20
+      community.general.homebrew:
+        name: node@20
+        state: linked
+
     - name: Link php 8.2
       community.general.homebrew:
         name: php@8.2
