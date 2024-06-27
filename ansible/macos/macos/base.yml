@@ -16,6 +16,7 @@
           - neofetch
           - php@8.0
           - php@8.1
+          - node
         state: absent
 
     - name: Ensure not present cask packages
@@ -87,7 +88,7 @@
         name:
           - gh
           - glab
-          - node
+          - node@20
           - yarn-completion
           - corepack
           - php@8.2
