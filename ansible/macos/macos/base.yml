@@ -113,6 +113,7 @@
       tags: cask
       community.general.homebrew_cask:
         name:
+          - google-chrome
           - iterm2
           - cameracontroller
           - visual-studio-code
