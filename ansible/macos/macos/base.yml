@@ -72,6 +72,7 @@
           - gpg2
           - jless
           - pinentry-mac
+          - mactop
           - thefuck
           - fzf
           - navi
