@@ -6,4 +6,4 @@
 
 - name: Import playbook for macOS
   import_playbook: macos/macos/base.yml
-  when: ansible_distribution_version | regex_search('^(1[2-5].[0-9]+)')
+  when: ansible_distribution_version | regex_search('^(1[2-5]\.[0-9]+)')
