@@ -96,7 +96,7 @@
           - gitleaks
           - git-credential-manager
         state: present
-        
+
     - name: Link php 8.2
       community.general.homebrew:
         name: php@8.2

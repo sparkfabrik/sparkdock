@@ -1,22 +1,17 @@
 ---
-  - hosts: 127.0.0.1
-    connection: local
-    become: true
-    become_user: root
+- hosts: 127.0.0.1
+  connection: local
+  become: true
+  become_user: root
 
-  - name: Importing playbook for macOS 14
-    import_playbook: macos/macos/base.yml
-    when: ansible_distribution_version | regex_search('^(14.[0-9]+)')
+- name: Importing playbook for macOS 14
+  import_playbook: macos/macos/base.yml
+  when: ansible_distribution_version | regex_search('^(14.[0-9]+)')
 
-  - name: Importing playbook for macOS 13
-    import_playbook: macos/macos/base.yml
-    when: ansible_distribution_version | regex_search('^(13.[0-9]+)')
+- name: Importing playbook for macOS 13
+  import_playbook: macos/macos/base.yml
+  when: ansible_distribution_version | regex_search('^(13.[0-9]+)')
 
-  - name: Importing playbook for macOS 12
-    import_playbook: macos/macos/base.yml
-    when: ansible_distribution_version | regex_search('^(12.[0-9]+)')
-
-  - name: Importing playbook for macOS 11
-    import_playbook: macos/macos11.yml
-    when: ansible_distribution_version | regex_search('^(11.[0-9]+)')
-
+- name: Importing playbook for macOS 12
+  import_playbook: macos/macos/base.yml
+  when: ansible_distribution_version | regex_search('^(12.[0-9]+)')
