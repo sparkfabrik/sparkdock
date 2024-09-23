@@ -94,6 +94,7 @@
           - php@8.2
           - golang
           - gitleaks
+          - git-credential-manager
         state: present
         
     - name: Link php 8.2
