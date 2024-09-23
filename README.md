@@ -1,6 +1,6 @@
 # Sparkdock
 
-This is an automatic MacOS and Ubuntu Linux system provisioner, based on Ansible.
+This is an automatic MacOS system provisioner, based on Ansible.
 
 ## MacOS
 
