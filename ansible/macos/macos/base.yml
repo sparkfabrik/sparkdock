@@ -110,6 +110,7 @@
           - font-inconsolata-nerd-font
           - font-fira-code-nerd-font
         state: present
+        install_options: force
 
     - name: Install system packages from cask
       tags: cask
