@@ -118,6 +118,7 @@
         name:
           - google-chrome
           - iterm2
+          - maccy
           - cameracontroller
           - visual-studio-code
           - slack
