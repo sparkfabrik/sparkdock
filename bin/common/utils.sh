@@ -1,8 +1,11 @@
 RED='\033[0;31m'
 NC='\033[0m'
 
+setopt PROMPT_SUBST
+
 print () {
-    echo -e "\e[1m\e[93m[ \e[92m•\e[93m ] \e[4m$1\e[0m" }
+    printf "\e[1m\e[93m[ \e[92m•\e[93m ] \e[4m%s\e[0m\n" "$1"
+}
 
 checkMacosVersion() {
     if ! [[ $( sw_vers -productVersion ) =~ ^(15.[0-9]+|14.[0-9]+|13.[0-9]+|12.[0-9]+|11.[0-9]+) ]] ; then
