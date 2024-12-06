@@ -14,8 +14,7 @@
         name:
           - docker-compose
           - neofetch
-          - php@8.0
-          - php@8.1
+          - php@8.3
         state: absent
 
     - name: Ensure not present cask packages
