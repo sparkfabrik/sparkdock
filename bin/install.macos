@@ -76,6 +76,10 @@ sudo mkdir -p /opt/sparkdock && \
 sudo chown $(id -u):$(id -g) /opt/sparkdock
 git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
 
+## Install the launchd service
+print "Installing update checker service..."
+install_update_service
+
 ## Run Ansible Playbook
 print "Run ansible playboook..."
 cd /opt/sparkdock

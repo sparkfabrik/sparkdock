@@ -2,29 +2,110 @@
 set -e
 
 BASE_DIR="$(dirname "$(readlink -f "$0")")"
-
 source ${BASE_DIR}/common/utils.sh
+
+cleanup_lock() {
+    LOCK_FILE="/tmp/sparkdock.lock"
+    if [ -f "$LOCK_FILE" ] && [ "$(cat $LOCK_FILE)" = "$$" ]; then
+        rm -f "$LOCK_FILE"
+    fi
+}
+
+# Set up trap at the start to catch all exits
+trap cleanup_lock EXIT
+
+check_for_updates() {
+    cd /opt/sparkdock
+    git fetch origin master -q
+    LOCAL=$(git rev-parse HEAD)
+    REMOTE=$(git rev-parse origin/master)
+
+    if [ "$LOCAL" != "$REMOTE" ]; then
+        # Show what's new
+        echo "Updates available:"
+        git --no-pager log --oneline HEAD..origin/master
+        return 0
+    fi
+    return 1
+}
+
+# Add update lock to prevent parallel updates
+ check_update_lock() {
+    LOCK_FILE="/tmp/sparkdock.lock"
+    if [ -f "$LOCK_FILE" ]; then
+        pid=$(cat "$LOCK_FILE")
+        lock_time=$(stat -f "%m" "$LOCK_FILE")
+        current_time=$(date +%s)
+        if [ $((current_time - lock_time)) -gt 3600 ]; then
+            rm -f "$LOCK_FILE"
+        elif ps -p "$pid" > /dev/null; then
+            print "Another update is in progress (PID: $pid)"
+            exit 1
+        fi
+    fi
+    echo $$ > "$LOCK_FILE"
+ }
+
+notify() {
+    osascript -e "display notification \"$1\" with title \"Sparkdock\""
+}
+
+# Version command
+if [ "$1" = "version" ] ; then
+    get_version_info
+    exit 0
+fi
+
+# Update check mode
+if [ "$1" = "check-updates" ] ; then
+    if check_for_updates; then
+        notify "Updates are available. Run 'sparkdock' to update your system."
+        exit 0
+    fi
+    exit 0
+fi
 
 # Updating myself.
 if [ "$1" != "skip-update" ] ; then
+    check_update_lock
+
     cd /opt/sparkdock
-    git fetch
-    git reset --hard origin/master
+
+    # Backup current version for rollback
+    CURRENT_VERSION=$(git rev-parse HEAD)
+
+    # Store last update time
+    date "+%Y-%m-%d %H:%M:%S" > /opt/sparkdock/.last_update
+
+    git fetch origin master
+    if ! git reset --hard origin/master; then
+        print "Update failed, rolling back..."
+        git reset --hard "$CURRENT_VERSION"
+        exit 1
+    fi
+
+    # Install/update the launchd service before executing the update
+    print "Installing/updating update checker service..."
+    install_update_service
+
     $0 skip-update
     exit $?
 fi
 
 # Cleaning the TTY.
 clear
-sparkdockfetch
+print_banner
 
-print "Checking for macOS supported version..."
+print_section "System Check"
+print_info "Checking for macOS supported version..."
 checkMacosVersion
 
-print "Sparkdock provisioner: Updating your system in progress..."
-print "Run ansible playboook, you'll be asked to insert your password to become root..."
+print_section "System Update"
+print_info "Sparkdock provisioner: Updating your system in progress..."
+print_info "Running ansible playbook..."
+print_warning "You'll be asked to insert your password to become root"
 ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass
 
-print "Installation done with success, thanks for your time."
+print_success "Installation completed successfully"
 
 exit 0
