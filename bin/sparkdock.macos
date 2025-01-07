@@ -4,6 +4,16 @@ set -e
 BASE_DIR="$(dirname "$(readlink -f "$0")")"
 source ${BASE_DIR}/common/utils.sh
 
+cleanup_lock() {
+    LOCK_FILE="/tmp/sparkdock.lock"
+    if [ -f "$LOCK_FILE" ] && [ "$(cat $LOCK_FILE)" = "$$" ]; then
+        rm -f "$LOCK_FILE"
+    fi
+}
+
+# Set up trap at the start to catch all exits
+trap cleanup_lock EXIT
+
 check_for_updates() {
     cd /opt/sparkdock
     git fetch origin master -q
@@ -26,7 +36,7 @@ check_for_updates() {
          pid=$(cat "$LOCK_FILE")
          lock_time=$(stat -f "%m" "$LOCK_FILE")
          current_time=$(date +%s)
-         if [ $((current_time - lock_time)) -gt 3600 ]; then
+         if [ $((current_time - lock_time)) -gt 3600]; then
              rm -f "$LOCK_FILE"
          elif ps -p "$pid" > /dev/null; then
              print "Another update is in progress (PID: $pid)"
@@ -35,10 +45,6 @@ check_for_updates() {
      fi
      echo $$ > "$LOCK_FILE"
  }
-
-cleanup_lock() {
-    rm -f /tmp/sparkdock.lock
-}
 
 notify() {
     osascript -e "display notification \"$1\" with title \"Sparkdock\""
@@ -62,7 +68,6 @@ fi
 # Updating myself.
 if [ "$1" != "skip-update" ] ; then
     check_update_lock
-    trap cleanup_lock EXIT
 
     cd /opt/sparkdock
 
