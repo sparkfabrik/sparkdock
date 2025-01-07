@@ -50,6 +50,9 @@ notify() {
     osascript -e "display notification \"$1\" with title \"Sparkdock\""
 }
 
+# Install/update the launchd service first
+install_update_service
+
 # Version command
 if [ "$1" = "version" ] ; then
     get_version_info
@@ -83,10 +86,6 @@ if [ "$1" != "skip-update" ] ; then
         git reset --hard "$CURRENT_VERSION"
         exit 1
     fi
-
-    # Install/update the launchd service before executing the update
-    print "Installing/updating update checker service..."
-    install_update_service
 
     $0 skip-update
     exit $?
