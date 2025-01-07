@@ -22,6 +22,9 @@ install_update_service() {
     # Install or update the plist file
     cp /opt/sparkdock/launchd/com.sparkfabrik.sparkdock.plist ~/Library/LaunchAgents/
 
+    # Set correct permissions (owner read/write, group/others read)
+    chmod 644 ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.plist
+
     # Unload if exists (ignoring errors) and load the service
     launchctl unload ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.plist 2>/dev/null || true
     launchctl load ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.plist
