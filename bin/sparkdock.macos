@@ -31,19 +31,19 @@ check_for_updates() {
 
 # Add update lock to prevent parallel updates
  check_update_lock() {
-     LOCK_FILE="/tmp/sparkdock.lock"
-     if [ -f "$LOCK_FILE" ]; then
-         pid=$(cat "$LOCK_FILE")
-         lock_time=$(stat -f "%m" "$LOCK_FILE")
-         current_time=$(date +%s)
-         if [ $((current_time - lock_time)) -gt 3600]; then
-             rm -f "$LOCK_FILE"
-         elif ps -p "$pid" > /dev/null; then
-             print "Another update is in progress (PID: $pid)"
-             exit 1
-         fi
-     fi
-     echo $$ > "$LOCK_FILE"
+    LOCK_FILE="/tmp/sparkdock.lock"
+    if [ -f "$LOCK_FILE" ]; then
+        pid=$(cat "$LOCK_FILE")
+        lock_time=$(stat -f "%m" "$LOCK_FILE")
+        current_time=$(date +%s)
+        if [ $((current_time - lock_time)) -gt 3600 ]; then
+            rm -f "$LOCK_FILE"
+        elif ps -p "$pid" > /dev/null; then
+            print "Another update is in progress (PID: $pid)"
+            exit 1
+        fi
+    fi
+    echo $$ > "$LOCK_FILE"
  }
 
 notify() {
@@ -77,7 +77,7 @@ if [ "$1" != "skip-update" ] ; then
     # Store last update time
     date "+%Y-%m-%d %H:%M:%S" > /opt/sparkdock/.last_update
 
-    git fetch
+    git fetch origin master
     if ! git reset --hard origin/master; then
         print "Update failed, rolling back..."
         git reset --hard "$CURRENT_VERSION"
