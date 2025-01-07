@@ -1,15 +1,43 @@
+# Colors and formatting
 RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
 NC='\033[0m'
 
 setopt PROMPT_SUBST
 
-print () {
-    printf "\e[1m\e[93m[ \e[92m•\e[93m ] \e[4m%s\e[0m\n" "$1"
+# Print functions for different message types
+print_info() {
+    printf "${BOLD}${BLUE}[INFO]${NC} %s\n" "$1"
+}
+
+print_success() {
+    printf "${BOLD}${GREEN}[ OK ]${NC} %s\n" "$1"
+}
+
+print_warning() {
+    printf "${BOLD}${YELLOW}[WARN]${NC} %s\n" "$1"
+}
+
+print_error() {
+    printf "${BOLD}${RED}[FAIL]${NC} %s\n" "$1"
+}
+
+print_section() {
+    echo ""
+    printf "${BOLD}${BLUE}=== %s ===${NC}\n" "$1"
+}
+
+# Deprecate old print function but keep for compatibility
+print() {
+    print_info "$1"
 }
 
 checkMacosVersion() {
     if ! [[ $( sw_vers -productVersion ) =~ ^(15.[0-9]+|14.[0-9]+|13.[0-9]+|12.[0-9]+|11.[0-9]+) ]] ; then
-        print  "${RED}Sorry, this script is supposed to be executed on macOS Big Sur (11.x), Monterey (12.x), Ventura (13.x), Sonoma (14.x) and Sequoia (15.x). Please use a supported version.${NC}"
+        print_error "Sorry, this script is supposed to be executed on macOS Big Sur (11.x), Monterey (12.x), Ventura (13.x), Sonoma (14.x) and Sequoia (15.x). Please use a supported version."
         return 1
     fi
     return 0
@@ -38,7 +66,17 @@ get_last_update() {
     fi
 }
 
-sparkdockfetch() {
+get_version_info() {
+    cd /opt/sparkdock
+    local current_branch=$(git rev-parse --abbrev-ref HEAD)
+    local current_version=$(git rev-parse --short HEAD)
+    local last_commit_date=$(git log -1 --format=%cd --date=format:'%Y-%m-%d %H:%M:%S')
+    echo "Version: ${current_version} (${current_branch})"
+    echo "Last commit: ${last_commit_date}"
+    echo "Last update: $(get_last_update)"
+}
+
+print_banner() {
 cat <<"EOF"
 
 
@@ -48,7 +86,13 @@ cat <<"EOF"
  |___/ .__/\__,_|_| |_\_\__,_\___/\__|_\_\
      |_|
 
-Last updated: $(get_last_update)
-
 EOF
+    print_section "System Information"
+    get_version_info
+    echo ""
+}
+
+# Keep old function name for backward compatibility
+sparkdockfetch() {
+    print_banner
 }

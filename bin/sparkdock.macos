@@ -40,6 +40,12 @@ notify() {
     osascript -e "display notification \"$1\" with title \"Sparkdock\""
 }
 
+# Version command
+if [ "$1" = "version" ] ; then
+    get_version_info
+    exit 0
+fi
+
 # Update check mode
 if [ "$1" = "check-updates" ] ; then
     if check_for_updates; then
@@ -79,15 +85,18 @@ fi
 
 # Cleaning the TTY.
 clear
-sparkdockfetch
+print_banner
 
-print "Checking for macOS supported version..."
+print_section "System Check"
+print_info "Checking for macOS supported version..."
 checkMacosVersion
 
-print "Sparkdock provisioner: Updating your system in progress..."
-print "Run ansible playboook, you'll be asked to insert your password to become root..."
+print_section "System Update"
+print_info "Sparkdock provisioner: Updating your system in progress..."
+print_info "Running ansible playbook..."
+print_warning "You'll be asked to insert your password to become root"
 ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass
 
-print "Installation done with success, thanks for your time."
+print_success "Installation completed successfully"
 
 exit 0
