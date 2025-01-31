@@ -117,6 +117,7 @@
       community.general.homebrew_cask:
         name:
           - google-chrome
+          - ghostty
           - iterm2
           - maccy
           - cameracontroller
