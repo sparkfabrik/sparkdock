@@ -11,7 +11,7 @@
   tasks:
     - name: Debug homebrew paths
       debug:
-        msg: 
+        msg:
           - "Prefix: {{ homebrew_prefix }}"
           - "Install path: {{ homebrew_install_path }}"
           - "Bin path: {{ homebrew_brew_bin_path }}"
@@ -33,7 +33,7 @@
     - name: Install docker and cloud tools
       tags: cask
       community.general.homebrew_cask:
-        name: 
+        name:
           - docker
           - google-cloud-sdk
         state: present
@@ -96,8 +96,8 @@
         - golang
         - gitleaks
         - git-credential-manager
-        state: present
-        update_homebrew: false
+      state: present
+      update_homebrew: false
 
     - name: Link php 8.2
       community.general.homebrew:
@@ -127,7 +127,7 @@
       block:
         - name: Create resolver directory
           file: path=/etc/resolver state=directory mode=0755
-          
+
         - name: Create and configure loc resolver
           copy:
             dest: /etc/resolver/loc
@@ -135,7 +135,7 @@
               nameserver 127.0.0.1
               port 19322
             mode: 0755
-            
+
         - name: Clear dns cache
           command: killall -HUP mDNSResponder
       become: yes
@@ -152,9 +152,18 @@
             dest: "{{ item.dest }}"
             mode: "0755"
           loop:
-            - { src: "{{ dev_env_dir }}/config/macos/bin/run-dinghy-proxy", dest: "/usr/local/bin/run-dinghy-proxy" }
-            - { src: "{{ dev_env_dir }}/config/bin/test-dinghy-proxy", dest: "/usr/local/bin/test-dinghy-proxy" }
-            - { src: "{{ dev_env_dir }}/config/macos/bin/ayse-get-sm", dest: "/usr/local/bin/ayse-get-sm" }
+            - {
+                src: "{{ dev_env_dir }}/config/macos/bin/run-dinghy-proxy",
+                dest: "/usr/local/bin/run-dinghy-proxy",
+              }
+            - {
+                src: "{{ dev_env_dir }}/config/bin/test-dinghy-proxy",
+                dest: "/usr/local/bin/test-dinghy-proxy",
+              }
+            - {
+                src: "{{ dev_env_dir }}/config/macos/bin/ayse-get-sm",
+                dest: "/usr/local/bin/ayse-get-sm",
+              }
       become: yes
       become_method: sudo
 
@@ -164,5 +173,11 @@
         src: "{{ item.src }}"
         dest: "{{ item.dest }}"
       loop:
-        - { src: "config/keyboard/en-intl-alt-gr-dead-keys.keylayout", dest: "~/Library/Keyboard Layouts" }
-        - { src: "config/keyboard/DefaultKeyBinding.dict", dest: "~/Library/KeyBindings" }
+        - {
+            src: "config/keyboard/en-intl-alt-gr-dead-keys.keylayout",
+            dest: "~/Library/Keyboard Layouts",
+          }
+        - {
+            src: "config/keyboard/DefaultKeyBinding.dict",
+            dest: "~/Library/KeyBindings",
+          }
