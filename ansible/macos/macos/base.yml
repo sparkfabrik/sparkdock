@@ -88,10 +88,10 @@
         name:
           - gh
           - glab
-          - node@20
+          - "node@20"
           - yarn-completion
           - corepack
-          - php@8.2
+          - "php@8.2"
           - golang
           - gitleaks
           - git-credential-manager
