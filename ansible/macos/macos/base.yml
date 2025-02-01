@@ -81,7 +81,7 @@
         state: present
         update_homebrew: false
 
-    - name: Install development tools
+    - name: Install dev utilities
       community.general.homebrew:
         name: "{{ item }}"
         state: present
