@@ -81,23 +81,20 @@
         state: present
         update_homebrew: false
 
-    - name: Install dev utilities
+    - name: Install development tools
       community.general.homebrew:
-        name: "{{ item }}"
+        name:
+          - gh
+          - glab
+          - "node@20"
+          - yarn-completion
+          - corepack
+          - "php@8.2"
+          - golang
+          - gitleaks
+          - git-credential-manager
         state: present
         update_homebrew: false
-      loop:
-        - gh
-        - glab
-        - "node@20"
-        - yarn-completion
-        - corepack
-        - "php@8.2"
-        - golang
-        - gitleaks
-        - git-credential-manager
-      state: present
-      update_homebrew: false
 
     - name: Link php 8.2
       community.general.homebrew:
