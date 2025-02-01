@@ -9,37 +9,34 @@
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
 
   tasks:
-    - name: Ensure not present packages
-      community.general.homebrew:
-        name:
-          - docker-compose
-          - neofetch
-          - php@8.3
-        state: absent
+    - name: Debug homebrew paths
+      debug:
+        msg: 
+          - "Prefix: {{ homebrew_prefix }}"
+          - "Install path: {{ homebrew_install_path }}"
+          - "Bin path: {{ homebrew_brew_bin_path }}"
 
-    - name: Ensure not present cask packages
-      tags: cask
-      community.general.homebrew_cask:
-        name:
-          - toggl-track
-        state: absent
-
-    - name: Upgrade all packages
+    - name: Update and upgrade homebrew packages
       community.general.homebrew:
         update_homebrew: true
         upgrade_all: true
 
-    - name: Install Docker for Desktop
-      tags: cask
-      community.general.homebrew_cask:
-        name: docker
-        state: present
-        install_options: force
+    - name: Remove unwanted packages
+      community.general.homebrew:
+        name:
+          - docker-compose
+          - neofetch
+          - "php@8.3"
+          - toggl-track
+        state: absent
+        update_homebrew: false
 
-    - name: Install Google cloud sdk
+    - name: Install docker and cloud tools
       tags: cask
       community.general.homebrew_cask:
-        name: google-cloud-sdk
+        name: 
+          - docker
+          - google-cloud-sdk
         state: present
         install_options: force
 
@@ -48,7 +45,7 @@
       register: command_result
       changed_when: "'All components are up to date' not in command_result.stderr"
 
-    - name: Install cloud native dependencies
+    - name: Install cloud native tools
       community.general.homebrew:
         name:
           - awscli
@@ -62,8 +59,9 @@
           - skaffold
           - stern
         state: present
+        update_homebrew: false
 
-    - name: Install system packages
+    - name: Install system utilities
       community.general.homebrew:
         name:
           - fastfetch
@@ -82,8 +80,9 @@
           - tmux
           - watch
         state: present
+        update_homebrew: false
 
-    - name: Install development packages
+    - name: Install development tools
       community.general.homebrew:
         name:
           - gh
@@ -96,26 +95,20 @@
           - gitleaks
           - git-credential-manager
         state: present
+        update_homebrew: false
 
     - name: Link php 8.2
       community.general.homebrew:
-        name: php@8.2
+        name: "php@8.2"
         state: linked
 
-    - name: Install some custom fonts
+    - name: Install fonts and applications
       tags: cask
       community.general.homebrew_cask:
         name:
           - font-droid-sans-mono-nerd-font
           - font-inconsolata-nerd-font
           - font-fira-code-nerd-font
-        state: present
-        install_options: force
-
-    - name: Install system packages from cask
-      tags: cask
-      community.general.homebrew_cask:
-        name:
           - google-chrome
           - ghostty
           - iterm2
@@ -124,74 +117,50 @@
           - visual-studio-code
           - slack
           - zoom
-          - MonitorControl
+          - monitorcontrol
         state: present
         install_options: force
 
-    - name: Create resolver directory
-      file: path=/etc/resolver state=directory mode=0755
+    - name: Configure DNS resolver
+      block:
+        - name: Create resolver directory
+          file: path=/etc/resolver state=directory mode=0755
+          
+        - name: Create and configure loc resolver
+          copy:
+            dest: /etc/resolver/loc
+            content: |
+              nameserver 127.0.0.1
+              port 19322
+            mode: 0755
+            
+        - name: Clear dns cache
+          command: killall -HUP mDNSResponder
       become: yes
       become_method: sudo
 
-    - name: Create loc resolver file
-      file: path=/etc/resolver/loc state=touch mode=0755
+    - name: Install system scripts
+      block:
+        - name: Ensure /usr/local/bin exists
+          file: path=/usr/local/bin state=directory
+
+        - name: Copy system scripts
+          copy:
+            src: "{{ item.src }}"
+            dest: "{{ item.dest }}"
+            mode: "0755"
+          loop:
+            - { src: "{{ dev_env_dir }}/config/macos/bin/run-dinghy-proxy", dest: "/usr/local/bin/run-dinghy-proxy" }
+            - { src: "{{ dev_env_dir }}/config/bin/test-dinghy-proxy", dest: "/usr/local/bin/test-dinghy-proxy" }
+            - { src: "{{ dev_env_dir }}/config/macos/bin/ayse-get-sm", dest: "/usr/local/bin/ayse-get-sm" }
       become: yes
       become_method: sudo
 
-    - name: Add nameserver line to /etc/resolver/loc
-      lineinfile: dest=/etc/resolver/loc state=present line="nameserver 127.0.0.1"
-      become: yes
-      become_method: sudo
-
-    - name: Add port line to /etc/resolver/loc
-      lineinfile: dest=/etc/resolver/loc state=present line="port 19322"
-      become: yes
-      become_method: sudo
-
-    - name: Clear dns cache
-      command: killall -HUP mDNSResponder
-      become: yes
-      become_method: sudo
-
-    - name: Ensures /usr/local/bin dir exists
-      file: path=/usr/local/bin state=directory
-      become: yes
-
-    - name: Copy dinghy-http-proxy start script
-      copy:
-        src: "{{ dev_env_dir }}/config/macos/bin/run-dinghy-proxy"
-        dest: /usr/local/bin/run-dinghy-proxy
-        force: yes
-        mode: uog+rwx
-      become: yes
-      become_method: sudo
-
-    - name: Copy dinghy proxy test script
-      copy:
-        src: "{{ dev_env_dir }}/config/bin/test-dinghy-proxy"
-        dest: /usr/local/bin/test-dinghy-proxy
-        force: yes
-        mode: uog+rwx
-      become: yes
-      become_method: sudo
-
-    - name: Copy get serial number script
-      copy:
-        src: "{{ dev_env_dir }}/config/macos/bin/ayse-get-sm"
-        dest: /usr/local/bin/ayse-get-sm
-        force: yes
-        mode: uog+rwx
-      become: yes
-      become_method: sudo
-
-    - name: Copy custom us keyboard layout
+    - name: Configure keyboard settings
       tags: keyboard
       copy:
-        src: "config/keyboard/en-intl-alt-gr-dead-keys.keylayout"
-        dest: "~/Library/Keyboard Layouts"
-
-    - name: Copy custom sane keybindings
-      tags: keyboard
-      copy:
-        src: "config/keyboard/DefaultKeyBinding.dict"
-        dest: "~/Library/KeyBindings"
+        src: "{{ item.src }}"
+        dest: "{{ item.dest }}"
+      loop:
+        - { src: "config/keyboard/en-intl-alt-gr-dead-keys.keylayout", dest: "~/Library/Keyboard Layouts" }
+        - { src: "config/keyboard/DefaultKeyBinding.dict", dest: "~/Library/KeyBindings" }
