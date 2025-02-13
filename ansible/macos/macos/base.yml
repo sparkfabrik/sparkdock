@@ -1,6 +1,8 @@
 ---
-- hosts: 127.0.0.1
+- name: Configure macOS system
+  hosts: localhost
   connection: local
+  gather_facts: yes
 
   vars:
     dev_env_dir: /opt/sparkdock
@@ -29,6 +31,14 @@
           - "php@8.3"
         state: absent
         update_homebrew: false
+
+    - name: Remove deprecated taps
+      community.general.homebrew_tap:
+        name:
+          - homebrew/cask-versions
+          - homebrew/cask-fonts
+          - homebrew/cask-drivers
+        state: absent
 
     - name: Install docker and cloud tools
       tags: cask
@@ -78,6 +88,7 @@
           - tmate
           - tmux
           - watch
+          - openssl@3
         state: present
         update_homebrew: false
 
@@ -99,6 +110,31 @@
       community.general.homebrew:
         name: "php@8.2"
         state: linked
+
+    - name: Link required packages
+      community.general.homebrew:
+        name: "{{ item }}"
+        state: linked
+      loop:
+        - yarn
+        - handbrake
+        - "php@8.2"
+
+    - name: Run brew doctor
+      command: brew doctor
+      register: brew_doctor_result
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Show brew doctor results
+      debug:
+        msg: "{{ brew_doctor_result.stdout_lines }}"
+      when: brew_doctor_result.stdout != ""
+
+    - name: Show brew doctor warnings
+      debug:
+        msg: "{{ brew_doctor_result.stderr_lines }}"
+      when: brew_doctor_result.stderr != ""
 
     - name: Install fonts and applications
       tags: cask
@@ -177,3 +213,8 @@
             src: "config/keyboard/DefaultKeyBinding.dict",
             dest: "~/Library/KeyBindings",
           }
+
+  post_tasks:
+    - name: Print installation complete message
+      debug:
+        msg: "macOS system configuration completed successfully!"

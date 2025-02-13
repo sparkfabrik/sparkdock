@@ -66,7 +66,7 @@ sudo xcodebuild -license accept
 
 # Install standard utilities.
 print 'Installing base packages with brew...'
-brew install git curl
+brew install git curl python3
 
 ## Check out a copy of this repo (first time only)
 # USER=`whoami`
@@ -81,9 +81,9 @@ print "Installing update checker service..."
 install_update_service
 
 ## Run Ansible Playbook
-print "Run ansible playboook..."
+print "Run ansible playbook..."
 cd /opt/sparkdock
-ansible-playbook ./ansible/macos.yml -i 127.0.0.1 --ask-become-pass
+ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass
 
 # Run dinghy-http-proxy.
 print "Run docker http proxy..."
