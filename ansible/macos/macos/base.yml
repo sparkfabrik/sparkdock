@@ -106,11 +106,6 @@
         state: present
         update_homebrew: false
 
-    - name: Link php 8.2
-      community.general.homebrew:
-        name: "php@8.2"
-        state: linked
-
     - name: Link required packages
       community.general.homebrew:
         name: "{{ item }}"
