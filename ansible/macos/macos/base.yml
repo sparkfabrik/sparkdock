@@ -112,8 +112,6 @@
         state: linked
       loop:
         - yarn
-        - handbrake
-        - "php@8.2"
 
     - name: Run brew doctor
       command: brew doctor
