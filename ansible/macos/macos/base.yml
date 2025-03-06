@@ -98,6 +98,7 @@
           - gh
           - glab
           - "node@20"
+          - yarn
           - yarn-completion
           - "php@8.2"
           - golang
