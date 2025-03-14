@@ -89,6 +89,7 @@
           - tmux
           - watch
           - openssl@3
+          - koekeishiya/formulae/skhd
         state: present
         update_homebrew: false
 
