@@ -74,8 +74,7 @@
       community.general.homebrew:
         name:
           - fastfetch
-          - gpg
-          - gpg2
+          - gnupg
           - jless
           - pinentry-mac
           - mactop
