@@ -73,6 +73,7 @@
     - name: Install system utilities
       community.general.homebrew:
         name:
+          - atuin
           - fastfetch
           - gnupg
           - jless
