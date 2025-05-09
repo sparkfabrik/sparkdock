@@ -74,6 +74,7 @@
       community.general.homebrew:
         name:
           - atuin
+          - bc
           - fastfetch
           - gnupg
           - jless
