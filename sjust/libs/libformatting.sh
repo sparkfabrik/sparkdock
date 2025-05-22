@@ -34,9 +34,19 @@ declare -r unhide=$'\033[28m'
 # url=$(Urllink "https://ublue.it" "Visit the ublue website")
 # echo "${url}"
 function Urllink (){
-    URL=$1
-    TEXT=$2
+    local URL=$1
+    local TEXT=$2
 
-    # Generate a clickable hyperlink
-    printf "\033]8;;%s\033\\%s\033]8;;\033\\" "$URL" "$TEXT${n}"
+    # Check for known terminals that support OSC 8 hyperlinks
+    # or specific terminals that don't.
+    if [[ "$TERM_PROGRAM" == "iTerm.app" || \
+          "$TERM_PROGRAM" == "vscode" || \
+          "$TERM_PROGRAM" == "Hyper" || \
+          "$TERM_PROGRAM" == "WezTerm" || \
+          "$TERM_PROGRAM" == "alacritty" || \
+          "$TERM_PROGRAM" == "kitty" ]]; then
+        printf "\033]8;;%s\033\\%s\033]8;;\033\\" "$URL" "$TEXT${n}"
+    else
+        printf "%s (%s)${n}" "$TEXT" "$URL"
+    fi
 }
