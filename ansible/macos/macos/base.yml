@@ -83,6 +83,7 @@
           - fastfetch
           - gnupg
           - jless
+          - just
           - pinentry-mac
           - mactop
           - mergiraf
@@ -215,6 +216,40 @@
             src: "config/keyboard/DefaultKeyBinding.dict",
             dest: "~/Library/KeyBindings",
           }
+
+    # Install to /usr/local/bin as the other binaries.
+    - name: Install sjust executable
+      tags: sjust
+      block:
+        - name: Copy sjust executable
+          copy:
+            src: "{{ dev_env_dir }}/sjust/sjust.sh"
+            dest: "/usr/local/bin/sjust"
+            mode: "0755"
+          become: yes
+          become_method: sudo
+
+        - name: Get Homebrew prefix
+          command: brew --prefix
+          register: brew_prefix
+          changed_when: false
+
+        - name: Ensure bash completion directory exists
+          file:
+            path: "{{ brew_prefix.stdout }}/etc/bash_completion.d"
+            state: directory
+            mode: "0755"
+
+        - name: Generate sjust zsh completion
+          shell: |
+            just --completions zsh | sed -E 's/([\(_" ])just/\1sjust/g' > "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
+          register: completion_result
+          changed_when: completion_result.rc == 0
+
+        - name: Set permissions for sjust zsh completion
+          file:
+            path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
+            mode: "0644"
 
   post_tasks:
     - name: Print installation complete message
