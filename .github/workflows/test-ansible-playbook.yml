@@ -17,8 +17,6 @@ jobs:
     env:
       TERM: xterm-256color
       SHELL: /bin/zsh
-      HOMEBREW_NO_AUTO_UPDATE: 1
-      HOMEBREW_NO_INSTALL_CLEANUP: 1
 
     steps:
       - name: Checkout code
@@ -52,14 +50,11 @@ jobs:
       - name: Verify installations
         run: |
           echo "Verifying key installations..."
-          ls -la /opt/sparkdock/config/packages/
-          ls -la /opt/sparkdock/ansible/
-          
-          brew list | grep docker || echo "Docker not found"
-          brew list | grep kubernetes-cli || echo "kubectl not found"
-          brew list | grep google-cloud-sdk || echo "gcloud not found"
-          brew list | grep awscli || echo "aws not found"
-
+          set -e
+          brew list | grep docker     || (echo "Docker not found" && exit 1)
+          brew list | grep kubernetes-cli || (echo "kubectl not found" && exit 1)
+          brew list | grep google-cloud-sdk || (echo "gcloud not found" && exit 1)
+          brew list | grep awscli     || (echo "aws not found" && exit 1)
           echo "Test completed on ${{ matrix.os }}"
 
       - name: Clean up test installations (optional)
