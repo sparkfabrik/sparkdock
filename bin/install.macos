@@ -15,12 +15,18 @@ checkMacosVersion() {
     return 0
 }
 
-# Architecture.
-ARCH=$(arch::uname -m)
+# Architecture - fix the incorrect syntax
+ARCH=$(uname -m)
+
+# Check for non-interactive mode
+NON_INTERACTIVE=false
+if [[ "$1" == "--non-interactive" ]]; then
+    NON_INTERACTIVE=true
+    print "Running in non-interactive mode for CI environment"
+fi
 
 # Cleaning the TTY.
 clear
-sparkdockfetch
 
 print "Sparkdock installer: This is a MacOS provisioner, to bootstrap the system."
 print "Checking for macOS supported version..."
@@ -28,8 +34,7 @@ checkMacosVersion
 
 ## Install or Update Homebrew ##
 print "Installing or Updating Homebrew..."
-BREW_EXISTS=$(which -s brew)
-if [[ ${BREW_EXISTS} != 0 ]] ; then
+if ! command -v brew &> /dev/null; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     if [ "${ARCH}" == "arm64" ]; then
       echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/${USER}/.zprofile
@@ -41,43 +46,50 @@ if [[ ${BREW_EXISTS} != 0 ]] ; then
 else
     brew update
     brew cleanup
-    brew uninstall --force brew-cask
+    brew uninstall --force brew-cask || true
     brew update
 fi
 
 ## Install or Update Ansible ##
 print 'Installing or Updating Ansible...'
-which -s ansible-playbook
-if [[ $? != 0 ]] ; then
+if ! command -v ansible-playbook &> /dev/null; then
   brew install ansible
 else
   brew upgrade ansible
 fi
 
-# Install rosetta2.
-print 'Installing Rosetta2...'
-ARCH=$(arch)
+# Install rosetta2 if needed on Apple Silicon
+print 'Installing Rosetta2 if needed...'
 if [[ $ARCH == "arm64" ]]; then
-  softwareupdate --install-rosetta
+  softwareupdate --install-rosetta --agree-to-license || true
 fi
 
-# Install xcode command line tools.
-xcode-select --install
+# Install xcode command line tools if needed
+if ! xcode-select -p &> /dev/null; then
+  print 'Installing Xcode Command Line Tools...'
+  if [[ "$NON_INTERACTIVE" == "true" ]]; then
+    # For CI, we assume CLT is already installed, so just skip
+    print "Skipping Xcode Command Line Tools in non-interactive mode"
+  else
+    xcode-select --install
+  fi
+fi
 
-# Accept the license.
-sudo xcodebuild -license accept
+# Accept the license (only if not in CI)
+if [[ "$NON_INTERACTIVE" != "true" ]]; then
+  sudo xcodebuild -license accept || true
+fi
 
 # Install standard utilities.
 print 'Installing base packages with brew...'
 brew install git curl python3
 
 ## Check out a copy of this repo (first time only)
-# USER=`whoami`
 print 'Checking out Sparkdock repo...'
 sudo rm -rf /opt/sparkdock && \
 sudo mkdir -p /opt/sparkdock && \
 sudo chown $(id -u):$(id -g) /opt/sparkdock
-git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
+git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock || cp -R $(dirname $BASE_DIR) /opt/sparkdock
 
 ## Install the launchd service
 print "Installing update checker service..."
@@ -86,16 +98,22 @@ install_update_service
 ## Run Ansible Playbook
 print "Run ansible playbook..."
 cd /opt/sparkdock
-ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass
+if [[ "$NON_INTERACTIVE" == "true" ]]; then
+  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become
+else
+  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass
+fi
 
 # Run dinghy-http-proxy.
 print "Run docker http proxy..."
-open --background -a Docker
-sleep 60
-/usr/local/bin/run-dinghy-proxy
+if [[ "$NON_INTERACTIVE" != "true" ]]; then
+  open --background -a Docker
+  sleep 10
+  /usr/local/bin/run-dinghy-proxy || true
+fi
 
 ## Copy sparkdock.macos to /usr/local/bin
-sudo ln -s $PWD/bin/sparkdock.macos /usr/local/bin/sparkdock
+sudo ln -sf $PWD/bin/sparkdock.macos /usr/local/bin/sparkdock
 sudo chmod +x /usr/local/bin/sparkdock
 
 ## Print some useful messages.
