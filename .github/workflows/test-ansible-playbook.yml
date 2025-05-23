@@ -53,10 +53,10 @@ jobs:
         run: |
           echo "Verifying key installations..."
           set -e
-          brew list | grep docker     || (echo "Docker not found" && exit 1)
+          brew list | grep docker || (echo "Docker not found" && exit 1)
           brew list | grep kubernetes-cli || (echo "kubectl not found" && exit 1)
           brew list | grep google-cloud-sdk || (echo "gcloud not found" && exit 1)
-          brew list | grep awscli     || (echo "aws not found" && exit 1)
+          brew list | grep awscli || (echo "aws not found" && exit 1)
           echo "Test completed on ${{ matrix.os }}"
 
       - name: Clean up test installations (optional)
