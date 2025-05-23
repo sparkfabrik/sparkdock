@@ -134,9 +134,9 @@ else
 fi
 
 # Run dinghy-http-proxy.
-print "Run docker http proxy..."
 if [[ "$NON_INTERACTIVE" != "true" ]]; then
   open --background -a Docker
+  print "Run docker http proxy..."
   sleep 60
   if [[ -x /usr/local/bin/run-dinghy-proxy ]]; then
     /usr/local/bin/run-dinghy-proxy || true
@@ -153,6 +153,10 @@ else
   print "Warning: sparkdock.macos not found. Skipping symlink creation."
 fi
 
+# Just run sjust to the test it works.
+print "Running sjust to test it works..."
+sjust
+
 ## Print some useful messages.
 if [[ "$NON_INTERACTIVE" != "true" ]]; then
   print "Now remember to add to your .bashrc or .zshrc the following commands:\n"
@@ -162,4 +166,5 @@ if [[ "$NON_INTERACTIVE" != "true" ]]; then
   print "!! IMPORTANT: To finish the installation you must configure this: https://docs.brew.sh/Shell-Completion"
   echo ""
 fi
+
 print "Thanks for installing sparkdock, enjoy a dockerized world!"
