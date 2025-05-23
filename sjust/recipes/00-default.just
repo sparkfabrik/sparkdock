@@ -52,6 +52,7 @@ clear-dns-cache:
     @echo "DNS cache cleared successfully!"
 
 # Run default docker http proxy.
+[group('docker')]
 start-http-proxy:
     #!/usr/bin/env bash
 
