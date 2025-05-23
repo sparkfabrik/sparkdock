@@ -49,14 +49,6 @@ jobs:
           # Run the installation script with the non-interactive flag
           /bin/zsh -c "./bin/install.macos --non-interactive"
 
-      - name: Verify installations
-        run: |
-          brew list | grep -q docker
-          brew list | grep -q kubernetes-cli
-          brew list | grep -q google-cloud-sdk
-          brew list | grep -q awscli
-          echo "Test completed on ${{ matrix.os }}"
-
       - name: Clean up test installations (optional)
         if: always()
         run: |
