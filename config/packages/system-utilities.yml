@@ -1,0 +1,23 @@
+---
+homebrew_packages:
+  - atuin
+  - bc
+  - fastfetch
+  - gnupg
+  - jless
+  - just
+  - pinentry-mac
+  - mactop
+  - mergiraf
+  - thefuck
+  - fzf
+  - navi
+  - jq
+  - yadm
+  - tmate
+  - tmux
+  - watch
+  - openssl@3
+  - koekeishiya/formulae/skhd
+  - imagemagick
+  - mas

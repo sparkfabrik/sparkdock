@@ -125,7 +125,7 @@ print_section "System Update"
 print_info "Sparkdock provisioner: Updating your system in progress..."
 print_info "Running ansible playbook..."
 print_warning "You'll be asked to insert your password to become root"
-ansible-playbook "$SPARKDOCK_ROOT/ansible/macos.yml" -i "$SPARKDOCK_ROOT/ansible/inventory.ini" --ask-become-pass
+ansible-playbook "$SPARKDOCK_ROOT/ansible/macos.yml" -i "$SPARKDOCK_ROOT/ansible/inventory.ini" --ask-become-pass -v
 
 print_success "Installation completed successfully"
 

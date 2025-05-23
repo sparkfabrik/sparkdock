@@ -1,0 +1,14 @@
+---
+cask_packages:
+  - docker
+  - google-cloud-sdk
+
+homebrew_packages:
+  - awscli
+  - docker-credential-helper-ecr
+  - kubernetes-cli
+  - k9s
+  - kind
+  - kubectx
+  - skaffold
+  - stern

@@ -1,0 +1,14 @@
+---
+homebrew_packages:
+  - gh
+  - glab
+  - "node@20"
+  - yarn
+  - yarn-completion
+  - "php@8.2"
+  - golang
+  - gitleaks
+  - git-credential-manager
+
+linked_packages:
+  - yarn

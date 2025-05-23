@@ -1,0 +1,62 @@
+name: Test Ansible Playbook
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test-macos:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-14, macos-15]
+      fail-fast: false
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.11"
+
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible
+
+      - name: Install Homebrew (if not present)
+        run: |
+          if ! command -v brew &> /dev/null; then
+            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+          fi
+
+      - name: Create required directory structure
+        run: |
+          mkdir -p /opt/sparkdock/config/packages
+          mkdir -p /opt/sparkdock/ansible/macos
+
+          # Copy configuration files to the expected locations
+          cp -r ./config/packages/* /opt/sparkdock/config/packages/
+          cp -r ./ansible /opt/sparkdock/
+
+      - name: Install Ansible collections
+        run: |
+          ansible-galaxy collection install community.general
+
+      - name: Run Ansible playbook
+        run: |
+          ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become --become-method=sudo -v
+        env:
+          ANSIBLE_HOST_KEY_CHECKING: false
+          # GitHub Actions runner has sudo access without password
+          ANSIBLE_BECOME_PASSWORD: ""
+
+      - name: Clean up test installations (optional)
+        if: always()
+        run: |
+          echo "Test completed on ${{ matrix.os }}"

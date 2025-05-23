@@ -1,0 +1,10 @@
+---
+removed_homebrew_packages:
+  - docker-compose
+  - neofetch
+  - "php@8.3"
+
+removed_taps:
+  - homebrew/cask-versions
+  - homebrew/cask-fonts
+  - homebrew/cask-drivers
