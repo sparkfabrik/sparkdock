@@ -85,7 +85,7 @@
     - name: Assert cask packages installed
       shell: |
         missing=0
-        for pkg in {{ all_cask_packages | join(' ') }}; do
+        for pkg in {{ all_cask_packages | map('quote') | join(' ') }}; do
           brew list --cask "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
         done
         exit $missing
