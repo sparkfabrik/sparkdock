@@ -4,6 +4,7 @@ uid := `id -u`
 shell := `grep :$(id -u): /etc/passwd | cut -d: -f7`
 
 # Print system information.
+[group('system')]
 device-info:
     #!/usr/bin/env bash
 
