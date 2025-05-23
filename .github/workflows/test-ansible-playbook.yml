@@ -37,12 +37,13 @@ jobs:
 
       - name: Create required directory structure
         run: |
-          mkdir -p /opt/sparkdock/config/packages
-          mkdir -p /opt/sparkdock/ansible/macos
+          # Create directories at /opt/sparkdock using sudo
+          sudo mkdir -p /opt/sparkdock/config/packages
+          sudo mkdir -p /opt/sparkdock/ansible/macos
 
-          # Copy configuration files to the expected locations
-          cp -r ./config/packages/* /opt/sparkdock/config/packages/
-          cp -r ./ansible /opt/sparkdock/
+          # Copy configuration files to the expected locations with sudo
+          sudo cp -r ./config/packages/* /opt/sparkdock/config/packages/
+          sudo cp -r ./ansible /opt/sparkdock/
 
       - name: Install Ansible collections
         run: |
@@ -50,6 +51,7 @@ jobs:
 
       - name: Run Ansible playbook
         run: |
+          # Run the playbook with the standard paths
           ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become --become-method=sudo -v
         env:
           ANSIBLE_HOST_KEY_CHECKING: false
@@ -60,3 +62,4 @@ jobs:
         if: always()
         run: |
           echo "Test completed on ${{ matrix.os }}"
+          sudo rm -rf /opt/sparkdock
