@@ -126,11 +126,16 @@ EOF
 fi
 
 # Modify sparkdock.macos to use non-interactive mode if needed
+# it should exit if ansible fails.
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
   sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
   ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become -v
 else
   ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v
+fi
+if [[ $? -ne 0 ]]; then
+  print "Ansible playbook failed. Exiting..."
+  exit 1
 fi
 
 # Run dinghy-http-proxy.
