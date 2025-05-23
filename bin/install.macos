@@ -86,7 +86,6 @@ print 'Installing base packages with brew...'
 brew install git curl python3
 
 ## Check out a copy of this repo (first time only)
-# USER=`whoami`
 print 'Checking out Sparkdock repo...'
 sudo rm -rf /opt/sparkdock && \
 sudo mkdir -p /opt/sparkdock && \
@@ -94,29 +93,82 @@ sudo chown $(id -u):$(id -g) /opt/sparkdock
 
 # In CI, we have the repo already checked out, so copy it instead of cloning
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
-  # Copy current directory to /opt/sparkdock
-  cp -R $(dirname $(dirname $BASE_DIR))/* /opt/sparkdock/
+  # Get the directory two levels up from BASE_DIR (where the repo root should be)
+  REPO_ROOT=$(cd "$BASE_DIR/../.." && pwd)
+  print "Copying from $REPO_ROOT to /opt/sparkdock"
+
+  # Create required directories first
+  mkdir -p /opt/sparkdock/bin
+  mkdir -p /opt/sparkdock/ansible
+  mkdir -p /opt/sparkdock/config
+  mkdir -p /opt/sparkdock/launchd
+  mkdir -p /opt/sparkdock/sjust
+
+  # Copy content
+  cp -R "$REPO_ROOT/bin"/* /opt/sparkdock/bin/
+  cp -R "$REPO_ROOT/ansible"/* /opt/sparkdock/ansible/
+  cp -R "$REPO_ROOT/config"/* /opt/sparkdock/config/
+
+  # Copy sjust files if they exist
+  if [[ -d "$REPO_ROOT/sjust" ]]; then
+    cp -R "$REPO_ROOT/sjust"/* /opt/sparkdock/sjust/
+  fi
+
+  # Copy other potential files at root level
+  cp -R "$REPO_ROOT"/*.{yml,yaml,md,just} /opt/sparkdock/ 2>/dev/null || true
 else
   git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
 fi
 
 ## Install the launchd service
 print "Installing update checker service..."
-install_update_service
+if [[ "$NON_INTERACTIVE" == "true" ]]; then
+  print "Skipping launchd service installation in non-interactive mode"
+else
+  if [[ -f /opt/sparkdock/launchd/com.sparkfabrik.sparkdock.plist ]]; then
+    install_update_service
+  else
+    print "Launchd plist file not found. Skipping service installation."
+  fi
+fi
 
 ## Run Ansible Playbook
 print "Run ansible playbook..."
 cd /opt/sparkdock
 
+# Create inventory file if it doesn't exist
+if [[ ! -f ./ansible/inventory.ini ]]; then
+  print "Creating inventory file..."
+  mkdir -p ./ansible
+  cat > ./ansible/inventory.ini << 'EOF'
+[localhost]
+127.0.0.1 ansible_connection=local
+EOF
+fi
+
 # Modify sparkdock.macos to use non-interactive mode if needed
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
   print "Setting up non-interactive mode for ansible..."
-  sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
+  if [[ -f /opt/sparkdock/bin/sparkdock.macos ]]; then
+    sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
+  else
+    print "Warning: sparkdock.macos not found. Skipping modification."
+  fi
 
   # Run the ansible playbook directly without asking for password
-  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become
+  if [[ -f ./ansible/macos.yml ]]; then
+    ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become
+  else
+    print "Error: Ansible playbook not found!"
+    exit 1
+  fi
 else
-  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass
+  if [[ -f ./ansible/macos.yml ]]; then
+    ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass
+  else
+    print "Error: Ansible playbook not found!"
+    exit 1
+  fi
 fi
 
 # Run dinghy-http-proxy.
@@ -124,21 +176,27 @@ print "Run docker http proxy..."
 if [[ "$NON_INTERACTIVE" != "true" ]]; then
   open --background -a Docker
   sleep 60
-  /usr/local/bin/run-dinghy-proxy || true
+  if [[ -x /usr/local/bin/run-dinghy-proxy ]]; then
+    /usr/local/bin/run-dinghy-proxy || true
+  else
+    print "Warning: run-dinghy-proxy not found or not executable"
+  fi
 fi
 
 ## Copy sparkdock.macos to /usr/local/bin
-sudo ln -sf $PWD/bin/sparkdock.macos /usr/local/bin/sparkdock
-sudo chmod +x /usr/local/bin/sparkdock
+if [[ -f $PWD/bin/sparkdock.macos ]]; then
+  sudo ln -sf $PWD/bin/sparkdock.macos /usr/local/bin/sparkdock
+  sudo chmod +x /usr/local/bin/sparkdock
+else
+  print "Warning: sparkdock.macos not found. Skipping symlink creation."
+fi
 
 ## Print some useful messages.
-print "Now remember to add to your .bashrc or .zshrc the following commands:\n"
-
-brew info google-cloud-sdk
-
-echo ""
-echo ""
 if [[ "$NON_INTERACTIVE" != "true" ]]; then
+  print "Now remember to add to your .bashrc or .zshrc the following commands:\n"
+  brew info google-cloud-sdk
+  echo ""
+  echo ""
   print "!! IMPORTANT: To finish the installation you must configure this: https://docs.brew.sh/Shell-Completion"
   echo ""
 fi
