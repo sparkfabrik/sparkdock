@@ -234,9 +234,9 @@
 
     - name: Remove unwanted cask packages
       community.general.homebrew_cask:
-        name: "{{ all_packages.removed_cask_packages | default([]) }}"
+        name: "{{ all_removed_cask_packages }}"
         state: absent
-      when: all_packages.removed_cask_packages is defined and all_packages.removed_cask_packages | length > 0
+      when: all_removed_cask_packages | length > 0
       become: false
 
   post_tasks:
