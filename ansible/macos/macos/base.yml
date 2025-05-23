@@ -25,6 +25,7 @@
         all_removed_homebrew: "{{ all_packages.removed_homebrew_packages | default([]) }}"
         all_removed_taps: "{{ all_packages.removed_taps | default([]) }}"
         all_taps: "{{ all_packages.taps | default([]) }}"
+        all_removed_cask_packages: "{{ all_packages.removed_cask_packages | default([]) }}"
 
     - name: Configure homebrew taps
       community.general.homebrew_tap:
