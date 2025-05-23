@@ -19,47 +19,38 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: "3.11"
-
-      - name: Install Ansible
+      - name: Install Sparkdock using installation script
         run: |
-          python -m pip install --upgrade pip
-          pip install ansible
+          # Modify the script to run non-interactively and skip any prompts
+          sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' ./bin/sparkdock.macos
 
-      - name: Install Homebrew (if not present)
+          # Make the script executable
+          chmod +x ./bin/install.macos
+          chmod +x ./bin/sparkdock.macos
+          chmod +x ./bin/common/utils.sh
+
+          # Run the installation script with sudo access
+          sudo mkdir -p /opt/sparkdock
+          sudo chown -R $(whoami) /opt/sparkdock
+
+          # Install Sparkdock to /opt/sparkdock
+          cp -R ./* /opt/sparkdock/
+
+          # Run the modified installation script
+          /opt/sparkdock/bin/sparkdock.macos skip-update
+
+      - name: Verify installations
         run: |
-          if ! command -v brew &> /dev/null; then
-            /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
-          fi
+          echo "Verifying key installations..."
+          brew list | grep docker || echo "Docker not found"
+          brew list | grep kubernetes-cli || echo "kubectl not found"
+          brew list | grep google-cloud-sdk || echo "gcloud not found"
+          brew list | grep awscli || echo "aws not found"
 
-      - name: Create required directory structure
-        run: |
-          # Create directories at /opt/sparkdock using sudo
-          sudo mkdir -p /opt/sparkdock/config/packages
-          sudo mkdir -p /opt/sparkdock/ansible/macos
-
-          # Copy configuration files to the expected locations with sudo
-          sudo cp -r ./config/packages/* /opt/sparkdock/config/packages/
-          sudo cp -r ./ansible /opt/sparkdock/
-
-      - name: Install Ansible collections
-        run: |
-          ansible-galaxy collection install community.general
-
-      - name: Run Ansible playbook
-        run: |
-          # Run the playbook with the standard paths
-          ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become --become-method=sudo -v
-        env:
-          ANSIBLE_HOST_KEY_CHECKING: false
-          # GitHub Actions runner has sudo access without password
-          ANSIBLE_BECOME_PASSWORD: ""
+          echo "Test completed on ${{ matrix.os }}"
 
       - name: Clean up test installations (optional)
         if: always()
         run: |
-          echo "Test completed on ${{ matrix.os }}"
+          echo "Cleaning up..."
           sudo rm -rf /opt/sparkdock
