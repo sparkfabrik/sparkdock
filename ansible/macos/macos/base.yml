@@ -52,7 +52,7 @@
           - "Install path: {{ homebrew_install_path }}"
           - "Bin path: {{ homebrew_brew_bin_path }}"
 
-    - name: Update and upgrade homebrew packages
+    - name: Update homebrew
       community.general.homebrew:
         update_homebrew: true
         upgrade_all: false
