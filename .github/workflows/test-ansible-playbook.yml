@@ -1,0 +1,56 @@
+name: Test Ansible Playbook
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+jobs:
+  test-macos:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-14, macos-15, macos-latest]
+      fail-fast: false
+    env:
+      TERM: xterm-256color
+      SHELL: /bin/zsh
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set ZSH as default shell and environment vars
+        run: |
+          echo "Setting up environment..."
+          echo "SHELL=/bin/zsh" >> $GITHUB_ENV
+          echo "TERM=xterm-256color" >> $GITHUB_ENV
+
+          # Ensure ZSH is the default shell for the current user
+          sudo chsh -s /bin/zsh $(whoami)
+
+          # Create a .zshrc file if it doesn't exist
+          touch ~/.zshrc
+          echo 'export TERM=xterm-256color' >> ~/.zshrc
+          echo 'export SHELL=/bin/zsh' >> ~/.zshrc
+
+      - name: Make scripts executable
+        run: |
+          chmod +x ./bin/install.macos
+          chmod +x ./bin/sparkdock.macos
+          chmod +x ./bin/common/utils.sh
+
+      - name: Run installer script in non-interactive mode
+        run: |
+          # Run the installation script with the non-interactive flag
+          /bin/zsh -c "./bin/install.macos --non-interactive"
+
+      - name: Clean up test installations (optional)
+        if: always()
+        run: |
+          echo "Cleaning up..."
+          sudo rm -rf /opt/sparkdock

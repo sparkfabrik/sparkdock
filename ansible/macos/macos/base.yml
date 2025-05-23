@@ -11,6 +11,41 @@
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
 
   tasks:
+    - name: Load all packages
+      include_vars:
+        file: "{{ dev_env_dir }}/config/packages/all-packages.yml"
+        name: all_packages
+      tags: always
+
+    - name: Collect all package lists
+      set_fact:
+        all_cask_packages: "{{ all_packages.cask_packages | default([]) }}"
+        all_homebrew_packages: "{{ all_packages.homebrew_packages | default([]) }}"
+        all_linked_packages: "{{ all_packages.linked_packages | default([]) }}"
+        all_removed_homebrew: "{{ all_packages.removed_homebrew_packages | default([]) }}"
+        all_removed_taps: "{{ all_packages.removed_taps | default([]) }}"
+        all_taps: "{{ all_packages.taps | default([]) }}"
+        all_removed_cask_packages: "{{ all_packages.removed_cask_packages | default([]) }}"
+
+    - name: Configure homebrew taps
+      community.general.homebrew_tap:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ all_taps }}"
+      when: all_taps | length > 0
+      become: false
+
+    - name: Debug loaded variables
+      debug:
+        msg:
+          - "All removed homebrew: {{ all_removed_homebrew }}"
+          - "All removed taps: {{ all_removed_taps }}"
+          - "All cask packages: {{ all_cask_packages }}"
+          - "All homebrew packages: {{ all_homebrew_packages }}"
+          - "All linked packages: {{ all_linked_packages }}"
+          - "All variables: {{ vars.keys() | list }}"
+      when: ansible_verbosity >= 1
+
     - name: Debug homebrew paths
       debug:
         msg:
@@ -18,110 +53,82 @@
           - "Install path: {{ homebrew_install_path }}"
           - "Bin path: {{ homebrew_brew_bin_path }}"
 
-    - name: Update and upgrade homebrew packages
+    - name: Update homebrew
       community.general.homebrew:
         update_homebrew: true
-        upgrade_all: true
+        upgrade_all: false
+      become: false
 
     - name: Remove unwanted packages
       community.general.homebrew:
-        name:
-          - docker-compose
-          - neofetch
-          - "php@8.3"
+        name: "{{ all_removed_homebrew }}"
         state: absent
         update_homebrew: false
+      when: all_removed_homebrew | length > 0
+      become: false
 
     - name: Remove deprecated taps
       community.general.homebrew_tap:
-        name:
-          - homebrew/cask-versions
-          - homebrew/cask-fonts
-          - homebrew/cask-drivers
+        name: "{{ all_removed_taps }}"
         state: absent
+      when: all_removed_taps | length > 0
+      become: false
 
-    - name: Install docker and cloud tools
+    - name: Install cask packages
       tags: cask
       community.general.homebrew_cask:
-        name:
-          - docker
-          - google-cloud-sdk
+        name: "{{ all_cask_packages }}"
         state: present
         install_options: force
+      when: all_cask_packages | length > 0
+      become: false
 
-    - name: Install gcloud components
-      command: "{{ homebrew_brew_bin_path }}/gcloud components install gke-gcloud-auth-plugin gsutil"
-      register: command_result
-      changed_when: "'All components are up to date' not in command_result.stderr"
+    - name: Assert cask packages installed
+      shell: |
+        missing=0
+        for pkg in {{ all_cask_packages | map('quote') | join(' ') }}; do
+          brew list --cask "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
+        done
+        exit $missing
+      register: cask_check
+      changed_when: false
+      failed_when: cask_check.rc != 0
+      become: false
 
-    - name: Install cloud native tools
+    - name: Install homebrew packages
       community.general.homebrew:
-        name:
-          - awscli
-          - docker-credential-helper-ecr
-          - imagemagick
-          - mas
-          - kubernetes-cli
-          - k9s
-          - kind
-          - kubectx
-          - skaffold
-          - stern
+        name: "{{ all_homebrew_packages }}"
         state: present
         update_homebrew: false
+      when: all_homebrew_packages | length > 0
+      become: false
 
-    - name: Install system utilities
-      community.general.homebrew:
-        name:
-          - atuin
-          - bc
-          - fastfetch
-          - gnupg
-          - jless
-          - just
-          - pinentry-mac
-          - mactop
-          - mergiraf
-          - thefuck
-          - fzf
-          - navi
-          - jq
-          - yadm
-          - tmate
-          - tmux
-          - watch
-          - openssl@3
-          - koekeishiya/formulae/skhd
-        state: present
-        update_homebrew: false
-
-    - name: Install development tools
-      community.general.homebrew:
-        name:
-          - gh
-          - glab
-          - "node@20"
-          - yarn
-          - yarn-completion
-          - "php@8.2"
-          - golang
-          - gitleaks
-          - git-credential-manager
-        state: present
-        update_homebrew: false
+    - name: Assert homebrew packages installed
+      shell: |
+        missing=0
+        for pkg in {{ all_homebrew_packages | map('quote') | join(' ') }}; do
+          brew list "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
+        done
+        exit $missing
+      register: brew_check
+      changed_when: false
+      failed_when: brew_check.rc != 0
+      become: false
 
     - name: Link required packages
       community.general.homebrew:
         name: "{{ item }}"
         state: linked
-      loop:
-        - yarn
+      loop: "{{ all_linked_packages }}"
+      when: all_linked_packages | length > 0
+      become: false
 
     - name: Run brew doctor
       command: brew doctor
       register: brew_doctor_result
       changed_when: false
       ignore_errors: yes
+      become: false
 
     - name: Show brew doctor results
       debug:
@@ -132,26 +139,6 @@
       debug:
         msg: "{{ brew_doctor_result.stderr_lines }}"
       when: brew_doctor_result.stderr != ""
-
-    - name: Install fonts and applications
-      tags: cask
-      community.general.homebrew_cask:
-        name:
-          - applite
-          - font-droid-sans-mono-nerd-font
-          - font-inconsolata-nerd-font
-          - font-fira-code-nerd-font
-          - google-chrome
-          - ghostty
-          - iterm2
-          - maccy
-          - cameracontroller
-          - visual-studio-code
-          - slack
-          - zoom
-          - monitorcontrol
-        state: present
-        install_options: force
 
     - name: Configure DNS resolver
       block:
@@ -245,6 +232,13 @@
           file:
             path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
             mode: "0644"
+
+    - name: Remove unwanted cask packages
+      community.general.homebrew_cask:
+        name: "{{ all_removed_cask_packages }}"
+        state: absent
+      when: all_removed_cask_packages | length > 0
+      become: false
 
   post_tasks:
     - name: Print installation complete message

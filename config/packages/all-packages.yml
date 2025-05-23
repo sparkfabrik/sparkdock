@@ -1,0 +1,81 @@
+taps:
+  - koekeishiya/formulae
+
+# Cloud Tools, Applications, and Fonts
+cask_packages:
+  - docker
+  - google-cloud-sdk
+  # Applications
+  - applite
+  - font-droid-sans-mono-nerd-font
+  - font-inconsolata-nerd-font
+  - font-fira-code-nerd-font
+  - google-chrome
+  - ghostty
+  - iterm2
+  - maccy
+  - cameracontroller
+  - visual-studio-code
+  - slack
+  - zoom
+  - monitorcontrol
+
+homebrew_packages:
+  # Cloud Tools
+  - awscli
+  - docker-credential-helper-ecr
+  - kubernetes-cli
+  - k9s
+  - kind
+  - kubectx
+  - skaffold
+  - stern
+  # System Utilities
+  - atuin
+  - bc
+  - fastfetch
+  - gnupg
+  - jless
+  - just
+  - pinentry-mac
+  - mactop
+  - mergiraf
+  - thefuck
+  - fzf
+  - navi
+  - jq
+  - yadm
+  - tmate
+  - tmux
+  - watch
+  - openssl@3
+  - skhd
+  - imagemagick
+  - mas
+  # Development Tools
+  - gh
+  - glab
+  - "node@20"
+  - yarn
+  - yarn-completion
+  - "php@8.2"
+  - golang
+  - gitleaks
+  - git-credential-manager
+
+linked_packages:
+  # Development Tools
+  - yarn
+
+# Removed packages/taps
+removed_homebrew_packages:
+  - docker-compose
+  - neofetch
+  - "php@8.3"
+
+removed_taps:
+  - homebrew/cask-versions
+  - homebrew/cask-fonts
+  - homebrew/cask-drivers
+
+removed_cask_packages: []

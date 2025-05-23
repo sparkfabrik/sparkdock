@@ -67,6 +67,11 @@ get_last_update() {
 }
 
 get_version_info() {
+    # check if /opt/sparkdock exists, if not, it is a first run, just return
+    if [ ! -d /opt/sparkdock ]; then
+        echo "First run, no version information available."
+        return
+    fi
     cd /opt/sparkdock
     local current_branch=$(git rev-parse --abbrev-ref HEAD)
     local current_version=$(git rev-parse --short HEAD)

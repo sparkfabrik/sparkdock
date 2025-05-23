@@ -1,5 +1,8 @@
 #!/usr/bin/env -S zsh
 
+BASE_DIR="$(dirname "$(readlink -f "$0")")"
+source ${BASE_DIR}/common/utils.sh
+
 print() {
     echo -e "\e[1m\e[93m[ \e[92m•\e[93m ] \e[4m$1\e[0m"
 }
@@ -12,8 +15,15 @@ checkMacosVersion() {
     return 0
 }
 
-# Architecture.
-ARCH=$(arch)
+# Check for non-interactive mode
+NON_INTERACTIVE=false
+if [[ "$1" == "--non-interactive" ]]; then
+    NON_INTERACTIVE=true
+    print "Running in non-interactive mode for CI environment"
+fi
+
+# Architecture - using proper command
+ARCH=$(uname -m)
 
 # Cleaning the TTY.
 clear
@@ -25,8 +35,7 @@ checkMacosVersion
 
 ## Install or Update Homebrew ##
 print "Installing or Updating Homebrew..."
-BREW_EXISTS=$(which -s brew)
-if [[ ${BREW_EXISTS} != 0 ]] ; then
+if ! command -v brew &> /dev/null; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     if [ "${ARCH}" == "arm64" ]; then
       echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/${USER}/.zprofile
@@ -38,70 +47,129 @@ if [[ ${BREW_EXISTS} != 0 ]] ; then
 else
     brew update
     brew cleanup
-    brew uninstall --force brew-cask
+    brew uninstall --force brew-cask || true
     brew update
 fi
 
 ## Install or Update Ansible ##
 print 'Installing or Updating Ansible...'
-which -s ansible-playbook
-if [[ $? != 0 ]] ; then
+if ! command -v ansible-playbook &> /dev/null; then
   brew install ansible
 else
   brew upgrade ansible
 fi
 
-# Install rosetta2.
-print 'Installing Rosetta2...'
-ARCH=$(arch)
+# Install rosetta2 if needed on Apple Silicon
+print 'Installing Rosetta2 if needed...'
 if [[ $ARCH == "arm64" ]]; then
-  softwareupdate --install-rosetta
+  softwareupdate --install-rosetta --agree-to-license || true
 fi
 
 # Install xcode command line tools.
-xcode-select --install
+if ! xcode-select -p &> /dev/null; then
+  print 'Installing Xcode Command Line Tools...'
+  if [[ "$NON_INTERACTIVE" == "true" ]]; then
+    # For CI, we assume CLT is already installed, so just skip
+    print "Skipping Xcode Command Line Tools in non-interactive mode"
+  else
+    xcode-select --install
+  fi
+fi
 
-# Accept the license.
-sudo xcodebuild -license accept
+# Accept the license (only if not in CI)
+if [[ "$NON_INTERACTIVE" != "true" ]]; then
+  sudo xcodebuild -license accept || true
+fi
 
 # Install standard utilities.
 print 'Installing base packages with brew...'
 brew install git curl python3
 
 ## Check out a copy of this repo (first time only)
-# USER=`whoami`
 print 'Checking out Sparkdock repo...'
 sudo rm -rf /opt/sparkdock && \
 sudo mkdir -p /opt/sparkdock && \
 sudo chown $(id -u):$(id -g) /opt/sparkdock
-git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
+
+# In CI, we have the repo already checked out, so copy it instead of cloning
+if [[ "$NON_INTERACTIVE" == "true" ]]; then
+  # we are in a CI environment, so we assume the repo is already checked out and we are at the root of the repo.
+  cp -R . /opt/sparkdock
+else
+  git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
+fi
 
 ## Install the launchd service
 print "Installing update checker service..."
-install_update_service
+if [[ "$NON_INTERACTIVE" == "true" ]]; then
+  print "Skipping launchd service installation in non-interactive mode"
+else
+  if [[ -f /opt/sparkdock/launchd/com.sparkfabrik.sparkdock.plist ]]; then
+    install_update_service
+  else
+    print "Launchd plist file not found. Skipping service installation."
+  fi
+fi
 
 ## Run Ansible Playbook
 print "Run ansible playbook..."
 cd /opt/sparkdock
-ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass
+
+# Create inventory file if it doesn't exist
+if [[ ! -f ./ansible/inventory.ini ]]; then
+  print "Creating inventory file..."
+  mkdir -p ./ansible
+  cat > ./ansible/inventory.ini << 'EOF'
+[localhost]
+127.0.0.1 ansible_connection=local
+EOF
+fi
+
+# Modify sparkdock.macos to use non-interactive mode if needed
+# it should exit if ansible fails.
+if [[ "$NON_INTERACTIVE" == "true" ]]; then
+  sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
+  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become -v
+else
+  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v
+fi
+if [[ $? -ne 0 ]]; then
+  print "Ansible playbook failed. Exiting..."
+  exit 1
+fi
 
 # Run dinghy-http-proxy.
-print "Run docker http proxy..."
-open --background -a Docker
-sleep 60
-/usr/local/bin/run-dinghy-proxy
+if [[ "$NON_INTERACTIVE" != "true" ]]; then
+  open --background -a Docker
+  print "Run docker http proxy..."
+  sleep 60
+  if [[ -x /usr/local/bin/run-dinghy-proxy ]]; then
+    /usr/local/bin/run-dinghy-proxy || true
+  else
+    print "Warning: run-dinghy-proxy not found or not executable"
+  fi
+fi
 
 ## Copy sparkdock.macos to /usr/local/bin
-sudo ln -s $PWD/bin/sparkdock.macos /usr/local/bin/sparkdock
-sudo chmod +x /usr/local/bin/sparkdock
+if [[ -f $PWD/bin/sparkdock.macos ]]; then
+  sudo ln -sf $PWD/bin/sparkdock.macos /usr/local/bin/sparkdock
+  sudo chmod +x /usr/local/bin/sparkdock
+else
+  print "Warning: sparkdock.macos not found. Skipping symlink creation."
+fi
+
+# Just run sjust to the test it works.
+print "Running sjust to test it works..."
+sjust
 
 ## Print some useful messages.
-print "Now remember to add to your .bashrc or .zshrc the following commands:\n"
+if [[ "$NON_INTERACTIVE" != "true" ]]; then
+  print "Now remember to add to your .bashrc or .zshrc the following commands:\n"
+  brew info google-cloud-sdk
+  echo ""
+  echo ""
+  print "!! IMPORTANT: To finish the installation you must configure this: https://docs.brew.sh/Shell-Completion"
+  echo ""
+fi
 
-brew info google-cloud-sdk
-
-echo ""
-echo ""
-print "!! IMPORTANT: To finish the installation you must configure this: https://docs.brew.sh/Shell-Completion"
-echo ""
 print "Thanks for installing sparkdock, enjoy a dockerized world!"

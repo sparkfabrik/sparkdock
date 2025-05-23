@@ -1,5 +1,7 @@
 # Sparkdock
 
+[![Test Ansible Playbook](https://github.com/sparkfabrik/sparkdock/actions/workflows/test-ansible-playbook.yml/badge.svg)](https://github.com/sparkfabrik/sparkdock/actions/workflows/test-ansible-playbook.yml)
+
 This is an automatic MacOS system provisioner, based on Ansible.
 
 ## MacOS

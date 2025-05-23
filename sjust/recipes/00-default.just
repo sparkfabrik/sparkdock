@@ -4,6 +4,7 @@ uid := `id -u`
 shell := `grep :$(id -u): /etc/passwd | cut -d: -f7`
 
 # Print system information.
+[group('system')]
 device-info:
     #!/usr/bin/env bash
 
@@ -52,6 +53,7 @@ clear-dns-cache:
     @echo "DNS cache cleared successfully!"
 
 # Run default docker http proxy.
+[group('docker')]
 start-http-proxy:
     #!/usr/bin/env bash
 
