@@ -127,27 +127,10 @@ fi
 
 # Modify sparkdock.macos to use non-interactive mode if needed
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
-  print "Setting up non-interactive mode for ansible..."
-  if [[ -f /opt/sparkdock/bin/sparkdock.macos ]]; then
-    sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
-  else
-    print "Warning: sparkdock.macos not found. Skipping modification."
-  fi
-
-  # Run the ansible playbook directly without asking for password
-  if [[ -f ./ansible/macos.yml ]]; then
-    ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become
-  else
-    print "Error: Ansible playbook not found!"
-    exit 1
-  fi
+  sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
+  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become -v
 else
-  if [[ -f ./ansible/macos.yml ]]; then
-    ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass
-  else
-    print "Error: Ansible playbook not found!"
-    exit 1
-  fi
+  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v
 fi
 
 # Run dinghy-http-proxy.

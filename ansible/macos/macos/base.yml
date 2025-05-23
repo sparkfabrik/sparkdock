@@ -11,30 +11,28 @@
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
 
   tasks:
-    - name: Load package definitions
-      include_vars: "{{ item }}"
-      loop:
-        - "{{ dev_env_dir }}/config/packages/removed-packages.yml"
-        - "{{ dev_env_dir }}/config/packages/cloud-tools.yml"
-        - "{{ dev_env_dir }}/config/packages/system-utilities.yml"
-        - "{{ dev_env_dir }}/config/packages/development-tools.yml"
-        - "{{ dev_env_dir }}/config/packages/applications.yml"
-      ignore_errors: yes
+    - name: Load all packages
+      include_vars:
+        file: "{{ dev_env_dir }}/config/packages/all-packages.yml"
+        name: all_packages
       tags: always
 
     - name: Collect all package lists
       set_fact:
-        all_cask_packages: "{{ vars | dict2items | selectattr('value.cask_packages', 'defined') | map(attribute='value.cask_packages') | list | flatten }}"
-        all_homebrew_packages: "{{ vars | dict2items | selectattr('value.homebrew_packages', 'defined') | map(attribute='value.homebrew_packages') | list | flatten }}"
-        all_linked_packages: "{{ vars | dict2items | selectattr('value.linked_packages', 'defined') | map(attribute='value.linked_packages') | list | flatten }}"
-        all_removed_homebrew: "{{ removed_homebrew_packages | default([]) }}"
-        all_removed_taps: "{{ removed_taps | default([]) }}"
+        all_cask_packages: "{{ all_packages.cask_packages | default([]) }}"
+        all_homebrew_packages: "{{ all_packages.homebrew_packages | default([]) }}"
+        all_linked_packages: "{{ all_packages.linked_packages | default([]) }}"
+        all_removed_homebrew: "{{ all_packages.removed_homebrew_packages | default([]) }}"
+        all_removed_taps: "{{ all_packages.removed_taps | default([]) }}"
 
     - name: Debug loaded variables
       debug:
         msg:
           - "All removed homebrew: {{ all_removed_homebrew }}"
           - "All removed taps: {{ all_removed_taps }}"
+          - "All cask packages: {{ all_cask_packages }}"
+          - "All homebrew packages: {{ all_homebrew_packages }}"
+          - "All linked packages: {{ all_linked_packages }}"
           - "All variables: {{ vars.keys() | list }}"
       when: ansible_verbosity >= 1
 
@@ -113,15 +111,6 @@
       debug:
         msg: "{{ brew_doctor_result.stderr_lines }}"
       when: brew_doctor_result.stderr != ""
-
-    - name: Install fonts and applications
-      tags: cask
-      community.general.homebrew_cask:
-        name: "{{ applications.cask_packages }}"
-        state: present
-        install_options: force
-      when: applications is defined and applications.cask_packages is defined
-      become: false
 
     - name: Configure DNS resolver
       block:
@@ -215,6 +204,13 @@
           file:
             path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
             mode: "0644"
+
+    - name: Remove unwanted cask packages
+      community.general.homebrew_cask:
+        name: "{{ all_packages.removed_cask_packages | default([]) }}"
+        state: absent
+      when: all_packages.removed_cask_packages is defined and all_packages.removed_cask_packages | length > 0
+      become: false
 
   post_tasks:
     - name: Print installation complete message
