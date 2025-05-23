@@ -15,9 +15,6 @@ checkMacosVersion() {
     return 0
 }
 
-# Architecture - fix the incorrect syntax
-ARCH=$(uname -m)
-
 # Check for non-interactive mode
 NON_INTERACTIVE=false
 if [[ "$1" == "--non-interactive" ]]; then
@@ -25,8 +22,12 @@ if [[ "$1" == "--non-interactive" ]]; then
     print "Running in non-interactive mode for CI environment"
 fi
 
+# Architecture - using proper command
+ARCH=$(uname -m)
+
 # Cleaning the TTY.
 clear
+sparkdockfetch
 
 print "Sparkdock installer: This is a MacOS provisioner, to bootstrap the system."
 print "Checking for macOS supported version..."
@@ -64,7 +65,7 @@ if [[ $ARCH == "arm64" ]]; then
   softwareupdate --install-rosetta --agree-to-license || true
 fi
 
-# Install xcode command line tools if needed
+# Install xcode command line tools.
 if ! xcode-select -p &> /dev/null; then
   print 'Installing Xcode Command Line Tools...'
   if [[ "$NON_INTERACTIVE" == "true" ]]; then
@@ -85,11 +86,19 @@ print 'Installing base packages with brew...'
 brew install git curl python3
 
 ## Check out a copy of this repo (first time only)
+# USER=`whoami`
 print 'Checking out Sparkdock repo...'
 sudo rm -rf /opt/sparkdock && \
 sudo mkdir -p /opt/sparkdock && \
 sudo chown $(id -u):$(id -g) /opt/sparkdock
-git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock || cp -R $(dirname $BASE_DIR) /opt/sparkdock
+
+# In CI, we have the repo already checked out, so copy it instead of cloning
+if [[ "$NON_INTERACTIVE" == "true" ]]; then
+  # Copy current directory to /opt/sparkdock
+  cp -R $(dirname $(dirname $BASE_DIR))/* /opt/sparkdock/
+else
+  git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
+fi
 
 ## Install the launchd service
 print "Installing update checker service..."
@@ -98,7 +107,13 @@ install_update_service
 ## Run Ansible Playbook
 print "Run ansible playbook..."
 cd /opt/sparkdock
+
+# Modify sparkdock.macos to use non-interactive mode if needed
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
+  print "Setting up non-interactive mode for ansible..."
+  sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
+
+  # Run the ansible playbook directly without asking for password
   ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become
 else
   ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass
@@ -108,7 +123,7 @@ fi
 print "Run docker http proxy..."
 if [[ "$NON_INTERACTIVE" != "true" ]]; then
   open --background -a Docker
-  sleep 10
+  sleep 60
   /usr/local/bin/run-dinghy-proxy || true
 fi
 
@@ -123,6 +138,8 @@ brew info google-cloud-sdk
 
 echo ""
 echo ""
-print "!! IMPORTANT: To finish the installation you must configure this: https://docs.brew.sh/Shell-Completion"
-echo ""
+if [[ "$NON_INTERACTIVE" != "true" ]]; then
+  print "!! IMPORTANT: To finish the installation you must configure this: https://docs.brew.sh/Shell-Completion"
+  echo ""
+fi
 print "Thanks for installing sparkdock, enjoy a dockerized world!"
