@@ -40,24 +40,29 @@ jobs:
           echo "Current shell: $SHELL"
           echo "Current TERM: $TERM"
 
-      - name: Install Sparkdock using installation script
+      - name: Make scripts executable
         run: |
-          # Modify the script to run non-interactively and skip any prompts
-          sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' ./bin/sparkdock.macos
-
-          # Make the script executable
           chmod +x ./bin/install.macos
           chmod +x ./bin/sparkdock.macos
           chmod +x ./bin/common/utils.sh
 
-          # Run the installation script with sudo access
+      - name: Prepare non-interactive installation
+        run: |
+          # Modify the scripts to run non-interactively
+          sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' ./bin/sparkdock.macos
+
+          # Create required directories with correct permissions
           sudo mkdir -p /opt/sparkdock
           sudo chown -R $(whoami) /opt/sparkdock
 
-          # Install Sparkdock to /opt/sparkdock
-          cp -R ./* /opt/sparkdock/
+      - name: Run installer script
+        run: |
+          # Run the installation script first - this sets up the repository in /opt/sparkdock
+          /bin/zsh -c "./bin/install.macos --non-interactive"
 
-          # Run the modified installation script
+      - name: Run sparkdock configuration
+        run: |
+          # Now run the sparkdock script to configure the system
           /bin/zsh -c "/opt/sparkdock/bin/sparkdock.macos skip-update"
 
       - name: Verify installations
