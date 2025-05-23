@@ -82,10 +82,16 @@
       when: all_cask_packages | length > 0
       become: false
 
-    - name: Install gcloud components
-      command: "{{ homebrew_brew_bin_path }}/gcloud components install gke-gcloud-auth-plugin gsutil"
-      register: command_result
-      changed_when: "'All components are up to date' not in command_result.stderr"
+    - name: Assert cask packages installed
+      shell: |
+        missing=0
+        for pkg in {{ all_cask_packages | join(' ') }}; do
+          brew list --cask "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
+        done
+        exit $missing
+      register: cask_check
+      changed_when: false
+      failed_when: cask_check.rc != 0
       become: false
 
     - name: Install homebrew packages
@@ -94,6 +100,18 @@
         state: present
         update_homebrew: false
       when: all_homebrew_packages | length > 0
+      become: false
+
+    - name: Assert homebrew packages installed
+      shell: |
+        missing=0
+        for pkg in {{ all_homebrew_packages | join(' ') }}; do
+          brew list "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
+        done
+        exit $missing
+      register: brew_check
+      changed_when: false
+      failed_when: brew_check.rc != 0
       become: false
 
     - name: Link required packages
