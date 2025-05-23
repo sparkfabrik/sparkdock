@@ -106,7 +106,7 @@
     - name: Assert homebrew packages installed
       shell: |
         missing=0
-        for pkg in {{ all_homebrew_packages | join(' ') }}; do
+        for pkg in {{ all_homebrew_packages | map('quote') | join(' ') }}; do
           brew list "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
         done
         exit $missing
