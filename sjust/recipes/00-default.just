@@ -62,7 +62,7 @@ start-http-proxy:
     mkdir -p ~/.dinghy/certs
 
     echo "Starting a dinghy-http-proxy container..."
-    IMAGE=codekitchen/dinghy-http-proxy:2.7.1
+    IMAGE=ghcr.io/sparkfabrik/http-proxy:latest
     docker pull ${IMAGE}
     docker rm -vf http-proxy || true
     docker run -d --restart=always \
