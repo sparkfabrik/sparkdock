@@ -61,8 +61,8 @@ start-http-proxy:
     # Rerun the script to update the certs.
     mkdir -p ~/.dinghy/certs
 
-    echo "Starting a dinghy-http-proxy container..."
-    IMAGE=codekitchen/dinghy-http-proxy:2.7.1
+    echo "Starting http-proxy container..."
+    IMAGE=ghcr.io/sparkfabrik/http-proxy:latest
     docker pull ${IMAGE}
     docker rm -vf http-proxy || true
     docker run -d --restart=always \
