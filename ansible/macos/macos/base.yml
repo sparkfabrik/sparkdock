@@ -180,12 +180,12 @@
             mode: "0755"
           loop:
             - {
-                src: "{{ dev_env_dir }}/config/macos/bin/run-dinghy-proxy",
-                dest: "/usr/local/bin/run-dinghy-proxy",
+                src: "{{ dev_env_dir }}/config/macos/bin/run-http-proxy",
+                dest: "/usr/local/bin/run-http-proxy",
               }
             - {
-                src: "{{ dev_env_dir }}/config/bin/test-dinghy-proxy",
-                dest: "/usr/local/bin/test-dinghy-proxy",
+                src: "{{ dev_env_dir }}/config/bin/test-http-proxy",
+                dest: "/usr/local/bin/test-http-proxy",
               }
             - {
                 src: "{{ dev_env_dir }}/config/macos/bin/ayse-get-sm",
