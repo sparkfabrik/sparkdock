@@ -194,6 +194,44 @@
       become: yes
       become_method: sudo
 
+    - name: Handle transition from dinghy-proxy to http-proxy
+      tags: proxy-transition
+      block:
+        - name: Check if old dinghy-proxy binaries exist
+          stat:
+            path: "{{ item }}"
+          register: old_binaries
+          loop:
+            - "/usr/local/bin/run-dinghy-proxy"
+            - "/usr/local/bin/test-dinghy-proxy"
+
+        - name: Remove old dinghy-proxy binaries if they exist and are not symlinks
+          file:
+            path: "{{ item.item }}"
+            state: absent
+          loop: "{{ old_binaries.results }}"
+          when: item.stat.exists and not item.stat.islnk
+          become: yes
+          become_method: sudo
+
+        - name: Create compatibility symlinks for old names
+          file:
+            src: "{{ item.new }}"
+            dest: "{{ item.old }}"
+            state: link
+            force: yes
+          loop:
+            - {
+                old: "/usr/local/bin/run-dinghy-proxy",
+                new: "/usr/local/bin/run-http-proxy",
+              }
+            - {
+                old: "/usr/local/bin/test-dinghy-proxy",
+                new: "/usr/local/bin/test-http-proxy",
+              }
+          become: yes
+          become_method: sudo
+
     - name: Configure keyboard settings
       tags: keyboard
       copy:
