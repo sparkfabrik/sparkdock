@@ -10,7 +10,7 @@ It will install the base system, some useful tools and applications, and some cu
 
 And some custom scripts you can find under `config/macos/bin`:
 
-1. `run-dingy-proxy`: Custom script to run our docker based http proxy.
+1. `run-http-proxy`: Custom script to run our docker based http proxy.
 1. `ayse-get-sm`: This is a script to print out system informations including serial number.
 
 ## Installation
