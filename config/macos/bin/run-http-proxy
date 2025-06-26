@@ -47,6 +47,11 @@ generate_mkcert() {
   fi
 
   if ! command -v mkcert >/dev/null 2>&1; then
+    if command -v brew >/dev/null 2>&1; then
+      echo "Installing mkcert with Homebrew..."
+      brew install mkcert nss
+      mkcert -install
+    fi
     echo "Error: mkcert not installed"
     exit 1
   fi
