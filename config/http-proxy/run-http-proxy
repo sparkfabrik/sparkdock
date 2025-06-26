@@ -110,7 +110,8 @@ case "$1" in
     ;;
   start)
     echo "🚀 Starting HTTP Proxy (basic stack)..."
-    # Stop everything first to ensure clean state
+    docker rm -vf http-proxy >/dev/null 2>&1 || true
+    docker rm -vf "$(docker ps -q --filter "label=com.docker.compose.project=http-proxy")" >/dev/null 2>&1 || true
     docker compose -f "$COMPOSE_FILE" --profile metrics down -v
     docker compose -f "$COMPOSE_FILE" up -d --pull always
     echo "✅ HTTP Proxy running - Traefik Dashboard: http://localhost:8080"
@@ -118,7 +119,8 @@ case "$1" in
     ;;
   start-with-metrics)
     echo "🚀 Starting HTTP Proxy with monitoring..."
-    # Stop everything first to ensure clean state
+    docker rm -vf http-proxy >/dev/null 2>&1 || true
+    docker rm -vf "$(docker ps -q --filter "label=com.docker.compose.project=http-proxy")" >/dev/null 2>&1 || true
     docker compose -f "$COMPOSE_FILE" --profile metrics down -v
     docker compose -f "$COMPOSE_FILE" --profile metrics up -d --pull always
     echo "✅ HTTP Proxy + Monitoring running:"
