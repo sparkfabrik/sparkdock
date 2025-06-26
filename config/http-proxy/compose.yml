@@ -32,14 +32,14 @@ services:
     image: ghcr.io/sparkfabrik/http-proxy-traefik:feature-98_migrate_to_traefik
     container_name: http-proxy
     ports:
-      - "80:80" # HTTP entrypoint
-      - "443:443" # HTTPS entrypoint
-      - "30000:8080" # Traefik dashboard
-      - "8082:8082" # Metrics endpoint for Prometheus
+      - "80:80"
+      - "443:443"
+      - "30000:8080"
+      - "8082:8082"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - traefik_dynamic:/traefik/dynamic
-      - "${HOME}/.local/spark/http-proxy/certs:/traefik/certs:ro" # Auto-load user certificates
+      - "${HOME}/.local/spark/http-proxy/certs:/traefik/certs:ro"
     labels:
       - "traefik.enable=false"
     restart: unless-stopped
