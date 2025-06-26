@@ -1,21 +1,3 @@
-# HTTP Proxy Stack - Production Ready Configuration
-# This demonstrates how to use the published images from GitHub Container Registry
-#
-# Usage:
-#   Basic HTTP Proxy:
-#     docker compose up -d
-#
-#   With Monitoring (Prometheus + Grafana):
-#     docker compose --profile metrics up -d
-#
-# Access:
-#   - Traefik Dashboard: http://localhost:8080
-#   - DNS Server: UDP port 19322
-#   - HTTP Proxy: Port 80
-#   - HTTPS Proxy: Port 443 (manual configuration required)
-#   - Grafana (optional): http://localhost:8081 (admin/admin)
-#   - Prometheus (optional): http://localhost:9090
-
 services:
   dinghy_layer:
     image: ghcr.io/sparkfabrik/http-proxy-services:feature-98_migrate_to_traefik
