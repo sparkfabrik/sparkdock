@@ -15,6 +15,7 @@ show_usage() {
   echo "Usage: $0 <command> [options]"
   echo "Commands:"
   echo "  start                Start HTTP proxy (basic stack)"
+  echo "  restart              Restart HTTP proxy"
   echo "  start-with-metrics   Start HTTP proxy with monitoring stack"
   echo "  stop-metrics         Stop only monitoring services"
   echo "  clean                Stop all services and remove volumes"
@@ -130,6 +131,16 @@ case "$1" in
     docker compose -f "$COMPOSE_FILE" up -d --pull always
     echo "✅ HTTP Proxy running - Traefik Dashboard: http://localhost:8080"
     echo "💡 To add monitoring: $0 start-with-metrics"
+    ;;
+  restart)
+    echo "🔄 Restarting HTTP Proxy..."
+    if docker compose -f "$COMPOSE_FILE" ps | grep -q prometheus; then
+      echo "Stopping monitoring services..."
+      docker compose --profile metrics -f "$COMPOSE_FILE" restart
+    else
+      docker compose -f "$COMPOSE_FILE" restart
+    fi
+    echo "✅ HTTP Proxy restarted"
     ;;
   start-with-metrics)
     echo "🚀 Starting HTTP Proxy with monitoring..."
