@@ -21,6 +21,89 @@ log_success() { echo "✅ $1"; }
 log_error() { echo "❌ $1"; }
 log_warning() { echo "⚠️  $1"; }
 
+# Generate bash/zsh completion script
+generate_completion() {
+  local script_name
+  script_name=$(basename "$0")
+
+  cat << EOF
+# Bash/Zsh completion for $script_name
+_${script_name//-/_}_completion() {
+    local cur prev commands services
+    COMPREPLY=()
+    cur="\${COMP_WORDS[COMP_CWORD]}"
+    prev="\${COMP_WORDS[COMP_CWORD-1]}"
+
+    # Available commands
+    commands="help start status restart start-with-metrics stop-metrics clean logs dashboard grafana prometheus completion install-completion generate-mkcert up down pull build ps top exec"
+
+    # Available services for logs command
+    services="traefik dinghy_layer join_networks dns prometheus grafana"
+
+    case "\${prev}" in
+        logs)
+            COMPREPLY=( \$(compgen -W "\${services}" -- \${cur}) )
+            return 0
+            ;;
+        generate-mkcert)
+            # No completion for domain names
+            return 0
+            ;;
+        *)
+            ;;
+    esac
+
+    # Complete commands
+    COMPREPLY=( \$(compgen -W "\${commands}" -- \${cur}) )
+    return 0
+}
+
+# Register completion function
+if [[ -n \${ZSH_VERSION-} ]]; then
+    # Zsh completion
+    autoload -U compinit && compinit
+    autoload -U bashcompinit && bashcompinit
+fi
+
+complete -F _${script_name//-/_}_completion $script_name
+EOF
+}
+
+# Install completion script to shell profile
+install_completion() {
+  local script_path
+  script_path=$(realpath "$0")
+  local shell_profile
+
+  # Determine shell profile file
+  if [[ -n "${ZSH_VERSION-}" ]] || [[ "$SHELL" == *zsh* ]]; then
+    shell_profile="$HOME/.zshrc"
+  elif [[ -n "${BASH_VERSION-}" ]] || [[ "$SHELL" == *bash* ]]; then
+    shell_profile="$HOME/.bashrc"
+  else
+    log_error "Unsupported shell. Please manually add: source <($script_path completion)"
+    return 1
+  fi
+
+  local completion_line="source <($script_path completion)"
+
+  # Check if already installed
+  if grep -q "$completion_line" "$shell_profile" 2>/dev/null; then
+    log_warning "Completion already installed in $shell_profile"
+    return 0
+  fi
+
+  # Add completion to shell profile
+  {
+    echo ""
+    echo "# Auto-completion for $(basename "$0")"
+    echo "$completion_line"
+  } >> "$shell_profile"
+
+  log_success "Completion installed to $shell_profile"
+  log_info "Restart your terminal or run: source $shell_profile"
+}
+
 # Prerequisite checks
 check_prerequisites() {
     local errors=0
@@ -55,6 +138,7 @@ show_usage() {
   echo "Usage: $0 <command> [options]"
   echo ""
   echo "Commands:"
+  echo "  help                 Show this help message"
   echo "  start                Start HTTP proxy (basic stack)"
   echo "  status               Show HTTP proxy status"
   echo "  restart              Restart HTTP proxy"
@@ -65,10 +149,14 @@ show_usage() {
   echo "  dashboard            Open Traefik dashboard (http://localhost:$TRAEFIK_DASHBOARD_PORT)"
   echo "  grafana              Open Grafana dashboard (http://localhost:$GRAFANA_PORT, admin/admin)"
   echo "  prometheus           Open Prometheus (http://localhost:$PROMETHEUS_PORT)"
+  echo "  completion           Generate shell completion script"
+  echo "  install-completion   Install completion to shell profile"
   echo "  generate-mkcert      Generate SSL certificates"
   echo "  up, down, logs...    Standard Docker Compose commands"
   echo ""
   echo "Examples:"
+  echo "  $0 help                     # Show this help"
+  echo "  $0 install-completion       # Install autocomplete"
   echo "  $0 start                    # Basic HTTP proxy only"
   echo "  $0 start-with-metrics       # HTTP proxy + monitoring"
   echo "  $0 stop-metrics             # Remove monitoring, keep proxy"
@@ -77,6 +165,10 @@ show_usage() {
   echo "  $0 up --profile metrics     # Alternative metrics start"
   echo ""
   echo "Config: $COMPOSE_FILE"
+  echo ""
+  echo "Autocomplete:"
+  echo "  Quick setup: $0 install-completion"
+  echo "  Manual setup: source <($0 completion)"
 }
 
 install_mkcert() {
@@ -103,7 +195,7 @@ generate_mkcert() {
   local domain="$1"
 
   if [ -z "$domain" ]; then
-    read -p "Enter domain name: " domain
+    read -rp "Enter domain name: " domain
   fi
 
   if [ -z "$domain" ]; then
@@ -175,7 +267,7 @@ open_prometheus() {
 }
 
 case "$1" in
-  ""|"-h"|"--help")
+  ""|"-h"|"--help"|"help")
     show_usage
     exit 0
     ;;
@@ -271,6 +363,12 @@ case "$1" in
     ;;
   prometheus)
     open_prometheus
+    ;;
+  completion)
+    generate_completion
+    ;;
+  install-completion)
+    install_completion
     ;;
   generate-mkcert)
     generate_mkcert "$2"
