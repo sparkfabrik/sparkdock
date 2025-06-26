@@ -40,6 +40,8 @@ homebrew_packages:
   - pinentry-mac
   - mactop
   - mergiraf
+  - mkcert
+  - nss
   - thefuck
   - fzf
   - navi
