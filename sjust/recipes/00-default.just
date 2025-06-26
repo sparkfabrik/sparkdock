@@ -70,7 +70,6 @@ upgrade-sparkdock:
     #!/usr/bin/env bash
     echo "Upgrading Sparkdock environment..."
     cd /opt/sparkdock && git pull
-    # Reload sjust recipes if needed
     echo "Sparkdock updated successfully!"
 
 # Update system packages via Homebrew.
