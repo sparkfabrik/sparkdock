@@ -58,6 +58,10 @@ generate_mkcert() {
   mkcert -cert-file "$cert_dir/$domain.pem" \
          -key-file "$cert_dir/$domain-key.pem" \
          "$domain"
+
+  # Restart traefik to apply new certificates.
+  echo "Restarting Traefik to apply new certificates..."
+  docker compose -f "$COMPOSE_FILE" restart traefik
 }
 
 open_dashboard() {

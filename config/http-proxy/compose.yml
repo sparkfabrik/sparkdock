@@ -52,7 +52,7 @@ services:
     ports:
       - "80:80" # HTTP entrypoint
       - "443:443" # HTTPS entrypoint
-      - "8080:8080" # Traefik dashboard
+      - "30000:8080" # Traefik dashboard
       - "8082:8082" # Metrics endpoint for Prometheus
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
@@ -79,7 +79,7 @@ services:
     image: ghcr.io/sparkfabrik/http-proxy-grafana:feature-98_migrate_to_traefik
     container_name: http-proxy-grafana
     ports:
-      - "8081:3000"
+      - "30001:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
       - GF_USERS_ALLOW_SIGN_UP=false
