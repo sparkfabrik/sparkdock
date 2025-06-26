@@ -197,6 +197,15 @@
     - name: Handle transition from dinghy-proxy to http-proxy
       tags: proxy-transition
       block:
+        - name: Verify new http-proxy binaries exist before transition
+          stat:
+            path: "{{ item }}"
+          register: new_binaries
+          loop:
+            - "/usr/local/bin/run-http-proxy"
+            - "/usr/local/bin/test-http-proxy"
+          failed_when: not new_binaries.results | selectattr('stat.exists') | list | length == 2
+
         - name: Check if old dinghy-proxy binaries exist
           stat:
             path: "{{ item }}"
@@ -213,6 +222,27 @@
           when: item.stat.exists and not item.stat.islnk
           become: yes
           become_method: sudo
+
+        - name: Migrate old dinghy certificates to new location
+          block:
+            - name: Check if old dinghy certs directory exists
+              stat:
+                path: "{{ ansible_env.HOME }}/.dinghy/certs"
+              register: old_certs_dir
+
+            - name: Create new certs directory
+              file:
+                path: "{{ ansible_env.HOME }}/.local/spark/http-proxy/certs"
+                state: directory
+                mode: "0755"
+
+            - name: Copy certificates from old to new location
+              shell: |
+                if [ -d "{{ ansible_env.HOME }}/.dinghy/certs" ] && [ "$(ls -A {{ ansible_env.HOME }}/.dinghy/certs 2>/dev/null)" ]; then
+                  cp -r {{ ansible_env.HOME }}/.dinghy/certs/* {{ ansible_env.HOME }}/.local/spark/http-proxy/certs/
+                fi
+              when: old_certs_dir.stat.exists
+              ignore_errors: yes
 
         - name: Create compatibility symlinks for old names
           file:
@@ -231,6 +261,18 @@
               }
           become: yes
           become_method: sudo
+
+        - name: Display transition completion message
+          debug:
+            msg: |
+              ✅ Dinghy-proxy to http-proxy transition completed:
+              - Old binaries removed (if they existed)
+              - Compatibility symlinks created
+              - Certificates migrated to new location
+
+              You can now use either:
+              - run-http-proxy (new command)
+              - run-dinghy-proxy (compatibility symlink)
 
     - name: Configure keyboard settings
       tags: keyboard

@@ -57,21 +57,12 @@ clear-dns-cache:
 start-http-proxy:
     #!/usr/bin/env bash
 
-    # The certs are only red by dinghy on startup.
+    # The certs directory for the new http-proxy
     # Rerun the script to update the certs.
-    mkdir -p ~/.dinghy/certs
+    mkdir -p ~/.local/spark/http-proxy/certs
 
-    echo "Starting http-proxy container..."
-    IMAGE=ghcr.io/sparkfabrik/http-proxy:latest
-    docker pull ${IMAGE}
-    docker rm -vf http-proxy || true
-    docker run -d --restart=always \
-    -v /var/run/docker.sock:/tmp/docker.sock:ro \
-    -v ~/.dinghy/certs:/etc/nginx/certs \
-    -p 80:80 -p 443:443 -p 19322:19322/udp \
-    -e DNS_IP=127.0.0.1 -e CONTAINER_NAME=http-proxy -e DOMAIN_TLD=loc \
-    --name http-proxy \
-     ${IMAGE}
+    echo "Starting http-proxy container using run-http-proxy..."
+    run-http-proxy start
 
 # Update Sparkdock to the latest version.
 [group('maintenance')]
