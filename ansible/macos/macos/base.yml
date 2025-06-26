@@ -204,7 +204,12 @@
           loop:
             - "/usr/local/bin/run-http-proxy"
             - "/usr/local/bin/test-http-proxy"
-          failed_when: not new_binaries.results | selectattr('stat.exists') | list | length == 2
+
+        - name: Ensure all new binaries exist
+          fail:
+            msg: "Required binary {{ item.item }} does not exist"
+          loop: "{{ new_binaries.results }}"
+          when: not item.stat.exists
 
         - name: Check if old dinghy-proxy binaries exist
           stat:
