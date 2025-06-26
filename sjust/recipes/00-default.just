@@ -81,6 +81,14 @@ upgrade-system:
     brew update && brew upgrade && brew cleanup
     echo "System packages updated successfully!"
 
+[group('system')]
+install-mkcert:
+    #!/usr/bin/env bash
+    echo "Install mkcert..."
+    brew install mkcert nss
+    mkcert -install
+    echo "mkcert installed successfully!"
+
 # System cleanup to free up disk space.
 [group('system')]
 system-cleanup:
