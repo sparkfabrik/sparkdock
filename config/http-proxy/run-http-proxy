@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+
+set -e
+
+# Configuration - can be overridden by environment variables
+export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-spark-http-proxy}
+export COMPOSE_FILE=${COMPOSE_FILE:-/opt/sparkdock/config/http-proxy/compose.yml}
+
+if [ ! -f "$COMPOSE_FILE" ]; then
+  echo "Error: Docker Compose file not found at $COMPOSE_FILE"
+  exit 1
+fi
+
+show_usage() {
+  echo "Usage: $0 <command> [options]"
+  echo "Commands:"
+  echo "  start                Start HTTP proxy (basic stack)"
+  echo "  start-with-metrics   Start HTTP proxy with monitoring stack"
+  echo "  stop-metrics         Stop only monitoring services"
+  echo "  clean                Stop all services and remove volumes"
+  echo "  dashboard            Open Traefik dashboard (http://localhost:8080)"
+  echo "  grafana              Open Grafana dashboard (http://localhost:8081)"
+  echo "  prometheus           Open Prometheus (http://localhost:9090)"
+  echo "  generate-mkcert      Generate SSL certificates"
+  echo "  up, down, logs...    Standard Docker Compose commands"
+  echo ""
+  echo "Examples:"
+  echo "  $0 start                    # Basic HTTP proxy only"
+  echo "  $0 start-with-metrics       # HTTP proxy + monitoring"
+  echo "  $0 stop-metrics             # Remove monitoring, keep proxy"
+  echo "  $0 clean                    # Stop everything"
+  echo "  $0 up --profile metrics     # Alternative metrics start"
+  echo ""
+  echo "Config: $COMPOSE_FILE"
+}
+
+generate_mkcert() {
+  local domain="$1"
+
+  if [ -z "$domain" ]; then
+    read -p "Enter domain name: " domain
+  fi
+
+  if [ -z "$domain" ]; then
+    echo "Error: Domain name required"
+    exit 1
+  fi
+
+  if ! command -v mkcert >/dev/null 2>&1; then
+    echo "Error: mkcert not installed"
+    exit 1
+  fi
+
+  local cert_dir="$HOME/.local/spark/http-proxy/certs"
+  mkdir -p "$cert_dir"
+
+  echo "Generating certificates for: $domain"
+  mkcert -cert-file "$cert_dir/$domain.pem" \
+         -key-file "$cert_dir/$domain-key.pem" \
+         "$domain"
+}
+
+open_dashboard() {
+  local url="http://localhost:8080"
+  echo "Opening Traefik dashboard: $url"
+
+  if command -v open >/dev/null 2>&1; then
+    open "$url"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url"
+  else
+    echo "Cannot open browser automatically. Please visit: $url"
+    exit 1
+  fi
+}
+
+open_grafana() {
+  local url="http://localhost:8081"
+  echo "Opening Grafana dashboard: $url (admin/admin)"
+
+  if command -v open >/dev/null 2>&1; then
+    open "$url"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url"
+  else
+    echo "Cannot open browser automatically. Please visit: $url"
+    echo "Login: admin/admin"
+    exit 1
+  fi
+}
+
+open_prometheus() {
+  local url="http://localhost:9090"
+  echo "Opening Prometheus: $url"
+
+  if command -v open >/dev/null 2>&1; then
+    open "$url"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$url"
+  else
+    echo "Cannot open browser automatically. Please visit: $url"
+    exit 1
+  fi
+}
+
+case "$1" in
+  ""|"-h"|"--help")
+    show_usage
+    exit 0
+    ;;
+  start)
+    echo "🚀 Starting HTTP Proxy (basic stack)..."
+    # Stop everything first to ensure clean state
+    docker compose -f "$COMPOSE_FILE" --profile metrics down -v
+    docker compose -f "$COMPOSE_FILE" up -d --pull always
+    echo "✅ HTTP Proxy running - Traefik Dashboard: http://localhost:8080"
+    echo "💡 To add monitoring: $0 start-with-metrics"
+    ;;
+  start-with-metrics)
+    echo "🚀 Starting HTTP Proxy with monitoring..."
+    # Stop everything first to ensure clean state
+    docker compose -f "$COMPOSE_FILE" --profile metrics down -v
+    docker compose -f "$COMPOSE_FILE" --profile metrics up -d --pull always
+    echo "✅ HTTP Proxy + Monitoring running:"
+    echo "   - Traefik Dashboard: http://localhost:8080"
+    echo "   - Grafana Dashboard: http://localhost:8081 (admin/admin)"
+    echo "   - Prometheus: http://localhost:9090"
+    ;;
+  stop-metrics)
+    echo "🛑 Stopping monitoring services..."
+    docker compose -f "$COMPOSE_FILE" stop prometheus grafana
+    docker compose -f "$COMPOSE_FILE" rm -f prometheus grafana
+    echo "✅ Monitoring stopped (HTTP Proxy still running)"
+    ;;
+  clean)
+    echo "🧹 Stopping all services and cleaning volumes..."
+    docker compose -f "$COMPOSE_FILE" --profile metrics down -v
+    echo "✅ All services stopped and volumes removed"
+    ;;
+  dashboard)
+    open_dashboard
+    ;;
+  grafana)
+    open_grafana
+    ;;
+  prometheus)
+    open_prometheus
+    ;;
+  generate-mkcert)
+    generate_mkcert "$2"
+    ;;
+  *)
+    docker compose -f "$COMPOSE_FILE" "$@"
+    ;;
+esac

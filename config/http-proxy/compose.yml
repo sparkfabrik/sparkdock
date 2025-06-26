@@ -1,0 +1,104 @@
+# HTTP Proxy Stack - Production Ready Configuration
+# This demonstrates how to use the published images from GitHub Container Registry
+#
+# Usage:
+#   Basic HTTP Proxy:
+#     docker compose up -d
+#
+#   With Monitoring (Prometheus + Grafana):
+#     docker compose --profile metrics up -d
+#
+# Access:
+#   - Traefik Dashboard: http://localhost:8080
+#   - DNS Server: UDP port 19322
+#   - HTTP Proxy: Port 80
+#   - HTTPS Proxy: Port 443 (manual configuration required)
+#   - Grafana (optional): http://localhost:8081 (admin/admin)
+#   - Prometheus (optional): http://localhost:9090
+
+services:
+  dinghy_layer:
+    image: ghcr.io/sparkfabrik/http-proxy-services:feature-98_migrate_to_traefik
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik_dynamic:/traefik/dynamic
+    command: ["sh", "-c", "/usr/local/bin/dinghy-layer"]
+    labels:
+      - "traefik.enable=false"
+    restart: unless-stopped
+
+  join_networks:
+    image: ghcr.io/sparkfabrik/http-proxy-services:feature-98_migrate_to_traefik
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    command:
+      ["sh", "-c", "/usr/local/bin/join-networks -container-name http-proxy"]
+    labels:
+      - "traefik.enable=false"
+    restart: unless-stopped
+
+  dns:
+    image: ghcr.io/sparkfabrik/http-proxy-services:feature-98_migrate_to_traefik
+    ports:
+      - "19322:19322/udp"
+    command: ["sh", "-c", "/usr/local/bin/dns-server"]
+    labels:
+      - "traefik.enable=false"
+    restart: unless-stopped
+
+  traefik:
+    image: ghcr.io/sparkfabrik/http-proxy-traefik:feature-98_migrate_to_traefik
+    container_name: http-proxy
+    ports:
+      - "80:80" # HTTP entrypoint
+      - "443:443" # HTTPS entrypoint
+      - "8080:8080" # Traefik dashboard
+      - "8082:8082" # Metrics endpoint for Prometheus
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - traefik_dynamic:/traefik/dynamic
+      - "${HOME}/.local/spark/http-proxy/certs:/traefik/certs:ro" # Auto-load user certificates
+    labels:
+      - "traefik.enable=false"
+    restart: unless-stopped
+
+  prometheus:
+    image: ghcr.io/sparkfabrik/http-proxy-prometheus:feature-98_migrate_to_traefik
+    container_name: http-proxy-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_data:/prometheus
+    labels:
+      - "traefik.enable=false"
+    restart: unless-stopped
+    profiles:
+      - metrics
+
+  grafana:
+    image: ghcr.io/sparkfabrik/http-proxy-grafana:feature-98_migrate_to_traefik
+    container_name: http-proxy-grafana
+    ports:
+      - "8081:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/traefik-official.json
+    volumes:
+      - grafana_data:/var/lib/grafana
+    labels:
+      - "traefik.enable=false"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    profiles:
+      - metrics
+
+volumes:
+  traefik_dynamic:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  default:
+    name: http-proxy_default
