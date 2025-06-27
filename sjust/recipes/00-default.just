@@ -57,21 +57,12 @@ clear-dns-cache:
 start-http-proxy:
     #!/usr/bin/env bash
 
-    # The certs are only red by dinghy on startup.
+    # The certs directory for the new http-proxy
     # Rerun the script to update the certs.
-    mkdir -p ~/.dinghy/certs
+    mkdir -p ~/.local/spark/http-proxy/certs
 
-    echo "Starting a dinghy-http-proxy container..."
-    IMAGE=codekitchen/dinghy-http-proxy:2.7.1
-    docker pull ${IMAGE}
-    docker rm -vf http-proxy || true
-    docker run -d --restart=always \
-    -v /var/run/docker.sock:/tmp/docker.sock:ro \
-    -v ~/.dinghy/certs:/etc/nginx/certs \
-    -p 80:80 -p 443:443 -p 19322:19322/udp \
-    -e DNS_IP=127.0.0.1 -e CONTAINER_NAME=http-proxy -e DOMAIN_TLD=loc \
-    --name http-proxy \
-     ${IMAGE}
+    echo "Starting http-proxy container using run-http-proxy..."
+    run-http-proxy start
 
 # Update Sparkdock to the latest version.
 [group('maintenance')]
@@ -79,7 +70,6 @@ upgrade-sparkdock:
     #!/usr/bin/env bash
     echo "Upgrading Sparkdock environment..."
     cd /opt/sparkdock && git pull
-    # Reload sjust recipes if needed
     echo "Sparkdock updated successfully!"
 
 # Update system packages via Homebrew.
@@ -89,6 +79,14 @@ upgrade-system:
     echo "Updating system packages..."
     brew update && brew upgrade && brew cleanup
     echo "System packages updated successfully!"
+
+[group('system')]
+install-mkcert:
+    #!/usr/bin/env bash
+    echo "Install mkcert..."
+    brew install mkcert nss
+    mkcert -install
+    echo "mkcert installed successfully!"
 
 # System cleanup to free up disk space.
 [group('system')]
