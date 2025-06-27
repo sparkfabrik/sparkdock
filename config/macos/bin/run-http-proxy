@@ -2,10 +2,6 @@
 
 set -e
 
-# Configuration - can be overridden by environment variables
-export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-spark-http-proxy}
-export COMPOSE_FILE=${COMPOSE_FILE:-/opt/sparkdock/config/http-proxy/compose.yml}
-
 # Port configuration
 TRAEFIK_DASHBOARD_PORT=30000
 GRAFANA_PORT=30001
@@ -13,6 +9,18 @@ GRAFANA_PORT=30001
 # Paths
 CONFIG_DIR="${HOME}/.local/spark/http-proxy"
 CERT_DIR="${CONFIG_DIR}/certs"
+
+# Configuration - can be overridden by environment variables
+export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-spark-http-proxy}
+# If COMPOSE_FILE is not set, try to find it in the config directory
+if [ -z "${COMPOSE_FILE:-}" ] && [ -f "${CONFIG_DIR}/compose.yml" ]; then
+  COMPOSE_FILE="${CONFIG_DIR}/compose.yml"
+fi
+# If still not set, check the default location
+if [ -z "${COMPOSE_FILE:-}" ] && [ -f "/opt/sparkdock/config/http-proxy/compose.yml" ]; then
+  COMPOSE_FILE="/opt/sparkdock/config/http-proxy/compose.yml"
+fi
+export COMPOSE_FILE
 
 # Logging functions
 log_info() { echo "ℹ️  $1"; }
@@ -30,7 +38,7 @@ generate_completion() {
   local script_name
   script_name=$(basename "$0")
 
-  cat << EOF
+  cat <<EOF
 # Bash/Zsh completion for $script_name
 _${script_name//-/_}_completion() {
     local cur prev commands services
@@ -102,7 +110,7 @@ install_completion() {
     echo ""
     echo "# Auto-completion for $(basename "$0")"
     echo "$completion_line"
-  } >> "$shell_profile"
+  } >>"$shell_profile"
 
   log_success "Completion installed to $shell_profile"
   log_info "Restart your terminal or run: source $shell_profile"
@@ -110,29 +118,34 @@ install_completion() {
 
 # Prerequisite checks
 check_prerequisites() {
-    local errors=0
+  local errors=0
 
-    if ! command -v docker >/dev/null 2>&1; then
-        log_error "Docker is not installed or not in PATH"
-        ((errors++))
-    fi
+  if ! command -v docker >/dev/null 2>&1; then
+    log_error "Docker is not installed or not in PATH"
+    ((errors++))
+  fi
 
-    if ! docker info >/dev/null 2>&1; then
-        log_error "Docker daemon is not running"
-        ((errors++))
-    fi
+  if ! docker info >/dev/null 2>&1; then
+    log_error "Docker daemon is not running"
+    ((errors++))
+  fi
 
-    if [ ! -f "$COMPOSE_FILE" ]; then
-        log_error "Docker Compose file not found at $COMPOSE_FILE"
-        ((errors++))
-    fi
+  if [ -z "${COMPOSE_FILE}" ]; then
+    log_error "Docker Compose file not defined."
+    ((errors++))
+  fi
 
-    return $errors
+  if [ -n "${COMPOSE_FILE}" ] && [ ! -f "${COMPOSE_FILE}" ]; then
+    log_error "Docker Compose file not found at ${COMPOSE_FILE}"
+    ((errors++))
+  fi
+
+  return $errors
 }
 
 # Ensure prerequisites are met
 if ! check_prerequisites; then
-    exit 1
+  exit 1
 fi
 
 # Ensure config directories exist
@@ -213,8 +226,8 @@ generate_mkcert() {
 
   log_info "Generating certificates for: $domain"
   mkcert -cert-file "$CERT_DIR/$domain.pem" \
-         -key-file "$CERT_DIR/$domain-key.pem" \
-         "$domain"
+    -key-file "$CERT_DIR/$domain-key.pem" \
+    "$domain"
 
   # Restart traefik to apply new certificates.
   log_info "Restarting Traefik to apply new certificates..."
@@ -271,123 +284,123 @@ open_prometheus() {
 }
 
 case "$1" in
-  ""|"-h"|"--help"|"help")
-    show_usage
-    exit 0
-    ;;
-  status)
-    log_info "HTTP Proxy Status"
-    echo "=================================="
+"" | "-h" | "--help" | "help")
+  show_usage
+  exit 0
+  ;;
+status)
+  log_info "HTTP Proxy Status"
+  echo "=================================="
 
-    if docker compose -f "$COMPOSE_FILE" ps | grep -q http-proxy; then
-      log_success "HTTP Proxy is running"
-      echo "   🌐 Traefik Dashboard: http://localhost:$TRAEFIK_DASHBOARD_PORT"
-      echo ""
-      docker compose -f "$COMPOSE_FILE" ps
-      echo ""
+  if docker compose -f "$COMPOSE_FILE" ps | grep -q http-proxy; then
+    log_success "HTTP Proxy is running"
+    echo "   🌐 Traefik Dashboard: http://localhost:$TRAEFIK_DASHBOARD_PORT"
+    echo ""
+    docker compose -f "$COMPOSE_FILE" ps
+    echo ""
 
-      if docker compose -f "$COMPOSE_FILE" ps | grep -q prometheus; then
-        log_success "Monitoring services are running"
-        echo "   📊 Grafana: http://localhost:$GRAFANA_PORT (admin/admin)"
-        prometheus_port=$(get_prometheus_port)
-        if [ -n "$prometheus_port" ]; then
-          echo "   📈 Prometheus: http://localhost:$prometheus_port"
-        else
-          echo "   📈 Prometheus: running (port auto-detected)"
-        fi
+    if docker compose -f "$COMPOSE_FILE" ps | grep -q prometheus; then
+      log_success "Monitoring services are running"
+      echo "   📊 Grafana: http://localhost:$GRAFANA_PORT (admin/admin)"
+      prometheus_port=$(get_prometheus_port)
+      if [ -n "$prometheus_port" ]; then
+        echo "   📈 Prometheus: http://localhost:$prometheus_port"
       else
-        log_warning "Monitoring services are not running"
-        echo "   💡 Start with: $0 start-with-metrics"
+        echo "   📈 Prometheus: running (port auto-detected)"
       fi
     else
-      log_warning "HTTP Proxy is not running"
-      echo "   🚀 Start with: $0 start"
-      exit 0
+      log_warning "Monitoring services are not running"
+      echo "   � Start with: $0 start-with-metrics"
     fi
-    ;;
-  start)
-    log_info "Starting HTTP Proxy (basic stack)..."
-    docker rm -vf http-proxy >/dev/null 2>&1 || true
-    docker rm -vf "$(docker ps -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")" >/dev/null 2>&1 || true
-    docker compose -f "$COMPOSE_FILE" --profile metrics down -v
-    docker compose -f "$COMPOSE_FILE" up -d --pull always
-    echo ""
-    log_success "HTTP Proxy running"
-    echo "   🌐 Traefik Dashboard: http://localhost:$TRAEFIK_DASHBOARD_PORT"
-    echo "   💡 To add monitoring: $0 start-with-metrics"
-    ;;
-  restart)
-    if ! docker compose -f "$COMPOSE_FILE" ps | grep -q http-proxy; then
-      log_warning "HTTP Proxy is not running"
-      echo "   🚀 Start with: $0 start"
-      exit 0
-    fi
+  else
+    log_warning "HTTP Proxy is not running"
+    echo "   🚀 Start with: $0 start"
+    exit 0
+  fi
+  ;;
+start)
+  log_info "Starting HTTP Proxy (basic stack)..."
+  docker rm -vf http-proxy >/dev/null 2>&1 || true
+  docker rm -vf "$(docker ps -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")" >/dev/null 2>&1 || true
+  docker compose -f "$COMPOSE_FILE" --profile metrics down -v
+  docker compose -f "$COMPOSE_FILE" up -d --pull always
+  echo ""
+  log_success "HTTP Proxy running"
+  echo "   🌐 Traefik Dashboard: http://localhost:$TRAEFIK_DASHBOARD_PORT"
+  echo "   💡 To add monitoring: $0 start-with-metrics"
+  ;;
+restart)
+  if ! docker compose -f "$COMPOSE_FILE" ps | grep -q http-proxy; then
+    log_warning "HTTP Proxy is not running"
+    echo "   🚀 Start with: $0 start"
+    exit 0
+  fi
 
-    log_info "Restarting HTTP Proxy..."
-    if docker compose -f "$COMPOSE_FILE" ps | grep -q prometheus; then
-      log_info "Restarting with monitoring services..."
-      docker compose --profile metrics -f "$COMPOSE_FILE" restart
-    else
-      docker compose -f "$COMPOSE_FILE" restart
-    fi
-    log_success "HTTP Proxy restarted"
-    ;;
-  start-with-metrics)
-    log_info "Starting HTTP Proxy with monitoring..."
-    docker rm -vf http-proxy >/dev/null 2>&1 || true
-    docker rm -vf "$(docker ps -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")" >/dev/null 2>&1 || true
-    docker compose -f "$COMPOSE_FILE" --profile metrics down -v
-    docker compose -f "$COMPOSE_FILE" --profile metrics up -d --pull always
-    echo ""
-    log_success "HTTP Proxy + Monitoring running"
-    echo "   🌐 Traefik Dashboard: http://localhost:$TRAEFIK_DASHBOARD_PORT"
-    echo "   📊 Grafana Dashboard: http://localhost:$GRAFANA_PORT (admin/admin)"
-    prometheus_port=$(get_prometheus_port)
-    if [ -n "$prometheus_port" ]; then
-      echo "   📈 Prometheus: http://localhost:$prometheus_port"
-    else
-      echo "   📈 Prometheus: running (port auto-detected)"
-    fi
-    ;;
-  stop-metrics)
-    log_info "Stopping monitoring services..."
-    docker compose -f "$COMPOSE_FILE" stop prometheus grafana
-    docker compose -f "$COMPOSE_FILE" rm -f prometheus grafana
-    log_success "Monitoring stopped (HTTP Proxy still running)"
-    ;;
-  clean)
-    log_info "Stopping all services and cleaning volumes..."
-    docker compose -f "$COMPOSE_FILE" --profile metrics down -v
-    log_success "All services stopped and volumes removed"
-    ;;
-  logs)
-    if [ -n "$2" ]; then
-      log_info "Showing logs for service: $2"
-      docker compose -f "$COMPOSE_FILE" logs -f "$2"
-    else
-      log_info "Showing logs for all services"
-      docker compose -f "$COMPOSE_FILE" logs -f
-    fi
-    ;;
-  dashboard)
-    open_dashboard
-    ;;
-  grafana)
-    open_grafana
-    ;;
-  prometheus)
-    open_prometheus
-    ;;
-  completion)
-    generate_completion
-    ;;
-  install-completion)
-    install_completion
-    ;;
-  generate-mkcert)
-    generate_mkcert "$2"
-    ;;
-  *)
-    docker compose -f "$COMPOSE_FILE" "$@"
-    ;;
+  log_info "Restarting HTTP Proxy..."
+  if docker compose -f "$COMPOSE_FILE" ps | grep -q prometheus; then
+    log_info "Restarting with monitoring services..."
+    docker compose --profile metrics -f "$COMPOSE_FILE" restart
+  else
+    docker compose -f "$COMPOSE_FILE" restart
+  fi
+  log_success "HTTP Proxy restarted"
+  ;;
+start-with-metrics)
+  log_info "Starting HTTP Proxy with monitoring..."
+  docker rm -vf http-proxy >/dev/null 2>&1 || true
+  docker rm -vf "$(docker ps -q --filter "label=com.docker.compose.project=$COMPOSE_PROJECT_NAME")" >/dev/null 2>&1 || true
+  docker compose -f "$COMPOSE_FILE" --profile metrics down -v
+  docker compose -f "$COMPOSE_FILE" --profile metrics up -d --pull always
+  echo ""
+  log_success "HTTP Proxy + Monitoring running"
+  echo "   🌐 Traefik Dashboard: http://localhost:$TRAEFIK_DASHBOARD_PORT"
+  echo "   📊 Grafana Dashboard: http://localhost:$GRAFANA_PORT (admin/admin)"
+  prometheus_port=$(get_prometheus_port)
+  if [ -n "$prometheus_port" ]; then
+    echo "   📈 Prometheus: http://localhost:$prometheus_port"
+  else
+    echo "   📈 Prometheus: running (port auto-detected)"
+  fi
+  ;;
+stop-metrics)
+  log_info "Stopping monitoring services..."
+  docker compose -f "$COMPOSE_FILE" stop prometheus grafana
+  docker compose -f "$COMPOSE_FILE" rm -f prometheus grafana
+  log_success "Monitoring stopped (HTTP Proxy still running)"
+  ;;
+clean)
+  log_info "Stopping all services and cleaning volumes..."
+  docker compose -f "$COMPOSE_FILE" --profile metrics down -v
+  log_success "All services stopped and volumes removed"
+  ;;
+logs)
+  if [ -n "$2" ]; then
+    log_info "Showing logs for service: $2"
+    docker compose -f "$COMPOSE_FILE" logs -f "$2"
+  else
+    log_info "Showing logs for all services"
+    docker compose -f "$COMPOSE_FILE" logs -f
+  fi
+  ;;
+dashboard)
+  open_dashboard
+  ;;
+grafana)
+  open_grafana
+  ;;
+prometheus)
+  open_prometheus
+  ;;
+completion)
+  generate_completion
+  ;;
+install-completion)
+  install_completion
+  ;;
+generate-mkcert)
+  generate_mkcert "$2"
+  ;;
+*)
+  docker compose -f "$COMPOSE_FILE" "$@"
+  ;;
 esac
