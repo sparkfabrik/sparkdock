@@ -35,7 +35,6 @@ services:
       - "80:80"
       - "443:443"
       - "30000:8080"
-      - "8082:8082"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - traefik_dynamic:/traefik/dynamic
