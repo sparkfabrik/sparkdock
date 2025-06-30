@@ -11,7 +11,7 @@ CONFIG_DIR="${HOME}/.local/spark/http-proxy"
 CERT_DIR="${CONFIG_DIR}/certs"
 
 # Configuration - can be overridden by environment variables
-export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-spark-http-proxy}
+export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-http-proxy}
 # If COMPOSE_FILE is not set, try to find it in the config directory
 if [ -z "${COMPOSE_FILE:-}" ] && [ -f "${CONFIG_DIR}/compose.yml" ]; then
   COMPOSE_FILE="${CONFIG_DIR}/compose.yml"
@@ -33,6 +33,24 @@ get_prometheus_port() {
   docker compose -f "${COMPOSE_FILE}" port prometheus 9090 2>/dev/null | cut -d':' -f2
 }
 
+# Display DNS environment variables only if set
+show_dns_env_vars() {
+  local has_dns_config=false
+
+  if [[ -n "${HTTP_PROXY_DNS_TLDS:-}" ]] || [[ -n "${HTTP_PROXY_DNS_TARGET_IP:-}" ]] || [[ -n "${HTTP_PROXY_DNS_PORT:-}" ]]; then
+    has_dns_config=true
+  fi
+
+  if [[ "${has_dns_config}" == "true" ]]; then
+    echo ""
+    echo "DNS Proxy Configuration:"
+    [[ -n "${HTTP_PROXY_DNS_TLDS:-}" ]] && echo "  HTTP_PROXY_DNS_TLDS: ${HTTP_PROXY_DNS_TLDS}"
+    [[ -n "${HTTP_PROXY_DNS_TARGET_IP:-}" ]] && echo "  HTTP_PROXY_DNS_TARGET_IP: ${HTTP_PROXY_DNS_TARGET_IP}"
+    [[ -n "${HTTP_PROXY_DNS_PORT:-}" ]] && echo "  HTTP_PROXY_DNS_PORT: ${HTTP_PROXY_DNS_PORT}"
+    echo ""
+  fi
+}
+
 # Generate bash/zsh completion script
 generate_completion() {
   local script_name
@@ -47,7 +65,7 @@ _${script_name//-/_}_completion() {
     prev="\${COMP_WORDS[COMP_CWORD-1]}"
 
     # Available commands
-    commands="help start status restart start-with-metrics stop-metrics clean logs dashboard grafana prometheus completion install-completion generate-mkcert up down pull build ps top exec"
+    commands="help start status restart start-with-metrics stop-metrics clean destroy logs dashboard grafana prometheus completion install-completion generate-mkcert up down pull build ps top exec"
 
     # Available services for logs command
     services="traefik dinghy_layer join_networks dns prometheus grafana"
@@ -162,6 +180,7 @@ show_usage() {
   echo "  start-with-metrics   Start HTTP proxy with monitoring stack"
   echo "  stop-metrics         Stop only monitoring services"
   echo "  clean                Stop all services and remove volumes"
+  echo "  destroy              Completely remove all containers, volumes, networks and images"
   echo "  logs [service]       Show logs (optionally for specific service)"
   echo "  dashboard            Open Traefik dashboard (http://localhost:${TRAEFIK_DASHBOARD_PORT})"
   echo "  grafana              Open Grafana dashboard (http://localhost:${GRAFANA_PORT}, admin/admin)"
@@ -182,6 +201,15 @@ show_usage() {
   echo "  ${0} up --profile metrics     # Alternative metrics start"
   echo ""
   echo "Config: ${COMPOSE_FILE}"
+  echo ""
+  echo "DNS Proxy Environment Variables:"
+  echo "  HTTP_PROXY_DNS_TLDS          Top-level domains to proxy (.loc by default)"
+  echo "  HTTP_PROXY_DNS_TARGET_IP     Target IP for DNS resolution (127.0.0.1 by default)"
+  echo "  HTTP_PROXY_DNS_PORT          DNS proxy listening port (19322 by default)"
+  echo ""
+  echo "Example with DNS configuration:"
+  echo "  HTTP_PROXY_DNS_TLDS=local,dev ${0} start"
+  echo "  HTTP_PROXY_DNS_TARGET_IP=192.168.1.50 ${0} start"
   echo ""
   echo "Autocomplete:"
   echo "  Quick setup: ${0} install-completion"
@@ -328,6 +356,7 @@ start)
   log_success "HTTP Proxy running"
   echo "   🌐 Traefik Dashboard: http://localhost:${TRAEFIK_DASHBOARD_PORT}"
   echo "   💡 To add monitoring: ${0} start-with-metrics"
+  show_dns_env_vars
   ;;
 restart)
   if ! docker compose -f "$COMPOSE_FILE" ps | grep -q http-proxy; then
@@ -361,6 +390,7 @@ start-with-metrics)
   else
     echo "   📈 Prometheus: running (port auto-detected)"
   fi
+  show_dns_env_vars
   ;;
 stop-metrics)
   log_info "Stopping monitoring services..."
@@ -372,6 +402,28 @@ clean)
   log_info "Stopping all services and cleaning volumes..."
   docker compose -f "${COMPOSE_FILE}" --profile metrics down -v
   log_success "All services stopped and volumes removed"
+  ;;
+destroy)
+  log_warning "This will completely remove all containers, volumes, networks, and images"
+  read -p "Are you sure? (y/N): " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    set -x
+    log_info "Destroying all HTTP proxy resources..."
+
+    # Stop and remove all containers with volumes
+    docker compose -f "${COMPOSE_FILE}" --profile metrics down -v --remove-orphans
+
+    # Remove any dangling volumes related to the project
+    docker volume prune -f --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}"
+
+    # Remove any networks related to the project
+    docker network prune -f --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}"
+
+    log_success "All HTTP proxy resources destroyed"
+  else
+    log_info "Destroy cancelled"
+  fi
   ;;
 logs)
   if [ -n "${2}" ]; then
