@@ -2,9 +2,6 @@
 
 set -e
 
-# Port configuration
-TRAEFIK_DASHBOARD_PORT=30000
-GRAFANA_PORT=30001
 
 # Paths
 CONFIG_DIR="${HOME}/.local/spark/http-proxy"
@@ -20,9 +17,11 @@ log_success() { echo "✅ $1"; }
 log_error() { echo "❌ $1"; }
 log_warning() { echo "⚠️  $1"; }
 
-# Helper function to get Prometheus port
-get_prometheus_port() {
-  docker compose -f "${COMPOSE_FILE}" port prometheus 9090 2>/dev/null | cut -d':' -f2
+# Helper function to get a service's mapped port
+get_service_port() {
+  local service_name="$1"
+  local internal_port="$2"
+  docker compose -f "${COMPOSE_FILE}" port "${service_name}" "${internal_port}" 2>/dev/null | cut -d':' -f2
 }
 
 # Display DNS environment variables if any are set
@@ -286,23 +285,29 @@ mkdir -p "${CONFIG_DIR}" "${CERT_DIR}"
 show_usage() {
   echo "Usage: ${0} <command> [options]"
   echo ""
-  echo "Commands:"
-  echo "  help                 Show this help message"
+  echo "Lifecycle Commands:"
   echo "  start                Start HTTP proxy (basic stack)"
+  echo "  start-with-metrics   Start HTTP proxy with monitoring stack"
   echo "  status               Show HTTP proxy status"
   echo "  restart              Restart HTTP proxy"
-  echo "  start-with-metrics   Start HTTP proxy with monitoring stack"
   echo "  stop-metrics         Stop only monitoring services"
   echo "  clean                Stop all services and remove volumes"
   echo "  destroy              Completely remove all containers, volumes, networks and images"
+  echo ""
+  echo "Dashboards & Utilities:"
+  echo "  dashboard            Open Traefik dashboard"
+  echo "  grafana              Open Grafana dashboard"
+  echo "  prometheus           Open Prometheus"
   echo "  logs [service]       Show logs (optionally for specific service)"
-  echo "  dashboard            Open Traefik dashboard (http://localhost:${TRAEFIK_DASHBOARD_PORT})"
-  echo "  grafana              Open Grafana dashboard (http://localhost:${GRAFANA_PORT}, admin/admin)"
-  echo "  prometheus           Open Prometheus (port auto-detected)"
+  echo ""
+  echo "Configuration & Setup:"
+  echo "  generate-mkcert      Generate SSL certificates for a domain"
   echo "  completion           Generate shell completion script"
   echo "  install-completion   Install completion to shell profile"
-  echo "  generate-mkcert      Generate SSL certificates"
-  echo "  up, down, logs...    Standard Docker Compose commands"
+  echo "  help                 Show this help message"
+  echo ""
+  echo "Docker Compose Passthrough:"
+  echo "  up, down, build...   Standard Docker Compose commands are also passed through."
   echo ""
   echo "Examples:"
   echo "  ${0} help                     # Show this help"
@@ -377,16 +382,29 @@ generate_mkcert() {
 }
 
 open_dashboard() {
-  open_url "http://localhost:${TRAEFIK_DASHBOARD_PORT}" "Traefik dashboard"
+  local port
+  port=$(get_service_port traefik 8080)
+  if [[ -z "${port}" ]]; then
+    log_error "Traefik dashboard port not found. Is the proxy running?"
+    exit 1
+  fi
+  open_url "http://localhost:${port}" "Traefik dashboard"
 }
 
 open_grafana() {
-  open_url "http://localhost:${GRAFANA_PORT}" "Grafana dashboard" "Login: admin/admin"
+  local port
+  port=$(get_service_port grafana 3000)
+  if [[ -z "${port}" ]]; then
+    log_error "Grafana port not found. Is it running?"
+    log_info "Try starting with: ${0} start-with-metrics"
+    exit 1
+  fi
+  open_url "http://localhost:${port}" "Grafana dashboard" "Login: admin/admin"
 }
 
 open_prometheus() {
   local port
-  port=$(get_prometheus_port)
+  port=$(get_service_port prometheus 9090)
   if [[ -z "${port}" ]]; then
     log_error "Prometheus port not found. Is it running?"
     log_info "Try starting with: ${0} start-with-metrics"
@@ -412,7 +430,7 @@ ensure_running() {
 }
 
 # Clean up and start services
-cleanup_and_start() {
+recreate_stack() {
   local with_metrics="$1"
 
   docker rm -vf http-proxy >/dev/null 2>&1 || true
@@ -438,16 +456,18 @@ status)
 
   if is_running http-proxy; then
     log_success "HTTP Proxy is running"
-    echo "   🌐 Traefik Dashboard: http://localhost:${TRAEFIK_DASHBOARD_PORT}"
+    dashboard_port=$(get_service_port traefik 8080)
+    echo "   🌐 Traefik Dashboard: http://localhost:${dashboard_port:-'not available'}"
     echo ""
     dc_cmd ps
     echo ""
 
     if is_running prometheus; then
       log_success "Monitoring services are running"
-      echo "   📊 Grafana: http://localhost:${GRAFANA_PORT} (admin/admin)"
-      prometheus_port=$(get_prometheus_port)
-      echo "   📈 Prometheus: http://localhost:${prometheus_port:-"auto-detected"}"
+      grafana_port=$(get_service_port grafana 3000)
+      prometheus_port=$(get_service_port prometheus 9090)
+      echo "   📊 Grafana: http://localhost:${grafana_port:-'not available'} (admin/admin)"
+      echo "   📈 Prometheus: http://localhost:${prometheus_port:-'not available'}"
     else
       log_warning "Monitoring services are not running"
       echo "   💡 Start with: ${0} start-with-metrics"
@@ -459,10 +479,11 @@ status)
   ;;
 start)
   log_info "Starting HTTP Proxy (basic stack)..."
-  cleanup_and_start "false"
+  recreate_stack "false"
   echo ""
   log_success "HTTP Proxy running"
-  echo "   🌐 Traefik Dashboard: http://localhost:${TRAEFIK_DASHBOARD_PORT}"
+  dashboard_port=$(get_service_port traefik 8080)
+  echo "   🌐 Traefik Dashboard: http://localhost:${dashboard_port:-'not available'}"
   echo "   💡 To add monitoring: ${0} start-with-metrics"
   show_dns_env_vars
   configure_system_dns
@@ -480,13 +501,15 @@ restart)
   ;;
 start-with-metrics)
   log_info "Starting HTTP Proxy with monitoring..."
-  cleanup_and_start "true"
+  recreate_stack "true"
   echo ""
   log_success "HTTP Proxy + Monitoring running"
-  echo "   🌐 Traefik Dashboard: http://localhost:${TRAEFIK_DASHBOARD_PORT}"
-  echo "   📊 Grafana Dashboard: http://localhost:${GRAFANA_PORT} (admin/admin)"
-  prometheus_port=$(get_prometheus_port)
-  echo "   📈 Prometheus: http://localhost:${prometheus_port:-"auto-detected"}"
+  dashboard_port=$(get_service_port traefik 8080)
+  grafana_port=$(get_service_port grafana 3000)
+  prometheus_port=$(get_service_port prometheus 9090)
+  echo "   🌐 Traefik Dashboard: http://localhost:${dashboard_port:-'not available'}"
+  echo "   📊 Grafana Dashboard: http://localhost:${grafana_port:-'not available'} (admin/admin)"
+  echo "   📈 Prometheus: http://localhost:${prometheus_port:-'not available'}"
   show_dns_env_vars
   configure_system_dns
   ;;
@@ -507,9 +530,7 @@ destroy)
   echo
   if [[ $REPLY =~ ^[Yy]$ ]]; then
     log_info "Destroying all HTTP proxy resources..."
-    dc_metrics down -v --remove-orphans
-    docker volume prune -f --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}"
-    docker network prune -f --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}"
+    dc_metrics down --volumes --rmi all --remove-orphans
     log_success "All HTTP proxy resources destroyed"
   else
     log_info "Destroy cancelled"
