@@ -175,7 +175,7 @@ _${script_name//-/_}_completion() {
     prev="\${COMP_WORDS[COMP_CWORD-1]}"
 
     # Available commands
-    commands="help start status restart start-with-metrics stop-metrics clean destroy logs dashboard grafana prometheus completion install-completion generate-mkcert up down pull build ps top exec"
+    commands="help start status restart start-with-metrics stop-metrics clean destroy logs dashboard grafana prometheus configure-dns completion install-completion generate-mkcert up down pull build ps top exec"
 
     # Available services for logs command
     services="traefik dinghy_layer join_networks dns prometheus grafana"
@@ -302,6 +302,7 @@ show_usage() {
   echo ""
   echo "Configuration & Setup:"
   echo "  generate-mkcert      Generate SSL certificates for a domain"
+  echo "  configure-dns        Configure system DNS for proxy domains"
   echo "  completion           Generate shell completion script"
   echo "  install-completion   Install completion to shell profile"
   echo "  help                 Show this help message"
@@ -317,6 +318,7 @@ show_usage() {
   echo "  ${0} stop-metrics             # Remove monitoring, keep proxy"
   echo "  ${0} clean                    # Stop everything"
   echo "  ${0} logs traefik             # Show Traefik logs"
+  echo "  ${0} configure-dns            # Configure DNS only"
   echo "  ${0} up --profile metrics     # Alternative metrics start"
   echo ""
   echo "Config: ${COMPOSE_FILE}"
@@ -544,6 +546,11 @@ logs)
     log_info "Showing logs for all services"
     dc_cmd logs -f
   fi
+  ;;
+configure-dns)
+  log_info "Configuring system DNS for proxy domains..."
+  show_dns_env_vars
+  configure_system_dns
   ;;
 dashboard) open_dashboard ;;
 grafana) open_grafana ;;
