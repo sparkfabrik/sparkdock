@@ -10,17 +10,9 @@ GRAFANA_PORT=30001
 CONFIG_DIR="${HOME}/.local/spark/http-proxy"
 CERT_DIR="${CONFIG_DIR}/certs"
 
-# Configuration - can be overridden by environment variables
+# Configuration
 export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-http-proxy}
-# If COMPOSE_FILE is not set, try to find it in the config directory
-if [ -z "${COMPOSE_FILE:-}" ] && [ -f "${CONFIG_DIR}/compose.yml" ]; then
-  COMPOSE_FILE="${CONFIG_DIR}/compose.yml"
-fi
-# If still not set, check the default location
-if [ -z "${COMPOSE_FILE:-}" ] && [ -f "/opt/sparkdock/config/http-proxy/compose.yml" ]; then
-  COMPOSE_FILE="/opt/sparkdock/config/http-proxy/compose.yml"
-fi
-export COMPOSE_FILE
+export COMPOSE_FILE=${COMPOSE_FILE:-$([ -f "${CONFIG_DIR}/compose.yml" ] && echo "${CONFIG_DIR}/compose.yml" || echo "/opt/sparkdock/config/http-proxy/compose.yml")}
 
 # Logging functions
 log_info() { echo "ℹ️  $1"; }
@@ -33,21 +25,136 @@ get_prometheus_port() {
   docker compose -f "${COMPOSE_FILE}" port prometheus 9090 2>/dev/null | cut -d':' -f2
 }
 
-# Display DNS environment variables only if set
+# Display DNS environment variables if any are set
 show_dns_env_vars() {
-  local has_dns_config=false
+  [[ -z "${HTTP_PROXY_DNS_TLDS:-}${HTTP_PROXY_DNS_TARGET_IP:-}${HTTP_PROXY_DNS_PORT:-}" ]] && return
 
-  if [[ -n "${HTTP_PROXY_DNS_TLDS:-}" ]] || [[ -n "${HTTP_PROXY_DNS_TARGET_IP:-}" ]] || [[ -n "${HTTP_PROXY_DNS_PORT:-}" ]]; then
-    has_dns_config=true
+  echo -e "\nDNS Proxy Configuration:"
+  [[ -n "${HTTP_PROXY_DNS_TLDS:-}" ]] && echo "  HTTP_PROXY_DNS_TLDS: ${HTTP_PROXY_DNS_TLDS}"
+  [[ -n "${HTTP_PROXY_DNS_TARGET_IP:-}" ]] && echo "  HTTP_PROXY_DNS_TARGET_IP: ${HTTP_PROXY_DNS_TARGET_IP}"
+  [[ -n "${HTTP_PROXY_DNS_PORT:-}" ]] && echo "  HTTP_PROXY_DNS_PORT: ${HTTP_PROXY_DNS_PORT}"
+  echo
+}
+
+# Process TLD list and execute callback for each valid TLD
+process_tlds() {
+  local dns_tlds="${HTTP_PROXY_DNS_TLDS:-loc}"
+  local callback="$1"
+
+  IFS=',' read -ra TLDS <<< "${dns_tlds}"
+  for tld in "${TLDS[@]}"; do
+    tld="${tld// /}"  # Remove spaces
+    tld="${tld#.}"    # Remove leading dot
+    [[ -n "${tld}" ]] && "${callback}" "${tld}"
+  done
+}
+
+# Configure macOS DNS resolver for specific domains
+configure_macos_dns() {
+  [[ "${OSTYPE}" != "darwin"* ]] && return 0
+
+  local dns_port="${HTTP_PROXY_DNS_PORT:-19322}"
+  local updated_any=false
+  local configured_domains=()
+
+  # Check for unmanaged resolver files
+  if [[ -d "/etc/resolver" ]]; then
+    local current_tlds=()
+    process_tlds() { current_tlds+=("$1"); }
+    process_tlds "process_tlds"
+
+    local unmanaged_files=()
+    for resolver_file in /etc/resolver/*; do
+      [[ -f "${resolver_file}" ]] || continue
+      local filename
+      filename=$(basename "${resolver_file}")
+
+      # Skip if managed by current config
+      local is_managed=false
+      for tld in "${current_tlds[@]}"; do
+        [[ "${filename}" == "${tld}" ]] && is_managed=true && break
+      done
+      [[ "${is_managed}" == "true" ]] && continue
+
+      # Warn if it looks like our config but is unmanaged
+      if grep -q "nameserver 127.0.0.1" "${resolver_file}" 2>/dev/null; then
+        unmanaged_files+=(".${filename}")
+      fi
+    done
+
+    if [[ ${#unmanaged_files[@]} -gt 0 ]]; then
+      log_warning "Found unmanaged DNS resolver files: ${unmanaged_files[*]}"
+      log_info "These may conflict with current configuration. Remove manually if no longer needed."
+    fi
   fi
 
-  if [[ "${has_dns_config}" == "true" ]]; then
-    echo ""
-    echo "DNS Proxy Configuration:"
-    [[ -n "${HTTP_PROXY_DNS_TLDS:-}" ]] && echo "  HTTP_PROXY_DNS_TLDS: ${HTTP_PROXY_DNS_TLDS}"
-    [[ -n "${HTTP_PROXY_DNS_TARGET_IP:-}" ]] && echo "  HTTP_PROXY_DNS_TARGET_IP: ${HTTP_PROXY_DNS_TARGET_IP}"
-    [[ -n "${HTTP_PROXY_DNS_PORT:-}" ]] && echo "  HTTP_PROXY_DNS_PORT: ${HTTP_PROXY_DNS_PORT}"
-    echo ""
+  # Configure each TLD
+  configure_tld() {
+    local tld="$1"
+    local resolver_file="/etc/resolver/${tld}"
+    local display_name
+    [[ "${tld}" == *"."* ]] && display_name="${tld}" || display_name=".${tld}"
+    local expected_content="nameserver 127.0.0.1\nport ${dns_port}\n"
+
+    # Skip if already configured correctly
+    [[ -f "${resolver_file}" ]] && [[ "$(cat "${resolver_file}")" == "$(printf '%b' "${expected_content}")" ]] && return
+
+    # Create/update resolver file
+    sudo mkdir -p /etc/resolver
+    printf '%b' "${expected_content}" | sudo tee "${resolver_file}" >/dev/null
+    configured_domains+=("${display_name}")
+    updated_any=true
+  }
+
+  process_tlds "configure_tld"
+
+  # Show results and flush DNS if needed
+  if [[ "${updated_any}" == "true" ]]; then
+    log_success "DNS resolver configured for ${configured_domains[*]}"
+    sudo dscacheutil -flushcache
+    sudo killall -HUP mDNSResponder >/dev/null 2>&1 || true
+  fi
+}
+
+# Configure Linux systemd-resolved for specific domains
+configure_linux_dns() {
+  [[ "${OSTYPE}" == "darwin"* ]] && return 0
+  ! command -v systemctl >/dev/null 2>&1 && return 0
+
+  local dns_port="${HTTP_PROXY_DNS_PORT:-19322}"
+  local resolved_config="/etc/systemd/resolved.conf.d/http-proxy.conf"
+  local domains=""
+
+  # Build domains list
+  build_domain() { domains="${domains}~$1 "; }
+  process_tlds "build_domain"
+  domains="${domains% }"  # Remove trailing space
+  [[ -z "${domains}" ]] && return 0
+
+  local expected_content="[Resolve]\nDNS=127.0.0.1:${dns_port}\nDomains=${domains}\n"
+
+  # Skip if already configured correctly
+  [[ -f "${resolved_config}" ]] && [[ "$(cat "${resolved_config}")" == "$(printf '%b' "${expected_content}")" ]] && return 0
+
+  # Create/update configuration
+  sudo mkdir -p /etc/systemd/resolved.conf.d
+  printf '%b' "${expected_content}" | sudo tee "${resolved_config}" >/dev/null
+
+  # Restart systemd-resolved
+  if sudo systemctl restart systemd-resolved; then
+    log_success "systemd-resolved configured and restarted"
+  else
+    log_success "systemd-resolved configuration ready"
+    log_warning "Failed to restart systemd-resolved"
+  fi
+}
+
+# Configure system DNS for the proxy domains
+configure_system_dns() {
+  if [[ "${OSTYPE}" == "darwin"* ]]; then
+    configure_macos_dns
+  else
+    configure_linux_dns
   fi
 }
 
@@ -138,27 +245,30 @@ install_completion() {
 check_prerequisites() {
   local errors=0
 
-  if ! command -v docker >/dev/null 2>&1; then
-    log_error "Docker is not installed or not in PATH"
-    ((errors++))
-  fi
-
-  if ! docker info >/dev/null 2>&1; then
-    log_error "Docker daemon is not running"
-    ((errors++))
-  fi
-
-  if [ -z "${COMPOSE_FILE}" ]; then
-    log_error "Docker Compose file not defined."
-    ((errors++))
-  fi
-
-  if [ -n "${COMPOSE_FILE}" ] && [ ! -f "${COMPOSE_FILE}" ]; then
-    log_error "Docker Compose file not found at ${COMPOSE_FILE}"
-    ((errors++))
-  fi
+  command -v docker >/dev/null 2>&1 || { log_error "Docker not installed or not in PATH"; ((errors++)); }
+  docker info >/dev/null 2>&1 || { log_error "Docker daemon not running"; ((errors++)); }
+  [[ -z "${COMPOSE_FILE}" ]] && { log_error "Docker Compose file not defined"; ((errors++)); }
+  [[ -n "${COMPOSE_FILE}" && ! -f "${COMPOSE_FILE}" ]] && { log_error "Docker Compose file not found at ${COMPOSE_FILE}"; ((errors++)); }
 
   return ${errors}
+}
+
+# Open URL in browser
+open_url() {
+  local url="$1"
+  local description="$2"
+
+  log_info "Opening ${description}: ${url}"
+
+  if command -v open >/dev/null 2>&1; then
+    open "${url}"
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "${url}"
+  else
+    echo "Cannot open browser automatically. Please visit: ${url}"
+    [[ "$3" ]] && echo "$3"
+    return 1
+  fi
 }
 
 # Ensure prerequisites are met
@@ -263,51 +373,44 @@ generate_mkcert() {
 }
 
 open_dashboard() {
-  local url="http://localhost:${TRAEFIK_DASHBOARD_PORT}"
-  log_info "Opening Traefik dashboard: ${url}"
-
-  if command -v open >/dev/null 2>&1; then
-    open "${url}"
-  elif command -v xdg-open >/dev/null 2>&1; then
-    xdg-open "${url}"
-  else
-    echo "Cannot open browser automatically. Please visit: ${url}"
-    exit 1
-  fi
+  open_url "http://localhost:${TRAEFIK_DASHBOARD_PORT}" "Traefik dashboard"
 }
 
 open_grafana() {
-  local url="http://localhost:${GRAFANA_PORT}"
-  log_info "Opening Grafana dashboard: ${url} (admin/admin)"
-
-  if command -v open >/dev/null 2>&1; then
-    open "${url}"
-  elif command -v xdg-open >/dev/null 2>&1; then
-    xdg-open "${url}"
-  else
-    echo "Cannot open browser automatically. Please visit: ${url}"
-    echo "Login: admin/admin"
-    exit 1
-  fi
+  open_url "http://localhost:${GRAFANA_PORT}" "Grafana dashboard" "Login: admin/admin"
 }
 
 open_prometheus() {
-  # Port is generated by docker compose, find it.
+  local port
   port=$(get_prometheus_port)
-  if [ -z "${port}" ]; then
+  if [[ -z "${port}" ]]; then
     log_error "Prometheus port not found. Is it running?"
     log_info "Try starting with: ${0} start-with-metrics"
     exit 1
   fi
-  url="http://localhost:${port}"
-  log_info "Opening Prometheus: ${url}"
-  if command -v open >/dev/null 2>&1; then
-    open "${url}"
-  elif command -v xdg-open >/dev/null 2>&1; then
-    xdg-open "${url}"
+  open_url "http://localhost:${port}" "Prometheus"
+}
+
+# Docker Compose helpers
+dc_cmd() { docker compose -f "${COMPOSE_FILE}" "$@"; }
+dc_metrics() { docker compose -f "${COMPOSE_FILE}" --profile metrics "$@"; }
+
+# Check if service is running
+is_running() { dc_cmd ps | grep -q "$1"; }
+
+# Clean up and start services
+cleanup_and_start() {
+  local with_metrics="$1"
+
+  docker rm -vf http-proxy >/dev/null 2>&1 || true
+  docker rm -vf "$(docker ps -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")" >/dev/null 2>&1 || true
+
+  if [[ "${with_metrics}" == "true" ]]; then
+    dc_metrics down -v
+    dc_metrics up -d --pull always
   else
-    echo "Cannot open browser automatically. Please visit: ${url}"
-    exit 1
+    dc_metrics down -v
+    dc_cmd up -d --pull always
   fi
 }
 
@@ -320,22 +423,18 @@ status)
   log_info "HTTP Proxy Status"
   echo "=================================="
 
-  if docker compose -f "${COMPOSE_FILE}" ps | grep -q http-proxy; then
+  if is_running http-proxy; then
     log_success "HTTP Proxy is running"
     echo "   🌐 Traefik Dashboard: http://localhost:${TRAEFIK_DASHBOARD_PORT}"
     echo ""
-    docker compose -f "${COMPOSE_FILE}" ps
+    dc_cmd ps
     echo ""
 
-    if docker compose -f "${COMPOSE_FILE}" ps | grep -q prometheus; then
+    if is_running prometheus; then
       log_success "Monitoring services are running"
       echo "   📊 Grafana: http://localhost:${GRAFANA_PORT} (admin/admin)"
       prometheus_port=$(get_prometheus_port)
-      if [ -n "${prometheus_port}" ]; then
-        echo "   📈 Prometheus: http://localhost:${prometheus_port}"
-      else
-        echo "   📈 Prometheus: running (port auto-detected)"
-      fi
+      echo "   📈 Prometheus: http://localhost:${prometheus_port:-"auto-detected"}"
     else
       log_warning "Monitoring services are not running"
       echo "   💡 Start with: ${0} start-with-metrics"
@@ -343,64 +442,55 @@ status)
   else
     log_warning "HTTP Proxy is not running"
     echo "   🚀 Start with: ${0} start"
-    exit 0
   fi
   ;;
 start)
   log_info "Starting HTTP Proxy (basic stack)..."
-  docker rm -vf http-proxy >/dev/null 2>&1 || true
-  docker rm -vf "$(docker ps -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")" >/dev/null 2>&1 || true
-  docker compose -f "${COMPOSE_FILE}" --profile metrics down -v
-  docker compose -f "${COMPOSE_FILE}" up -d --pull always
+  cleanup_and_start "false"
   echo ""
   log_success "HTTP Proxy running"
   echo "   🌐 Traefik Dashboard: http://localhost:${TRAEFIK_DASHBOARD_PORT}"
   echo "   💡 To add monitoring: ${0} start-with-metrics"
   show_dns_env_vars
+  configure_system_dns
   ;;
 restart)
-  if ! docker compose -f "$COMPOSE_FILE" ps | grep -q http-proxy; then
+  if ! is_running http-proxy; then
     log_warning "HTTP Proxy is not running"
     echo "   🚀 Start with: ${0} start"
     exit 0
   fi
 
   log_info "Restarting HTTP Proxy..."
-  if docker compose -f "${COMPOSE_FILE}" ps | grep -q prometheus; then
+  if is_running prometheus; then
     log_info "Restarting with monitoring services..."
-    docker compose --profile metrics -f "${COMPOSE_FILE}" restart
+    dc_metrics restart
   else
-    docker compose -f "${COMPOSE_FILE}" restart
+    dc_cmd restart
   fi
   log_success "HTTP Proxy restarted"
   ;;
 start-with-metrics)
   log_info "Starting HTTP Proxy with monitoring..."
-  docker rm -vf http-proxy >/dev/null 2>&1 || true
-  docker rm -vf "$(docker ps -q --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}")" >/dev/null 2>&1 || true
-  docker compose -f "${COMPOSE_FILE}" --profile metrics down -v
-  docker compose -f "${COMPOSE_FILE}" --profile metrics up -d --pull always
+  cleanup_and_start "true"
   echo ""
   log_success "HTTP Proxy + Monitoring running"
   echo "   🌐 Traefik Dashboard: http://localhost:${TRAEFIK_DASHBOARD_PORT}"
   echo "   📊 Grafana Dashboard: http://localhost:${GRAFANA_PORT} (admin/admin)"
   prometheus_port=$(get_prometheus_port)
-  if [ -n "${prometheus_port}" ]; then
-    echo "   📈 Prometheus: http://localhost:${prometheus_port}"
-  else
-    echo "   📈 Prometheus: running (port auto-detected)"
-  fi
+  echo "   📈 Prometheus: http://localhost:${prometheus_port:-"auto-detected"}"
   show_dns_env_vars
+  configure_system_dns
   ;;
 stop-metrics)
   log_info "Stopping monitoring services..."
-  docker compose -f "${COMPOSE_FILE}" stop prometheus grafana
-  docker compose -f "${COMPOSE_FILE}" rm -f prometheus grafana
+  dc_cmd stop prometheus grafana
+  dc_cmd rm -f prometheus grafana
   log_success "Monitoring stopped (HTTP Proxy still running)"
   ;;
 clean)
   log_info "Stopping all services and cleaning volumes..."
-  docker compose -f "${COMPOSE_FILE}" --profile metrics down -v
+  dc_metrics down -v
   log_success "All services stopped and volumes removed"
   ;;
 destroy)
@@ -408,51 +498,29 @@ destroy)
   read -p "Are you sure? (y/N): " -n 1 -r
   echo
   if [[ $REPLY =~ ^[Yy]$ ]]; then
-    set -x
     log_info "Destroying all HTTP proxy resources..."
-
-    # Stop and remove all containers with volumes
-    docker compose -f "${COMPOSE_FILE}" --profile metrics down -v --remove-orphans
-
-    # Remove any dangling volumes related to the project
+    dc_metrics down -v --remove-orphans
     docker volume prune -f --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}"
-
-    # Remove any networks related to the project
     docker network prune -f --filter "label=com.docker.compose.project=${COMPOSE_PROJECT_NAME}"
-
     log_success "All HTTP proxy resources destroyed"
   else
     log_info "Destroy cancelled"
   fi
   ;;
 logs)
-  if [ -n "${2}" ]; then
+  if [[ -n "${2:-}" ]]; then
     log_info "Showing logs for service: ${2}"
-    docker compose -f "${COMPOSE_FILE}" logs -f "${2}"
+    dc_cmd logs -f "${2}"
   else
     log_info "Showing logs for all services"
-    docker compose -f "${COMPOSE_FILE}" logs -f
+    dc_cmd logs -f
   fi
   ;;
-dashboard)
-  open_dashboard
-  ;;
-grafana)
-  open_grafana
-  ;;
-prometheus)
-  open_prometheus
-  ;;
-completion)
-  generate_completion
-  ;;
-install-completion)
-  install_completion
-  ;;
-generate-mkcert)
-  generate_mkcert "${2}"
-  ;;
-*)
-  docker compose -f "${COMPOSE_FILE}" "$@"
-  ;;
+dashboard) open_dashboard ;;
+grafana) open_grafana ;;
+prometheus) open_prometheus ;;
+completion) generate_completion ;;
+install-completion) install_completion ;;
+generate-mkcert) generate_mkcert "${2}" ;;
+*) dc_cmd "$@" ;;
 esac
