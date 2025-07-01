@@ -49,6 +49,39 @@ process_tlds() {
   done
 }
 
+# Warn about unmanaged macOS resolver files that might conflict
+_warn_on_unmanaged_macos_dns_files() {
+  [[ ! -d "/etc/resolver" ]] && return 0
+
+  local current_tlds=()
+  _get_current_tlds() { current_tlds+=("$1"); }
+  process_tlds "_get_current_tlds"
+
+  local unmanaged_files=()
+  for resolver_file in /etc/resolver/*; do
+    [[ -f "${resolver_file}" ]] || continue
+    local filename
+    filename=$(basename "${resolver_file}")
+
+    # Skip if managed by current config
+    local is_managed=false
+    for tld in "${current_tlds[@]}"; do
+      [[ "${filename}" == "${tld}" ]] && is_managed=true && break
+    done
+    [[ "${is_managed}" == "true" ]] && continue
+
+    # Warn if it looks like our config but is unmanaged
+    if grep -q "nameserver 127.0.0.1" "${resolver_file}" 2>/dev/null; then
+      unmanaged_files+=(".${filename}")
+    fi
+  done
+
+  if [[ ${#unmanaged_files[@]} -gt 0 ]]; then
+    log_warning "Found unmanaged DNS resolver files: ${unmanaged_files[*]}"
+    log_info "These may conflict with current configuration. Remove manually if no longer needed."
+  fi
+}
+
 # Configure macOS DNS resolver for specific domains
 configure_macos_dns() {
   [[ "${OSTYPE}" != "darwin"* ]] && return 0
@@ -57,36 +90,7 @@ configure_macos_dns() {
   local updated_any=false
   local configured_domains=()
 
-  # Check for unmanaged resolver files
-  if [[ -d "/etc/resolver" ]]; then
-    local current_tlds=()
-    process_tlds() { current_tlds+=("$1"); }
-    process_tlds "process_tlds"
-
-    local unmanaged_files=()
-    for resolver_file in /etc/resolver/*; do
-      [[ -f "${resolver_file}" ]] || continue
-      local filename
-      filename=$(basename "${resolver_file}")
-
-      # Skip if managed by current config
-      local is_managed=false
-      for tld in "${current_tlds[@]}"; do
-        [[ "${filename}" == "${tld}" ]] && is_managed=true && break
-      done
-      [[ "${is_managed}" == "true" ]] && continue
-
-      # Warn if it looks like our config but is unmanaged
-      if grep -q "nameserver 127.0.0.1" "${resolver_file}" 2>/dev/null; then
-        unmanaged_files+=(".${filename}")
-      fi
-    done
-
-    if [[ ${#unmanaged_files[@]} -gt 0 ]]; then
-      log_warning "Found unmanaged DNS resolver files: ${unmanaged_files[*]}"
-      log_info "These may conflict with current configuration. Remove manually if no longer needed."
-    fi
-  fi
+  _warn_on_unmanaged_macos_dns_files
 
   # Configure each TLD
   configure_tld() {
@@ -398,6 +402,15 @@ dc_metrics() { docker compose -f "${COMPOSE_FILE}" --profile metrics "$@"; }
 # Check if service is running
 is_running() { dc_cmd ps | grep -q "$1"; }
 
+# Ensure proxy is running before proceeding
+ensure_running() {
+  if ! is_running http-proxy; then
+    log_warning "HTTP Proxy is not running"
+    echo "   🚀 Start with: ${0} start"
+    exit 1
+  fi
+}
+
 # Clean up and start services
 cleanup_and_start() {
   local with_metrics="$1"
@@ -455,12 +468,7 @@ start)
   configure_system_dns
   ;;
 restart)
-  if ! is_running http-proxy; then
-    log_warning "HTTP Proxy is not running"
-    echo "   🚀 Start with: ${0} start"
-    exit 0
-  fi
-
+  ensure_running
   log_info "Restarting HTTP Proxy..."
   if is_running prometheus; then
     log_info "Restarting with monitoring services..."
