@@ -10,6 +10,7 @@ CERT_DIR="${CONFIG_DIR}/certs"
 # Configuration
 export COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME:-http-proxy}
 export COMPOSE_FILE=${COMPOSE_FILE:-$([ -f "${CONFIG_DIR}/compose.yml" ] && echo "${CONFIG_DIR}/compose.yml" || echo "/opt/sparkdock/config/http-proxy/compose.yml")}
+export LOG_LEVEL=${LOG_LEVEL:-info}
 
 # Logging functions
 log_info() { echo "ℹ️  $1"; }
@@ -328,9 +329,15 @@ show_usage() {
   echo "  HTTP_PROXY_DNS_TARGET_IP     Target IP for DNS resolution (127.0.0.1 by default)"
   echo "  HTTP_PROXY_DNS_PORT          DNS proxy listening port (19322 by default)"
   echo ""
+  echo "Log Level Configuration:"
+  echo "  LOG_LEVEL                    Log level for all services (info by default)"
+  echo ""
   echo "Example with DNS configuration:"
   echo "  HTTP_PROXY_DNS_TLDS=local,dev ${0} start"
   echo "  HTTP_PROXY_DNS_TARGET_IP=192.168.1.50 ${0} start"
+  echo ""
+  echo "Example with custom log level:"
+  echo "  LOG_LEVEL=debug ${0} start"
   echo ""
   echo "Autocomplete:"
   echo "  Quick setup: ${0} install-completion"
