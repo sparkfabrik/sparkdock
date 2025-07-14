@@ -1,0 +1,68 @@
+{
+    "name": "Sparkfabrik: sparkdock",
+    "build": {
+        "dockerfile": "./Dockerfile"
+    },
+    "workspaceFolder": "${localWorkspaceFolder}",
+    "workspaceMount": "source=${localWorkspaceFolder},target=${localWorkspaceFolder},type=bind",
+    "mounts": [
+        "source=${localEnv:HOME}/.config/gcloud,target=/home/vscode/.config/gcloud,type=bind",
+        "source=/var/run/docker.sock,target=/var/run/docker.sock,type=bind",
+        "source=sparkci-bashhistory,target=/commandhistory,type=volume"
+    ],
+    "containerEnv": {
+        "LOCAL_HOME": "${localEnv:HOME}"
+    },
+    "runArgs": [
+        "--add-host=host.docker.internal:host-gateway"
+    ],
+    "features": {
+        "ghcr.io/devcontainers/features/docker-outside-of-docker:1": {},
+        "ghcr.io/devcontainers/features/node:1": {
+            "version": "lts"
+        }
+    },
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "redhat.ansible",
+                "editorconfig.editorconfig",
+                "nefrob.vscode-just-syntax",
+                "davidanson.vscode-markdownlint",
+                "esbenp.prettier-vscode",
+                "GitHub.copilot",
+                "golang.go",
+                "mechatroner.rainbow-csv",
+                "ms-azuretools.vscode-docker",
+                "ms-vscode.makefile-tools",
+                "ms-vsliveshare.vsliveshare",
+                "ms-vscode.vscode-websearchforcopilot"
+            ],
+            "settings": {
+                "editor.defaultFormatter": "golang.go",
+                "terminal.integrated.copyOnSelection": true,
+                "editor.formatOnSave": true,
+                "files.associations": {
+                    "*.yaml.*": "yaml",
+                    "*.yml.*": "yaml",
+                    "*.json.*": "json"
+                },
+                "files.insertFinalNewline": true,
+                "files.trimFinalNewlines": true,
+                "[json]": {
+                    "editor.defaultFormatter": "esbenp.prettier-vscode",
+                    "editor.tabSize": 2
+                },
+                "[yaml]": {
+                    "editor.defaultFormatter": "esbenp.prettier-vscode",
+                    "editor.tabSize": 2
+                },
+                "[markdown]": {
+                    "editor.defaultFormatter": "esbenp.prettier-vscode",
+                    "editor.wordWrap": "on"
+                },
+                "websearch.preferredEngine": "tavily"
+            }
+        }
+    }
+}

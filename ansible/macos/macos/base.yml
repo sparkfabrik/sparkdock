@@ -173,16 +173,43 @@
         - name: Ensure /usr/local/bin exists
           file: path=/usr/local/bin state=directory
 
-        - name: Copy system scripts
+        - name: Clone http-proxy repository
+          git:
+            repo: https://github.com/sparkfabrik/http-proxy.git
+            dest: "{{ dev_env_dir }}/http-proxy"
+            version: feature/98_migrate_to_traefik
+            force: yes
+            update: yes
+          register: http_proxy_clone
+
+        - name: Make spark-http-proxy executable
+          file:
+            path: "{{ dev_env_dir }}/http-proxy/bin/spark-http-proxy"
+            mode: "0755"
+
+        - name: Create main spark-http-proxy symlink
+          file:
+            src: "{{ dev_env_dir }}/http-proxy/bin/spark-http-proxy"
+            dest: /usr/local/bin/spark-http-proxy
+            state: link
+            force: yes
+
+        - name: Create backward compatibility symlinks for http-proxy
+          file:
+            src: /usr/local/bin/spark-http-proxy
+            dest: "{{ item }}"
+            state: link
+            force: yes
+          loop:
+            - /usr/local/bin/run-http-proxy
+            - /usr/local/bin/run-dinghy-proxy
+
+        - name: Copy remaining system scripts
           copy:
             src: "{{ item.src }}"
             dest: "{{ item.dest }}"
             mode: "0755"
           loop:
-            - {
-                src: "{{ dev_env_dir }}/config/macos/bin/run-http-proxy",
-                dest: "/usr/local/bin/run-http-proxy",
-              }
             - {
                 src: "{{ dev_env_dir }}/config/bin/test-http-proxy",
                 dest: "/usr/local/bin/test-http-proxy",
@@ -195,14 +222,14 @@
       become_method: sudo
 
     - name: Handle transition from dinghy-proxy to http-proxy
-      tags: proxy-transition
+      tags: http-proxy
       block:
         - name: Verify new http-proxy binaries exist before transition
           stat:
             path: "{{ item }}"
           register: new_binaries
           loop:
-            - "/usr/local/bin/run-http-proxy"
+            - "/usr/local/bin/spark-http-proxy"
             - "/usr/local/bin/test-http-proxy"
 
         - name: Ensure all new binaries exist
@@ -249,35 +276,21 @@
               when: old_certs_dir.stat.exists
               ignore_errors: yes
 
-        - name: Create compatibility symlinks for old names
-          file:
-            src: "{{ item.new }}"
-            dest: "{{ item.old }}"
-            state: link
-            force: yes
-          loop:
-            - {
-                old: "/usr/local/bin/run-dinghy-proxy",
-                new: "/usr/local/bin/run-http-proxy",
-              }
-            - {
-                old: "/usr/local/bin/test-dinghy-proxy",
-                new: "/usr/local/bin/test-http-proxy",
-              }
-          become: yes
-          become_method: sudo
-
         - name: Display transition completion message
           debug:
             msg: |
               ✅ Dinghy-proxy to http-proxy transition completed:
-              - Old binaries removed (if they existed)
-              - Compatibility symlinks created
+              - Http-proxy repository cloned to {{ dev_env_dir }}/http-proxy
+              - Main script symlinked as spark-http-proxy
+              - Backward compatibility symlinks created:
+                * run-http-proxy → spark-http-proxy
+                * run-dinghy-proxy → spark-http-proxy
               - Certificates migrated to new location
 
-              You can now use either:
-              - run-http-proxy (new command)
-              - run-dinghy-proxy (compatibility symlink)
+              You can now use any of these commands:
+              - spark-http-proxy (new primary command)
+              - run-http-proxy (compatibility)
+              - run-dinghy-proxy (compatibility)
 
     - name: Configure keyboard settings
       tags: keyboard
