@@ -112,7 +112,7 @@ configure-http-proxy:
     #!/usr/bin/env bash
     echo "Configuring http-proxy system (targeted update)..."
     cd /opt/sparkdock
-    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy"
+    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
     docker rm -vf http-proxy || true
     spark-http-proxy start
     echo "Http-proxy configuration completed!"
