@@ -177,7 +177,7 @@
           git:
             repo: https://github.com/sparkfabrik/http-proxy.git
             dest: "{{ dev_env_dir }}/http-proxy"
-            version: feature/98_migrate_to_traefik
+            version: main
             force: yes
             update: yes
           register: http_proxy_clone
