@@ -113,6 +113,8 @@ configure-http-proxy:
     echo "Configuring http-proxy system (targeted update)..."
     cd /opt/sparkdock
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy"
+    docker rm -vf http-proxy || true
+    spark-http-proxy start
     echo "Http-proxy configuration completed!"
 
 # Run sparkdock system configuration and updates.
@@ -184,4 +186,3 @@ docker-prune:
 [group('docker')]
 docker-restart:
     @osascript -e 'quit app "Docker"' && open -a Docker
-
