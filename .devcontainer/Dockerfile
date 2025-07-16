@@ -1,8 +1,10 @@
 FROM mcr.microsoft.com/vscode/devcontainers/base:2.0-ubuntu24.04
 
+# we can use just the features to achieve most of this i guess:
+# https://github.com/digitalocean/ansible-collection/blob/main/.devcontainer/devcontainer.json
 RUN apt-get -y update && \
     apt-get install --no-install-recommends -y \
-    apt-transport-https ca-certificates gnupg curl dnsutils file ansible
+    apt-transport-https ca-certificates gnupg curl dnsutils file ansible just
 
 # Install the Google Cloud SDK
 RUN echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | tee -a /etc/apt/sources.list.d/google-cloud-sdk.list && \
