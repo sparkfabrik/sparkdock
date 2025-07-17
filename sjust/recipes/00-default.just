@@ -186,3 +186,11 @@ docker-prune:
 [group('docker')]
 docker-restart:
     @osascript -e 'quit app "Docker"' && open -a Docker
+
+# Install sparkdock ansible tag.
+[group('sparkdock')]
+sparkdock-ansible-tags tags:
+    #!/usr/bin/env bash
+    echo "Running ansible with following tags: {{tags}}"
+    cd /opt/sparkdock
+    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
