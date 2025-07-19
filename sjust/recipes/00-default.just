@@ -125,6 +125,7 @@ upgrade-system:
     brew update && brew upgrade && brew cleanup
     echo "System packages updated successfully!"
 
+# Install mkcert for local SSL certificate generation.
 [group('system')]
 install-mkcert:
     #!/usr/bin/env bash
