@@ -106,9 +106,9 @@ http-proxy-config:
     echo "Showing http-proxy configuration..."
     spark-http-proxy show-config
 
-# Re-configure http-proxy without full system update (faster, targeted).
+# Install http-proxy without full system update (faster, targeted).
 [group('http-proxy')]
-configure-http-proxy:
+install-http-proxy:
     #!/usr/bin/env bash
     echo "Configuring http-proxy system (targeted update)..."
     cd /opt/sparkdock
