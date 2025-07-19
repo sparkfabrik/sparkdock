@@ -117,13 +117,6 @@ configure-http-proxy:
     spark-http-proxy start
     echo "Http-proxy configuration completed!"
 
-# Run sparkdock system configuration and updates.
-[group('system')]
-sparkdock:
-    #!/usr/bin/env bash
-    /opt/sparkdock/bin/sparkdock.macos
-    echo "System configuration and updates completed!"
-
 # Update system packages via Homebrew.
 [group('system')]
 upgrade-system:
@@ -189,8 +182,15 @@ docker-restart:
 
 # Install sparkdock ansible tag.
 [group('sparkdock')]
-sparkdock-ansible-tags tags:
+instal-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
     cd /opt/sparkdock
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
+
+# Run sparkdock system configuration and updates.
+[group('sparkdock')]
+upgrade:
+    #!/usr/bin/env bash
+    /opt/sparkdock/bin/sparkdock.macos
+    echo "System configuration and updates completed!"
