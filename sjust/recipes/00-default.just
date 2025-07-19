@@ -2,6 +2,7 @@
 
 uid := `id -u`
 shell := `grep :$(id -u): /etc/passwd | cut -d: -f7`
+sparkdock_path := "/opt/sparkdock"
 
 # Print system information.
 [group('system')]
@@ -111,7 +112,7 @@ http-proxy-config:
 install-http-proxy:
     #!/usr/bin/env bash
     echo "Configuring http-proxy system (targeted update)..."
-    cd /opt/sparkdock
+    cd {{ sparkdock_path }}
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
     docker rm -vf http-proxy || true
     spark-http-proxy start
@@ -186,12 +187,12 @@ docker-restart:
 install-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
-    cd /opt/sparkdock
+    cd {{ sparkdock_path }}
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
 
 # Run sparkdock system configuration and updates.
 [group('sparkdock')]
 upgrade:
     #!/usr/bin/env bash
-    /opt/sparkdock/bin/sparkdock.macos
+    {{ sparkdock_path }}/bin/sparkdock.macos
     echo "System configuration and updates completed!"
