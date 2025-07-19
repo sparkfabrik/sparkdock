@@ -183,7 +183,7 @@ docker-restart:
 
 # Install sparkdock ansible tag.
 [group('sparkdock')]
-instal-tags tags:
+install-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
     cd /opt/sparkdock
