@@ -10,7 +10,7 @@ CONTENT=$(curl -s nginx.sparkfabrik.loc)
 echo ${CONTENT} | grep -q 'Welcome to nginx'
 if [ $? -eq 0 ]
 then
-  echo ${GREEN}PASS${NC}: "Congratulation, dinghy proxy is working as expected"
+  echo ${GREEN}PASS${NC}: "Congratulation, http-proxy is working as expected"
 else
   echo ${RED}FAIL${NC}: "Cannot reach the domain"
 fi
