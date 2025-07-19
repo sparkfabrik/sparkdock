@@ -269,12 +269,11 @@
                 mode: "0755"
 
             - name: Copy certificates from old to new location
-              shell: |
-                if [ -d "{{ ansible_env.HOME }}/.dinghy/certs" ] && [ "$(ls -A {{ ansible_env.HOME }}/.dinghy/certs 2>/dev/null)" ]; then
-                  cp -r {{ ansible_env.HOME }}/.dinghy/certs/* {{ ansible_env.HOME }}/.local/spark/http-proxy/certs/
-                fi
+              copy:
+                src: "{{ ansible_env.HOME }}/.dinghy/certs/"
+                dest: "{{ ansible_env.HOME }}/.local/spark/http-proxy/certs/"
+                remote_src: yes
               when: old_certs_dir.stat.exists
-              ignore_errors: yes
 
         - name: Display transition completion message
           debug:
