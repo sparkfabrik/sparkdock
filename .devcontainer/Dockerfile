@@ -1,7 +1,7 @@
 FROM mcr.microsoft.com/vscode/devcontainers/base:2.0-ubuntu24.04
 
-# we can use just the features to achieve most of this i guess:
-# https://github.com/digitalocean/ansible-collection/blob/main/.devcontainer/devcontainer.json
+# Features in the devcontainer.json file could potentially achieve most of this setup.
+# See the following URL for reference: https://github.com/digitalocean/ansible-collection/blob/main/.devcontainer/devcontainer.json
 RUN apt-get -y update && \
     apt-get install --no-install-recommends -y \
     apt-transport-https ca-certificates gnupg curl dnsutils file ansible just
