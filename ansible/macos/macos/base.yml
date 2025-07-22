@@ -169,6 +169,7 @@
       become_method: sudo
 
     - name: Install system scripts
+      tags: http-proxy
       block:
         - name: Ensure /usr/local/bin exists
           file: path=/usr/local/bin state=directory
