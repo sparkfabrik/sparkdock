@@ -74,6 +74,19 @@
       when: all_removed_taps | length > 0
       become: false
 
+    - name: Docker and container runtime installation
+      tags: [docker]
+      block:
+        - name: Check if Docker Desktop is already installed
+          shell: brew list --cask docker-desktop >/dev/null 2>&1 && echo yes || echo no
+          register: docker_desktop_installed
+          changed_when: false
+
+        - name: Remove Docker Desktop from install list if already installed
+          set_fact:
+            all_cask_packages: "{{ all_cask_packages | difference(['docker-desktop']) }}"
+          when: "'docker-desktop' in all_cask_packages and docker_desktop_installed.stdout == 'yes'"
+
     - name: Install cask packages
       tags: cask
       community.general.homebrew_cask:
@@ -157,19 +170,6 @@
           command: killall -HUP mDNSResponder
       become: yes
       become_method: sudo
-
-    - name: Optimize Docker Desktop installation
-      tags: [docker]
-      block:
-        - name: Check if Docker Desktop is already installed
-          shell: brew list --cask docker-desktop >/dev/null 2>&1 && echo yes || echo no
-          register: docker_desktop_installed
-          changed_when: false
-
-        - name: Remove Docker Desktop from install list if already installed
-          set_fact:
-            all_cask_packages: "{{ all_cask_packages | difference(['docker-desktop']) }}"
-          when: "'docker-desktop' in all_cask_packages and docker_desktop_installed.stdout == 'yes'"
 
     - name: Install system scripts
       tags: http-proxy

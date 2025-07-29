@@ -149,7 +149,7 @@ lima-disable-autostart name=lima_default_name:
 switch-to-docker-desktop:
     #!/usr/bin/env bash
     echo "Switching to Docker Desktop context..."
-    if docker context use default; then
+    if docker context use desktop-linux; then
         echo "✅ Now using Docker Desktop!"
     else
         echo "❌ Failed to switch to Docker Desktop context!"
