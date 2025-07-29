@@ -232,17 +232,17 @@ lima-set-disk disk:
 
 # Show current VM configuration
 [group('lima')]
-lima-show-config name=lima_default_name:
+lima-show-config name:
     #!/usr/bin/env bash
-    echo "Configuration for Lima VM '{{ lima_default_name }}':"
-    if limactl list {{ lima_default_name }} >/dev/null 2>&1; then
-        limactl list {{ lima_default_name }} --format 'table'
+    echo "Configuration for Lima VM '{{ name }}':"
+    if limactl list {{ name }} >/dev/null 2>&1; then
+        limactl list {{ name }} --format 'table'
         echo ""
         echo "Detailed configuration:"
-        echo "Run 'limactl info {{ lima_default_name }}' for full details"
+        echo "Run 'limactl info {{ name }}' for full details"
     else
-        echo "❌ VM '{{ lima_default_name }}' does not exist."
-        echo "💡 Use 'sjust lima-create {{ lima_default_name }}' to create it first."
+        echo "❌ VM '{{ name }}' does not exist."
+        echo "💡 Use 'sjust lima-create {{ name }}' to create it first."
     fi
 
 # List the lima vms.
