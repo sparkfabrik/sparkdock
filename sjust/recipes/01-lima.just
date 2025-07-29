@@ -170,47 +170,65 @@ switch-to-lima name=lima_default_name:
         exit 1
     fi
 
+# Internal helper: Update Lima VM configuration (stops, edits, starts VM)
+_lima-update-config config_type value unit="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Determine the display unit
+    display_unit="{{ if unit == "" { "" } else { unit } }}"
+
+    echo "Setting {{ config_type }} for VM '{{ lima_default_name }}' to {{ value }}${display_unit}..."
+
+    # Check VM status and stop if running
+    vm_status=$(limactl list {{ lima_default_name }} --format 'json' | jq -r '.status' 2>/dev/null || echo "NotFound")
+
+    if [ "$vm_status" = "Running" ]; then
+        echo "Stopping VM..."
+        stop_output=$(limactl stop {{ lima_default_name }} 2>&1)
+        if [ $? -ne 0 ]; then
+            echo "❌ Failed to stop VM '{{ lima_default_name }}'!"
+            echo "$stop_output"
+            exit 1
+        fi
+    elif [ "$vm_status" = "NotFound" ]; then
+        echo "❌ VM '{{ lima_default_name }}' does not exist!"
+        exit 1
+    fi
+
+    # Update configuration
+    if limactl edit {{ lima_default_name }} --{{ config_type }} {{ value }} >/dev/null; then
+        echo "✅ {{ config_type }} updated to {{ value }}${display_unit}"
+    else
+        echo "❌ Failed to update {{ config_type }} configuration!"
+        exit 1
+    fi
+
+    # Start the VM
+    echo "Starting VM..."
+    start_output=$(limactl start {{ lima_default_name }} -y 2>&1)
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to start VM '{{ lima_default_name }}'!"
+        echo "$start_output"
+        exit 1
+    fi
+
+    echo "✅ VM '{{ lima_default_name }}' is now running with updated {{ config_type }}!"
+
 # Set CPU count for Lima VM (stops, edits, starts VM)
 [group('lima')]
 lima-set-cpus cpus:
-    #!/usr/bin/env bash
-    echo "Setting CPUs for VM '{{ lima_default_name }}' to {{ cpus }}..."
-    limactl stop {{ lima_default_name }}
-    if limactl edit {{ lima_default_name }} --cpus {{ cpus }}; then
-        echo "✅ CPU configuration updated to {{ cpus }} cores."
-    else
-        echo "❌ Failed to update CPU configuration!"
-        exit 1
-    fi
-    limactl start {{ lima_default_name }} -y
+    @just _lima-update-config "cpus" "{{ cpus }}" " cores"
 
 # Set memory size for Lima VM (stops, edits, starts VM)
 [group('lima')]
 lima-set-memory memory:
-    #!/usr/bin/env bash
-    echo "Setting memory for VM '{{ lima_default_name }}' to {{ memory }}GB..."
-    limactl stop {{ lima_default_name }}
-    if limactl edit {{ lima_default_name }} --memory {{ memory }}; then
-        echo "✅ Memory configuration updated to {{ memory }}GB."
-    else
-        echo "❌ Failed to update memory configuration!"
-        exit 1
-    fi
-    limactl start {{ lima_default_name }} -y
+    @just _lima-update-config "memory" "{{ memory }}" "GB"
 
 # Set disk size for Lima VM (stops, edits, starts VM)
 [group('lima')]
 lima-set-disk disk:
-    #!/usr/bin/env bash
-    echo "Setting disk for VM '{{ lima_default_name }}' to {{ disk }}GB..."
-    limactl stop {{ lima_default_name }}
-    if limactl edit {{ lima_default_name }} --disk {{ disk }}; then
-        echo "✅ Disk configuration updated to {{ disk }}GB."
-    else
-        echo "❌ Failed to update disk configuration!"
-        exit 1
-    fi
-    limactl start {{ lima_default_name }} -y
+    @just _lima-update-config "disk" "{{ disk }}" "GB"
 
 # Show current VM configuration
 [group('lima')]
@@ -227,3 +245,8 @@ lima-show-config name=lima_default_name:
         echo "💡 Use 'sjust lima-create {{ lima_default_name }}' to create it first."
     fi
 
+# List the lima vms.
+[group('lima')]
+lima-list:
+    #!/usr/bin/env bash
+    limactl list --format 'table'
