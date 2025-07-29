@@ -159,14 +159,14 @@ switch-to-docker-desktop:
 
 # Switch to Lima Docker context
 [group('lima')]
-switch-to-lima name=lima_default_name:
+switch-to-lima name:
     #!/usr/bin/env bash
     echo "Switching to Lima context..."
-    if docker context use lima-{{ lima_default_name }}; then
-        echo "✅ Now using Lima VM '{{ lima_default_name }}'!"
+    if docker context use lima-{{ name }}; then
+        echo "✅ Now using Lima VM '{{ name }}'!"
     else
-        echo "❌ Failed to switch to Lima context lima-{{ lima_default_name }}!"
-        echo "💡 Make sure the Docker context exists. Use: sjust lima-set-docker-context {{ lima_default_name }}"
+        echo "❌ Failed to switch to Lima context lima-{{ name }}!"
+        echo "💡 Make sure the Docker context exists. Use: sjust lima-set-docker-context {{ name }}"
         exit 1
     fi
 
