@@ -135,11 +135,11 @@ lima-enable-autostart:
 [group('lima')]
 lima-disable-autostart name=lima_default_name:
     #!/usr/bin/env bash
-    echo "Disabling auto-start for Lima VM '{{ lima_default_name }}'..."
-    if limactl start-at-login {{ lima_default_name }} --enabled=false; then
-        echo "✅ Lima VM '{{ lima_default_name }}' auto-start disabled!"
+    echo "Disabling auto-start for Lima VM '{{ name }}'..."
+    if limactl start-at-login {{ name }} --enabled=false; then
+        echo "✅ Lima VM '{{ name }}' auto-start disabled!"
     else
-        echo "❌ Failed to disable auto-start for Lima VM '{{ lima_default_name }}'!"
+        echo "❌ Failed to disable auto-start for Lima VM '{{ name }}'!"
         echo "💡 Check if the VM exists with: sjust lima-status"
         exit 1
     fi
