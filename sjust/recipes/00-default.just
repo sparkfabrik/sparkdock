@@ -63,6 +63,10 @@ start-http-proxy:
     mkdir -p ~/.local/spark/http-proxy/certs
 
     echo "Starting http-proxy container using spark-http-proxy..."
+    if ! command -v spark-http-proxy &> /dev/null; then
+        echo "Error: spark-http-proxy is not installed or not in PATH. Please install it and try again."
+        exit 1
+    fi
     spark-http-proxy start
 
 # Start http-proxy with monitoring (Grafana + Prometheus).
