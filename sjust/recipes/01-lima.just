@@ -29,12 +29,7 @@ lima-quick-setup cpus=lima_default_cpus memory=lima_default_memory disk=lima_def
     echo "💡 Want different specs? Use:"
     echo "   sjust lima-quick-setup cpus=6 memory=16 disk=200"
     echo ""
-    read -p "Proceed with quick setup? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "❌ Setup cancelled."
-        exit 0
-    fi
+    just _confirm_action "Proceed with quick setup?"
 
     # Create the VM using lima-create-vm with default values
     echo "Creating Lima VM..."
@@ -87,11 +82,8 @@ lima-destroy:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    read -p "Are you sure you want to remove the Lima VM '{{ lima_default_name }}'? This action cannot be undone. (y/N): " -n 1 -r
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        echo "❌ Removal cancelled."
-        exit 0
-    fi
+    just _confirm_action "Are you sure you want to remove the Lima VM '{{ lima_default_name }}'? This action cannot be undone."
+
     echo "Stopping Lima VM..."
     limactl stop {{ lima_default_name }}
     echo "Removing Lima VM '{{ lima_default_name }}'..."
@@ -100,6 +92,10 @@ lima-destroy:
 
     echo "Removing Docker context for Lima VM '{{ lima_default_name }}'..."
     docker context rm -f lima-{{ lima_default_name }} 1>/dev/null || true
+
+    echo "Disable auto-start for Lima VM '{{ lima_default_name }}'..."
+    limactl start-at-login {{ lima_default_name }} --enabled=false || true
+
     echo "✅ Docker context for Lima VM '{{ lima_default_name }}' removed successfully!"
 
 # Configure Docker context for Lima VM
@@ -109,14 +105,14 @@ lima-set-docker-context:
     set -euo pipefail
 
     echo "Configuring Docker context for Lima VM '{{ lima_default_name }}'..."
-    docker context rm -f lima-{{ lima_default_name }} 1>/dev/null || true
+    docker context rm -f lima-{{ lima_default_name }} >/dev/null || true
 
     echo "Creating Docker context..."
     docker context create lima-{{ lima_default_name }} \
-      --docker "host=unix://$HOME/.lima/{{ lima_default_name }}/sock/docker.sock" 1> /dev/null
+      --docker "host=unix://$HOME/.lima/{{ lima_default_name }}/sock/docker.sock" >/dev/null
 
     echo "Switching to Lima Docker context..."
-    docker context use lima-{{ lima_default_name }} 1> /dev/null
+    docker context use lima-{{ lima_default_name }} >/dev/null
 
     echo ""
     docker context ls
@@ -135,13 +131,13 @@ lima-enable-autostart:
 
 # Disable auto-start at login
 [group('lima')]
-lima-disable-autostart name=lima_default_name:
+lima-disable-autostart:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    echo "Disabling auto-start for Lima VM '{{ name }}'..."
-    limactl start-at-login {{ name }} --enabled=false
-    echo "✅ Lima VM '{{ name }}' auto-start disabled!"
+    echo "Disabling auto-start for Lima VM '{{ lima_default_name }}'..."
+    limactl start-at-login {{ lima_default_name }} --enabled=false
+    echo "✅ Lima VM '{{ lima_default_name }}' auto-start disabled!"
 
 # Switch between Docker contexts
 [group('lima')]
@@ -162,6 +158,18 @@ switch-to-lima-docker-context:
     echo "Switching to Lima context..."
     docker context use lima-{{ lima_default_name }}
     echo "✅ Now using Lima VM '{{ lima_default_name }}'!"
+
+# Internal helper: Ask for user confirmation
+_confirm_action message:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    read -p "{{ message }} (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "❌ Operation cancelled."
+        exit 0
+    fi
 
 # Internal helper: Update Lima VM configuration (stops, edits, starts VM)
 _lima-update-config config_type value unit="":
