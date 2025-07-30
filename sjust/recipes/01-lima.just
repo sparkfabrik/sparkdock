@@ -146,8 +146,13 @@ switch-to-docker-desktop-context:
     set -euo pipefail
 
     echo "Switching to Docker Desktop context..."
-    docker context use desktop-linux
-    echo "✅ Now using Docker Desktop!"
+    desktop_context=$(docker context ls --format '{{.Name}}' | grep -E '^desktop-' || true)
+    if [ -z "$desktop_context" ]; then
+        echo "❌ No Docker Desktop context found. Please ensure Docker Desktop is installed and configured."
+        exit 1
+    fi
+    docker context use "$desktop_context"
+    echo "✅ Now using Docker Desktop context '$desktop_context'!"
 
 # Switch to Lima Docker context
 [group('lima')]
