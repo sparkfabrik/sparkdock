@@ -182,7 +182,7 @@ _lima-update-config config_type value unit="":
     set -euo pipefail
 
     # Determine the display unit
-    display_unit="{{ if unit == "" { "" } else { unit } }}"
+    display_unit="{{ unit }}"
 
     echo "Setting {{ config_type }} for VM '{{ lima_default_name }}' to {{ value }}${display_unit}..."
 
