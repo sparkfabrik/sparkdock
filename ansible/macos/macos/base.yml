@@ -276,7 +276,7 @@
               copy:
                 src: "{{ ansible_env.HOME }}/.dinghy/certs/"
                 dest: "{{ ansible_env.HOME }}/.local/spark/http-proxy/certs/"
-                remote_src: yes
+                remote_src: true
               when: old_certs_dir.stat.exists
 
         - name: Display transition completion message
