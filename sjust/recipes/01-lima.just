@@ -7,6 +7,8 @@ lima_default_disk := "100"
 [group('lima')]
 lima-quick-setup cpus=lima_default_cpus memory=lima_default_memory disk=lima_default_disk:
     #!/usr/bin/env bash
+    set -euo pipefail
+
     if limactl list | grep -q "{{ lima_default_name }}"; then
         echo "❌ A Lima VM named '{{ lima_default_name }}' already exists. Please remove it first with 'sjust lima-destroy'."
         exit 1
@@ -36,25 +38,36 @@ lima-quick-setup cpus=lima_default_cpus memory=lima_default_memory disk=lima_def
 
     # Create the VM using lima-create-vm with default values
     echo "Creating Lima VM..."
-    if sjust lima-create-vm {{ cpus }} {{ memory }} {{ disk }}; then
-        echo "Setting up Docker context..."
-        sjust lima-set-docker-context
+    sjust lima-create-vm {{ cpus }} {{ memory }} {{ disk }}
 
-        echo "Enabling auto-start at login..."
-        sjust lima-enable-autostart
+    echo "Setting up Docker context..."
+    sjust lima-set-docker-context
 
-        echo "✅ Quick setup completed! You can now use the Lima VM with Docker."
-    else
-        echo "❌ Quick setup failed during VM creation!"
-        exit 1
-    fi
+    echo "Enabling auto-start at login..."
+    sjust lima-enable-autostart
+
+    echo "✅ Quick setup completed! You can now use the Lima VM with Docker."
 
 # Create Lima VM with optional custom settings
 [group('lima')]
 lima-create-vm cpus=lima_default_cpus memory=lima_default_memory disk=lima_default_disk:
     #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Check if VM already exists
+    if limactl list | grep -q "{{ lima_default_name }}"; then
+        echo "❌ A Lima VM named '{{ lima_default_name }}' already exists!"
+        echo ""
+        echo "Current Lima VMs:"
+        limactl list --format 'table'
+        echo ""
+        echo "💡 To remove the existing VM, use: sjust lima-destroy"
+        echo "💡 To use a different name, edit the lima_default_name variable"
+        exit 1
+    fi
+
     echo "Creating Lima VM '{{ lima_default_name }}' with {{ cpus }} CPUs, {{ memory }}GB RAM, {{ disk }}GB disk..."
-    if limactl create --name={{ lima_default_name }} \
+    limactl create --name={{ lima_default_name }} \
       -y \
       --vm-type=vz \
       --mount-type=virtiofs \
@@ -62,113 +75,93 @@ lima-create-vm cpus=lima_default_cpus memory=lima_default_memory disk=lima_defau
       --memory={{ memory }} \
       --cpus={{ cpus }} \
       --disk={{ disk }} \
-      template://docker; then
-        limactl start {{ lima_default_name }} -y
-        echo "✅ Lima VM '{{ lima_default_name }}' created and started successfully!"
-    else
-        echo "❌ Failed to create Lima VM '{{ lima_default_name }}'!"
-        echo "💡 Check if the VM name already exists or if Lima is properly installed."
-        exit 1
-    fi
+      template://docker
+
+    echo "Starting Lima VM..."
+    limactl start {{ lima_default_name }} -y
+    echo "✅ Lima VM '{{ lima_default_name }}' created and started successfully!"
 
 # Remove Lima VM and its Docker context.
 [group('lima')]
 lima-destroy:
     #!/usr/bin/env bash
+    set -euo pipefail
+
     read -p "Are you sure you want to remove the Lima VM '{{ lima_default_name }}'? This action cannot be undone. (y/N): " -n 1 -r
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         echo "❌ Removal cancelled."
         exit 0
     fi
-    echo "Removing Lima VM '{{ lima_default_name }}'..."
+    echo "Stopping Lima VM..."
     limactl stop {{ lima_default_name }}
-    if limactl delete {{ lima_default_name }}; then
-        echo "✅ Lima VM '{{ lima_default_name }}' removed successfully!"
-    else
-        echo "❌ Failed to remove Lima VM '{{ lima_default_name }}'!"
-        echo "💡 Check if the VM exists with: sjust lima-status"
-        exit 1
-    fi
+    echo "Removing Lima VM '{{ lima_default_name }}'..."
+    limactl delete {{ lima_default_name }}
+    echo "✅ Lima VM '{{ lima_default_name }}' removed successfully!"
+
     echo "Removing Docker context for Lima VM '{{ lima_default_name }}'..."
-    if docker context rm -f lima-{{ lima_default_name }} 1>/dev/null; then
-        echo "✅ Docker context for Lima VM '{{ lima_default_name }}' removed successfully!"
-    fi
+    docker context rm -f lima-{{ lima_default_name }} 1>/dev/null || true
+    echo "✅ Docker context for Lima VM '{{ lima_default_name }}' removed successfully!"
 
 # Configure Docker context for Lima VM
 [group('lima')]
 lima-set-docker-context:
     #!/usr/bin/env bash
-    echo "Configuring Docker context for Lima VM '{{ lima_default_name }}'..."
-    docker context rm -f lima-{{ lima_default_name }} 1>/dev/null
+    set -euo pipefail
 
-    if docker context create lima-{{ lima_default_name }} \
-      --docker "host=unix://$HOME/.lima/{{ lima_default_name }}/sock/docker.sock" 1> /dev/null; then
-        if docker context use lima-{{ lima_default_name }} 1> /dev/null; then
-            echo ""
-            docker context ls
-            echo ""
-            echo "✅ Docker context set to Lima VM '{{ lima_default_name }}'!"
-        else
-            echo "❌ Failed to switch to Docker context lima-{{ lima_default_name }}!"
-            exit 1
-        fi
-    else
-        echo "❌ Failed to create Docker context for Lima VM '{{ lima_default_name }}'!"
-        echo "💡 Make sure the VM is running and Docker socket is available."
-        exit 1
-    fi
+    echo "Configuring Docker context for Lima VM '{{ lima_default_name }}'..."
+    docker context rm -f lima-{{ lima_default_name }} 1>/dev/null || true
+
+    echo "Creating Docker context..."
+    docker context create lima-{{ lima_default_name }} \
+      --docker "host=unix://$HOME/.lima/{{ lima_default_name }}/sock/docker.sock" 1> /dev/null
+
+    echo "Switching to Lima Docker context..."
+    docker context use lima-{{ lima_default_name }} 1> /dev/null
+
+    echo ""
+    docker context ls
+    echo ""
+    echo "✅ Docker context set to Lima VM '{{ lima_default_name }}'!"
 
 # Enable auto-start at login
 [group('lima')]
 lima-enable-autostart:
     #!/usr/bin/env bash
+    set -euo pipefail
+
     echo "Enabling auto-start for Lima VM '{{ lima_default_name }}'..."
-    if limactl start-at-login {{ lima_default_name }} --enabled; then
-        echo "✅ Lima VM '{{ lima_default_name }}' will start automatically at login!"
-    else
-        echo "❌ Failed to enable auto-start for Lima VM '{{ lima_default_name }}'!"
-        echo "💡 Check if the VM exists with: sjust lima-status"
-        exit 1
-    fi
+    limactl start-at-login {{ lima_default_name }} --enabled
+    echo "✅ Lima VM '{{ lima_default_name }}' will start automatically at login!"
 
 # Disable auto-start at login
 [group('lima')]
 lima-disable-autostart name=lima_default_name:
     #!/usr/bin/env bash
+    set -euo pipefail
+
     echo "Disabling auto-start for Lima VM '{{ name }}'..."
-    if limactl start-at-login {{ name }} --enabled=false; then
-        echo "✅ Lima VM '{{ name }}' auto-start disabled!"
-    else
-        echo "❌ Failed to disable auto-start for Lima VM '{{ name }}'!"
-        echo "💡 Check if the VM exists with: sjust lima-status"
-        exit 1
-    fi
+    limactl start-at-login {{ name }} --enabled=false
+    echo "✅ Lima VM '{{ name }}' auto-start disabled!"
 
 # Switch between Docker contexts
 [group('lima')]
-switch-to-docker-desktop:
+switch-to-docker-desktop-context:
     #!/usr/bin/env bash
+    set -euo pipefail
+
     echo "Switching to Docker Desktop context..."
-    if docker context use desktop-linux; then
-        echo "✅ Now using Docker Desktop!"
-    else
-        echo "❌ Failed to switch to Docker Desktop context!"
-        echo "💡 Make sure Docker Desktop is installed and running."
-        exit 1
-    fi
+    docker context use desktop-linux
+    echo "✅ Now using Docker Desktop!"
 
 # Switch to Lima Docker context
 [group('lima')]
-switch-to-lima name:
+switch-to-lima-docker-context:
     #!/usr/bin/env bash
+    set -euo pipefail
+
     echo "Switching to Lima context..."
-    if docker context use lima-{{ name }}; then
-        echo "✅ Now using Lima VM '{{ name }}'!"
-    else
-        echo "❌ Failed to switch to Lima context lima-{{ name }}!"
-        echo "💡 Make sure the Docker context exists. Use: sjust lima-set-docker-context {{ name }}"
-        exit 1
-    fi
+    docker context use lima-{{ lima_default_name }}
+    echo "✅ Now using Lima VM '{{ lima_default_name }}'!"
 
 # Internal helper: Update Lima VM configuration (stops, edits, starts VM)
 _lima-update-config config_type value unit="":
@@ -232,11 +225,13 @@ lima-set-disk disk:
 
 # Show current VM configuration
 [group('lima')]
-lima-show-config name:
+lima-show-config:
     #!/usr/bin/env bash
-    echo "Configuration for Lima VM '{{ name }}':"
-    if limactl list {{ name }} >/dev/null 2>&1; then
-        limactl list {{ name }} --format 'table'
+    set -euo pipefail
+
+    echo "Configuration for Lima VM '{{ lima_default_name }}':"
+    if limactl list {{ lima_default_name }} >/dev/null 2>&1; then
+        limactl list {{ lima_default_name }} --format 'table'
         echo ""
         echo "Detailed configuration:"
         echo "Run 'limactl info {{ name }}' for full details"
@@ -249,4 +244,6 @@ lima-show-config name:
 [group('lima')]
 lima-list:
     #!/usr/bin/env bash
+    set -euo pipefail
+
     limactl list --format 'table'
