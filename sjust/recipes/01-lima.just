@@ -91,7 +91,7 @@ lima-destroy:
     echo "✅ Lima VM '{{ lima_default_name }}' removed successfully!"
 
     echo "Removing Docker context for Lima VM '{{ lima_default_name }}'..."
-    docker context rm -f lima-{{ lima_default_name }} 1>/dev/null || true
+    docker context rm -f lima-{{ lima_default_name }} >/dev/null || true
 
     echo "Disable auto-start for Lima VM '{{ lima_default_name }}'..."
     limactl start-at-login {{ lima_default_name }} --enabled=false || true
