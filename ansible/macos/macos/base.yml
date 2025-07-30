@@ -27,16 +27,6 @@
         all_taps: "{{ all_packages.taps | default([]) }}"
         all_removed_cask_packages: "{{ all_packages.removed_cask_packages | default([]) }}"
 
-    - name: Check if docker cask is installed
-      shell: brew list --cask docker >/dev/null 2>&1 && echo yes || echo no
-      register: docker_cask_installed
-      changed_when: false
-
-    - name: Remove docker cask from install list if already installed
-      set_fact:
-        all_cask_packages: "{{ all_cask_packages | difference(['docker']) }}"
-      when: "'docker' in all_cask_packages and docker_cask_installed.stdout == 'yes'"
-
     - name: Configure homebrew taps
       community.general.homebrew_tap:
         name: "{{ item }}"
@@ -83,6 +73,19 @@
         state: absent
       when: all_removed_taps | length > 0
       become: false
+
+    - name: Docker and container runtime installation
+      tags: [docker]
+      block:
+        - name: Check if Docker Desktop is already installed
+          shell: brew list --cask docker-desktop >/dev/null 2>&1 && echo yes || echo no
+          register: docker_desktop_installed
+          changed_when: false
+
+        - name: Remove Docker Desktop from install list if already installed
+          set_fact:
+            all_cask_packages: "{{ all_cask_packages | difference(['docker-desktop']) }}"
+          when: "'docker-desktop' in all_cask_packages and docker_desktop_installed.stdout == 'yes'"
 
     - name: Install cask packages
       tags: cask

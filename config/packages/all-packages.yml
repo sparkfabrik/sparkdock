@@ -3,7 +3,7 @@ taps:
 
 # Cloud Tools, Applications, and Fonts
 cask_packages:
-  - docker
+  - docker-desktop
   - google-cloud-sdk
   # Applications
   - applite
@@ -30,6 +30,7 @@ homebrew_packages:
   - kubectx
   - skaffold
   - stern
+  - lima
   # System Utilities
   - atuin
   - bc
