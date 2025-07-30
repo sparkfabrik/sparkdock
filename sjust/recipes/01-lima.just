@@ -176,35 +176,24 @@ _lima-update-config config_type value unit="":
     # Check VM status and stop if running
     vm_status=$(limactl list {{ lima_default_name }} --format 'json' | jq -r '.status' 2>/dev/null || echo "NotFound")
 
-    if [ "$vm_status" = "Running" ]; then
-        echo "Stopping VM..."
-        stop_output=$(limactl stop {{ lima_default_name }} 2>&1)
-        if [ $? -ne 0 ]; then
-            echo "❌ Failed to stop VM '{{ lima_default_name }}'!"
-            echo "$stop_output"
-            exit 1
-        fi
-    elif [ "$vm_status" = "NotFound" ]; then
+    if [ "$vm_status" = "NotFound" ]; then
         echo "❌ VM '{{ lima_default_name }}' does not exist!"
         exit 1
     fi
 
-    # Update configuration
-    if limactl edit {{ lima_default_name }} --{{ config_type }} {{ value }} >/dev/null; then
-        echo "✅ {{ config_type }} updated to {{ value }}${display_unit}"
-    else
-        echo "❌ Failed to update {{ config_type }} configuration!"
-        exit 1
+    if [ "$vm_status" = "Running" ]; then
+        echo "Stopping VM..."
+        limactl stop {{ lima_default_name }}
     fi
+
+    # Update configuration
+    echo "Updating {{ config_type }} configuration..."
+    limactl edit {{ lima_default_name }} --{{ config_type }} {{ value }} >/dev/null
+    echo "✅ {{ config_type }} updated to {{ value }}${display_unit}"
 
     # Start the VM
     echo "Starting VM..."
-    start_output=$(limactl start {{ lima_default_name }} -y 2>&1)
-    if [ $? -ne 0 ]; then
-        echo "❌ Failed to start VM '{{ lima_default_name }}'!"
-        echo "$start_output"
-        exit 1
-    fi
+    limactl start {{ lima_default_name }} -y
 
     echo "✅ VM '{{ lima_default_name }}' is now running with updated {{ config_type }}!"
 
@@ -225,19 +214,19 @@ lima-set-disk disk:
 
 # Show current VM configuration
 [group('lima')]
-lima-show-config:
+lima-show-config name=lima_default_name:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    echo "Configuration for Lima VM '{{ lima_default_name }}':"
-    if limactl list {{ lima_default_name }} >/dev/null 2>&1; then
-        limactl list {{ lima_default_name }} --format 'table'
+    echo "Configuration for Lima VM '{{ name }}':"
+    if limactl list {{ name }} >/dev/null 2>&1; then
+        limactl list {{ name }} --format 'table'
         echo ""
         echo "Detailed configuration:"
         echo "Run 'limactl info {{ name }}' for full details"
     else
         echo "❌ VM '{{ name }}' does not exist."
-        echo "💡 Use 'sjust lima-create {{ name }}' to create it first."
+        echo "💡 Use 'sjust lima-create-vm' to create it first."
     fi
 
 # List the lima vms.
