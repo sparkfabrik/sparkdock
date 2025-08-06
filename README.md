@@ -82,6 +82,23 @@ Run the provisioner to configure your system:
 sparkdock
 ```
 
+### Manual Migration for Existing Users
+
+If you have an existing Sparkdock installation and want to update to the new HTTP proxy system without running the full provisioner:
+
+```bash
+cd /opt/sparkdock
+git fetch && git reset --hard origin/master
+make install-sjust
+sjust install-http-proxy
+```
+
+This workflow:
+
+1. Updates your Sparkdock repository to the latest version
+2. Installs the `sjust` task runner
+3. Runs a targeted Ansible update to install the new HTTP proxy system
+
 ### SparkJust Task Runner
 
 View and run available development tasks:
