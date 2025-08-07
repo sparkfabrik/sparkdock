@@ -11,7 +11,8 @@ endif
 # Install sjust only (for manual http-proxy migration workflow)
 install-sjust:
 	@echo "Installing sjust executable..."
-	@# Check if we're on the latest master branch
+	@# Check if we're on the latest $(DEFAULT_BRANCH) branch
+	@git fetch origin $(DEFAULT_BRANCH) 2>/dev/null || true
 	@if ! git diff --quiet HEAD origin/$(DEFAULT_BRANCH) 2>/dev/null; then \
 		echo "❌ Error: Your sparkdock installation is not up to date with the latest $(DEFAULT_BRANCH) branch."; \
 		echo ""; \
