@@ -1,3 +1,6 @@
+# Default branch name (change to "main" when migrating)
+DEFAULT_BRANCH := master
+
 run-ansible-macos:
 ifeq ($(TAGS),)
 	ansible-playbook ./ansible/macos.yml --ask-become-pass
@@ -9,11 +12,11 @@ endif
 install-sjust:
 	@echo "Installing sjust executable..."
 	@# Check if we're on the latest master branch
-	@if ! git diff --quiet HEAD origin/master 2>/dev/null; then \
-		echo "❌ Error: Your sparkdock installation is not up to date with the latest master branch."; \
+	@if ! git diff --quiet HEAD origin/$(DEFAULT_BRANCH) 2>/dev/null; then \
+		echo "❌ Error: Your sparkdock installation is not up to date with the latest $(DEFAULT_BRANCH) branch."; \
 		echo ""; \
 		echo "Please run the following commands to update first:"; \
-		echo "  git fetch && git reset --hard origin/master"; \
+		echo "  git fetch && git reset --hard origin/$(DEFAULT_BRANCH)"; \
 		echo ""; \
 		echo "Then run 'make install-sjust' again."; \
 		exit 1; \
@@ -21,9 +24,7 @@ install-sjust:
 	@# Check if just binary is available, install if needed
 	@if ! command -v just >/dev/null 2>&1; then \
 		echo "Just not found. Installing just via Homebrew..."; \
-		sudo -H brew install just; \
-	else \
-		echo "Just binary already available."; \
+		brew install just; \
 	fi
 	@# Copy sjust executable
 	sudo cp sjust/sjust.sh /usr/local/bin/sjust

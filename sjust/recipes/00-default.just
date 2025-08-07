@@ -3,6 +3,7 @@
 uid := `id -u`
 shell := `grep :$(id -u): /etc/passwd | cut -d: -f7`
 sparkdock_path := "/opt/sparkdock"
+default_branch := "master"
 
 # Print system information.
 [group('system')]
@@ -193,6 +194,45 @@ install-tags tags:
     echo "Running ansible with following tags: {{tags}}"
     cd {{ sparkdock_path }}
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
+
+# Update Sparkdock repository to latest version.
+[group('sparkdock')]
+update-sparkdock:
+    #!/usr/bin/env bash
+    echo "Updating Sparkdock repository to latest version..."
+    cd {{ sparkdock_path }}
+
+    # Check if we're on master branch
+    current_branch=$(git branch --show-current)
+    if [[ "${current_branch}" != "{{ default_branch }}" ]]; then
+        echo "❌ Error: Not on {{ default_branch }} branch (currently on '${current_branch}')"
+        echo "💡 Switch to {{ default_branch }} branch first: git checkout {{ default_branch }}"
+        exit 1
+    fi
+
+    # Fetch latest changes to compare
+    echo "🔄 Fetching latest changes..."
+    git fetch origin
+
+    # Check if we're already up to date
+    if git diff --quiet HEAD origin/{{ default_branch }}; then
+        echo "✅ Already up to date!"
+        echo "💡 Run 'sjust --list' to see available commands."
+        exit 0
+    fi
+
+    # Stash any local changes
+    if ! git diff --quiet || ! git diff --cached --quiet; then
+        echo "📦 Stashing local changes..."
+        git stash -m "Auto-stash before update $(date)"
+    fi
+
+    echo "⬆️  Updating to latest {{ default_branch }}..."
+    git reset --hard origin/{{ default_branch }}
+
+    echo "✅ Sparkdock updated successfully!"
+    echo "📝 You now have access to the latest sjust commands and configurations."
+    echo "💡 Run 'sjust --list' to see available commands."
 
 # Run sparkdock system configuration and updates.
 [group('sparkdock')]
