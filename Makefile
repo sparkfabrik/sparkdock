@@ -7,7 +7,7 @@ endif
 
 # Install sjust only (for manual http-proxy migration workflow)
 install-sjust:
-	@echo "Installing sjust executable and completion..."
+	@echo "Installing sjust executable..."
 	@# Check if we're on the latest master branch
 	@if ! git diff --quiet HEAD origin/master 2>/dev/null; then \
 		echo "❌ Error: Your sparkdock installation is not up to date with the latest master branch."; \
@@ -18,13 +18,15 @@ install-sjust:
 		echo "Then run 'make install-sjust' again."; \
 		exit 1; \
 	fi
+	@# Check if just binary is available, install if needed
+	@if ! command -v just >/dev/null 2>&1; then \
+		echo "Just not found. Installing just via Homebrew..."; \
+		sudo -H brew install just; \
+	else \
+		echo "Just binary already available."; \
+	fi
 	@# Copy sjust executable
 	sudo cp sjust/sjust.sh /usr/local/bin/sjust
 	sudo chmod 755 /usr/local/bin/sjust
-	@# Setup zsh completion
-	@BREW_PREFIX=$$(brew --prefix 2>/dev/null || echo "/usr/local"); \
-	mkdir -p "$$BREW_PREFIX/share/zsh/site-functions"; \
-	just --completions zsh | sed -E 's/([\(_" ])just/\1sjust/g' > "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
-	chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"
 	@echo "✅ sjust installed successfully!"
 	@echo "You can now run: sjust install-http-proxy"
