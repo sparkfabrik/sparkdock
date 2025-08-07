@@ -195,7 +195,7 @@ install-tags tags:
     cd {{ sparkdock_path }}
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
 
-# Update Sparkdock repository to latest version.
+# Update Sparkdock git repository to latest version, it doesn't run any ansible task.
 [group('sparkdock')]
 update-sparkdock:
     #!/usr/bin/env bash
