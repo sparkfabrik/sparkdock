@@ -90,7 +90,7 @@ If you have an existing Sparkdock installation and want to update to the new HTT
 cd /opt/sparkdock
 git fetch && git reset --hard origin/master
 make install-sjust
-sjust install-http-proxy
+sjust install-update-http-proxy
 ```
 
 This workflow:

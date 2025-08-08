@@ -112,16 +112,59 @@ http-proxy-config:
     echo "Showing http-proxy configuration..."
     spark-http-proxy show-config
 
-# Install http-proxy without full system update (faster, targeted).
+# Install and update http-proxy to latest version.
 [group('http-proxy')]
-install-http-proxy:
+install-update-http-proxy:
     #!/usr/bin/env bash
-    echo "Configuring http-proxy system (targeted update)..."
+    echo "Installing/updating http-proxy system to latest version..."
     cd {{ sparkdock_path }}
+    
+    # Update http-proxy repository if it exists
+    if [ -d "http-proxy" ]; then
+        echo "🔄 Updating existing http-proxy repository..."
+        cd http-proxy
+        
+        # Check if we're on main branch
+        current_branch=$(git branch --show-current)
+        if [[ "${current_branch}" != "main" ]]; then
+            echo "❌ Error: Not on main branch (currently on '${current_branch}')"
+            echo "💡 Switch to main branch first: git checkout main"
+            exit 1
+        fi
+        
+        # Fetch latest changes to compare
+        echo "🔄 Fetching latest changes..."
+        git fetch origin
+        
+        # Check if we're already up to date
+        if git diff --quiet HEAD origin/main; then
+            echo "✅ Http-proxy repository already up to date!"
+        else
+            # Stash any local changes
+            if ! git diff --quiet || ! git diff --cached --quiet; then
+                echo "📦 Stashing local changes..."
+                git stash -m "Auto-stash before update $(date)"
+            fi
+            
+            echo "⬆️  Updating to latest main..."
+            git reset --hard origin/main
+            echo "✅ Http-proxy repository updated successfully!"
+        fi
+        
+        cd {{ sparkdock_path }}
+    else
+        echo "📦 Http-proxy repository not found, will be cloned during ansible installation..."
+    fi
+    
+    # Run ansible installation/update
+    echo "🔧 Running ansible configuration..."
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
+    
+    # Clean up and restart
+    echo "🔄 Restarting http-proxy services..."
     docker rm -vf http-proxy || true
     spark-http-proxy start
-    echo "Http-proxy configuration completed!"
+    echo "✅ Http-proxy installation/update completed!"
 
 # Update system packages via Homebrew.
 [group('system')]
