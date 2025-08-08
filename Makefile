@@ -31,4 +31,4 @@ install-sjust:
 	sudo cp sjust/sjust.sh /usr/local/bin/sjust
 	sudo chmod 755 /usr/local/bin/sjust
 	@echo "✅ sjust installed successfully!"
-	@echo "You can now run: sjust install-http-proxy"
+	@echo "You can now run: sjust install-update-http-proxy"

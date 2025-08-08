@@ -112,16 +112,63 @@ http-proxy-config:
     echo "Showing http-proxy configuration..."
     spark-http-proxy show-config
 
-# Install http-proxy without full system update (faster, targeted).
+# Install and update http-proxy to latest version.
 [group('http-proxy')]
-install-http-proxy:
+install-update-http-proxy:
     #!/usr/bin/env bash
-    echo "Configuring http-proxy system (targeted update)..."
+    echo "Installing/updating http-proxy system to latest version..."
     cd {{ sparkdock_path }}
-    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
+    
+    # Update http-proxy repository if it exists
+    if [ -d "http-proxy" ]; then
+        echo "🔄 Updating existing http-proxy repository..."
+        cd http-proxy
+        
+        # Check if we're on {{ default_branch }} branch
+        current_branch=$(git branch --show-current)
+        if [[ "${current_branch}" != "{{ default_branch }}" ]]; then
+            echo "❌ Error: Not on {{ default_branch }} branch (currently on '${current_branch}')"
+            echo "💡 Switch to {{ default_branch }} branch first: git checkout {{ default_branch }}"
+            exit 1
+        fi
+        
+        # Fetch latest changes to compare
+        echo "🔄 Fetching latest changes..."
+        git fetch origin
+        
+        # Check if we're already up to date
+        if git diff --quiet HEAD origin/{{ default_branch }}; then
+            echo "✅ Http-proxy repository already up to date!"
+        else
+            # Stash any local changes
+            if ! git diff --quiet || ! git diff --cached --quiet; then
+                echo "📦 Stashing local changes..."
+                git stash -m "Auto-stash before update $(date)"
+            fi
+            
+            echo "⬆️  Updating to latest {{ default_branch }}..."
+            git reset --hard origin/{{ default_branch }}
+            echo "✅ Http-proxy repository updated successfully!"
+        fi
+        
+        cd {{ sparkdock_path }}
+    fi
+    
+    # Run ansible installation/update
+    echo "🔧 Running ansible configuration..."
+    # Check if running in CI/non-interactive mode (detect based on common CI environment variables)
+    if [[ -n "$CI" || -n "$GITHUB_ACTIONS" || -n "$NON_INTERACTIVE" ]]; then
+        echo "🤖 Detected non-interactive environment, running without password prompt..."
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" -e "ansible_become_password=" --become
+    else
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
+    fi
+    
+    # Clean up and restart
+    echo "🔄 Restarting http-proxy services..."
     docker rm -vf http-proxy || true
     spark-http-proxy start
-    echo "Http-proxy configuration completed!"
+    echo "✅ Http-proxy installation/update completed!"
 
 # Update system packages via Homebrew.
 [group('system')]
