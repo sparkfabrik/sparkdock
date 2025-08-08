@@ -124,11 +124,11 @@ install-update-http-proxy:
         echo "🔄 Updating existing http-proxy repository..."
         cd http-proxy
         
-        # Check if we're on main branch
+        # Check if we're on {{ default_branch }} branch
         current_branch=$(git branch --show-current)
-        if [[ "${current_branch}" != "main" ]]; then
-            echo "❌ Error: Not on main branch (currently on '${current_branch}')"
-            echo "💡 Switch to main branch first: git checkout main"
+        if [[ "${current_branch}" != "{{ default_branch }}" ]]; then
+            echo "❌ Error: Not on {{ default_branch }} branch (currently on '${current_branch}')"
+            echo "💡 Switch to {{ default_branch }} branch first: git checkout {{ default_branch }}"
             exit 1
         fi
         
@@ -137,7 +137,7 @@ install-update-http-proxy:
         git fetch origin
         
         # Check if we're already up to date
-        if git diff --quiet HEAD origin/main; then
+        if git diff --quiet HEAD origin/{{ default_branch }}; then
             echo "✅ Http-proxy repository already up to date!"
         else
             # Stash any local changes
@@ -146,8 +146,8 @@ install-update-http-proxy:
                 git stash -m "Auto-stash before update $(date)"
             fi
             
-            echo "⬆️  Updating to latest main..."
-            git reset --hard origin/main
+            echo "⬆️  Updating to latest {{ default_branch }}..."
+            git reset --hard origin/{{ default_branch }}
             echo "✅ Http-proxy repository updated successfully!"
         fi
         
