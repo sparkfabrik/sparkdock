@@ -152,8 +152,6 @@ install-update-http-proxy:
         fi
         
         cd {{ sparkdock_path }}
-    else
-        echo "📦 Http-proxy repository not found, will be cloned during ansible installation..."
     fi
     
     # Run ansible installation/update
