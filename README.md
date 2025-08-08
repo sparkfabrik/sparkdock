@@ -6,6 +6,18 @@ Sparkdock is an automated macOS development environment provisioner built with A
 
 ## Features
 
+### macOS System Defaults
+
+**Developer-Optimized Defaults:**
+
+- **UI/UX Improvements**: Expanded save/print panels, disk-first saving, disabled smart quotes/dashes
+- **Finder Enhancements**: Show hidden files and extensions, status/path bars, prevent .DS_Store on networks  
+- **Dock Optimizations**: Auto-hide with fast animations, no recent apps, better window behavior
+- **Keyboard/Input**: Faster key repeat rates, trackpad right-click, disabled press-and-hold
+- **Safari Developer**: Web inspector, developer menu, full URLs, secure defaults
+- **Terminal/Development**: UTF-8 encoding, secure input, plain text TextEdit
+- **System Tools**: Enhanced Activity Monitor, optimized screenshots, Time Machine settings
+
 ### Applications & Tools
 
 **GUI Applications:**
@@ -68,9 +80,10 @@ The installation process:
 2. **Base Tools**: Git, curl, Python 3, Ansible
 3. **Sparkdock Repository**: Cloned to `/opt/sparkdock`
 4. **Applications & Tools**: All packages from the configuration
-5. **HTTP Proxy System**: Configured and ready to use
-6. **Task Runner**: sjust command available system-wide
-7. **Update Service**: Automatic update checking via launchd
+5. **macOS System Defaults**: Developer-optimized system settings
+6. **HTTP Proxy System**: Configured and ready to use
+7. **Task Runner**: sjust command available system-wide
+8. **Update Service**: Automatic update checking via launchd
 
 ## Usage
 
@@ -80,6 +93,28 @@ Run the provisioner to configure your system:
 
 ```bash
 sparkdock
+```
+
+### Selective Deployment
+
+Run specific parts of the configuration using Ansible tags:
+
+**macOS System Defaults:**
+```bash
+ansible-playbook ansible/macos.yml --tags macos-defaults --ask-become-pass
+```
+
+**Skip macOS Defaults:**
+```bash
+ansible-playbook ansible/macos.yml --skip-tags macos-defaults --ask-become-pass
+```
+
+**Other available tags:**
+```bash
+ansible-playbook ansible/macos.yml --tags docker --ask-become-pass        # Docker setup only
+ansible-playbook ansible/macos.yml --tags http-proxy --ask-become-pass    # HTTP proxy only
+ansible-playbook ansible/macos.yml --tags keyboard --ask-become-pass      # Keyboard config only
+ansible-playbook ansible/macos.yml --tags sjust --ask-become-pass         # Task runner only
 ```
 
 ### Manual Migration for Existing Users

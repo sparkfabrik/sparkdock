@@ -310,6 +310,11 @@
             dest: "~/Library/KeyBindings",
           }
 
+    # Include macOS system defaults configuration
+    - name: Include macOS defaults configuration
+      include_tasks: defaults.yml
+      tags: macos-defaults
+
     # Install to /usr/local/bin as the other binaries.
     - name: Install sjust executable
       tags: sjust
