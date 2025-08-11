@@ -2,89 +2,89 @@ name: Test Sparkdock Menu Bar App
 
 on:
   push:
-    branches: [ master, main ]
+    branches: [master, main]
     paths:
-      - 'src/menubar-app/**'
-      - '.github/workflows/test-menubar-app.yml'
+      - "src/menubar-app/**"
+      - ".github/workflows/test-menubar-app.yml"
   pull_request:
-    branches: [ master, main ]
+    branches: [master, main]
     paths:
-      - 'src/menubar-app/**'
-      - '.github/workflows/test-menubar-app.yml'
+      - "src/menubar-app/**"
+      - ".github/workflows/test-menubar-app.yml"
 
 jobs:
   test-swift-app:
-    runs-on: macos-latest
-    
+    runs-on: macos-15
+
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Set up Xcode
-      uses: maxim-lobanov/setup-xcode@v1
-      with:
-        xcode-version: latest-stable
-        
-    - name: Show Swift version
-      run: swift --version
-      
-    - name: Show Xcode version
-      run: xcodebuild -version
-      
-    - name: Build Swift menubar app
-      working-directory: src/menubar-app
-      run: |
-        echo "Building Sparkdock Menu Bar App..."
-        swift build --verbose
-        
-    - name: Run Swift tests
-      working-directory: src/menubar-app
-      run: |
-        echo "Running Swift tests..."
-        swift test --verbose
-        
-    - name: Test Swift app compilation (release)
-      working-directory: src/menubar-app
-      run: |
-        echo "Building release version..."
-        swift build -c release --verbose
-        
-    - name: Verify executable exists
-      working-directory: src/menubar-app
-      run: |
-        echo "Checking if executable was created..."
-        find .build -name "sparkdock-manager" -type f -exec file {} \;
-        
-    - name: Test executable properties
-      working-directory: src/menubar-app
-      run: |
-        echo "Testing executable properties..."
-        EXECUTABLE=$(find .build -name "sparkdock-manager" -type f | head -1)
-        if [ -f "$EXECUTABLE" ]; then
-          echo "✅ Executable found: $EXECUTABLE"
-          ls -la "$EXECUTABLE"
-          echo "File type:"
-          file "$EXECUTABLE"
-          echo "Architecture:"
-          lipo -info "$EXECUTABLE" || echo "Single architecture binary"
-        else
-          echo "❌ Executable not found"
-          exit 1
-        fi
-        
-    - name: Test resource bundle
-      working-directory: src/menubar-app
-      run: |
-        echo "Checking for resource bundle..."
-        find .build -name "*SparkdockMenubar*.bundle" -type d -exec echo "Found bundle: {}" \;
-        find .build -name "sparkfabrik-logo.png" -exec echo "Found logo: {}" \;
-        
-    - name: Make test (if available)
-      working-directory: src/menubar-app
-      run: |
-        if [ -f "Makefile" ]; then
-          echo "Running make test..."
-          make test || echo "Make test completed with warnings"
-        else
-          echo "No Makefile found, skipping make test"
-        fi
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Show Swift version
+        run: swift --version
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Build Swift menubar app
+        working-directory: src/menubar-app
+        run: |
+          echo "Building Sparkdock Menu Bar App..."
+          swift build --verbose
+
+      - name: Run Swift tests
+        working-directory: src/menubar-app
+        run: |
+          echo "Running Swift tests..."
+          swift test --verbose
+
+      - name: Test Swift app compilation (release)
+        working-directory: src/menubar-app
+        run: |
+          echo "Building release version..."
+          swift build -c release --verbose
+
+      - name: Verify executable exists
+        working-directory: src/menubar-app
+        run: |
+          echo "Checking if executable was created..."
+          find .build -name "sparkdock-manager" -type f -exec file {} \;
+
+      - name: Test executable properties
+        working-directory: src/menubar-app
+        run: |
+          echo "Testing executable properties..."
+          EXECUTABLE=$(find .build -name "sparkdock-manager" -type f | head -1)
+          if [ -f "$EXECUTABLE" ]; then
+            echo "✅ Executable found: $EXECUTABLE"
+            ls -la "$EXECUTABLE"
+            echo "File type:"
+            file "$EXECUTABLE"
+            echo "Architecture:"
+            lipo -info "$EXECUTABLE" || echo "Single architecture binary"
+          else
+            echo "❌ Executable not found"
+            exit 1
+          fi
+
+      - name: Test resource bundle
+        working-directory: src/menubar-app
+        run: |
+          echo "Checking for resource bundle..."
+          find .build -name "*SparkdockMenubar*.bundle" -type d -exec echo "Found bundle: {}" \;
+          find .build -name "sparkfabrik-logo.png" -exec echo "Found logo: {}" \;
+
+      - name: Make test (if available)
+        working-directory: src/menubar-app
+        run: |
+          if [ -f "Makefile" ]; then
+            echo "Running make test..."
+            make test || echo "Make test completed with warnings"
+          else
+            echo "No Makefile found, skipping make test"
+          fi
