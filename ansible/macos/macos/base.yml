@@ -198,6 +198,8 @@
             group: "{{ ansible_user_gid }}"
             recurse: yes
           when: http_proxy_dir.stat.exists
+          become: yes
+          become_method: sudo
 
         - name: Clone http-proxy repository
           git:
