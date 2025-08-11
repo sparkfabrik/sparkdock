@@ -11,7 +11,8 @@ endif
 # Install sjust only (for manual http-proxy migration workflow)
 install-sjust:
 	@echo "Installing sjust executable..."
-	@# Check if we're on the latest $(DEFAULT_BRANCH) branch
+	@# Check if we're on the latest $(DEFAULT_BRANCH) branch (skip in CI)
+ifndef SKIP_GIT_CHECK
 	@git fetch origin $(DEFAULT_BRANCH) 2>/dev/null || true
 	@if ! git diff --quiet HEAD origin/$(DEFAULT_BRANCH) 2>/dev/null; then \
 		echo "❌ Error: Your sparkdock installation is not up to date with the latest $(DEFAULT_BRANCH) branch."; \
@@ -22,6 +23,9 @@ install-sjust:
 		echo "Then run 'make install-sjust' again."; \
 		exit 1; \
 	fi
+else
+	@echo "Skipping git check (SKIP_GIT_CHECK is set)"
+endif
 	@# Check if just binary is available, install if needed
 	@if ! command -v just >/dev/null 2>&1; then \
 		echo "Just not found. Installing just via Homebrew..."; \
