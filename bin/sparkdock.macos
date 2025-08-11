@@ -157,9 +157,7 @@ if [ "$1" != "skip-update" ] ; then
 fi
 
 # Cleaning the TTY.
-if [ "$1" != "skip-update" ]; then
-    clear
-fi
+clear
 print_banner
 
 print_section "System Check"
