@@ -8,11 +8,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private var menu: NSMenu!
     private var updateTimer: Timer?
     private var hasUpdates = false
-    private var logoImage: NSImage? // Cache the logo
-    private var statusMenuItem: NSMenuItem! // Status message at top of menu
+    private var logoImage: NSImage?
+    private var statusMenuItem: NSMenuItem!
     
     func applicationDidFinishLaunching(_ notification: Notification) {
-        loadLogo() // Load logo once at startup
+        loadLogo()
         setupMenuBar()
         setupUpdateTimer()
         checkForUpdatesAsync()
@@ -22,11 +22,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         // Create status item in menu bar
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
-        // Set initial icon (SparkFabrik logo - up to date)
+        // Set initial icon
         if let button = statusItem.button {
-            // Try to use a custom SparkFabrik icon, fallback to SF Symbol
-            let icon = createSparkFabrikIcon(isUpdating: false)
-            button.image = icon
+            button.image = logoImage
             button.imagePosition = .imageOnly
             button.toolTip = "Sparkdock - Up to date"
         }
@@ -81,6 +79,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
     
     @objc private func checkForUpdates() {
+        statusMenuItem.title = "⏳ Checking for updates..."
         checkForUpdatesAsync()
     }
     
@@ -104,7 +103,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             process.waitUntilExit()
             return process.terminationStatus == 0
         } catch {
-            print("Error checking for updates: \(error)")
             return false
         }
     }
@@ -113,17 +111,22 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         self.hasUpdates = hasUpdates
         
         if let button = statusItem.button {
-            let icon = createSparkFabrikIcon(isUpdating: hasUpdates)
-            button.image = icon
-            
             if hasUpdates {
+                // Create orange tinted version for updates
+                let tintedLogo = logoImage?.copy() as? NSImage
+                tintedLogo?.isTemplate = false
+                tintedLogo?.lockFocus()
+                NSColor.systemOrange.set()
+                NSRect(origin: .zero, size: tintedLogo?.size ?? .zero).fill(using: .sourceAtop)
+                tintedLogo?.unlockFocus()
+                button.image = tintedLogo
                 button.toolTip = "Sparkdock - Updates available"
             } else {
+                button.image = logoImage
                 button.toolTip = "Sparkdock - Up to date"
             }
         }
         
-        // Update status message in menu
         updateStatusMessage(hasUpdates: hasUpdates)
     }
     
@@ -181,99 +184,25 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
     
     private func loadLogo() {
-        // Load the SparkFabrik logo once at startup
         if let path = Bundle.main.path(forResource: "sparkfabrik-logo", ofType: "png") {
             logoImage = NSImage(contentsOfFile: path)
-            print("Loaded logo from main bundle: \(path)")
-        } else {
-            // Try Bundle.module for SwiftPM resources
-            if let path = Bundle.module.path(forResource: "sparkfabrik-logo", ofType: "png") {
-                logoImage = NSImage(contentsOfFile: path)
-                print("Loaded logo from module bundle: \(path)")
-            }
+        } else if let path = Bundle.module.path(forResource: "sparkfabrik-logo", ofType: "png") {
+            logoImage = NSImage(contentsOfFile: path)
         }
         
-        if logoImage == nil {
-            print("SparkFabrik logo not found in resources")
-        }
+        // Set template rendering for menu bar
+        logoImage?.isTemplate = true
+        logoImage?.size = NSSize(width: 18, height: 18)
     }
     
-    private func createSparkFabrikIcon(isUpdating: Bool) -> NSImage? {
-        // Use cached logo if available
-        if let logoImage = logoImage {
-            // Resize logo to menu bar size
-            let menuBarIcon = NSImage(size: NSSize(width: 18, height: 18))
-            menuBarIcon.lockFocus()
-            logoImage.draw(in: NSRect(x: 0, y: 0, width: 18, height: 18))
-            menuBarIcon.unlockFocus()
-            
-            // Tint for update status
-            if isUpdating {
-                let tintedIcon = menuBarIcon.copy() as? NSImage
-                tintedIcon?.lockFocus()
-                NSColor.systemOrange.set()
-                NSRect(origin: .zero, size: tintedIcon?.size ?? .zero).fill(using: .sourceAtop)
-                tintedIcon?.unlockFocus()
-                tintedIcon?.isTemplate = false
-                return tintedIcon
-            } else {
-                menuBarIcon.isTemplate = true // Adapts to menu bar appearance
-                return menuBarIcon
-            }
-        }
-        
-        // Fallback: Create a custom SparkFabrik-style icon
-        let size = NSSize(width: 18, height: 18)
-        let icon = NSImage(size: size)
-        
-        icon.lockFocus()
-        
-        // Set the color based on update status
-        let color = isUpdating ? NSColor.systemOrange : NSColor.controlAccentColor
-        color.setFill()
-        
-        // Draw a stylized "S" shape (for SparkFabrik) or flame-like icon
-        let path = NSBezierPath()
-        
-        // Create a flame-like shape
-        path.move(to: NSPoint(x: 9, y: 2))
-        path.curve(to: NSPoint(x: 14, y: 7), 
-                  controlPoint1: NSPoint(x: 12, y: 2), 
-                  controlPoint2: NSPoint(x: 14, y: 4))
-        path.curve(to: NSPoint(x: 11, y: 12), 
-                  controlPoint1: NSPoint(x: 14, y: 9), 
-                  controlPoint2: NSPoint(x: 13, y: 11))
-        path.curve(to: NSPoint(x: 9, y: 16), 
-                  controlPoint1: NSPoint(x: 10, y: 13), 
-                  controlPoint2: NSPoint(x: 9, y: 14))
-        path.curve(to: NSPoint(x: 7, y: 12), 
-                  controlPoint1: NSPoint(x: 9, y: 14), 
-                  controlPoint2: NSPoint(x: 8, y: 13))
-        path.curve(to: NSPoint(x: 4, y: 7), 
-                  controlPoint1: NSPoint(x: 5, y: 11), 
-                  controlPoint2: NSPoint(x: 4, y: 9))
-        path.curve(to: NSPoint(x: 9, y: 2), 
-                  controlPoint1: NSPoint(x: 4, y: 4), 
-                  controlPoint2: NSPoint(x: 6, y: 2))
-        
-        path.fill()
-        
-        icon.unlockFocus()
-        icon.isTemplate = !isUpdating // Template icons adapt to menu bar appearance
-        
-        return icon
-    }
     
     private func showNotification(title: String, message: String) {
         let center = UNUserNotificationCenter.current()
-        
-        // Request permission first
-        center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+        center.requestAuthorization(options: [.alert]) { granted, _ in
             if granted {
                 let content = UNMutableNotificationContent()
                 content.title = title
                 content.body = message
-                content.sound = .default
                 
                 let request = UNNotificationRequest(
                     identifier: UUID().uuidString,
@@ -281,11 +210,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                     trigger: nil
                 )
                 
-                center.add(request) { error in
-                    if let error = error {
-                        print("Error showing notification: \(error)")
-                    }
-                }
+                center.add(request) { _ in }
             }
         }
     }
