@@ -3,6 +3,7 @@
 import Cocoa
 import Foundation
 import ServiceManagement
+import os.log
 
 // MARK: - Configuration Constants
 private struct AppConstants {
@@ -12,6 +13,8 @@ private struct AppConstants {
     static let menuConfigResourceName = "menu"
     static let iconSize = NSSize(width: 18, height: 18)
     static let bundleIdentifier = "com.sparkfabrik.sparkdock.manager"
+    static let processTimeout: TimeInterval = 30.0
+    static let logger = Logger(subsystem: bundleIdentifier, category: "MenuBar")
 }
 
 // MARK: - Configuration Models
@@ -54,8 +57,25 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var statusMenuItem: NSMenuItem?
     var updateTimer: Timer?
     fileprivate var menuConfig: MenuConfig?
+    // Cache icons to avoid recreating them
+    private var cachedNormalIcon: NSImage?
+    private var cachedUpdateIcon: NSImage?
+    private var cachedLogoImage: NSImage?
+
+    private func showErrorAlert(_ title: String, _ message: String) {
+        DispatchQueue.main.async {
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.informativeText = message
+            alert.alertStyle = .warning
+            alert.addButton(withTitle: "OK")
+            alert.runModal()
+        }
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Set proper activation policy for menu bar apps
+        NSApp.setActivationPolicy(.accessory)
 
         loadMenuConfiguration()
         setupMenuBar()
@@ -68,19 +88,29 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         updateTimer?.invalidate()
+        // Clear cached images to free memory
+        clearImageCache()
+    }
+    private func clearImageCache() {
+        cachedNormalIcon = nil
+        cachedUpdateIcon = nil
+        cachedLogoImage = nil
     }
 
     private func loadMenuConfiguration() {
         guard let path = Bundle.module.path(forResource: AppConstants.menuConfigResourceName, ofType: "json") ??
                          Bundle.main.path(forResource: AppConstants.menuConfigResourceName, ofType: "json") else {
+            AppConstants.logger.info("Menu configuration file not found in bundle")
             return
         }
 
         do {
             let data = try Data(contentsOf: URL(fileURLWithPath: path))
             menuConfig = try JSONDecoder().decode(MenuConfig.self, from: data)
+            AppConstants.logger.info("Successfully loaded menu configuration with \(self.menuConfig?.menu.sections.count ?? 0) sections")
         } catch {
-            // Fallback to hardcoded menu items on error
+            AppConstants.logger.error("Failed to load menu configuration: \(error.localizedDescription)")
+            showErrorAlert("Menu Configuration Error", "Failed to load menu configuration. Using minimal menu.")
         }
     }
 
@@ -155,7 +185,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-
     @objc private func handleDynamicMenuItem(_ sender: NSMenuItem) {
         guard let menuItem = sender.representedObject as? MenuItem else { return }
 
@@ -196,17 +225,38 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func runSparkdockCheck() -> Bool {
         guard FileManager.default.fileExists(atPath: AppConstants.sparkdockExecutablePath) else {
+            AppConstants.logger.warning("Sparkdock executable not found at \(AppConstants.sparkdockExecutablePath)")
             return false
         }
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: AppConstants.sparkdockExecutablePath)
         process.arguments = ["check-updates"]
 
+        // Set up timeout handling
+        let semaphore = DispatchSemaphore(value: 0)
+        var terminationStatus: Int32 = -1
+
+        process.terminationHandler = { [semaphore] proc in
+            terminationStatus = proc.terminationStatus
+            semaphore.signal()
+        }
+
         do {
             try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
+
+            // Wait for process completion or timeout
+            let timeoutResult = semaphore.wait(timeout: .now() + AppConstants.processTimeout)
+
+            if timeoutResult == .timedOut {
+                AppConstants.logger.error("Sparkdock check-updates process timed out after \(AppConstants.processTimeout) seconds")
+                process.terminate()
+                return false
+            }
+
+            return terminationStatus == 0
         } catch {
+            AppConstants.logger.error("Failed to run sparkdock check: \(error.localizedDescription)")
             return false
         }
     }
@@ -241,24 +291,27 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
 
     private func executeTerminalCommand(_ command: String) {
-        let escapedCommand = command.replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "\"", with: "\\\"")
-
-        let script = """
-            tell application "Terminal"
-                activate
-                if (count of windows) > 0 then
-                    do script "\(escapedCommand)" in front window
-                else
-                    do script "\(escapedCommand)"
-                end if
-            end tell
+        let process = Process()
+        // Use osascript to run AppleScript more securely
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
+        // Create AppleScript to open Terminal and run command
+        let appleScript = """
+        tell application "Terminal"
+            activate
+            if (count of windows) > 0 then
+                do script "\(command.replacingOccurrences(of: "\"", with: "\\\""))" in front window
+            else
+                do script "\(command.replacingOccurrences(of: "\"", with: "\\\""))"
+            end if
+        end tell
         """
-
-        if let appleScript = NSAppleScript(source: script) {
-            var error: NSDictionary?
-            appleScript.executeAndReturnError(&error)
-
+        process.arguments = ["-e", appleScript]
+        do {
+            try process.run()
+            AppConstants.logger.info("Executed terminal command: \(command)")
+        } catch {
+            AppConstants.logger.error("Failed to execute terminal command '\(command)': \(error.localizedDescription)")
+            showErrorAlert("Command Execution Error", "Failed to execute command: \(command)")
         }
     }
 
@@ -267,11 +320,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         do {
             if service.status == .enabled {
                 try service.unregister()
+                AppConstants.logger.info("Disabled login item")
             } else {
                 try service.register()
+                AppConstants.logger.info("Enabled login item")
             }
         } catch {
-            // Failed to toggle login item
+            AppConstants.logger.error("Failed to toggle login item: \(error.localizedDescription)")
+            showErrorAlert("Login Item Error", "Failed to toggle startup at login setting.")
         }
         updateLoginItemStatus()
     }
@@ -284,16 +340,27 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func loadIcon(hasUpdates: Bool) -> NSImage? {
-        var logoImage: NSImage?
-
-        // Try Bundle.module first (for executable targets with resources)
-        if let path = Bundle.module.path(forResource: AppConstants.logoResourceName, ofType: "png") {
-            logoImage = NSImage(contentsOfFile: path)
-        } else if let path = Bundle.main.path(forResource: AppConstants.logoResourceName, ofType: "png") {
-            logoImage = NSImage(contentsOfFile: path)
+        // Return cached icon if available
+        if hasUpdates {
+            if let cached = cachedUpdateIcon {
+                return cached
+            }
+        } else {
+            if let cached = cachedNormalIcon {
+                return cached
+            }
         }
 
-        let logo = logoImage ?? createDefaultIcon()
+        // Load logo once and cache it
+        if cachedLogoImage == nil {
+            if let path = Bundle.module.path(forResource: AppConstants.logoResourceName, ofType: "png") {
+                cachedLogoImage = NSImage(contentsOfFile: path)
+            } else if let path = Bundle.main.path(forResource: AppConstants.logoResourceName, ofType: "png") {
+                cachedLogoImage = NSImage(contentsOfFile: path)
+            }
+        }
+
+        let logo = cachedLogoImage ?? createDefaultIcon()
 
         let icon = NSImage(size: AppConstants.iconSize, flipped: false) { rect in
             logo.draw(in: rect)
@@ -307,6 +374,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
 
         icon.isTemplate = !hasUpdates
+        // Cache the created icon
+        if hasUpdates {
+            cachedUpdateIcon = icon
+        } else {
+            cachedNormalIcon = icon
+        }
+
         return icon
     }
 
