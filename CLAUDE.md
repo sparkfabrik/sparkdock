@@ -90,7 +90,7 @@ Per `.github/copilot-instructions.md`, all shell scripts must:
 - Verify package installations with assertion tasks
 - Check system state with `sjust device-info`
 
-## Menu Bar App
+## Sparkdock Manager (Menu Bar App)
 
 A Swift-based menu bar application provides visual update notifications:
 

@@ -1,4 +1,4 @@
-# Sparkdock Menu Bar App
+# Sparkdock Manager
 
 A simple macOS menu bar application that provides visual indicators for Sparkdock updates and quick access to common tasks.
 
@@ -33,7 +33,7 @@ The app is automatically built and installed during Sparkdock provisioning via A
 swift build -c release
 
 # Copy to system location
-sudo cp .build/release/sparkdock-menubar /usr/local/bin/
+sudo cp .build/release/sparkdock-manager /usr/local/bin/
 
 # Create launch agent (auto-start at login)
 cp com.sparkfabrik.sparkdock.menubar.plist ~/Library/LaunchAgents/

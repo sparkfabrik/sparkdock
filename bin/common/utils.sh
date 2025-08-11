@@ -43,20 +43,8 @@ checkMacosVersion() {
     return 0
 }
 
-install_update_service() {
-    # Ensure LaunchAgents directory exists
-    mkdir -p ~/Library/LaunchAgents
-
-    # Install or update the plist file
-    cp /opt/sparkdock/launchd/com.sparkfabrik.sparkdock.plist ~/Library/LaunchAgents/
-
-    # Set correct permissions (owner read/write, group/others read)
-    chmod 644 ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.plist
-
-    # Unload if exists (ignoring errors) and load the service
-    launchctl unload ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.plist 2>/dev/null || true
-    launchctl load ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.plist
-}
+# Note: The old install_update_service function has been removed
+# Update checking is now handled by the Sparkdock Manager menu bar app
 
 get_last_update() {
     if [ -f /opt/sparkdock/.last_update ]; then

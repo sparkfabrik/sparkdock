@@ -2,13 +2,13 @@
 import PackageDescription
 
 let package = Package(
-    name: "SparkdockMenubar",
+    name: "SparkdockManager",
     platforms: [
         .macOS(.v12)
     ],
     products: [
         .executable(
-            name: "sparkdock-menubar",
+            name: "sparkdock-manager",
             targets: ["SparkdockMenubar"]
         ),
     ],

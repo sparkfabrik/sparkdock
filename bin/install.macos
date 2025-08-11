@@ -99,17 +99,8 @@ else
   git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
 fi
 
-## Install the launchd service
-print "Installing update checker service..."
-if [[ "$NON_INTERACTIVE" == "true" ]]; then
-  print "Skipping launchd service installation in non-interactive mode"
-else
-  if [[ -f /opt/sparkdock/launchd/com.sparkfabrik.sparkdock.plist ]]; then
-    install_update_service
-  else
-    print "Launchd plist file not found. Skipping service installation."
-  fi
-fi
+# Note: Update checking is now handled by the Sparkdock Manager menu bar app
+# which is installed via Ansible with the 'menubar' tag
 
 ## Run Ansible Playbook
 print "Run ansible playbook..."

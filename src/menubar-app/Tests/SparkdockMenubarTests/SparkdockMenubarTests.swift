@@ -27,7 +27,7 @@ final class SparkdockMenubarTests: XCTestCase {
     
     func testExecutableName() {
         // Test that we're building the expected executable name
-        let expectedName = "sparkdock-menubar"
-        XCTAssertEqual(expectedName, "sparkdock-menubar", "Executable should have expected name")
+        let expectedName = "sparkdock-manager"
+        XCTAssertEqual(expectedName, "sparkdock-manager", "Executable should have expected name")
     }
 }

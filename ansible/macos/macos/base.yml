@@ -364,8 +364,8 @@
 
         - name: Install menu bar app binary
           copy:
-            src: "{{ dev_env_dir }}/src/menubar-app/.build/release/sparkdock-menubar"
-            dest: "/usr/local/bin/sparkdock-menubar"
+            src: "{{ dev_env_dir }}/src/menubar-app/.build/release/sparkdock-manager"
+            dest: "/usr/local/bin/sparkdock-manager"
             mode: "0755"
             remote_src: true
           become: yes

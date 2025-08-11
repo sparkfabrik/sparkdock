@@ -53,13 +53,13 @@ jobs:
       working-directory: src/menubar-app
       run: |
         echo "Checking if executable was created..."
-        find .build -name "sparkdock-menubar" -type f -exec file {} \;
+        find .build -name "sparkdock-manager" -type f -exec file {} \;
         
     - name: Test executable properties
       working-directory: src/menubar-app
       run: |
         echo "Testing executable properties..."
-        EXECUTABLE=$(find .build -name "sparkdock-menubar" -type f | head -1)
+        EXECUTABLE=$(find .build -name "sparkdock-manager" -type f | head -1)
         if [ -f "$EXECUTABLE" ]; then
           echo "✅ Executable found: $EXECUTABLE"
           ls -la "$EXECUTABLE"
