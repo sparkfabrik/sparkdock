@@ -174,7 +174,7 @@
     - name: Configure git safe directory for sparkdock
       command: git config --global --add safe.directory "{{ dev_env_dir }}"
       become: no
-      tags: [always, http-proxy]
+      tags: [always]
 
     - name: Install system scripts
       tags: http-proxy
