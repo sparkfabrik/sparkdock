@@ -83,9 +83,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         toolsItem.isEnabled = false
         menu.addItem(toolsItem)
 
-        let sjustItem = NSMenuItem(title: "Open sjust", action: #selector(openSjust), keyEquivalent: "")
+        let sjustItem = NSMenuItem(title: "Open sjust", action: #selector(runSjust), keyEquivalent: "")
         sjustItem.target = self
         menu.addItem(sjustItem)
+        
+        let httpProxyItem = NSMenuItem(title: "Open http-proxy dashboard", action: #selector(runHttpProxyDashboard), keyEquivalent: "")
+        httpProxyItem.target = self
+        menu.addItem(httpProxyItem)
         menu.addItem(.separator())
 
         let companyItem = NSMenuItem(title: "Company", action: nil, keyEquivalent: "")
@@ -178,8 +182,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         executeTerminalCommand("sparkdock")
     }
 
-    @objc private func openSjust() {
+    @objc private func runSjust() {
         executeTerminalCommand("sjust")
+    }
+    
+    @objc private func runHttpProxyDashboard() {
+        executeTerminalCommand("spark-http-proxy dashboard")
     }
 
     @objc private func openPlaybook() {
@@ -197,43 +205,22 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private func executeTerminalCommand(_ command: String) {
         let escapedCommand = command.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-
-        // Try iTerm first, fallback to Terminal
-        let iTermScript = """
-            tell application "iTerm"
-                activate
-                create window with default profile
-                tell current session of current window
-                    write text "\(escapedCommand)"
-                end tell
-            end tell
-        """
-
-        let terminalScript = """
+        
+        let script = """
             tell application "Terminal"
                 activate
-                do script "\(escapedCommand)"
+                if (count of windows) > 0 then
+                    do script "\(escapedCommand)" in front window
+                else
+                    do script "\(escapedCommand)"
+                end if
             end tell
         """
 
-        // Check if iTerm is available
-        let workspace = NSWorkspace.shared
-        if workspace.urlForApplication(withBundleIdentifier: "com.googlecode.iterm2") != nil {
-            if let appleScript = NSAppleScript(source: iTermScript) {
-                var error: NSDictionary?
-                appleScript.executeAndReturnError(&error)
-
-                if error == nil {
-                    return // iTerm worked successfully
-                }
-            }
-        }
-
-        // Fallback to Terminal
-        if let appleScript = NSAppleScript(source: terminalScript) {
+        if let appleScript = NSAppleScript(source: script) {
             var error: NSDictionary?
             appleScript.executeAndReturnError(&error)
-
+            
             if let error = error {
                 print("Failed to execute terminal command: \(error)")
             }
@@ -260,7 +247,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         let service = SMAppService.mainApp
         loginMenuItem.state = service.status == .enabled ? .on : .off
     }
-
 
     private func loadIcon(hasUpdates: Bool) -> NSImage? {
         var logoImage: NSImage?
