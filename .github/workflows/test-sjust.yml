@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-14, macos-15, macos-latest]
+        os: [macos-15, macos-latest]
       fail-fast: false
     env:
       TERM: xterm-256color
@@ -21,6 +21,16 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - name: Setup sparkdock directory
+        run: |
+          echo "Creating /opt/sparkdock directory and copying files..."
+          sudo mkdir -p /opt/sparkdock
+          sudo cp -R . /opt/sparkdock/
+          sudo chown -R $(whoami):staff /opt/sparkdock
+
+          echo "Verifying sparkdock directory structure..."
+          ls -la /opt/sparkdock/sjust/
 
       - name: Install Just command runner
         run: |
@@ -144,3 +154,6 @@ jobs:
           # Clean up completion file
           BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "/usr/local")
           sudo rm -f "$BREW_PREFIX/share/zsh/site-functions/_sjust"
+
+          # Clean up sparkdock directory
+          sudo rm -rf /opt/sparkdock
