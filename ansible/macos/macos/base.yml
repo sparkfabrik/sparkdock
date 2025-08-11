@@ -371,34 +371,37 @@
           become: yes
           become_method: sudo
 
-        - name: Remove old update service (replace with menubar app)
-          file:
-            path: "{{ item }}"
-            state: absent
-          loop:
-            - "~/Library/LaunchAgents/com.sparkfabrik.sparkdock.plist"
-          ignore_errors: yes
+        - name: LaunchAgent installation
+          block:
+            - name: Remove old update service (replace with menubar app)
+              file:
+                path: "{{ item }}"
+                state: absent
+              loop:
+                - "~/Library/LaunchAgents/com.sparkfabrik.sparkdock.plist"
+              ignore_errors: yes
 
-        - name: Ensure user LaunchAgents directory exists
-          file:
-            path: "{{ ansible_env.HOME }}/Library/LaunchAgents"
-            state: directory
-            mode: "0755"
-          become: no
+            - name: Ensure user LaunchAgents directory exists
+              file:
+                path: "{{ ansible_env.HOME }}/Library/LaunchAgents"
+                state: directory
+                mode: "0755"
+              become: no
 
-        - name: Install menubar app launch agent
-          copy:
-            src: "{{ dev_env_dir }}/src/menubar-app/com.sparkfabrik.sparkdock.menubar.plist"
-            dest: "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
-            mode: "0644"
-          become: no
+            - name: Install menubar app launch agent
+              copy:
+                src: "{{ dev_env_dir }}/src/menubar-app/com.sparkfabrik.sparkdock.menubar.plist"
+                dest: "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+                mode: "0644"
+              become: no
 
-        - name: Load menubar app launch agent
-          shell: |
-            launchctl unload "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist" 2>/dev/null || true
-            launchctl load "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
-          become: no
-          ignore_errors: yes
+            - name: Load menubar app launch agent
+              shell: |
+                launchctl unload "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist" 2>/dev/null || true
+                launchctl load "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+              become: no
+              ignore_errors: yes
+          when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined)
 
   post_tasks:
     - name: Print installation complete message
