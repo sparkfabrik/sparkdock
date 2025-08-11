@@ -267,8 +267,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         if let path = Bundle.main.path(forResource: AppConstants.logoResourceName, ofType: "png") {
             logoImage = NSImage(contentsOfFile: path)
-        } else if let path = Bundle.module.path(forResource: AppConstants.logoResourceName, ofType: "png") {
-            logoImage = NSImage(contentsOfFile: path)
         }
 
         let logo = logoImage ?? createDefaultIcon()
