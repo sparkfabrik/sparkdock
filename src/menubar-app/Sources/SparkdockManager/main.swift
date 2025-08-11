@@ -84,9 +84,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         // Set initial status and check for updates
         statusMenuItem?.title = "⏳ Checking for updates..."
-        Task {
-            await checkForUpdates()
-        }
+        checkForUpdates()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -236,10 +234,28 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.executableURL = URL(fileURLWithPath: AppConstants.sparkdockExecutablePath)
         process.arguments = ["check-updates"]
 
+        // Set up timeout handling
+        let semaphore = DispatchSemaphore(value: 0)
+        var terminationStatus: Int32 = -1
+
+        process.terminationHandler = { proc in
+            terminationStatus = proc.terminationStatus
+            semaphore.signal()
+        }
+
         do {
             try process.run()
-            process.waitUntilExit()
-            return process.terminationStatus == 0
+
+            // Wait for process completion or timeout
+            let timeoutResult = semaphore.wait(timeout: .now() + AppConstants.processTimeout)
+
+            if timeoutResult == .timedOut {
+                AppConstants.logger.error("Sparkdock check-updates process timed out after \(AppConstants.processTimeout) seconds")
+                process.terminate()
+                return false
+            }
+
+            return terminationStatus == 0
         } catch {
             AppConstants.logger.error("Failed to run sparkdock check: \(error.localizedDescription)")
             return false

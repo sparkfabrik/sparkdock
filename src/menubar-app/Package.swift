@@ -2,25 +2,25 @@
 import PackageDescription
 
 let package = Package(
-    name: "SparkdockMenubar",
+    name: "SparkdockManager",
     platforms: [
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "sparkdock-manager", targets: ["SparkdockMenubar"])
+        .executable(name: "sparkdock-manager", targets: ["SparkdockManager"])
     ],
     dependencies: [],
     targets: [
         .executableTarget(
-            name: "SparkdockMenubar",
+            name: "SparkdockManager",
             dependencies: [],
             resources: [
                 .process("Resources")
             ]
         ),
         .testTarget(
-            name: "SparkdockMenubarTests",
-            dependencies: ["SparkdockMenubar"]
+            name: "SparkdockManagerTests",
+            dependencies: ["SparkdockManager"]
         ),
     ]
 )

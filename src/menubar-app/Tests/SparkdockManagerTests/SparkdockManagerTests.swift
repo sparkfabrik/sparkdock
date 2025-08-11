@@ -1,7 +1,7 @@
 import XCTest
 import Foundation
 
-final class SparkdockMenubarTests: XCTestCase {
+final class SparkdockManagerTests: XCTestCase {
 
     func testPackageStructure() {
         XCTAssertTrue(true, "Package structure test passed")
@@ -9,7 +9,7 @@ final class SparkdockMenubarTests: XCTestCase {
 
     func testResourcesExist() {
         let currentDir = FileManager.default.currentDirectoryPath
-        let logoPath = "\(currentDir)/Sources/SparkdockMenubar/Resources/sparkfabrik-logo.png"
+        let logoPath = "\(currentDir)/Sources/SparkdockManager/Resources/sparkfabrik-logo.png"
         let fileExists = FileManager.default.fileExists(atPath: logoPath)
         XCTAssertTrue(fileExists, "SparkFabrik logo should exist at: \(logoPath)")
     }
