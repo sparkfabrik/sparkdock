@@ -379,16 +379,25 @@
             - "~/Library/LaunchAgents/com.sparkfabrik.sparkdock.plist"
           ignore_errors: yes
 
+        - name: Ensure user LaunchAgents directory exists
+          file:
+            path: "{{ ansible_env.HOME }}/Library/LaunchAgents"
+            state: directory
+            mode: "0755"
+          become: no
+
         - name: Install menubar app launch agent
           copy:
             src: "{{ dev_env_dir }}/src/menubar-app/com.sparkfabrik.sparkdock.menubar.plist"
-            dest: "~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+            dest: "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
             mode: "0644"
+          become: no
 
         - name: Load menubar app launch agent
           shell: |
-            launchctl unload ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist 2>/dev/null || true
-            launchctl load ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist
+            launchctl unload "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist" 2>/dev/null || true
+            launchctl load "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+          become: no
           ignore_errors: yes
 
   post_tasks:

@@ -30,7 +30,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         if !FileManager.default.fileExists(atPath: AppConstants.sparkdockExecutablePath) {
             print("Warning: Sparkdock executable not found at \(AppConstants.sparkdockExecutablePath)")
         }
-        
+
         setupMenuBar()
         setupUpdateTimer()
         checkForUpdates()
@@ -78,25 +78,25 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(updateItem)
 
         menu.addItem(.separator())
-        
+
         let toolsItem = NSMenuItem(title: "Tools", action: nil, keyEquivalent: "")
         toolsItem.isEnabled = false
         menu.addItem(toolsItem)
-        
+
         let sjustItem = NSMenuItem(title: "Open sjust", action: #selector(openSjust), keyEquivalent: "")
         sjustItem.target = self
         menu.addItem(sjustItem)
         menu.addItem(.separator())
-        
+
         let companyItem = NSMenuItem(title: "Company", action: nil, keyEquivalent: "")
         companyItem.isEnabled = false
         menu.addItem(companyItem)
-        
-        let playbookItem = NSMenuItem(title: "Open Company Playbook", action: #selector(openPlaybook), keyEquivalent: "")
+
+        let playbookItem = NSMenuItem(title: "Company Playbook", action: #selector(openPlaybook), keyEquivalent: "")
         playbookItem.target = self
         menu.addItem(playbookItem)
-        
-        let coreSkillsItem = NSMenuItem(title: "SparkFabrik Core Skills", action: #selector(openCoreSkills), keyEquivalent: "")
+
+        let coreSkillsItem = NSMenuItem(title: "Core Skills", action: #selector(openCoreSkills), keyEquivalent: "")
         coreSkillsItem.target = self
         menu.addItem(coreSkillsItem)
         menu.addItem(.separator())
@@ -115,7 +115,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         updateTimer = Timer.scheduledTimer(withTimeInterval: AppConstants.updateInterval, repeats: true) { [weak self] _ in
             self?.checkForUpdates()
         }
-        
+
         updateTimer?.tolerance = 60.0
     }
 
@@ -176,13 +176,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     @objc private func openSjust() {
         executeTerminalCommand("sjust")
     }
-    
+
     @objc private func openPlaybook() {
         if let url = URL(string: "https://playbook.sparkfabrik.com/") {
             NSWorkspace.shared.open(url)
         }
     }
-    
+
     @objc private func openCoreSkills() {
         if let url = URL(string: "https://playbook.sparkfabrik.com/working-at-sparkfabrik/core-skills") {
             NSWorkspace.shared.open(url)
@@ -192,7 +192,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private func executeTerminalCommand(_ command: String) {
         let escapedCommand = command.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-        
+
         // Try iTerm first, fallback to Terminal
         let iTermScript = """
             tell application "iTerm"
@@ -203,32 +203,32 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 end tell
             end tell
         """
-        
+
         let terminalScript = """
             tell application "Terminal"
                 activate
                 do script "\(escapedCommand)"
             end tell
         """
-        
+
         // Check if iTerm is available
         let workspace = NSWorkspace.shared
         if workspace.urlForApplication(withBundleIdentifier: "com.googlecode.iterm2") != nil {
             if let appleScript = NSAppleScript(source: iTermScript) {
                 var error: NSDictionary?
                 appleScript.executeAndReturnError(&error)
-                
+
                 if error == nil {
                     return // iTerm worked successfully
                 }
             }
         }
-        
+
         // Fallback to Terminal
         if let appleScript = NSAppleScript(source: terminalScript) {
             var error: NSDictionary?
             appleScript.executeAndReturnError(&error)
-            
+
             if let error = error {
                 print("Failed to execute terminal command: \(error)")
             }
