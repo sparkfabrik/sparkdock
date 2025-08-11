@@ -6,11 +6,11 @@
 build:
 	swift build -c release
 
-# Development build and run from sparkdock root
+# Development build and run
 dev:
 	swift build -c debug
-	@echo "Running in development mode from sparkdock root..."
-	cd ../.. && SPARKDOCK_MENU_CONFIG=config/menubar-app/menu.json ./src/menubar-app/.build/debug/sparkdock-manager
+	@echo "Running in development mode..."
+	./.build/debug/sparkdock-manager
 
 # Install the application (requires sudo for /usr/local/bin)
 install: build
