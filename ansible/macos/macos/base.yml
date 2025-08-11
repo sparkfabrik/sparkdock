@@ -185,6 +185,7 @@
             force: yes
             update: yes
           register: http_proxy_clone
+          become: no
 
         - name: Make spark-http-proxy executable
           file:

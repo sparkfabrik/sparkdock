@@ -54,46 +54,37 @@ clear-dns-cache:
     @sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
     @echo "DNS cache cleared successfully!"
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # Install and update http-proxy to latest version.
 [group('http-proxy')]
 install-update-http-proxy:
     #!/usr/bin/env bash
+    set -e
     echo "Installing/updating http-proxy system to latest version..."
     cd {{ sparkdock_path }}
-    
+
     # Update http-proxy repository if it exists
     if [ -d "http-proxy" ]; then
         echo "🔄 Updating existing http-proxy repository..."
         cd http-proxy
-        
-        # Check if we're on {{ default_branch }} branch
+
+        # Fix git ownership issues
+        echo "🔧 Configuring git safe directory..."
+        git config --global --add safe.directory "$(pwd)"
+
+        # Check if we're on main branch (http-proxy uses main, not master)
         current_branch=$(git branch --show-current)
-        if [[ "${current_branch}" != "{{ default_branch }}" ]]; then
-            echo "❌ Error: Not on {{ default_branch }} branch (currently on '${current_branch}')"
-            echo "💡 Switch to {{ default_branch }} branch first: git checkout {{ default_branch }}"
+        if [[ "${current_branch}" != "main" ]]; then
+            echo "❌ Error: Not on main branch (currently on '${current_branch}')"
+            echo "💡 Switch to main branch first: git checkout main"
             exit 1
         fi
-        
+
         # Fetch latest changes to compare
         echo "🔄 Fetching latest changes..."
         git fetch origin
-        
+
         # Check if we're already up to date
-        if git diff --quiet HEAD origin/{{ default_branch }}; then
+        if git diff --quiet HEAD origin/main; then
             echo "✅ Http-proxy repository already up to date!"
         else
             # Stash any local changes
@@ -101,15 +92,15 @@ install-update-http-proxy:
                 echo "📦 Stashing local changes..."
                 git stash -m "Auto-stash before update $(date)"
             fi
-            
-            echo "⬆️  Updating to latest {{ default_branch }}..."
-            git reset --hard origin/{{ default_branch }}
+
+            echo "⬆️  Updating to latest main..."
+            git reset --hard origin/main
             echo "✅ Http-proxy repository updated successfully!"
         fi
-        
+
         cd {{ sparkdock_path }}
     fi
-    
+
     # Run ansible installation/update
     echo "🔧 Running ansible configuration..."
     # Check if running in CI/non-interactive mode (detect based on common CI environment variables)
@@ -119,7 +110,7 @@ install-update-http-proxy:
     else
         ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
     fi
-    
+
     # Clean up and restart
     echo "🔄 Restarting http-proxy services..."
     docker rm -vf http-proxy || true
@@ -202,8 +193,13 @@ install-tags tags:
 [group('sparkdock')]
 update-sparkdock:
     #!/usr/bin/env bash
+    set -e
     echo "Updating Sparkdock repository to latest version..."
     cd {{ sparkdock_path }}
+
+    # Fix git ownership issues
+    echo "🔧 Configuring git safe directory..."
+    git config --global --add safe.directory "$(pwd)"
 
     # Check if we're on master branch
     current_branch=$(git branch --show-current)
