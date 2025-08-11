@@ -113,13 +113,12 @@ if [ "$1" != "skip-update" ] ; then
 
         # Check for local changes (both tracked and untracked)
         if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)" ]; then
-            print_warning "You have local changes that will be stashed."
+            print_warning "You have local changes that will be stashed, to recover your work later, run 'git stash pop'."
             echo ""
             if ! git stash push -u -m "sparkdock-update auto-stash"; then
                 print_error "Failed to stash changes. Aborting update."
                 exit 1
             fi
-            print_success "To recover your work later, run 'git stash pop'."
             update_actions_performed=true
         fi
 
