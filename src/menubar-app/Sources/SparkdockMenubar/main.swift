@@ -219,7 +219,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func loadIcon(hasUpdates: Bool) -> NSImage? {
-        // Try to load the logo
+        // Try to load the custom logo
         var logoImage: NSImage?
 
         if let path = Bundle.main.path(forResource: AppConstants.logoResourceName, ofType: "png") {
@@ -228,7 +228,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             logoImage = NSImage(contentsOfFile: path)
         }
 
-        guard let logo = logoImage else { return nil }
+        // If custom logo not found, create a default gear icon
+        let logo = logoImage ?? createDefaultIcon()
 
         let icon = NSImage(size: AppConstants.iconSize, flipped: false) { rect in
             logo.draw(in: rect)
@@ -243,6 +244,24 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         icon.isTemplate = !hasUpdates
         return icon
+    }
+
+    private func createDefaultIcon() -> NSImage {
+        // Use system symbol if available (macOS 11+), otherwise create a simple shape
+        if #available(macOS 11.0, *) {
+            if let systemImage = NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: "Sparkdock") {
+                let config = NSImage.SymbolConfiguration(pointSize: AppConstants.iconSize.width, weight: .medium)
+                return systemImage.withSymbolConfiguration(config) ?? systemImage
+            }
+        }
+
+        // Fallback: create a simple filled circle
+        return NSImage(size: AppConstants.iconSize, flipped: false) { rect in
+            let path = NSBezierPath(ovalIn: rect.insetBy(dx: 2, dy: 2))
+            NSColor.controlAccentColor.setFill()
+            path.fill()
+            return true
+        }
     }
 
     @objc private func quit() {
