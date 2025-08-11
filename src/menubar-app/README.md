@@ -51,5 +51,5 @@ The app will automatically use your custom logo, falling back to a generated fla
 
 ## Requirements
 
-- macOS 12.0+ (Monterey)
+- macOS 14.0+ (Sonoma)
 - Sparkdock installed at `/opt/sparkdock`
