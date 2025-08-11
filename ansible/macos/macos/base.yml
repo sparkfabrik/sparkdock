@@ -371,6 +371,15 @@
           become: yes
           become_method: sudo
 
+        - name: Check CI environment
+          debug:
+            msg:
+              - "HOME: {{ ansible_env.HOME | default('undefined') }}"
+              - "USER: {{ ansible_env.USER | default('undefined') }}"
+              - "CI: {{ ansible_env.CI | default('undefined') }}"
+              - "GITHUB_ACTIONS: {{ ansible_env.GITHUB_ACTIONS | default('undefined') }}"
+              - "RUNNER_OS: {{ ansible_env.RUNNER_OS | default('undefined') }}"
+
         - name: LaunchAgent installation (local environment only)
           block:
             - name: Remove old update service (replace with menubar app)
@@ -401,7 +410,7 @@
                 launchctl load "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
               become: no
               ignore_errors: yes
-          when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined)
+          when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
 
   post_tasks:
     - name: Print installation complete message
