@@ -105,7 +105,7 @@ if [ "$1" != "skip-update" ] ; then
         # Store last update time
         date "+%Y-%m-%d %H:%M:%S" > "$SPARKDOCK_ROOT/.last_update"
 
-        # A flag to track if any "disruptive" action was taken
+        # A flag to track if any update action is performed.
         update_actions_performed=false
 
         # Check current branch
@@ -119,6 +119,7 @@ if [ "$1" != "skip-update" ] ; then
                 print_error "Failed to stash changes. Aborting update."
                 exit 1
             fi
+            print_success "To recover your work later, run 'git stash pop'."
             update_actions_performed=true
         fi
 
@@ -126,7 +127,6 @@ if [ "$1" != "skip-update" ] ; then
             print_warning "You are on branch '${CURRENT_BRANCH}', not '${DEFAULT_BRANCH}'. Switching to '${DEFAULT_BRANCH}'."
             if ! git checkout "${DEFAULT_BRANCH}"; then
                 print_error "Failed to switch to ${DEFAULT_BRANCH}. Aborting update."
-                git stash pop || true # try to restore stashed changes
                 exit 1
             fi
             update_actions_performed=true
@@ -135,8 +135,7 @@ if [ "$1" != "skip-update" ] ; then
         # Now on the default branch, pull the latest changes
         git fetch origin ${DEFAULT_BRANCH}
         if ! git reset --hard origin/${DEFAULT_BRANCH}; then
-            print "Update failed, rolling back..."
-            git reset --hard "$CURRENT_VERSION"
+            print_error "Cannot reset to origin/${DEFAULT_BRANCH}. Aborting update."
             exit 1
         fi
 
