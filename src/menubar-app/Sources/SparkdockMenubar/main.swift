@@ -3,6 +3,7 @@
 import Cocoa
 import Foundation
 import ServiceManagement
+import os.log
 
 // MARK: - Configuration Constants
 private struct AppConstants {
@@ -11,6 +12,50 @@ private struct AppConstants {
     static let logoResourceName = "sparkfabrik-logo"
     static let iconSize = NSSize(width: 18, height: 18)
     static let bundleIdentifier = "com.sparkfabrik.sparkdock.manager"
+    static let logger = Logger(subsystem: bundleIdentifier, category: "MenuBar")
+
+    static var configPath: String {
+        // Check for development override first
+        if let devPath = ProcessInfo.processInfo.environment["SPARKDOCK_MENU_CONFIG"] {
+            return devPath
+        }
+
+        // Try local development path (relative to current working directory)
+        let localPath = "config/menubar-app/menu.json"
+        if FileManager.default.fileExists(atPath: localPath) {
+            return localPath
+        }
+
+        // Default production path
+        return "/opt/sparkdock/config/menubar-app/menu.json"
+    }
+}
+
+// MARK: - Configuration Models
+fileprivate struct MenuConfig: Codable {
+    let version: String
+    let menu: MenuStructure
+}
+
+fileprivate struct MenuStructure: Codable {
+    let sections: [MenuSection]
+}
+
+fileprivate struct MenuSection: Codable {
+    let name: String
+    let items: [MenuItem]
+}
+
+fileprivate struct MenuItem: Codable {
+    let title: String
+    let type: MenuItemType
+    let command: String?
+    let url: String?
+
+    enum MenuItemType: String, Codable {
+        case command = "command"
+        case url = "url"
+    }
 }
 
 // MARK: - Menu Item Tags
@@ -25,19 +70,111 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var hasUpdates = false
     var statusMenuItem: NSMenuItem?
     var updateTimer: Timer?
+    fileprivate var menuConfig: MenuConfig?
+    private var dynamicMenuItems: [NSMenuItem] = []
+    private var allDynamicElements: [NSMenuItem] = []
+    private var lastConfigModificationTime: Date?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         if !FileManager.default.fileExists(atPath: AppConstants.sparkdockExecutablePath) {
-            print("Warning: Sparkdock executable not found at \(AppConstants.sparkdockExecutablePath)")
+            AppConstants.logger.warning("Sparkdock executable not found at \(AppConstants.sparkdockExecutablePath)")
         }
+
+        loadMenuConfiguration()
+
+        // Initialize config file modification time tracking
+        initializeConfigTracking()
 
         setupMenuBar()
         setupUpdateTimer()
-        checkForUpdates()
+
+        // Set initial status and check for updates
+        statusMenuItem?.title = "⏳ Checking for updates..."
+        checkForUpdatesAndReloadConfig()
     }
 
     func applicationWillTerminate(_ notification: Notification) {
         updateTimer?.invalidate()
+    }
+
+    private func loadMenuConfiguration() {
+        let configPath = AppConstants.configPath
+        AppConstants.logger.info("Attempting to load menu config from: \(configPath)")
+
+        guard FileManager.default.fileExists(atPath: configPath) else {
+            AppConstants.logger.info("Menu config file not found at \(configPath), using fallback configuration")
+            return
+        }
+
+        do {
+            let data = try Data(contentsOf: URL(fileURLWithPath: configPath))
+            menuConfig = try JSONDecoder().decode(MenuConfig.self, from: data)
+            AppConstants.logger.info("Successfully loaded menu config with \(self.menuConfig?.menu.sections.count ?? 0) sections")
+        } catch {
+            AppConstants.logger.error("Failed to load menu configuration: \(error)")
+        }
+    }
+
+
+    private func updateMenuItemsOnly() {
+        guard let menu = menu, let config = menuConfig else { return }
+
+        // Remove all existing dynamic elements
+        allDynamicElements.forEach { menu.removeItem($0) }
+        dynamicMenuItems.removeAll(keepingCapacity: true)
+        allDynamicElements.removeAll(keepingCapacity: true)
+
+        // Find insertion point after "Update Now" separator
+        guard let insertIndex = findDynamicMenuInsertionPoint() else {
+            AppConstants.logger.warning("Could not find insertion point for dynamic menu items")
+            return
+        }
+
+        // Add new dynamic sections
+        addDynamicSections(config.menu.sections, to: menu, startingAt: insertIndex)
+    }
+
+    private func findDynamicMenuInsertionPoint() -> Int? {
+        guard let menu = menu else { return nil }
+
+        for (index, item) in menu.items.enumerated() {
+            if item.tag == MenuItemTag.updateNow.rawValue,
+               index + 1 < menu.items.count,
+               menu.items[index + 1].isSeparatorItem {
+                return index + 2
+            }
+        }
+        return nil
+    }
+
+    private func addDynamicSections(_ sections: [MenuSection], to menu: NSMenu, startingAt insertIndex: Int) {
+        var currentIndex = insertIndex
+
+        for section in sections {
+            // Add section header
+            let sectionItem = NSMenuItem(title: section.name, action: nil, keyEquivalent: "")
+            sectionItem.isEnabled = false
+            menu.insertItem(sectionItem, at: currentIndex)
+            allDynamicElements.append(sectionItem)
+            currentIndex += 1
+
+            // Add section items
+            for item in section.items {
+                let menuItem = NSMenuItem(title: item.title, action: #selector(handleDynamicMenuItem(_:)), keyEquivalent: "")
+                menuItem.target = self
+                menuItem.representedObject = item
+                menu.insertItem(menuItem, at: currentIndex)
+                dynamicMenuItems.append(menuItem)
+                allDynamicElements.append(menuItem)
+                currentIndex += 1
+            }
+
+            // Add section separator
+            let separator = NSMenuItem.separator()
+            menu.insertItem(separator, at: currentIndex)
+            allDynamicElements.append(separator)
+            currentIndex += 1
+        }
     }
 
     private func setupMenuBar() {
@@ -65,11 +202,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(titleItem)
         menu.addItem(.separator())
 
-        statusMenuItem = NSMenuItem(title: "Checking for updates...", action: #selector(checkForUpdatesAction), keyEquivalent: "")
-        statusMenuItem?.target = self
-        if let statusMenuItem = statusMenuItem {
-            menu.addItem(statusMenuItem)
-        }
+        // Create status menu item - preserve existing title if rebuilding
+        let currentTitle = statusMenuItem?.title ?? "Checking for updates..."
+        let newStatusMenuItem = NSMenuItem(title: currentTitle, action: #selector(checkForUpdatesAction), keyEquivalent: "")
+        newStatusMenuItem.target = self
+        menu.addItem(newStatusMenuItem)
+        statusMenuItem = newStatusMenuItem  // Update reference after adding to menu
         menu.addItem(.separator())
 
         let updateItem = NSMenuItem(title: "Update Now", action: #selector(updateNow), keyEquivalent: "")
@@ -79,6 +217,47 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
+        // Add dynamic menu sections from configuration
+        if let config = menuConfig {
+            addDynamicMenuSections(config.menu.sections, to: menu)
+        } else {
+            // Fallback to hardcoded menu items if no config
+            addFallbackMenuItems(to: menu)
+        }
+
+        let loginItem = NSMenuItem(title: "Start at Login", action: #selector(toggleLoginItem), keyEquivalent: "")
+        loginItem.target = self
+        loginItem.tag = MenuItemTag.loginItem.rawValue
+        menu.addItem(loginItem)
+
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+    }
+
+    private func addDynamicMenuSections(_ sections: [MenuSection], to menu: NSMenu) {
+        for section in sections {
+            let sectionItem = NSMenuItem(title: section.name, action: nil, keyEquivalent: "")
+            sectionItem.isEnabled = false
+            menu.addItem(sectionItem)
+            allDynamicElements.append(sectionItem)
+
+            for item in section.items {
+                let menuItem = NSMenuItem(title: item.title, action: #selector(handleDynamicMenuItem(_:)), keyEquivalent: "")
+                menuItem.target = self
+                menuItem.representedObject = item
+                menu.addItem(menuItem)
+                dynamicMenuItems.append(menuItem)
+                allDynamicElements.append(menuItem)
+            }
+
+            let separator = NSMenuItem.separator()
+            menu.addItem(separator)
+            allDynamicElements.append(separator)
+        }
+    }
+
+    private func addFallbackMenuItems(to menu: NSMenu) {
         let toolsItem = NSMenuItem(title: "Tools", action: nil, keyEquivalent: "")
         toolsItem.isEnabled = false
         menu.addItem(toolsItem)
@@ -86,7 +265,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         let sjustItem = NSMenuItem(title: "Open sjust", action: #selector(runSjust), keyEquivalent: "")
         sjustItem.target = self
         menu.addItem(sjustItem)
-        
+
         let httpProxyItem = NSMenuItem(title: "Open http-proxy dashboard", action: #selector(runHttpProxyDashboard), keyEquivalent: "")
         httpProxyItem.target = self
         menu.addItem(httpProxyItem)
@@ -104,20 +283,26 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         coreSkillsItem.target = self
         menu.addItem(coreSkillsItem)
         menu.addItem(.separator())
+    }
 
-        let loginItem = NSMenuItem(title: "Start at Login", action: #selector(toggleLoginItem), keyEquivalent: "")
-        loginItem.target = self
-        loginItem.tag = MenuItemTag.loginItem.rawValue
-        menu.addItem(loginItem)
+    @objc private func handleDynamicMenuItem(_ sender: NSMenuItem) {
+        guard let menuItem = sender.representedObject as? MenuItem else { return }
 
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
+        switch menuItem.type {
+        case .command:
+            if let command = menuItem.command {
+                executeTerminalCommand(command)
+            }
+        case .url:
+            if let urlString = menuItem.url, let url = URL(string: urlString) {
+                NSWorkspace.shared.open(url)
+            }
+        }
     }
 
     private func setupUpdateTimer() {
         updateTimer = Timer.scheduledTimer(withTimeInterval: AppConstants.updateInterval, repeats: true) { [weak self] _ in
-            self?.checkForUpdates()
+            self?.checkForUpdatesAndReloadConfig()
         }
 
         updateTimer?.tolerance = 60.0
@@ -125,7 +310,47 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     @objc private func checkForUpdatesAction() {
         statusMenuItem?.title = "⏳ Checking for updates..."
+        checkForUpdatesAndReloadConfig()
+    }
+
+    private func checkForUpdatesAndReloadConfig() {
+        // Check if menu config has changed and reload if needed
+        let configPath = AppConstants.configPath
+        let currentModificationTime = getFileModificationTime(configPath)
+
+        if let currentTime = currentModificationTime,
+           lastConfigModificationTime != currentTime {
+            AppConstants.logger.info("Menu configuration file changed, reloading menu items...")
+
+            DispatchQueue.main.async { [weak self] in
+                self?.reloadMenuItemsOnly()
+                self?.lastConfigModificationTime = currentTime
+            }
+        }
+
+        // Check for sparkdock updates
         checkForUpdates()
+    }
+
+    private func getFileModificationTime(_ path: String) -> Date? {
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: path)
+            return attributes[.modificationDate] as? Date
+        } catch {
+            return nil
+        }
+    }
+
+    private func initializeConfigTracking() {
+        let configPath = AppConstants.configPath
+        lastConfigModificationTime = getFileModificationTime(configPath)
+        AppConstants.logger.info("Initialized config tracking for: \(configPath)")
+    }
+
+    private func reloadMenuItemsOnly() {
+        loadMenuConfiguration()
+        updateMenuItemsOnly()
+        AppConstants.logger.info("Menu items reloaded from configuration")
     }
 
     private func checkForUpdates() {
@@ -153,7 +378,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             process.waitUntilExit()
             return process.terminationStatus == 0
         } catch {
-            print("Failed to run sparkdock check: \(error)")
+            AppConstants.logger.error("Failed to run sparkdock check: \(error)")
             return false
         }
     }
@@ -164,7 +389,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         statusItem?.button?.image = loadIcon(hasUpdates: hasUpdates)
         statusItem?.button?.toolTip = hasUpdates ? "Sparkdock - Updates available" : "Sparkdock - Up to date"
 
-        statusMenuItem?.title = hasUpdates ? "🔄 Updates Available" : "✅ Sparkdock is up to date"
+        let newTitle = hasUpdates ? "🔄 Updates Available" : "✅ Sparkdock is up to date"
+
+        // Update the status menu item title
+        if let statusMenuItem = statusMenuItem {
+            statusMenuItem.title = newTitle
+            AppConstants.logger.info("Updated status to: \(newTitle)")
+        } else {
+            AppConstants.logger.warning("statusMenuItem is nil, cannot update title")
+        }
+
+        // Update the "Update Now" menu item visibility
         if let menu = menu,
            let updateItem = menu.items.first(where: { $0.tag == MenuItemTag.updateNow.rawValue }) {
             if hasUpdates {
@@ -185,7 +420,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     @objc private func runSjust() {
         executeTerminalCommand("sjust")
     }
-    
+
     @objc private func runHttpProxyDashboard() {
         executeTerminalCommand("spark-http-proxy dashboard")
     }
@@ -205,7 +440,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private func executeTerminalCommand(_ command: String) {
         let escapedCommand = command.replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "\"", with: "\\\"")
-        
+
         let script = """
             tell application "Terminal"
                 activate
@@ -220,9 +455,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         if let appleScript = NSAppleScript(source: script) {
             var error: NSDictionary?
             appleScript.executeAndReturnError(&error)
-            
+
             if let error = error {
-                print("Failed to execute terminal command: \(error)")
+                AppConstants.logger.error("Failed to execute terminal command: \(error)")
             }
         }
     }
@@ -236,7 +471,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 try service.register()
             }
         } catch {
-            print("Failed to toggle login item: \(error)")
+            AppConstants.logger.error("Failed to toggle login item: \(error)")
         }
         updateLoginItemStatus()
     }

@@ -1,10 +1,16 @@
 # Makefile for Sparkdock Menu Bar App
 
-.PHONY: build install uninstall clean test
+.PHONY: build install uninstall clean test dev
 
 # Build the application
 build:
 	swift build -c release
+
+# Development build and run from sparkdock root
+dev:
+	swift build -c debug
+	@echo "Running in development mode from sparkdock root..."
+	cd ../.. && SPARKDOCK_MENU_CONFIG=config/menubar-app/menu.json ./src/menubar-app/.build/debug/sparkdock-manager
 
 # Install the application (requires sudo for /usr/local/bin)
 install: build
