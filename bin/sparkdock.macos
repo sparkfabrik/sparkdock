@@ -67,7 +67,9 @@ check_for_updates() {
  }
 
 notify() {
-    osascript -e "display notification \"$1\" with title \"Sparkdock\""
+    # Notifications disabled to avoid Script Editor issues
+    # Users can see status through menu bar icon and menu items
+    return 0
 }
 
 # Note: Update service installation is now handled by the Sparkdock Manager menu bar app
