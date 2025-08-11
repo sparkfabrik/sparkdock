@@ -379,10 +379,22 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         // Load logo once and cache it
         if cachedLogoImage == nil {
+            var foundLogo = false
             if let path = Bundle.module.path(forResource: AppConstants.logoResourceName, ofType: "png") {
                 cachedLogoImage = NSImage(contentsOfFile: path)
+                foundLogo = true
             } else if let path = Bundle.main.path(forResource: AppConstants.logoResourceName, ofType: "png") {
                 cachedLogoImage = NSImage(contentsOfFile: path)
+                foundLogo = true
+            }
+            if !foundLogo {
+                let moduleResourcePath = Bundle.module.resourcePath ?? "<nil>"
+                let mainResourcePath = Bundle.main.resourcePath ?? "<nil>"
+                let modulePngs = (try? FileManager.default.contentsOfDirectory(atPath: moduleResourcePath).filter { $0.hasSuffix(".png") }) ?? []
+                let mainPngs = (try? FileManager.default.contentsOfDirectory(atPath: mainResourcePath).filter { $0.hasSuffix(".png") }) ?? []
+                let modulePngList = modulePngs.joined(separator: ", ")
+                let mainPngList = mainPngs.joined(separator: ", ")
+                AppConstants.logger.error("Logo resource '\(AppConstants.logoResourceName).png' not found. Checked paths: module=\(moduleResourcePath), main=\(mainResourcePath). Available PNGs in module: \(modulePngList). Available PNGs in main: \(mainPngList).")
             }
         }
 
