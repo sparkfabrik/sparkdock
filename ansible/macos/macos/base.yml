@@ -186,6 +186,21 @@
         - name: Ensure /usr/local/bin exists
           file: path=/usr/local/bin state=directory
 
+        - name: Check if http-proxy directory exists
+          stat:
+            path: "{{ dev_env_dir }}/http-proxy"
+          register: http_proxy_dir
+
+        - name: Fix ownership of http-proxy directory for git operations
+          file:
+            path: "{{ dev_env_dir }}/http-proxy"
+            owner: "{{ ansible_user_id }}"
+            group: "{{ ansible_user_gid }}"
+            recurse: yes
+          when: http_proxy_dir.stat.exists
+          become: yes
+          become_method: sudo
+
         - name: Clone http-proxy repository
           git:
             repo: https://github.com/sparkfabrik/http-proxy.git
