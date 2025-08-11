@@ -176,6 +176,11 @@
       become: no
       tags: [always]
 
+    - name: Configure git safe directory for http-proxy
+      command: git config --global --add safe.directory "{{ dev_env_dir }}/http-proxy"
+      become: no
+      tags: [always]
+
     - name: Install system scripts
       tags: http-proxy
       block:
