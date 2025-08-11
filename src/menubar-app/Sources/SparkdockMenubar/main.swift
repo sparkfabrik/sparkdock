@@ -55,6 +55,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var menu: NSMenu?
     var hasUpdates = false
     var statusMenuItem: NSMenuItem?
+    var updateNowMenuItem: NSMenuItem?
     var updateTimer: Timer?
     fileprivate var menuConfig: MenuConfig?
     // Cache icons to avoid recreating them
@@ -83,7 +84,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         // Set initial status and check for updates
         statusMenuItem?.title = "⏳ Checking for updates..."
-        checkForUpdates()
+        Task {
+            await checkForUpdates()
+        }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -150,6 +153,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         updateItem.target = self
         updateItem.tag = MenuItemTag.updateNow.rawValue
         menu.addItem(updateItem)
+        updateNowMenuItem = updateItem
 
         menu.addItem(.separator())
 
@@ -214,11 +218,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func checkForUpdates() {
-        DispatchQueue.global(qos: .background).async { [weak self] in
-            let hasUpdates = self?.runSparkdockCheck() ?? false
-
-            DispatchQueue.main.async {
-                self?.updateUI(hasUpdates: hasUpdates)
+        Task(priority: .background) {
+            let hasUpdates = runSparkdockCheck()
+            await MainActor.run {
+                updateUI(hasUpdates: hasUpdates)
             }
         }
     }
@@ -233,28 +236,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.executableURL = URL(fileURLWithPath: AppConstants.sparkdockExecutablePath)
         process.arguments = ["check-updates"]
 
-        // Set up timeout handling
-        let semaphore = DispatchSemaphore(value: 0)
-        var terminationStatus: Int32 = -1
-
-        process.terminationHandler = { [semaphore] proc in
-            terminationStatus = proc.terminationStatus
-            semaphore.signal()
-        }
-
         do {
             try process.run()
-
-            // Wait for process completion or timeout
-            let timeoutResult = semaphore.wait(timeout: .now() + AppConstants.processTimeout)
-
-            if timeoutResult == .timedOut {
-                AppConstants.logger.error("Sparkdock check-updates process timed out after \(AppConstants.processTimeout) seconds")
-                process.terminate()
-                return false
-            }
-
-            return terminationStatus == 0
+            process.waitUntilExit()
+            return process.terminationStatus == 0
         } catch {
             AppConstants.logger.error("Failed to run sparkdock check: \(error.localizedDescription)")
             return false
@@ -272,8 +257,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         statusMenuItem?.title = newTitle
 
         // Update the "Update Now" menu item visibility
-        if let menu = menu,
-           let updateItem = menu.items.first(where: { $0.tag == MenuItemTag.updateNow.rawValue }) {
+        if let updateItem = updateNowMenuItem {
             if hasUpdates {
                 updateItem.title = "Update Now"
                 updateItem.isEnabled = true

@@ -1,0 +1,37 @@
+{
+  "version": "1.0",
+  "menu": {
+    "sections": [
+      {
+        "name": "Tools",
+        "items": [
+          {
+            "title": "Open sjust",
+            "type": "command",
+            "command": "sjust"
+          },
+          {
+            "title": "Open http-proxy dashboard",
+            "type": "command",
+            "command": "spark-http-proxy dashboard"
+          }
+        ]
+      },
+      {
+        "name": "Company",
+        "items": [
+          {
+            "title": "Company Playbook",
+            "type": "url",
+            "url": "https://playbook.sparkfabrik.com/"
+          },
+          {
+            "title": "Core Skills",
+            "type": "url",
+            "url": "https://playbook.sparkfabrik.com/working-at-sparkfabrik/core-skills"
+          }
+        ]
+      }
+    ]
+  }
+}
