@@ -134,7 +134,7 @@ install-mkcert:
     mkcert -install
     echo "mkcert installed successfully!"
 
-# System cleanup to free up disk space.
+# System cleanup to free up disk space (Homebrew and Docker).
 [group('system')]
 system-cleanup:
     #!/usr/bin/env bash
@@ -191,7 +191,7 @@ install-tags tags:
 
 # Update Sparkdock git repository to latest version, it doesn't run any ansible task.
 [group('sparkdock')]
-update-sparkdock:
+update-sparkdock-repository:
     #!/usr/bin/env bash
     set -e
     echo "Updating Sparkdock repository to latest version..."
