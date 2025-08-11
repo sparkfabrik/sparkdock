@@ -57,19 +57,13 @@ jobs:
           just --justfile sjust/recipes/00-default.just --dry-run --list > /dev/null
           just --justfile sjust/recipes/01-lima.just --dry-run --list > /dev/null
 
-      - name: Test make install-sjust
+      - name: Test make install-sjust with git check disabled
         run: |
           echo "Testing make install-sjust command..."
+          cd /opt/sparkdock
 
-          # Skip git branch check for CI by temporarily modifying the Makefile
-          cp Makefile Makefile.backup
-          sed -i '' '/git fetch origin/,/exit 1/d' Makefile
-
-          # Run the install-sjust target
-          make install-sjust
-
-          # Restore original Makefile
-          mv Makefile.backup Makefile
+          # Run install-sjust with git check disabled
+          SKIP_GIT_CHECK=1 make install-sjust
 
           echo "Testing sjust command is available..."
           which sjust
