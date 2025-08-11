@@ -171,15 +171,16 @@
       become: yes
       become_method: sudo
 
+    - name: Configure git safe directory for sparkdock
+      command: git config --global --add safe.directory "{{ dev_env_dir }}"
+      become: no
+      tags: [always, http-proxy]
+
     - name: Install system scripts
       tags: http-proxy
       block:
         - name: Ensure /usr/local/bin exists
           file: path=/usr/local/bin state=directory
-
-        - name: Configure git safe directory for sparkdock
-          command: git config --global --add safe.directory "{{ dev_env_dir }}"
-          become: no
 
         - name: Clone http-proxy repository
           git:
