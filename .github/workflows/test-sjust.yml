@@ -1,0 +1,146 @@
+name: Test Sjust Installation
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test-sjust:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-14, macos-15, macos-latest]
+      fail-fast: false
+    env:
+      TERM: xterm-256color
+      SHELL: /bin/zsh
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install Just command runner
+        run: |
+          echo "Installing Just command runner..."
+          brew install just
+
+      - name: Test sjust library files syntax
+        run: |
+          echo "Testing libcolors.sh syntax..."
+          /bin/zsh -n sjust/libs/libcolors.sh
+
+          echo "Testing libformatting.sh syntax..."
+          /bin/zsh -n sjust/libs/libformatting.sh
+
+          echo "Testing sjust.sh syntax..."
+          /bin/zsh -n sjust/sjust.sh
+
+      - name: Test Just recipe files syntax
+        run: |
+          echo "Testing main justfile syntax..."
+          just --justfile sjust/justfile --dry-run --list > /dev/null
+
+          echo "Testing individual recipe files..."
+          just --justfile sjust/recipes/00-default.just --dry-run --list > /dev/null
+          just --justfile sjust/recipes/01-lima.just --dry-run --list > /dev/null
+
+      - name: Test make install-sjust
+        run: |
+          echo "Testing make install-sjust command..."
+
+          # Skip git branch check for CI by temporarily modifying the Makefile
+          cp Makefile Makefile.backup
+          sed -i '' '/git fetch origin/,/exit 1/d' Makefile
+
+          # Run the install-sjust target
+          make install-sjust
+
+          # Restore original Makefile
+          mv Makefile.backup Makefile
+
+          echo "Testing sjust command is available..."
+          which sjust
+
+          echo "Testing sjust can list commands without errors..."
+          sjust --list
+
+      - name: Test zsh completion generation
+        run: |
+          echo "Testing zsh completion for sjust..."
+
+          # Check if completion file was created
+          BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "/usr/local")
+          COMPLETION_FILE="$BREW_PREFIX/share/zsh/site-functions/_sjust"
+
+          if [ -f "$COMPLETION_FILE" ]; then
+            echo "✅ Completion file created at: $COMPLETION_FILE"
+            echo "Checking completion file content..."
+            head -5 "$COMPLETION_FILE"
+
+            # Verify it contains sjust references instead of just
+            if grep -q "sjust" "$COMPLETION_FILE"; then
+              echo "✅ Completion file correctly references 'sjust'"
+            else
+              echo "❌ Completion file does not contain 'sjust' references"
+              exit 1
+            fi
+          else
+            echo "❌ Completion file not found at: $COMPLETION_FILE"
+            exit 1
+          fi
+
+      - name: Test library functions can be sourced
+        run: |
+          echo "Testing that library files can be sourced without errors..."
+
+          # Test sourcing libcolors.sh
+          /bin/zsh -c "source sjust/libs/libcolors.sh && echo 'libcolors.sh sourced successfully'"
+
+          # Test sourcing libformatting.sh
+          /bin/zsh -c "source sjust/libs/libformatting.sh && echo 'libformatting.sh sourced successfully'"
+
+          # Test that functions are available after sourcing
+          /bin/zsh -c "source sjust/libs/libformatting.sh && echo 'Testing Urllink function:' && Urllink 'https://example.com' 'Example Link'"
+
+      - name: Test specific sjust commands (dry-run mode)
+        run: |
+          echo "Testing specific sjust commands in dry-run mode..."
+
+          # Test that device-info command can be parsed (dry-run)
+          sjust --dry-run device-info
+
+          # Test that docker-ps command can be parsed (dry-run)
+          sjust --dry-run docker-ps
+
+          # Test that upgrade-system command can be parsed (dry-run)
+          sjust --dry-run upgrade-system
+
+      - name: Test sjust with non-interactive environment
+        env:
+          NON_INTERACTIVE: "true"
+        run: |
+          echo "Testing sjust works in non-interactive environment..."
+          sjust --list > /dev/null
+          echo "✅ Sjust works correctly in non-interactive mode"
+
+      - name: Test sjust recipe imports
+        run: |
+          echo "Testing that recipe imports work correctly..."
+
+          # Verify that the main justfile can import all recipes
+          just --justfile sjust/justfile --evaluate > /dev/null
+
+          echo "✅ All recipe imports work correctly"
+
+      - name: Clean up test installations
+        if: always()
+        run: |
+          echo "Cleaning up..."
+          sudo rm -f /usr/local/bin/sjust
+
+          # Clean up completion file
+          BREW_PREFIX=$(brew --prefix 2>/dev/null || echo "/usr/local")
+          sudo rm -f "$BREW_PREFIX/share/zsh/site-functions/_sjust"
