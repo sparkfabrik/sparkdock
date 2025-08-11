@@ -265,7 +265,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private func loadIcon(hasUpdates: Bool) -> NSImage? {
         var logoImage: NSImage?
 
-        if let path = Bundle.main.path(forResource: AppConstants.logoResourceName, ofType: "png") {
+        // Try Bundle.module first (for executable targets with resources)
+        if let path = Bundle.module.path(forResource: AppConstants.logoResourceName, ofType: "png") {
+            logoImage = NSImage(contentsOfFile: path)
+        } else if let path = Bundle.main.path(forResource: AppConstants.logoResourceName, ofType: "png") {
             logoImage = NSImage(contentsOfFile: path)
         }
 
