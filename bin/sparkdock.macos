@@ -111,11 +111,11 @@ if [ "$1" != "skip-update" ] ; then
         # Check current branch
         CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
-        # Check for local changes
-        if ! git diff --quiet HEAD; then
+        # Check for local changes (both tracked and untracked)
+        if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)" ]; then
             print_warning "You have local changes that will be stashed."
             echo ""
-            if ! git stash push -m "sparkdock-update auto-stash"; then
+            if ! git stash push -u -m "sparkdock-update auto-stash"; then
                 print_error "Failed to stash changes. Aborting update."
                 exit 1
             fi
