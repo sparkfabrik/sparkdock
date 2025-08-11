@@ -30,4 +30,9 @@ test: build
 	@echo "Running unit tests..."
 	swift test
 	@echo "Menu bar app built and tested successfully"
-	@.build/release/sparkdock-manager --help 2>/dev/null || echo "App executable created"
+	@if test -x .build/release/sparkdock-manager; then \
+		echo "✅ Executable created and is executable"; \
+	else \
+		echo "❌ Executable not found or not executable"; \
+		exit 1; \
+	fi

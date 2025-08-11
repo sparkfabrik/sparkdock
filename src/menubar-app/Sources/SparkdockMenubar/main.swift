@@ -230,19 +230,18 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         guard let logo = logoImage else { return nil }
 
-        let icon = NSImage(size: AppConstants.iconSize)
-        icon.lockFocus()
-        logo.draw(in: NSRect(origin: .zero, size: AppConstants.iconSize))
+        let icon = NSImage(size: AppConstants.iconSize, flipped: false) { rect in
+            logo.draw(in: rect)
 
-        if hasUpdates {
-            NSColor.systemOrange.set()
-            NSRect(origin: .zero, size: AppConstants.iconSize).fill(using: .sourceAtop)
-            icon.isTemplate = false
-        } else {
-            icon.isTemplate = true
+            if hasUpdates {
+                NSColor.systemOrange.set()
+                rect.fill(using: .sourceAtop)
+            }
+
+            return true
         }
 
-        icon.unlockFocus()
+        icon.isTemplate = !hasUpdates
         return icon
     }
 
