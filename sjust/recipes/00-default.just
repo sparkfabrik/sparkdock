@@ -69,7 +69,7 @@ install-update-http-proxy:
 
         # Fix git ownership issues
         echo "🔧 Configuring git safe directory..."
-        git config --global --add safe.directory "$(pwd)"
+        git config --local --add safe.directory "$(pwd)"
 
         # Check if we're on main branch (http-proxy uses main, not master)
         current_branch=$(git branch --show-current)
@@ -199,7 +199,7 @@ update-sparkdock-repository:
 
     # Fix git ownership issues
     echo "🔧 Configuring git safe directory..."
-    git config --global --add safe.directory "$(pwd)"
+    git config --local --add safe.directory "$(pwd)"
 
     # Check if we're on master branch
     current_branch=$(git branch --show-current)
