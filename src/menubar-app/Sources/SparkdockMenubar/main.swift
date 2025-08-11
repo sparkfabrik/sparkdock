@@ -5,6 +5,14 @@ import Foundation
 import UserNotifications
 import ServiceManagement
 
+// MARK: - Configuration Constants
+private struct AppConstants {
+    static let updateInterval: TimeInterval = 4 * 60 * 60 // 4 hours
+    static let sparkdockExecutablePath = "/opt/sparkdock/bin/sparkdock.macos"
+    static let logoResourceName = "sparkfabrik-logo"
+    static let iconSize = NSSize(width: 18, height: 18)
+}
+
 class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var menu: NSMenu?
@@ -78,7 +86,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func setupUpdateTimer() {
-        updateTimer = Timer.scheduledTimer(withTimeInterval: 4 * 60 * 60, repeats: true) { [weak self] _ in
+        updateTimer = Timer.scheduledTimer(withTimeInterval: AppConstants.updateInterval, repeats: true) { [weak self] _ in
             self?.checkForUpdates()
         }
     }
@@ -103,7 +111,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func runSparkdockCheck() -> Bool {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/opt/sparkdock/bin/sparkdock.macos")
+        process.executableURL = URL(fileURLWithPath: AppConstants.sparkdockExecutablePath)
         process.arguments = ["check-updates"]
 
         do {
@@ -211,26 +219,24 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func loadIcon(hasUpdates: Bool) -> NSImage? {
-        let iconSize = NSSize(width: 18, height: 18)
-
         // Try to load the logo
         var logoImage: NSImage?
 
-        if let path = Bundle.main.path(forResource: "sparkfabrik-logo", ofType: "png") {
+        if let path = Bundle.main.path(forResource: AppConstants.logoResourceName, ofType: "png") {
             logoImage = NSImage(contentsOfFile: path)
-        } else if let path = Bundle.module.path(forResource: "sparkfabrik-logo", ofType: "png") {
+        } else if let path = Bundle.module.path(forResource: AppConstants.logoResourceName, ofType: "png") {
             logoImage = NSImage(contentsOfFile: path)
         }
 
         guard let logo = logoImage else { return nil }
 
-        let icon = NSImage(size: iconSize)
+        let icon = NSImage(size: AppConstants.iconSize)
         icon.lockFocus()
-        logo.draw(in: NSRect(origin: .zero, size: iconSize))
+        logo.draw(in: NSRect(origin: .zero, size: AppConstants.iconSize))
 
         if hasUpdates {
             NSColor.systemOrange.set()
-            NSRect(origin: .zero, size: iconSize).fill(using: .sourceAtop)
+            NSRect(origin: .zero, size: AppConstants.iconSize).fill(using: .sourceAtop)
             icon.isTemplate = false
         } else {
             icon.isTemplate = true
