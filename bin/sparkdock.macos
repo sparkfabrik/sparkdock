@@ -135,7 +135,8 @@ if [ "$1" != "skip-update" ] ; then
         # Now on the default branch, pull the latest changes
         git fetch origin ${DEFAULT_BRANCH}
         if ! git reset --hard origin/${DEFAULT_BRANCH}; then
-            print_error "Cannot reset to origin/${DEFAULT_BRANCH}. Aborting update."
+            print_error "Cannot reset to origin/${DEFAULT_BRANCH}. Rolling back to previous state."
+            git reset --hard "$CURRENT_VERSION"
             exit 1
         fi
 
