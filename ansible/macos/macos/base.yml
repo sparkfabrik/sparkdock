@@ -352,6 +352,45 @@
       when: all_removed_cask_packages | length > 0
       become: false
 
+    - name: Install Sparkdock Menu Bar App
+      tags: menubar
+      block:
+        - name: Build menu bar app
+          shell: |
+            cd {{ dev_env_dir }}/src/menubar-app
+            swift build -c release
+          register: build_result
+          changed_when: build_result.rc == 0
+
+        - name: Install menu bar app binary
+          copy:
+            src: "{{ dev_env_dir }}/src/menubar-app/.build/release/sparkdock-menubar"
+            dest: "/usr/local/bin/sparkdock-menubar"
+            mode: "0755"
+            remote_src: true
+          become: yes
+          become_method: sudo
+
+        - name: Remove old update service (replace with menubar app)
+          file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - "~/Library/LaunchAgents/com.sparkfabrik.sparkdock.plist"
+          ignore_errors: yes
+
+        - name: Install menubar app launch agent
+          copy:
+            src: "{{ dev_env_dir }}/src/menubar-app/com.sparkfabrik.sparkdock.menubar.plist"
+            dest: "~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+            mode: "0644"
+
+        - name: Load menubar app launch agent
+          shell: |
+            launchctl unload ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist 2>/dev/null || true
+            launchctl load ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist
+          ignore_errors: yes
+
   post_tasks:
     - name: Print installation complete message
       debug:
