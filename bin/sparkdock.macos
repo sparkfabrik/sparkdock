@@ -2,6 +2,9 @@
 
 set -e
 
+# Default branch name (change to "main" when migrating)
+DEFAULT_BRANCH=${DEFAULT_BRANCH:-master}
+
 BASE_DIR="$(dirname "$(readlink -f "$0")")"
 source ${BASE_DIR}/common/utils.sh
 
@@ -37,13 +40,13 @@ check_for_updates() {
         return 1
     fi
 
-    git fetch origin master -q
+    git fetch origin ${DEFAULT_BRANCH} -q
     LOCAL=$(git rev-parse HEAD)
-    REMOTE=$(git rev-parse origin/master)
+    REMOTE=$(git rev-parse origin/${DEFAULT_BRANCH})
 
     if [ "$LOCAL" != "$REMOTE" ]; then
         echo "Updates available:"
-        git --no-pager log --oneline HEAD..origin/master
+        git --no-pager log --oneline HEAD..origin/${DEFAULT_BRANCH}
         return 0
     fi
     return 1
@@ -102,11 +105,50 @@ if [ "$1" != "skip-update" ] ; then
         # Store last update time
         date "+%Y-%m-%d %H:%M:%S" > "$SPARKDOCK_ROOT/.last_update"
 
-        git fetch origin master
-        if ! git reset --hard origin/master; then
+        # A flag to track if any "disruptive" action was taken
+        update_actions_performed=false
+
+        # Check current branch
+        CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+        # Check for local changes
+        if ! git diff --quiet HEAD; then
+            print_warning "You have local changes that will be stashed."
+            echo ""
+            if ! git stash push -m "sparkdock-update auto-stash"; then
+                print_error "Failed to stash changes. Aborting update."
+                exit 1
+            fi
+            update_actions_performed=true
+        fi
+
+        if [ "${CURRENT_BRANCH}" != "${DEFAULT_BRANCH}" ]; then
+            print_warning "You are on branch '${CURRENT_BRANCH}', not '${DEFAULT_BRANCH}'. Switching to '${DEFAULT_BRANCH}'."
+            if ! git checkout "${DEFAULT_BRANCH}"; then
+                print_error "Failed to switch to ${DEFAULT_BRANCH}. Aborting update."
+                git stash pop || true # try to restore stashed changes
+                exit 1
+            fi
+            update_actions_performed=true
+        fi
+
+        # Now on the default branch, pull the latest changes
+        git fetch origin ${DEFAULT_BRANCH}
+        if ! git reset --hard origin/${DEFAULT_BRANCH}; then
             print "Update failed, rolling back..."
             git reset --hard "$CURRENT_VERSION"
             exit 1
+        fi
+
+        if [ "$update_actions_performed" = true ]; then
+            echo ""
+            print_success "Update completed successfully. You are now on branch '${DEFAULT_BRANCH}'."
+            echo ""
+            echo -n "Starting in 5 seconds"
+            for i in {1..5}; do
+                echo -n "."
+                sleep 1
+            done
         fi
 
         $0 skip-update
@@ -115,7 +157,9 @@ if [ "$1" != "skip-update" ] ; then
 fi
 
 # Cleaning the TTY.
-clear
+if [ "$1" != "skip-update" ]; then
+    clear
+fi
 print_banner
 
 print_section "System Check"
