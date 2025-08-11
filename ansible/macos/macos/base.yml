@@ -371,7 +371,7 @@
           become: yes
           become_method: sudo
 
-        - name: LaunchAgent installation
+        - name: LaunchAgent installation (local environment only)
           block:
             - name: Remove old update service (replace with menubar app)
               file:
