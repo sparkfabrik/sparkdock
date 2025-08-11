@@ -135,6 +135,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func runSparkdockCheck() -> Bool {
+        // Check if the executable exists before attempting to run it
+        guard FileManager.default.fileExists(atPath: AppConstants.sparkdockExecutablePath) else {
+            NSLog("Sparkdock executable not found at path: \(AppConstants.sparkdockExecutablePath)")
+            return false
+        }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: AppConstants.sparkdockExecutablePath)
         process.arguments = ["check-updates"]
