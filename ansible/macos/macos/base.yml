@@ -177,6 +177,10 @@
         - name: Ensure /usr/local/bin exists
           file: path=/usr/local/bin state=directory
 
+        - name: Configure git safe directory for http-proxy
+          command: git config --global --add safe.directory "{{ dev_env_dir }}/http-proxy"
+          become: no
+
         - name: Clone http-proxy repository
           git:
             repo: https://github.com/sparkfabrik/http-proxy.git
