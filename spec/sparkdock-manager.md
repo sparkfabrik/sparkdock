@@ -12,13 +12,14 @@ Sparkdock Manager is a native macOS menu bar application built with Swift that p
 - NSApplication → SparkdockMenubarApp (NSApplicationDelegate)
   - NSStatusItem (menu bar presence)
   - NSMenu (dropdown interface)
-  - Timer (update scheduler)
+  - SystemConfiguration (network monitoring)
+  - NSWorkspace.didWakeNotification (system wake monitoring)
   - Process (external command execution)
 
 ### Design Patterns
 - **Delegate Pattern**: NSApplicationDelegate for lifecycle management
 - **Target-Action**: Menu item event handling
-- **Observation**: Timer-based polling (no KVO/Combine)
+- **Observer Pattern**: System event notifications for efficient monitoring
 - **Caching**: Icon state caching for performance
 
 ### State Management

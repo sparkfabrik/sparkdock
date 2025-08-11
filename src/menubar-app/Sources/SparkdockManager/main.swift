@@ -4,10 +4,10 @@ import Cocoa
 import Foundation
 import ServiceManagement
 import os.log
+import Network
 
 // MARK: - Configuration Constants
 private struct AppConstants {
-    static let updateInterval: TimeInterval = 4 * 60 * 60
     static let sparkdockExecutablePath = "/opt/sparkdock/bin/sparkdock.macos"
     static let logoResourceName = "sparkfabrik-logo"
     static let menuConfigResourceName = "menu"
@@ -56,7 +56,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var hasUpdates = false
     var statusMenuItem: NSMenuItem?
     var updateNowMenuItem: NSMenuItem?
-    var updateTimer: Timer?
+    private var pathMonitor: NWPathMonitor?
     fileprivate var menuConfig: MenuConfig?
     // Cache icons to avoid recreating them
     private var cachedNormalIcon: NSImage?
@@ -80,7 +80,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         loadMenuConfiguration()
         setupMenuBar()
-        setupUpdateTimer()
+        setupUpdateObservers()
 
         // Set initial status and check for updates
         statusMenuItem?.title = "⏳ Checking for updates..."
@@ -88,7 +88,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        updateTimer?.invalidate()
+        cleanupUpdateObservers()
         // Clear cached images to free memory
         clearImageCache()
     }
@@ -202,12 +202,38 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func setupUpdateTimer() {
-        updateTimer = Timer.scheduledTimer(withTimeInterval: AppConstants.updateInterval, repeats: true) { [weak self] _ in
-            self?.checkForUpdates()
+    private func setupUpdateObservers() {
+        // Observe system wake
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(systemDidWake),
+            name: NSWorkspace.didWakeNotification,
+            object: nil
+        )
+        // Monitor network changes
+        let monitor = NWPathMonitor()
+        monitor.pathUpdateHandler = { [weak self] path in
+            if path.status == .satisfied {
+                DispatchQueue.main.async {
+                    self?.statusMenuItem?.title = "⏳ Checking for updates..."
+                    self?.checkForUpdates()
+                }
+            }
         }
-
-        updateTimer?.tolerance = 60.0
+        monitor.start(queue: DispatchQueue.global(qos: .background))
+        self.pathMonitor = monitor
+        AppConstants.logger.info("Update observers configured")
+    }
+    private func cleanupUpdateObservers() {
+        NSWorkspace.shared.notificationCenter.removeObserver(self)
+        pathMonitor?.cancel()
+        pathMonitor = nil
+        AppConstants.logger.info("Update observers cleaned up")
+    }
+    @objc private func systemDidWake() {
+        AppConstants.logger.info("System woke from sleep - checking for updates")
+        statusMenuItem?.title = "⏳ Checking for updates..."
+        checkForUpdates()
     }
 
     @objc private func checkForUpdatesAction() {
