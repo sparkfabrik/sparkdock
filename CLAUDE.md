@@ -83,6 +83,15 @@ Per `.github/copilot-instructions.md`, all shell scripts must:
 - Use `local` for function variables
 - Pass shellcheck validation
 
+## Code Quality Standards
+
+**CRITICAL: Trailing Whitespace**
+- **NEVER** commit trailing whitespace (spaces/tabs at end of lines)
+- Git will warn about trailing whitespace during commits
+- Always clean up trailing whitespace before staging changes
+- Use your editor's "show whitespace" feature to identify issues
+- This applies to ALL files: Swift, shell scripts, YAML, Markdown, etc.
+
 ## Testing
 
 - Ansible playbooks should be idempotent
@@ -92,7 +101,13 @@ Per `.github/copilot-instructions.md`, all shell scripts must:
 
 ## Sparkdock Manager (Menu Bar App)
 
-A Swift-based menu bar application provides visual update notifications:
+A Swift-based menu bar application provides battery-efficient visual update notifications using modern async/await patterns:
+
+### Key Features
+- **Event-Driven Updates**: Only checks on system wake and network connectivity changes (no periodic polling)
+- **Modern Swift Concurrency**: Uses structured concurrency with proper cancellation and timeout handling
+- **Battery Efficient**: NWPathMonitor for lightweight network monitoring
+- **Resource Debugging**: Enhanced logging for missing logo/resource troubleshooting
 
 ### Building and Testing
 ```bash
@@ -106,7 +121,8 @@ make uninstall               # Remove installation
 ### Integration
 - Built automatically during Ansible provisioning with `menubar` tag
 - Replaces old launchd-based update notifications
-- Auto-starts at login via launch agent
+- Auto-starts at login via launch agent (local development only)
+- CI environments skip LaunchAgent installation for better automation
 
 ## Troubleshooting
 

@@ -12,9 +12,9 @@ Sparkdock Manager is a native macOS menu bar application built with Swift that p
 - NSApplication → SparkdockMenubarApp (NSApplicationDelegate)
   - NSStatusItem (menu bar presence)
   - NSMenu (dropdown interface)
-  - SystemConfiguration (network monitoring)
+  - Network.NWPathMonitor (network connectivity monitoring)
   - NSWorkspace.didWakeNotification (system wake monitoring)
-  - Process (external command execution)
+  - Process (external command execution with async timeout)
 
 ### Design Patterns
 - **Delegate Pattern**: NSApplicationDelegate for lifecycle management
@@ -47,9 +47,9 @@ struct MenuItem { let title: String; let type: MenuItemType; let command/url: St
 ## Data Flow
 
 ### Update Check Sequence
-1. Timer fires every 4 hours → `checkForUpdates()`
+1. System event triggers (wake from sleep or network connectivity) → `checkForUpdates()`
 2. Background Task spawned with `.background` priority
-3. Process executes `/opt/sparkdock/bin/sparkdock.macos check-updates` with 30s timeout
+3. Async process executes `/opt/sparkdock/bin/sparkdock.macos check-updates` with structured concurrency timeout
 4. Exit code interpreted (0 = updates available, non-zero = no updates)
 5. MainActor synchronizes UI component updates
 
@@ -66,14 +66,21 @@ The app executes `/opt/sparkdock/bin/sparkdock.macos check-updates` to detect av
 - **Non-zero exit**: No updates (shows template gray icon)  
 - **Timeout/Error**: Assumes no updates, logs error
 
-**Timeout Protection:**
+**Modern Async Timeout Protection:**
 ```swift
-// Uses DispatchSemaphore for 30-second timeout
-let semaphore = DispatchSemaphore(value: 0)
-process.terminationHandler = { proc in
-    terminationStatus = proc.terminationStatus
-    semaphore.signal()
-}
+// Uses structured concurrency with withTaskCancellationHandler
+let finished = await withTaskCancellationHandler(
+    operation: {
+        try await withTimeout(seconds: 30) {
+            await withCheckedContinuation { continuation in
+                process.terminationHandler = { proc in
+                    continuation.resume(returning: proc.terminationStatus)
+                }
+            }
+        }
+    },
+    onCancel: { process.terminate() }
+)
 ```
 
 ## Menu Structure
@@ -109,7 +116,7 @@ Loaded from `menu.json` with configurable sections. Each item supports:
 **Requirements:** macOS 14.0+ (Sonoma)
 
 **Dependencies:**
-- **System Frameworks**: Cocoa, ServiceManagement, os.log
+- **System Frameworks**: Cocoa, ServiceManagement, os.log, Network
 - **External Dependencies**: None (pure Swift, no SPM dependencies)
 - **Resource Dependencies**: Optional logo PNG, required menu.json
 
@@ -128,19 +135,22 @@ Bundle.main.path(forResource: name, ofType: "png")
 - Template mode for normal state, colored for updates
 
 **Process Execution:**
-- DispatchSemaphore for timeout handling (30 seconds)
+- Modern async/await with structured concurrency timeout (30 seconds)
+- withTaskCancellationHandler for automatic process cleanup on timeout
 - AppleScript integration via `/usr/bin/osascript` for Terminal commands
 - Background Task execution with MainActor UI updates
-- Process termination on timeout with proper cleanup
+- Swift 6 compatible concurrency patterns
 
 ## Swift/macOS Patterns
 
 ### Swift Patterns Used
-- **Task Concurrency**: Background priority tasks for update checks
+- **Structured Concurrency**: Background priority tasks with proper cancellation
+- **withTaskCancellationHandler**: Automatic resource cleanup on task cancellation
+- **withCheckedContinuation**: Bridging callback-based APIs to async/await
 - **MainActor**: UI updates from background contexts
-- **Property Observers**: Not used, state changes handled manually
+- **TaskGroup**: Timeout implementation using withThrowingTaskGroup
 - **Guard Statements**: Early returns for validation
-- **Weak References**: Timer callbacks to prevent retain cycles
+- **Weak References**: Event observer callbacks to prevent retain cycles
 
 ### macOS Integration Patterns
 - **Accessory App Policy**: `NSApp.setActivationPolicy(.accessory)` - no dock icon
@@ -148,6 +158,8 @@ Bundle.main.path(forResource: name, ofType: "png")
 - **Modern Login Items**: SMAppService.mainApp for Sonoma+
 - **AppleScript Execution**: Escaped command strings via osascript
 - **Bundle Resource Processing**: SPM `.process("Resources")` directive
+- **Network Monitoring**: NWPathMonitor for battery-efficient connectivity detection
+- **System Event Observation**: NSWorkspace notifications for wake detection
 
 ## Error Handling Strategy
 
@@ -184,8 +196,9 @@ private func showErrorAlert(_ title: String, _ message: String) {
 
 - **Memory Usage**: ~10-15MB baseline, cached icons minimal overhead
 - **CPU Usage**: Negligible except during 30-second update checks
-- **Update Frequency**: 4-hour intervals with 60-second timer tolerance
-- **Process Timeout**: Maximum 30 seconds per update check
+- **Battery Efficiency**: Event-driven updates only (system wake + network changes)
+- **Process Timeout**: Maximum 30 seconds per update check with automatic cleanup
+- **Network Monitoring**: Lightweight NWPathMonitor with background queue processing
 
 ## Debugging and Logging
 
@@ -252,7 +265,7 @@ swift test                  # Alternative test command
 
 **Update Management:**
 - `checkForUpdates()` - Async update check with background Task
-- `runSparkdockCheck() -> Bool` - Synchronous process execution with timeout
+- `runSparkdockCheck() async -> Bool` - Async process execution with structured concurrency timeout
 - `updateUI(hasUpdates: Bool)` - MainActor UI state synchronization
 
 **Menu Event Handlers:**

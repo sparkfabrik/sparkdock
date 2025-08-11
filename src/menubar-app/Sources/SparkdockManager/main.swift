@@ -50,6 +50,27 @@ private enum MenuItemTag: Int {
     case loginItem = 2
 }
 
+// MARK: - Async Utilities
+private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask {
+            try await operation()
+        }
+
+        group.addTask {
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            throw CancellationError()
+        }
+
+        guard let result = try await group.next() else {
+            throw CancellationError()
+        }
+
+        group.cancelAll()
+        return result
+    }
+}
+
 class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var menu: NSMenu?
@@ -243,14 +264,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func checkForUpdates() {
         Task(priority: .background) {
-            let hasUpdates = runSparkdockCheck()
+            let hasUpdates = await runSparkdockCheck()
             await MainActor.run {
                 updateUI(hasUpdates: hasUpdates)
             }
         }
     }
 
-    private func runSparkdockCheck() -> Bool {
+    private func runSparkdockCheck() async -> Bool {
         guard FileManager.default.fileExists(atPath: AppConstants.sparkdockExecutablePath) else {
             AppConstants.logger.warning("Sparkdock executable not found at \(AppConstants.sparkdockExecutablePath)")
             return false
@@ -260,24 +281,33 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.executableURL = URL(fileURLWithPath: AppConstants.sparkdockExecutablePath)
         process.arguments = ["check-updates"]
 
-        // Set up timeout handling
-        let semaphore = DispatchSemaphore(value: 0)
         var terminationStatus: Int32 = -1
-
-        process.terminationHandler = { proc in
-            terminationStatus = proc.terminationStatus
-            semaphore.signal()
-        }
-
         do {
             try process.run()
 
-            // Wait for process completion or timeout
-            let timeoutResult = semaphore.wait(timeout: .now() + AppConstants.processTimeout)
-
-            if timeoutResult == .timedOut {
+            // Await process termination with timeout
+            let finished: Bool = await withTaskCancellationHandler(
+                operation: {
+                    do {
+                        terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
+                            await withCheckedContinuation { continuation in
+                                process.terminationHandler = { proc in
+                                    continuation.resume(returning: proc.terminationStatus)
+                                }
+                            }
+                        }
+                        return true
+                    } catch {
+                        return false
+                    }
+                },
+                onCancel: {
+                    // If cancelled, terminate the process
+                    process.terminate()
+                }
+            )
+            if !finished {
                 AppConstants.logger.error("Sparkdock check-updates process timed out after \(AppConstants.processTimeout) seconds")
-                process.terminate()
                 return false
             }
 
