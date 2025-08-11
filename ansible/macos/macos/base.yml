@@ -179,6 +179,10 @@
     - name: Install system scripts
       tags: http-proxy
       block:
+        - name: Configure git safe directory for http-proxy
+          command: git config --global --add safe.directory "{{ dev_env_dir }}/http-proxy"
+          become: no
+
         - name: Ensure /usr/local/bin exists
           file: path=/usr/local/bin state=directory
 
