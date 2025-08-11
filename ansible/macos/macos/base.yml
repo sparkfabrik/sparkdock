@@ -171,11 +171,35 @@
       become: yes
       become_method: sudo
 
+    - name: Configure git safe directory for sparkdock
+      command: git config --global --add safe.directory "{{ dev_env_dir }}"
+      become: no
+      tags: [always]
+
     - name: Install system scripts
       tags: http-proxy
       block:
+        - name: Configure git safe directory for http-proxy
+          command: git config --global --add safe.directory "{{ dev_env_dir }}/http-proxy"
+          become: no
+
         - name: Ensure /usr/local/bin exists
           file: path=/usr/local/bin state=directory
+
+        - name: Check if http-proxy directory exists
+          stat:
+            path: "{{ dev_env_dir }}/http-proxy"
+          register: http_proxy_dir
+
+        - name: Fix ownership of http-proxy directory for git operations
+          file:
+            path: "{{ dev_env_dir }}/http-proxy"
+            owner: "{{ ansible_user_id }}"
+            group: "{{ ansible_user_gid }}"
+            recurse: yes
+          when: http_proxy_dir.stat.exists
+          become: yes
+          become_method: sudo
 
         - name: Clone http-proxy repository
           git:
