@@ -1,3 +1,4 @@
 .last_update
 http-proxy
 .build
+.claude/settings.local.json
