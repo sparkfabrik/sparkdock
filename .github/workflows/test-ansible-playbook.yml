@@ -11,7 +11,10 @@ on:
 
 jobs:
   test-macos:
-    runs-on: macos-15
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-15, macos-latest]
     env:
       TERM: xterm-256color
       SHELL: /bin/zsh

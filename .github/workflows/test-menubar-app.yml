@@ -14,7 +14,10 @@ on:
 
 jobs:
   test-swift-app:
-    runs-on: macos-15
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-15, macos-latest]
 
     steps:
       - name: Checkout code
