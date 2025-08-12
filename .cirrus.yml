@@ -1,0 +1,36 @@
+task:
+  name: "Sparkdock End-to-End Test"
+  # Use Tart VM for testing
+  macos_instance:
+    image: ghcr.io/cirruslabs/macos-sequoia-base:latest
+    cpu: 2
+    memory: 4
+
+  # Environment variables
+  env:
+    NON_INTERACTIVE: "true"
+
+  # Install Sparkdock using the source code (automatically rsynced by Cirrus CLI)
+  install_sparkdock_script:
+    - echo "=== Installing sparkdock from current source ==="
+    - chmod +x bin/install.macos
+    - bin/install.macos
+
+  # Validation script - verify installation
+  validation_script:
+    - echo "=== Validating sparkdock installation ==="
+    - which sparkdock || echo "sparkdock command not found in PATH"
+    - ls -la /opt/sparkdock/
+    - ls -la /usr/local/bin/sparkdock || echo "sparkdock symlink not found"
+    - which sjust || echo "sjust command not found in PATH"
+    - sjust --version || echo "sjust version check failed"
+    - echo "=== Testing sjust basic functionality ==="
+    - cd /opt/sparkdock
+    - sjust device-info || echo "sjust device-info failed"
+
+  # Cleanup script - optional cleanup steps
+  cleanup_script:
+    - echo "=== Cleaning up test environment ==="
+    - rm -rf /opt/sparkdock || true
+    - rm -f /usr/local/bin/sparkdock || true
+    - rm -f /usr/local/bin/sjust || true
