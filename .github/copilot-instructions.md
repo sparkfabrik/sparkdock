@@ -71,6 +71,50 @@ All shell scripts must follow these patterns:
 - Use `${variable}` syntax with braces (never `$variable`)
 - Use `local` for function variables to avoid namespace pollution
 - Pass `shellcheck` validation before committing
+- When implementing commands, when things exist, do not use `else` branches unless necessary, for example:
+
+Prefer to do this:
+
+```bash
+#!/usr/bin/env bash
+if ! tart list | grep -q "sparkdock-test"; then
+    tart clone {{IMAGE}} sparkdock-test
+    echo "✅ VM 'sparkdock-test' created successfully"
+fi
+```
+Instead of this:
+
+Do not do this:
+
+```bash
+#!/usr/bin/env bash
+ if ! tart list | grep -q "sparkdock-test"; then
+        tart clone {{IMAGE}} sparkdock-test
+        echo "✅ VM 'sparkdock-test' created successfully"
+    else
+        echo "VM 'sparkdock-test' already exists"
+    fi
+````
+
+Instead of this:
+
+```bash
+    if ! command -v cirrus >/dev/null 2>&1; then
+        echo "Installing Cirrus CLI via Homebrew..."
+        brew install cirruslabs/cli/cirrus
+    else
+        echo "Cirrus CLI is already installed"
+    fi
+```
+
+Do this:
+
+```bash
+    if ! command -v cirrus >/dev/null 2>&1; then
+        echo "Installing Cirrus CLI via Homebrew..."
+        brew install cirruslabs/cli/cirrus
+    fi
+```
 
 **Critical: No Trailing Whitespace**
 

@@ -395,6 +395,15 @@
           become: yes
           become_method: sudo
 
+        - name: Verify menu bar app works
+          command: /usr/local/bin/sparkdock-manager --status
+          register: sparkdock_status
+          changed_when: false
+
+        - name: Display menu bar app status
+          debug:
+            msg: "{{ sparkdock_status.stdout_lines }}"
+
         - name: Check CI environment
           debug:
             msg:

@@ -463,7 +463,48 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 }
 
+// MARK: - CLI Handling
+private func handleCLIArguments() -> Bool {
+    let arguments = CommandLine.arguments
+
+    if arguments.contains("--help") || arguments.contains("-h") {
+        print("""
+        Sparkdock Manager - macOS menu bar application for development environment management
+
+        Usage: sparkdock-manager [options]
+
+        Options:
+          --help, -h       Show this help message
+          --status         Show application status
+
+        When run without arguments, launches as a menu bar application.
+        """)
+        return true
+    }
+
+    if arguments.contains("--status") {
+        print("Sparkdock Manager - Status: OK")
+        print("Executable path: /opt/sparkdock/bin/sparkdock.macos")
+        print("Config file: Sources/SparkdockManager/Resources/menu.json")
+
+        // Check if sparkdock executable exists
+        if FileManager.default.fileExists(atPath: AppConstants.sparkdockExecutablePath) {
+            print("Sparkdock executable: ✅ Found")
+        } else {
+            print("Sparkdock executable: ❌ Not found")
+        }
+
+        return true
+    }
+
+    return false
+}
+
 // MARK: - Main Entry Point
+if handleCLIArguments() {
+    exit(0)
+}
+
 let app = NSApplication.shared
 let delegate = SparkdockMenubarApp()
 app.delegate = delegate
