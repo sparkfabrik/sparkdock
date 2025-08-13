@@ -19,6 +19,8 @@ tart-create-vm IMAGE="ghcr.io/cirruslabs/macos-sequoia-base:latest":
         brew install cirruslabs/cli/tart
     fi
     echo "Creating macOS VM with Tart using image: {{IMAGE}}..."
+    killall -9 tart &> /dev/null || true
+    tart stop sparkdock-test &> /dev/null || true
     tart delete sparkdock-test &> /dev/null || true
     tart clone {{IMAGE}} sparkdock-test
 
@@ -46,15 +48,17 @@ tart-delete-vm:
     #!/usr/bin/env bash
     echo "Deleting Tart VM 'sparkdock-test'..."
     if tart list | grep -q "sparkdock-test"; then
-        tart stop sparkdock-test
-        tart delete sparkdock-test
+        tart stop sparkdock-test || true
+        tart delete sparkdock-test || true
+        killall -9 tart &> /dev/null || true
         echo "✅ VM 'sparkdock-test' deleted successfully"
     fi
 
 test-e2e-with-tart: tart-create-vm
     #!/usr/bin/env bash
     tart run --no-graphics --dir=sparkdock:$PWD sparkdock-test &
-    tart exec sparkdock-test bash -c "cd /Volumes/My\ Shared\ Files/sparkdock && NON_INTERACTIVE=1 ./bin/install.macos"
+    sleep 5
+    tart exec sparkdock-test bash -c "cd /Volumes/My\ Shared\ Files/sparkdock && ./bin/install.macos --non-interactive"
 
 # Run end-to-end sparkdock test using Cirrus CLI
 test-e2e-with-cirrus:

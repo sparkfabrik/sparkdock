@@ -6,15 +6,11 @@ task:
     cpu: 2
     memory: 4
 
-  # Environment variables
-  env:
-    NON_INTERACTIVE: "true"
-
   # Install Sparkdock using the source code (automatically rsynced by Cirrus CLI)
   install_sparkdock_script:
     - echo "=== Installing sparkdock from current source ==="
     - chmod +x bin/install.macos
-    - bin/install.macos
+    - bin/install.macos --non-interactive
 
   # Validation script - verify installation
   validation_script:
