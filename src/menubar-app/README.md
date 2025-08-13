@@ -10,9 +10,11 @@ A simple macOS menu bar application that provides visual indicators for Sparkdoc
 - **Menu Actions**:
   - Check for Updates (manual check)
   - Update Now (runs `sparkdock` in Terminal)
-  - Open sjust (launches `sjust` in Terminal)
+  - Configurable menu items from JSON (Tools, Company links)
+  - Login item toggle
   - Quit
-- **Background Checking**: Automatically checks for updates every 4 hours
+- **Smart Updates**: Event-driven checking (system wake + network changes)
+- **CLI Support**: Status checking with `sparkdock-manager --status`
 - **Lightweight**: Pure Swift, minimal dependencies
 
 ## Building
@@ -24,7 +26,7 @@ swift build -c release
 
 ## Installation
 
-The app is automatically built and installed during Sparkdock provisioning via Ansible.
+The app is automatically built and installed during Sparkdock provisioning via Ansible with verification checks.
 
 ## Manual Installation
 
@@ -44,10 +46,20 @@ launchctl load ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist
 
 To use your SparkFabrik logo:
 
-1. Add your logo file as `sparkfabrik-logo.png` to `Sources/SparkdockMenubar/Resources/`
+1. Add your logo file as `sparkfabrik-logo.png` to `Sources/SparkdockManager/Resources/`
 2. Rebuild the app: `swift build`
 
-The app will automatically use your custom logo, falling back to a generated flame icon if not found.
+The app will automatically use your custom logo, falling back to a system gear icon if not found.
+
+## CLI Usage
+
+```bash
+# Check app status
+sparkdock-manager --status
+
+# Show help
+sparkdock-manager --help
+```
 
 ## Requirements
 
