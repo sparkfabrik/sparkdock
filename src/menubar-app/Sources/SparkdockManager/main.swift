@@ -116,7 +116,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         attachment.bounds = CGRect(x: 0, y: yOffset, width: size.width, height: size.height)
 
         let attributedString = NSMutableAttributedString(attachment: attachment)
-        attributedString.append(NSAttributedString(string: "  \(text)"))
+        attributedString.append(NSAttributedString(string: " \(text)"))
 
         return attributedString
     }
