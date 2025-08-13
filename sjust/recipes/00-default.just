@@ -239,3 +239,17 @@ upgrade:
     #!/usr/bin/env bash
     {{ sparkdock_path }}/bin/sparkdock.macos
     echo "System configuration and updates completed!"
+
+# Launch the Sparkdock menu bar application.
+[group('sparkdock')]
+menubar:
+    #!/usr/bin/env bash
+    echo "Launching Sparkdock menu bar application..."
+    if pgrep -f "sparkdock-manager" > /dev/null; then
+        echo "⚠️  Sparkdock menu bar app is already running"
+        echo "💡 If you need to restart it, quit the app first from the menu bar"
+    else
+        nohup {{ sparkdock_path }}/bin/sparkdock-manager > /dev/null 2>&1 &
+        echo "✅ Sparkdock menu bar app launched successfully!"
+        echo "💡 Look for the Sparkdock icon in your menu bar"
+    fi

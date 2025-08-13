@@ -109,8 +109,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         attachment.image = coloredCircle
 
+        // Center the circle with the text baseline
+        let font = NSFont.menuFont(ofSize: 0)
+        let fontHeight = font.capHeight
+        let yOffset = (fontHeight - size.height) / 2
+        attachment.bounds = CGRect(x: 0, y: yOffset, width: size.width, height: size.height)
+
         let attributedString = NSMutableAttributedString(attachment: attachment)
-        attributedString.append(NSAttributedString(string: " \(text)"))
+        attributedString.append(NSAttributedString(string: "  \(text)"))
 
         return attributedString
     }
