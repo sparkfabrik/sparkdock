@@ -120,9 +120,9 @@ fi
 # it should exit if ansible fails.
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
   sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
-  # Try to remove spurious links, they are part of the tart VM.
+  # Try to remove spurious files, they are part of the tart VM.
   # Yarn: /opt/homebrew/lib/node_modules/yarn/bin/yarn.js
-  if [[ -L /opt/homebrew/lib/node_modules/yarn/bin/yarn.js ]]; then
+  if [[ -e /opt/homebrew/lib/node_modules/yarn/bin/yarn.js ]]; then
     sudo rm -f /opt/homebrew/lib/node_modules/yarn/bin/yarn.js
   fi
   ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become -v
