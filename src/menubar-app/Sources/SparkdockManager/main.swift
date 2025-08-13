@@ -95,6 +95,26 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func createStatusTitle(_ text: String, color: NSColor) -> NSAttributedString {
+        let attachment = NSTextAttachment()
+
+        // Create a solid colored circle programmatically
+        let size = NSSize(width: 12, height: 12)
+        let coloredCircle = NSImage(size: size, flipped: false) { rect in
+            let path = NSBezierPath(ovalIn: rect)
+            color.setFill()
+            path.fill()
+            return true
+        }
+
+        attachment.image = coloredCircle
+
+        let attributedString = NSMutableAttributedString(attachment: attachment)
+        attributedString.append(NSAttributedString(string: " \(text)"))
+
+        return attributedString
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set proper activation policy for menu bar apps
         NSApp.setActivationPolicy(.accessory)
@@ -104,7 +124,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         setupUpdateObservers()
 
         // Set initial status and check for updates
-        statusMenuItem?.title = "⏳ Checking for updates..."
+        statusMenuItem?.attributedTitle = createStatusTitle("Checking for updates...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -168,9 +188,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         self.statusMenuItem = statusMenuItem
         menu.addItem(.separator())
 
-        let updateItem = NSMenuItem(title: "Update Now", action: #selector(updateNow), keyEquivalent: "")
+        let updateItem = NSMenuItem(title: "", action: #selector(updateNow), keyEquivalent: "")
         updateItem.target = self
         updateItem.tag = MenuItemTag.updateNow.rawValue
+        updateItem.attributedTitle = NSAttributedString(string: "Update Now", attributes: [
+            .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
+        ])
         menu.addItem(updateItem)
         updateNowMenuItem = updateItem
 
@@ -236,7 +259,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         monitor.pathUpdateHandler = { [weak self] path in
             if path.status == .satisfied {
                 DispatchQueue.main.async {
-                    self?.statusMenuItem?.title = "⏳ Checking for updates..."
+                    self?.statusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates...", color: .systemYellow)
                     self?.checkForUpdates()
                 }
             }
@@ -253,12 +276,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
     @objc private func systemDidWake() {
         AppConstants.logger.info("System woke from sleep - checking for updates")
-        statusMenuItem?.title = "⏳ Checking for updates..."
+        statusMenuItem?.attributedTitle = createStatusTitle("Checking for updates...", color: .systemYellow)
         checkForUpdates()
     }
 
     @objc private func checkForUpdatesAction() {
-        statusMenuItem?.title = "⏳ Checking for updates..."
+        statusMenuItem?.attributedTitle = createStatusTitle("Checking for updates...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -324,9 +347,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         statusItem?.button?.image = loadIcon(hasUpdates: hasUpdates)
         statusItem?.button?.toolTip = hasUpdates ? "Sparkdock - Updates available" : "Sparkdock - Up to date"
 
-        let newTitle = hasUpdates ? "🔄 Updates Available" : "✅ Sparkdock is up to date"
+        let (title, color) = hasUpdates ?
+            ("Updates Available", NSColor.systemOrange) :
+            ("Sparkdock is up to date", NSColor.systemGreen)
 
-        statusMenuItem?.title = newTitle
+        statusMenuItem?.attributedTitle = createStatusTitle(title, color: color)
 
         // Update the "Update Now" menu item visibility
         if let updateItem = updateNowMenuItem {
