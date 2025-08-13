@@ -11,7 +11,7 @@ A simple macOS menu bar application that provides visual indicators for Sparkdoc
   - Check for Updates (manual check)
   - Update Now (runs `sparkdock` in Terminal)
   - Configurable menu items from JSON (Tools, Company links)
-  - Login item toggle
+  - Start at Login (enable/disable auto-start)
   - Quit
 - **Smart Updates**: Event-driven checking (system wake + network changes)
 - **CLI Support**: Status checking with `sparkdock-manager --status`
