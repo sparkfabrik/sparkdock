@@ -22,6 +22,7 @@ tart-create-vm IMAGE="ghcr.io/cirruslabs/macos-sequoia-base:latest":
     killall -9 tart &> /dev/null || true
     tart stop sparkdock-test &> /dev/null || true
     tart delete sparkdock-test &> /dev/null || true
+    tart pull {{IMAGE}}
     tart clone {{IMAGE}} sparkdock-test
 
 # Start VM and connect via SSH
