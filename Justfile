@@ -19,10 +19,8 @@ tart-create-vm IMAGE="ghcr.io/cirruslabs/macos-sequoia-base:latest":
         brew install cirruslabs/cli/tart
     fi
     echo "Creating macOS VM with Tart using image: {{IMAGE}}..."
-    if ! tart list | grep -q "sparkdock-test"; then
-        tart clone {{IMAGE}} sparkdock-test
-        echo "✅ VM 'sparkdock-test' created successfully"
-    fi
+    tart delete sparkdock-test &> /dev/null || true
+    tart clone {{IMAGE}} sparkdock-test
 
 # Start VM and connect via SSH
 tart-ssh: tart-create-vm
@@ -33,7 +31,6 @@ tart-ssh: tart-create-vm
     echo "Sparkdock source will be mounted at /Volumes/sparkdock"
     tart run --dir=sparkdock:$PWD sparkdock-test &
     echo "Waiting for VM to boot..."
-    sleep 5
     VM_IP=$(tart ip sparkdock-test 2>/dev/null || echo "")
     if [ -n "$VM_IP" ]; then
         echo "Connecting to VM at $VM_IP..."
@@ -43,6 +40,21 @@ tart-ssh: tart-create-vm
         echo "You can manually check with: tart list"
         exit 1
     fi
+
+# Delete the Tart VM.
+tart-delete-vm:
+    #!/usr/bin/env bash
+    echo "Deleting Tart VM 'sparkdock-test'..."
+    if tart list | grep -q "sparkdock-test"; then
+        tart stop sparkdock-test
+        tart delete sparkdock-test
+        echo "✅ VM 'sparkdock-test' deleted successfully"
+    fi
+
+test-e2e-with-tart: tart-create-vm
+    #!/usr/bin/env bash
+    tart run --no-graphics --dir=sparkdock:$PWD sparkdock-test &
+    tart exec sparkdock-test bash -c "cd /Volumes/My\ Shared\ Files/sparkdock && NON_INTERACTIVE=1 ./bin/install.macos"
 
 # Run end-to-end sparkdock test using Cirrus CLI
 test-e2e-with-cirrus:
