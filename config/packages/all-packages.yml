@@ -67,9 +67,7 @@ homebrew_packages:
   - yarn
   - yarn-completion
 
-linked_packages:
-  # Development Tools
-  - yarn
+linked_packages: []
 
 # Removed packages/taps
 removed_homebrew_packages:

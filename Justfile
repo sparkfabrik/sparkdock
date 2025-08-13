@@ -30,10 +30,10 @@ tart-ssh: tart-create-vm
     echo "Starting VM and connecting via SSH..."
     echo "Note: This will start the VM in the background and connect via SSH"
     echo "VM credentials: admin/admin"
-    echo "Sparkdock source will be mounted at /opt/sparkdock-src"
-    tart run  --dir=sparkdock-src:$PWD sparkdock-test &
+    echo "Sparkdock source will be mounted at /Volumes/sparkdock"
+    tart run --dir=sparkdock:$PWD sparkdock-test &
     echo "Waiting for VM to boot..."
-    sleep 30
+    sleep 5
     VM_IP=$(tart ip sparkdock-test 2>/dev/null || echo "")
     if [ -n "$VM_IP" ]; then
         echo "Connecting to VM at $VM_IP..."
