@@ -121,6 +121,26 @@ spark-http-proxy stop    # Stop proxy services
 spark-http-proxy status  # Check service status
 ```
 
+### Menu Bar App
+
+Sparkdock includes a native macOS menu bar application that provides quick access to system status and common tasks:
+
+![Sparkdock Menu Bar](static/menubar.png)
+
+**Features:**
+- Real-time system status with colored indicators
+- Quick access to development tools and dashboards
+- Battery-efficient event-driven updates
+- Automatically starts at login via LaunchAgent
+
+**Control the menu bar app:**
+
+```bash
+sjust menubar            # Launch the menu bar app manually
+```
+
+The app is automatically installed as a LaunchAgent (`com.sparkfabrik.sparkdock.menubar.plist`) and starts at login. It shows update availability and provides one-click access to system updates and development tools.
+
 ## Configuration
 
 ### Directory Structure
