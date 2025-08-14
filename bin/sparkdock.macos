@@ -70,11 +70,13 @@ check_for_updates() {
  }
 
 notify() {
-    osascript -e "display notification \"$1\" with title \"Sparkdock\""
+    # Notifications disabled to avoid Script Editor issues
+    # Users can see status through menu bar icon and menu items
+    return 0
 }
 
-# Install/update the launchd service first
-install_update_service
+# Note: Update service installation is now handled by the Sparkdock Manager menu bar app
+# which is installed via Ansible with the 'menubar' tag
 
 # Version command
 if [ "$1" = "version" ] ; then

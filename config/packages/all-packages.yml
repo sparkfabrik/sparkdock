@@ -58,7 +58,7 @@ homebrew_packages:
   # Development Tools
   - gh
   - glab
-  - "node@20"
+  - "node@24"
   - "php@8.2"
   - golang
   - gitleaks
@@ -68,11 +68,11 @@ homebrew_packages:
   - yarn-completion
 
 linked_packages:
-  # Development Tools
   - yarn
 
 # Removed packages/taps
 removed_homebrew_packages:
+  - "node@20"
   - docker-compose
   - neofetch
   - "php@8.3"

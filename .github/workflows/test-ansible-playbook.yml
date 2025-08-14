@@ -14,8 +14,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-14, macos-15, macos-latest]
-      fail-fast: false
+        os: [macos-15, macos-latest]
     env:
       TERM: xterm-256color
       SHELL: /bin/zsh

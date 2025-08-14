@@ -94,22 +94,13 @@ sudo chown $(id -u):$(id -g) /opt/sparkdock
 # In CI, we have the repo already checked out, so copy it instead of cloning
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
   # we are in a CI environment, so we assume the repo is already checked out and we are at the root of the repo.
-  cp -R . /opt/sparkdock
+  rsync -azh --exclude='.git' . /opt/sparkdock
 else
   git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
 fi
 
-## Install the launchd service
-print "Installing update checker service..."
-if [[ "$NON_INTERACTIVE" == "true" ]]; then
-  print "Skipping launchd service installation in non-interactive mode"
-else
-  if [[ -f /opt/sparkdock/launchd/com.sparkfabrik.sparkdock.plist ]]; then
-    install_update_service
-  else
-    print "Launchd plist file not found. Skipping service installation."
-  fi
-fi
+# Note: Update checking is now handled by the Sparkdock Manager menu bar app
+# which is installed via Ansible with the 'menubar' tag
 
 ## Run Ansible Playbook
 print "Run ansible playbook..."
@@ -129,6 +120,11 @@ fi
 # it should exit if ansible fails.
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
   sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
+  # Try to remove spurious files, they are part of the tart VM.
+  # Yarn: /opt/homebrew/lib/node_modules/yarn/bin/yarn.js
+  if [[ -e /opt/homebrew/lib/node_modules/yarn/bin/yarn.js ]]; then
+    sudo rm -f /opt/homebrew/lib/node_modules/yarn/bin/yarn.js
+  fi
   ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become -v
 else
   ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v
