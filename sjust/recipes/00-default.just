@@ -9,7 +9,7 @@ sparkdock_menubar_process_name := "sparkdock-manager"
 
 # Print system information.
 [group('system')]
-device-info:
+system-device-info:
     #!/usr/bin/env bash
 
     read -r -d '' AYSE << EOM
@@ -52,13 +52,13 @@ device-info:
 
 # Clear DNS cache on macOS.
 [group('system')]
-clear-dns-cache:
+system-clear-dns-cache:
     @sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
     @echo "DNS cache cleared successfully!"
 
 # Install and update http-proxy to latest version.
 [group('http-proxy')]
-install-update-http-proxy:
+http-proxy-install-update:
     #!/usr/bin/env bash
     set -e
     echo "Installing/updating http-proxy system to latest version..."
@@ -119,9 +119,9 @@ install-update-http-proxy:
     spark-http-proxy start
     echo "✅ Http-proxy installation/update completed!"
 
-# Update system packages via Homebrew.
+# Update system packages via Homebrew (not sparkdock)
 [group('system')]
-upgrade-system:
+system-upgrade:
     #!/usr/bin/env bash
     echo "Updating system packages..."
     brew update && brew upgrade && brew cleanup
@@ -129,7 +129,7 @@ upgrade-system:
 
 # Install mkcert for local SSL certificate generation.
 [group('system')]
-install-mkcert:
+system-install-mkcert:
     #!/usr/bin/env bash
     echo "Installing mkcert..."
     brew install mkcert nss
@@ -185,7 +185,7 @@ docker-restart:
 
 # Install sparkdock ansible tag.
 [group('sparkdock')]
-install-tags tags:
+sparkdock-install-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
     cd {{ sparkdock_path }}
@@ -193,7 +193,7 @@ install-tags tags:
 
 # Update Sparkdock git repository to latest version, it doesn't run any ansible task.
 [group('sparkdock')]
-update-sparkdock-repository:
+sparkdock-update-repository:
     #!/usr/bin/env bash
     set -e
     echo "Updating Sparkdock repository to latest version..."
@@ -237,14 +237,14 @@ update-sparkdock-repository:
 
 # Run sparkdock system configuration and updates.
 [group('sparkdock')]
-upgrade:
+sparkdock-upgrade:
     #!/usr/bin/env bash
     {{ sparkdock_path }}/bin/sparkdock.macos
     echo "System configuration and updates completed!"
 
 # Rebuild and install the latest Sparkdock menu bar application.
 [group('sparkdock')]
-menubar-install:
+sparkdock-menubar-install:
     #!/usr/bin/env bash
     echo "Rebuilding and installing Sparkdock menu bar application..."
     cd {{ sparkdock_path }}
@@ -263,37 +263,37 @@ menubar-install:
 _menubar_plist_unload:
     #!/usr/bin/env bash
     PLIST_PATH="{{sparkdock_menubar_plist_path}}"
-    
+
     if [[ ! -f "${PLIST_PATH}" ]]; then
         echo "❌ LaunchAgent plist not found at ${PLIST_PATH}"
         exit 1
     fi
-    
+
     # Unload the service if it's currently loaded (ignore errors)
     launchctl unload "${PLIST_PATH}" 2>/dev/null || true
 
 # Start/restart the Sparkdock menu bar application using LaunchAgent.
 [group('sparkdock')]
-menubar-start:
+sparkdock-menubar-start:
     #!/usr/bin/env bash
     just _menubar_plist_unload
-    
+
     # Load the service
     PLIST_PATH="{{sparkdock_menubar_plist_path}}"
     if ! launchctl load "${PLIST_PATH}"; then
         echo "❌ Failed to start menu bar app via LaunchAgent"
         exit 1
     fi
-    
+
     echo "✅ Sparkdock menu bar app started successfully"
 
 # Stop the Sparkdock menu bar application using LaunchAgent.
 [group('sparkdock')]
-menubar-stop:
+sparkdock-menubar-stop:
     #!/usr/bin/env bash
     just _menubar_plist_unload
-    
+
     # Kill any running processes
     pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
-    
+
     echo "✅ Sparkdock menu bar app stopped successfully"

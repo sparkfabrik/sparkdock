@@ -110,13 +110,13 @@ jobs:
           echo "Testing specific sjust commands in dry-run mode..."
 
           # Test that device-info command can be parsed (dry-run)
-          sjust --dry-run device-info
+          sjust --dry-run system-device-info
 
           # Test that docker-ps command can be parsed (dry-run)
           sjust --dry-run docker-ps
 
           # Test that upgrade-system command can be parsed (dry-run)
-          sjust --dry-run upgrade-system
+          sjust --dry-run system-upgrade
 
       - name: Test sjust with non-interactive environment
         env:

@@ -41,4 +41,4 @@ endif
 	just --completions zsh | sed -E 's/([\(_" ])just/\1sjust/g' | sudo tee "$$BREW_PREFIX/share/zsh/site-functions/_sjust" > /dev/null; \
 	sudo chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"
 	@echo "✅ sjust installed successfully!"
-	@echo "You can now run: sjust install-update-http-proxy"
+	@echo "You can now run: sjust http-proxy-install-update"
