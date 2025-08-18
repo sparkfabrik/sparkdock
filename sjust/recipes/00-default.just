@@ -240,17 +240,93 @@ upgrade:
     {{ sparkdock_path }}/bin/sparkdock.macos
     echo "System configuration and updates completed!"
 
-# Launch the Sparkdock menu bar application.
+# Rebuild and install the latest Sparkdock menu bar application.
 [group('sparkdock')]
-menubar:
+menubar-install:
     #!/usr/bin/env bash
-    echo "Launching Sparkdock menu bar application..."
-    if pgrep -f "sparkdock-manager" > /dev/null; then
-        echo "⚠️  Sparkdock menu bar app is already running"
-        echo "💡 If you need to restart it, quit the app first from the menu bar"
-        echo "💡 If the app is stuck or not visible, use: pkill -f sparkdock-manager"
+    echo "Rebuilding and installing Sparkdock menu bar application..."
+    cd {{ sparkdock_path }}
+    echo "🔧 Running ansible with menubar tag to rebuild and install..."
+    # Check if running in CI/non-interactive mode (detect based on common CI environment variables)
+    if [[ -n "$CI" || -n "$GITHUB_ACTIONS" || -n "$NON_INTERACTIVE" ]]; then
+        echo "🤖 Detected non-interactive environment, running without password prompt..."
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e "ansible_become_password=" --become
     else
-        nohup /usr/local/bin/sparkdock-manager > /dev/null &
-        echo "✅ Sparkdock menu bar app launched successfully!"
-        echo "💡 Look for the Sparkdock icon in your menu bar"
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass
     fi
+    echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
+    echo "💡 The app should now be running via LaunchAgent"
+
+# Start/restart the Sparkdock menu bar application using LaunchAgent.
+[group('sparkdock')]
+menubar-start:
+    #!/usr/bin/env bash
+    echo "Starting Sparkdock menu bar application via LaunchAgent..."
+    
+    PLIST_PATH="${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+    
+    if [[ ! -f "${PLIST_PATH}" ]]; then
+        echo "❌ LaunchAgent plist not found at ${PLIST_PATH}"
+        echo "💡 Run 'sjust menubar-install' first to install the menu bar app"
+        exit 1
+    fi
+    
+    # Unload the service if it's currently loaded (ignore errors)
+    launchctl unload "${PLIST_PATH}" 2>/dev/null || true
+    
+    # Load the service
+    if launchctl load "${PLIST_PATH}"; then
+        echo "✅ Sparkdock menu bar app started successfully via LaunchAgent!"
+        echo "💡 Look for the Sparkdock icon in your menu bar"
+        
+        # Give it a moment to start and then check if it's running
+        sleep 2
+        if pgrep -f "sparkdock-manager" > /dev/null; then
+            echo "✅ Menu bar app is now running"
+        else
+            echo "⚠️  Menu bar app may still be starting up"
+        fi
+    else
+        echo "❌ Failed to start menu bar app via LaunchAgent"
+        echo "💡 Check if the app is installed: ls -la ${PLIST_PATH}"
+        echo "💡 Try running 'sjust menubar-install' to reinstall"
+        exit 1
+    fi
+
+# Stop the Sparkdock menu bar application using LaunchAgent.
+[group('sparkdock')]
+menubar-stop:
+    #!/usr/bin/env bash
+    echo "Stopping Sparkdock menu bar application..."
+    
+    PLIST_PATH="${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+    
+    if [[ ! -f "${PLIST_PATH}" ]]; then
+        echo "❌ LaunchAgent plist not found at ${PLIST_PATH}"
+        echo "💡 Menu bar app may not be installed via LaunchAgent"
+    else
+        # Unload the service
+        if launchctl unload "${PLIST_PATH}" 2>/dev/null; then
+            echo "✅ Menu bar app LaunchAgent unloaded"
+        else
+            echo "⚠️  LaunchAgent was not loaded or failed to unload"
+        fi
+    fi
+    
+    # Also kill any running processes
+    if pgrep -f "sparkdock-manager" > /dev/null; then
+        echo "🔄 Terminating any running sparkdock-manager processes..."
+        pkill -f "sparkdock-manager"
+        sleep 1
+        if pgrep -f "sparkdock-manager" > /dev/null; then
+            echo "⚠️  Some processes may still be running"
+        else
+            echo "✅ All sparkdock-manager processes stopped"
+        fi
+    else
+        echo "✅ No sparkdock-manager processes found"
+    fi
+
+# Launch the Sparkdock menu bar application (alias for menubar-start).
+[group('sparkdock')]
+menubar: menubar-start
