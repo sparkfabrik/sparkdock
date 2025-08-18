@@ -572,6 +572,7 @@ if handleCLIArguments() {
 if checkForExistingInstance() {
     print("⚠️  Sparkdock menu bar app is already running")
     print("💡 If you need to restart it, quit the app first from the menu bar")
+    print("💡 If the app is stuck or not visible, use: pkill -f sparkdock-manager")
     exit(1)
 }
 
