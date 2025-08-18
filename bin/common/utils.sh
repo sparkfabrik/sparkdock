@@ -62,9 +62,16 @@ get_version_info() {
     fi
     cd /opt/sparkdock
     local current_branch=$(git rev-parse --abbrev-ref HEAD)
-    local current_version=$(git rev-parse --short HEAD)
+    local local_version=$(git rev-parse --short HEAD)
     local last_commit_date=$(git log -1 --format=%cd --date=format:'%Y-%m-%d %H:%M:%S')
-    echo "Version: ${current_version} (${current_branch})"
+
+    # Get remote version (fetch quietly to get latest remote info)
+    local remote_version="unknown"
+    if git fetch origin "${current_branch}" -q 2>/dev/null; then
+        remote_version=$(git rev-parse --short "origin/${current_branch}" 2>/dev/null || echo "unknown")
+    fi
+    echo "Local version: ${local_version} (${current_branch})"
+    echo "Remote version: ${remote_version} (${current_branch})"
     echo "Last commit: ${last_commit_date}"
     echo "Last update: $(get_last_update)"
 }
