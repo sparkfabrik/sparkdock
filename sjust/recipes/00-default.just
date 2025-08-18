@@ -4,6 +4,8 @@ uid := `id -u`
 shell := `grep :$(id -u): /etc/passwd | cut -d: -f7`
 sparkdock_path := "/opt/sparkdock"
 default_branch := "master"
+sparkdock_menubar_plist_path := "${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+sparkdock_menubar_process_name := "sparkdock-manager"
 
 # Print system information.
 [group('system')]
@@ -240,17 +242,58 @@ upgrade:
     {{ sparkdock_path }}/bin/sparkdock.macos
     echo "System configuration and updates completed!"
 
-# Launch the Sparkdock menu bar application.
+# Rebuild and install the latest Sparkdock menu bar application.
 [group('sparkdock')]
-menubar:
+menubar-install:
     #!/usr/bin/env bash
-    echo "Launching Sparkdock menu bar application..."
-    if pgrep -f "sparkdock-manager" > /dev/null; then
-        echo "⚠️  Sparkdock menu bar app is already running"
-        echo "💡 If you need to restart it, quit the app first from the menu bar"
-        echo "💡 If the app is stuck or not visible, use: pkill -f sparkdock-manager"
+    echo "Rebuilding and installing Sparkdock menu bar application..."
+    cd {{ sparkdock_path }}
+    echo "🔧 Running ansible with menubar tag to rebuild and install..."
+    # Check if running in CI/non-interactive mode (detect based on common CI environment variables)
+    if [[ -n "$CI" || -n "$GITHUB_ACTIONS" || -n "$NON_INTERACTIVE" ]]; then
+        echo "🤖 Detected non-interactive environment, running without password prompt..."
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e "ansible_become_password=" --become
     else
-        nohup /usr/local/bin/sparkdock-manager > /dev/null &
-        echo "✅ Sparkdock menu bar app launched successfully!"
-        echo "💡 Look for the Sparkdock icon in your menu bar"
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass
     fi
+    echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
+    echo "💡 The app should now be running via LaunchAgent"
+
+# Helper function to validate plist and unload service
+_menubar_plist_unload:
+    #!/usr/bin/env bash
+    PLIST_PATH="{{sparkdock_menubar_plist_path}}"
+    
+    if [[ ! -f "${PLIST_PATH}" ]]; then
+        echo "❌ LaunchAgent plist not found at ${PLIST_PATH}"
+        exit 1
+    fi
+    
+    # Unload the service if it's currently loaded (ignore errors)
+    launchctl unload "${PLIST_PATH}" 2>/dev/null || true
+
+# Start/restart the Sparkdock menu bar application using LaunchAgent.
+[group('sparkdock')]
+menubar-start:
+    #!/usr/bin/env bash
+    just _menubar_plist_unload
+    
+    # Load the service
+    PLIST_PATH="{{sparkdock_menubar_plist_path}}"
+    if ! launchctl load "${PLIST_PATH}"; then
+        echo "❌ Failed to start menu bar app via LaunchAgent"
+        exit 1
+    fi
+    
+    echo "✅ Sparkdock menu bar app started successfully"
+
+# Stop the Sparkdock menu bar application using LaunchAgent.
+[group('sparkdock')]
+menubar-stop:
+    #!/usr/bin/env bash
+    just _menubar_plist_unload
+    
+    # Kill any running processes
+    pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
+    
+    echo "✅ Sparkdock menu bar app stopped successfully"
