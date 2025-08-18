@@ -9,7 +9,7 @@ sparkdock_menubar_process_name := "sparkdock-manager"
 
 # Print system information.
 [group('system')]
-device-info:
+system-device-info:
     #!/usr/bin/env bash
 
     read -r -d '' AYSE << EOM
@@ -52,13 +52,13 @@ device-info:
 
 # Clear DNS cache on macOS.
 [group('system')]
-clear-dns-cache:
+system-clear-dns-cache:
     @sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
     @echo "DNS cache cleared successfully!"
 
 # Install and update http-proxy to latest version.
 [group('http-proxy')]
-install-update-http-proxy:
+http-proxy-install-update:
     #!/usr/bin/env bash
     set -e
     echo "Installing/updating http-proxy system to latest version..."
@@ -121,7 +121,7 @@ install-update-http-proxy:
 
 # Update system packages via Homebrew (not sparkdock)
 [group('system')]
-upgrade-system:
+system-upgrade-system:
     #!/usr/bin/env bash
     echo "Updating system packages..."
     brew update && brew upgrade && brew cleanup
@@ -129,7 +129,7 @@ upgrade-system:
 
 # Install mkcert for local SSL certificate generation.
 [group('system')]
-install-mkcert:
+system-install-mkcert:
     #!/usr/bin/env bash
     echo "Installing mkcert..."
     brew install mkcert nss
