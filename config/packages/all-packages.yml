@@ -34,6 +34,7 @@ homebrew_packages:
   # System Utilities
   - atuin
   - bc
+  - btop
   - fastfetch
   - gnupg
   - jless
