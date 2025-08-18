@@ -91,7 +91,7 @@ cd /opt/sparkdock
 git switch master
 git fetch && git reset --hard origin/master
 make install-sjust
-sjust install-update-http-proxy
+sjust http-proxy-install-update
 ```
 
 This workflow:
@@ -108,7 +108,7 @@ View and run available development tasks:
 sjust                    # Show available commands
 sjust --list             # List all tasks
 sjust docker-ps          # Show running containers
-sjust upgrade-system     # Update system packages
+sjust system-upgrade     # Update system packages
 ```
 
 ### HTTP Proxy
