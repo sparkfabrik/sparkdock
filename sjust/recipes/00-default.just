@@ -257,13 +257,38 @@ menubar-install:
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
 
+# Helper functions for menubar management
+_menubar_plist_path := "${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+_menubar_process_name := "sparkdock-manager"
+
+# Check if menubar app process is running
+_menubar_is_running:
+    #!/usr/bin/env bash
+    pgrep -f "{{_menubar_process_name}}" > /dev/null
+
+# Stop any running menubar processes
+_menubar_kill_processes:
+    #!/usr/bin/env bash
+    if pgrep -f "{{_menubar_process_name}}" > /dev/null; then
+        echo "🔄 Terminating any running {{_menubar_process_name}} processes..."
+        pkill -f "{{_menubar_process_name}}"
+        sleep 1
+        if pgrep -f "{{_menubar_process_name}}" > /dev/null; then
+            echo "⚠️  Some processes may still be running"
+        else
+            echo "✅ All {{_menubar_process_name}} processes stopped"
+        fi
+    else
+        echo "✅ No {{_menubar_process_name}} processes found"
+    fi
+
 # Start/restart the Sparkdock menu bar application using LaunchAgent.
 [group('sparkdock')]
 menubar-start:
     #!/usr/bin/env bash
     echo "Starting Sparkdock menu bar application via LaunchAgent..."
     
-    PLIST_PATH="${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+    PLIST_PATH="{{_menubar_plist_path}}"
     
     if [[ ! -f "${PLIST_PATH}" ]]; then
         echo "❌ LaunchAgent plist not found at ${PLIST_PATH}"
@@ -281,7 +306,7 @@ menubar-start:
         
         # Give it a moment to start and then check if it's running
         sleep 2
-        if pgrep -f "sparkdock-manager" > /dev/null; then
+        if just _menubar_is_running; then
             echo "✅ Menu bar app is now running"
         else
             echo "⚠️  Menu bar app may still be starting up"
@@ -299,7 +324,7 @@ menubar-stop:
     #!/usr/bin/env bash
     echo "Stopping Sparkdock menu bar application..."
     
-    PLIST_PATH="${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+    PLIST_PATH="{{_menubar_plist_path}}"
     
     if [[ ! -f "${PLIST_PATH}" ]]; then
         echo "❌ LaunchAgent plist not found at ${PLIST_PATH}"
@@ -314,18 +339,7 @@ menubar-stop:
     fi
     
     # Also kill any running processes
-    if pgrep -f "sparkdock-manager" > /dev/null; then
-        echo "🔄 Terminating any running sparkdock-manager processes..."
-        pkill -f "sparkdock-manager"
-        sleep 1
-        if pgrep -f "sparkdock-manager" > /dev/null; then
-            echo "⚠️  Some processes may still be running"
-        else
-            echo "✅ All sparkdock-manager processes stopped"
-        fi
-    else
-        echo "✅ No sparkdock-manager processes found"
-    fi
+    just _menubar_kill_processes
 
 # Launch the Sparkdock menu bar application (alias for menubar-start).
 [group('sparkdock')]
