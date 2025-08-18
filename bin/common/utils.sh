@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 # Colors and formatting
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -6,7 +8,10 @@ BLUE='\033[0;34m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-setopt PROMPT_SUBST
+# Only use setopt if we're in zsh
+if [ -n "$ZSH_VERSION" ]; then
+    setopt PROMPT_SUBST
+fi
 
 # Print functions for different message types
 print_info() {
@@ -55,21 +60,36 @@ get_last_update() {
 }
 
 get_version_info() {
+    # Optional parameters to use pre-captured version info
+    local pre_local_version="$1"
+    local pre_remote_version="$2"
+    local pre_branch="$3"
+    
     # check if /opt/sparkdock exists, if not, it is a first run, just return
     if [ ! -d /opt/sparkdock ]; then
         echo "First run, no version information available."
         return
     fi
     cd /opt/sparkdock
-    local current_branch=$(git rev-parse --abbrev-ref HEAD)
-    local local_version=$(git rev-parse --short HEAD)
-    local last_commit_date=$(git log -1 --format=%cd --date=format:'%Y-%m-%d %H:%M:%S')
-
-    # Get remote version (fetch quietly to get latest remote info)
-    local remote_version="unknown"
-    if git fetch origin "${current_branch}" -q 2>/dev/null; then
-        remote_version=$(git rev-parse --short "origin/${current_branch}" 2>/dev/null || echo "unknown")
+    
+    # Use pre-captured values if provided, otherwise fetch current values
+    if [ -n "$pre_local_version" ] && [ -n "$pre_remote_version" ] && [ -n "$pre_branch" ]; then
+        local current_branch="$pre_branch"
+        local local_version="$pre_local_version"
+        local remote_version="$pre_remote_version"
+    else
+        local current_branch=$(git rev-parse --abbrev-ref HEAD)
+        local local_version=$(git rev-parse --short HEAD)
+        
+        # Get remote version (fetch quietly to get latest remote info)
+        local remote_version="unknown"
+        if git fetch origin "${current_branch}" -q 2>/dev/null; then
+            remote_version=$(git rev-parse --short "origin/${current_branch}" 2>/dev/null || echo "unknown")
+        fi
     fi
+    
+    local last_commit_date=$(git log -1 --format=%cd --date=format:'%Y-%m-%d %H:%M:%S')
+    
     echo "Local version: ${local_version} (${current_branch})"
     echo "Remote version: ${remote_version} (${current_branch})"
     echo "Last commit: ${last_commit_date}"
@@ -77,6 +97,11 @@ get_version_info() {
 }
 
 print_banner() {
+    # Optional parameters to pass pre-captured version info
+    local pre_local_version="$1"
+    local pre_remote_version="$2"
+    local pre_branch="$3"
+    
 cat <<"EOF"
 
 
@@ -88,11 +113,11 @@ cat <<"EOF"
 
 EOF
     print_section "System Information"
-    get_version_info
+    get_version_info "$pre_local_version" "$pre_remote_version" "$pre_branch"
     echo ""
 }
 
 # Keep old function name for backward compatibility
 sparkdockfetch() {
-    print_banner
+    print_banner "$@"
 }

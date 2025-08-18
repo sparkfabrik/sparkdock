@@ -105,6 +105,14 @@ if [ "$1" != "skip-update" ] ; then
 
         cd "$SPARKDOCK_ROOT"
 
+        # Capture version info BEFORE any updates for display later
+        PRE_UPDATE_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+        PRE_UPDATE_LOCAL=$(git rev-parse --short HEAD)
+        PRE_UPDATE_REMOTE="unknown"
+        if git fetch origin "${PRE_UPDATE_BRANCH}" -q 2>/dev/null; then
+            PRE_UPDATE_REMOTE=$(git rev-parse --short "origin/${PRE_UPDATE_BRANCH}" 2>/dev/null || echo "unknown")
+        fi
+
         # Backup current version for rollback
         CURRENT_VERSION=$(git rev-parse HEAD)
 
@@ -156,6 +164,8 @@ if [ "$1" != "skip-update" ] ; then
             done
         fi
 
+        # Re-run with skip-update and pass the pre-update version info
+        export PRE_UPDATE_LOCAL PRE_UPDATE_REMOTE PRE_UPDATE_BRANCH
         $0 skip-update
         exit $?
     fi
@@ -163,7 +173,7 @@ fi
 
 # Cleaning the TTY.
 clear
-print_banner
+print_banner "$PRE_UPDATE_LOCAL" "$PRE_UPDATE_REMOTE" "$PRE_UPDATE_BRANCH"
 
 print_section "System Check"
 print_info "Checking for macOS supported version..."
