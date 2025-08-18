@@ -495,6 +495,38 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 }
 
 // MARK: - CLI Handling
+private func checkForExistingInstance() -> Bool {
+    let currentPID = ProcessInfo.processInfo.processIdentifier
+    
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+    process.arguments = ["-f", "sparkdock-manager"]
+    
+    let pipe = Pipe()
+    process.standardOutput = pipe
+    process.standardError = Pipe()
+    
+    do {
+        try process.run()
+        process.waitUntilExit()
+        
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        
+        // Parse PIDs from output and check if any other instance is running
+        let pids = output.trimmingCharacters(in: .whitespacesAndNewlines)
+            .components(separatedBy: .newlines)
+            .compactMap { Int32($0) }
+            .filter { $0 != currentPID }
+        
+        return !pids.isEmpty
+        
+    } catch {
+        AppConstants.logger.warning("Failed to check for existing instances: \(error.localizedDescription)")
+        return false
+    }
+}
+
 private func handleCLIArguments() -> Bool {
     let arguments = CommandLine.arguments
 
@@ -534,6 +566,14 @@ private func handleCLIArguments() -> Bool {
 // MARK: - Main Entry Point
 if handleCLIArguments() {
     exit(0)
+}
+
+// Check if another instance is already running
+if checkForExistingInstance() {
+    print("⚠️  Sparkdock menu bar app is already running")
+    print("💡 If you need to restart it, quit the app first from the menu bar")
+    print("💡 If the app is stuck or not visible, use: pkill -f sparkdock-manager")
+    exit(1)
 }
 
 let app = NSApplication.shared

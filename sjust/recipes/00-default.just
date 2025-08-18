@@ -248,8 +248,9 @@ menubar:
     if pgrep -f "sparkdock-manager" > /dev/null; then
         echo "⚠️  Sparkdock menu bar app is already running"
         echo "💡 If you need to restart it, quit the app first from the menu bar"
+        echo "💡 If the app is stuck or not visible, use: pkill -f sparkdock-manager"
     else
-        nohup {{ sparkdock_path }}/bin/sparkdock-manager > /dev/null 2>&1 &
+        nohup /usr/local/bin/sparkdock-manager > /dev/null &
         echo "✅ Sparkdock menu bar app launched successfully!"
         echo "💡 Look for the Sparkdock icon in your menu bar"
     fi

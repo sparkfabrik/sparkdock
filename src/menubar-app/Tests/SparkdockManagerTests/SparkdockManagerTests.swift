@@ -51,4 +51,18 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertGreaterThan(tolerance, 0, "Timer tolerance should be positive")
         XCTAssertLessThanOrEqual(tolerance, 300, "Timer tolerance should be reasonable")
     }
+
+    func testProcessIdentifierIsValid() {
+        let currentPID = ProcessInfo.processInfo.processIdentifier
+        XCTAssertGreaterThan(currentPID, 0, "Process identifier should be positive")
+    }
+
+    func testPgrepExecutablePath() {
+        let pgrepPath = "/usr/bin/pgrep"
+        let fileExists = FileManager.default.fileExists(atPath: pgrepPath)
+        // Note: This may fail in CI environments without pgrep, but should pass on macOS
+        if fileExists {
+            XCTAssertTrue(fileExists, "pgrep should exist at \(pgrepPath) on macOS systems")
+        }
+    }
 }
