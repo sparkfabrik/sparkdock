@@ -340,7 +340,3 @@ menubar-stop:
     
     # Also kill any running processes
     just _menubar_kill_processes
-
-# Launch the Sparkdock menu bar application (alias for menubar-start).
-[group('sparkdock')]
-menubar: menubar-start
