@@ -121,7 +121,7 @@ http-proxy-install-update:
 
 # Update system packages via Homebrew (not sparkdock)
 [group('system')]
-system-upgrade-system:
+system-upgrade:
     #!/usr/bin/env bash
     echo "Updating system packages..."
     brew update && brew upgrade && brew cleanup
