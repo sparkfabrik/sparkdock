@@ -4,6 +4,8 @@ uid := `id -u`
 shell := `grep :$(id -u): /etc/passwd | cut -d: -f7`
 sparkdock_path := "/opt/sparkdock"
 default_branch := "master"
+sparkdock_menubar_plist_path := "${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+sparkdock_menubar_process_name := "sparkdock-manager"
 
 # Print system information.
 [group('system')]
@@ -257,42 +259,14 @@ menubar-install:
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
 
-# Helper functions for menubar management
-_menubar_plist_path := "${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
-_menubar_process_name := "sparkdock-manager"
-
-# Check if menubar app process is running
-_menubar_is_running:
-    #!/usr/bin/env bash
-    pgrep -f "{{_menubar_process_name}}" > /dev/null
-
-# Stop any running menubar processes
-_menubar_kill_processes:
-    #!/usr/bin/env bash
-    if pgrep -f "{{_menubar_process_name}}" > /dev/null; then
-        echo "🔄 Terminating any running {{_menubar_process_name}} processes..."
-        pkill -f "{{_menubar_process_name}}"
-        sleep 1
-        if pgrep -f "{{_menubar_process_name}}" > /dev/null; then
-            echo "⚠️  Some processes may still be running"
-        else
-            echo "✅ All {{_menubar_process_name}} processes stopped"
-        fi
-    else
-        echo "✅ No {{_menubar_process_name}} processes found"
-    fi
-
 # Start/restart the Sparkdock menu bar application using LaunchAgent.
 [group('sparkdock')]
 menubar-start:
     #!/usr/bin/env bash
-    echo "Starting Sparkdock menu bar application via LaunchAgent..."
-    
-    PLIST_PATH="{{_menubar_plist_path}}"
+    PLIST_PATH="{{sparkdock_menubar_plist_path}}"
     
     if [[ ! -f "${PLIST_PATH}" ]]; then
         echo "❌ LaunchAgent plist not found at ${PLIST_PATH}"
-        echo "💡 Run 'sjust menubar-install' first to install the menu bar app"
         exit 1
     fi
     
@@ -300,43 +274,31 @@ menubar-start:
     launchctl unload "${PLIST_PATH}" 2>/dev/null || true
     
     # Load the service
-    if launchctl load "${PLIST_PATH}"; then
-        echo "✅ Sparkdock menu bar app started successfully via LaunchAgent!"
-        echo "💡 Look for the Sparkdock icon in your menu bar"
-        
-        # Give it a moment to start and then check if it's running
-        sleep 2
-        if just _menubar_is_running; then
-            echo "✅ Menu bar app is now running"
-        else
-            echo "⚠️  Menu bar app may still be starting up"
-        fi
-    else
+    if ! launchctl load "${PLIST_PATH}"; then
         echo "❌ Failed to start menu bar app via LaunchAgent"
-        echo "💡 Check if the app is installed: ls -la ${PLIST_PATH}"
-        echo "💡 Try running 'sjust menubar-install' to reinstall"
         exit 1
     fi
+    
+    # Kill any running processes and start fresh
+    pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
+    
+    echo "✅ Sparkdock menu bar app started successfully"
 
 # Stop the Sparkdock menu bar application using LaunchAgent.
 [group('sparkdock')]
 menubar-stop:
     #!/usr/bin/env bash
-    echo "Stopping Sparkdock menu bar application..."
-    
-    PLIST_PATH="{{_menubar_plist_path}}"
+    PLIST_PATH="{{sparkdock_menubar_plist_path}}"
     
     if [[ ! -f "${PLIST_PATH}" ]]; then
         echo "❌ LaunchAgent plist not found at ${PLIST_PATH}"
-        echo "💡 Menu bar app may not be installed via LaunchAgent"
-    else
-        # Unload the service
-        if launchctl unload "${PLIST_PATH}" 2>/dev/null; then
-            echo "✅ Menu bar app LaunchAgent unloaded"
-        else
-            echo "⚠️  LaunchAgent was not loaded or failed to unload"
-        fi
+        exit 1
     fi
     
-    # Also kill any running processes
-    just _menubar_kill_processes
+    # Unload the service
+    launchctl unload "${PLIST_PATH}" 2>/dev/null || true
+    
+    # Kill any running processes
+    pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
+    
+    echo "✅ Sparkdock menu bar app stopped successfully"
