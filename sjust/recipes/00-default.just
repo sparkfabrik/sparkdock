@@ -279,9 +279,6 @@ menubar-start:
         exit 1
     fi
     
-    # Kill any running processes and start fresh
-    pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
-    
     echo "✅ Sparkdock menu bar app started successfully"
 
 # Stop the Sparkdock menu bar application using LaunchAgent.
