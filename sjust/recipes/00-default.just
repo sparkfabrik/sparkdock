@@ -259,9 +259,8 @@ menubar-install:
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
 
-# Start/restart the Sparkdock menu bar application using LaunchAgent.
-[group('sparkdock')]
-menubar-start:
+# Helper function to validate plist and unload service
+_menubar_plist_unload:
     #!/usr/bin/env bash
     PLIST_PATH="{{sparkdock_menubar_plist_path}}"
     
@@ -272,8 +271,15 @@ menubar-start:
     
     # Unload the service if it's currently loaded (ignore errors)
     launchctl unload "${PLIST_PATH}" 2>/dev/null || true
+
+# Start/restart the Sparkdock menu bar application using LaunchAgent.
+[group('sparkdock')]
+menubar-start:
+    #!/usr/bin/env bash
+    just _menubar_plist_unload
     
     # Load the service
+    PLIST_PATH="{{sparkdock_menubar_plist_path}}"
     if ! launchctl load "${PLIST_PATH}"; then
         echo "❌ Failed to start menu bar app via LaunchAgent"
         exit 1
@@ -285,15 +291,7 @@ menubar-start:
 [group('sparkdock')]
 menubar-stop:
     #!/usr/bin/env bash
-    PLIST_PATH="{{sparkdock_menubar_plist_path}}"
-    
-    if [[ ! -f "${PLIST_PATH}" ]]; then
-        echo "❌ LaunchAgent plist not found at ${PLIST_PATH}"
-        exit 1
-    fi
-    
-    # Unload the service
-    launchctl unload "${PLIST_PATH}" 2>/dev/null || true
+    just _menubar_plist_unload
     
     # Kill any running processes
     pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
