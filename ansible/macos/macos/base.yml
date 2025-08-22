@@ -385,6 +385,12 @@
             swift build -c release
           register: build_result
           changed_when: build_result.rc == 0
+          failed_when: false  # Don't fail immediately, handle errors in rescue block
+
+        - name: Check if build was successful
+          fail:
+            msg: "Swift build failed. See rescue block for instructions."
+          when: build_result.rc != 0
 
         - name: Install menu bar app binary
           copy:
@@ -447,6 +453,37 @@
               become: no
               ignore_errors: yes
           when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
+
+      rescue:
+        - name: Display compilation failure message
+          debug:
+            msg:
+              - "❌ Sparkdock Menu Bar App compilation failed!"
+              - ""
+              - "This is often caused by issues with Xcode command line tools."
+              - "Common symptoms include Swift compiler errors or missing headers."
+              - ""
+              - "🔧 To fix this issue, run the following command:"
+              - "   sjust menubar-reinstall"
+              - ""
+              - "This command will:"
+              - "  1. Remove existing Xcode command line tools"
+              - "  2. Reinstall them properly"
+              - "  3. Retry the menubar app installation"
+
+        - name: Show build error output
+          debug:
+            msg:
+              - "Build command output:"
+              - "{{ build_result.stdout_lines | default(['No stdout']) }}"
+              - "Build command stderr:"
+              - "{{ build_result.stderr_lines | default(['No stderr']) }}"
+          when: build_result is defined
+
+        - name: Fail with helpful message
+          fail:
+            msg: |
+              Menubar app compilation failed. Run 'sjust menubar-reinstall' to fix Xcode command line tools and retry installation.
 
   post_tasks:
     - name: Print installation complete message

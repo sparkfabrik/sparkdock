@@ -259,6 +259,71 @@ sparkdock-menubar-install:
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
 
+# Fix Xcode command line tools and rebuild menubar application.
+[group('menubar')]
+menubar-reinstall:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🔧 Fixing Xcode command line tools and rebuilding Sparkdock menu bar application..."
+    echo ""
+    echo "This will fix common Swift compilation issues by reinstalling Xcode command line tools."
+    echo "You will be prompted for your password and may need to interact with the installer."
+    echo ""
+
+    # Check if we're in a CI environment
+    if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" || -n "${NON_INTERACTIVE:-}" ]]; then
+        echo "❌ This task cannot run in CI/non-interactive environments"
+        echo "💡 Run this task manually on your local machine if you encounter compilation issues"
+        exit 1
+    fi
+
+    # Confirm with user
+    read -p "🤔 Do you want to proceed with removing and reinstalling Xcode command line tools? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "❌ Operation cancelled"
+        exit 1
+    fi
+
+    echo "🗑️  Removing existing Xcode command line tools..."
+    if [[ -d "/Library/Developer/CommandLineTools" ]]; then
+        sudo rm -rf /Library/Developer/CommandLineTools
+        echo "✅ Existing command line tools removed"
+    fi
+
+    echo "📥 Installing Xcode command line tools..."
+    echo "💡 A dialog will appear - please click 'Install' and wait for completion"
+    xcode-select --install
+
+    # Wait for installation to complete
+    echo "⏳ Waiting for Xcode command line tools installation to complete..."
+    echo "💡 This may take several minutes. Please be patient..."
+
+    while ! xcode-select -p &> /dev/null; do
+        echo "⏳ Still waiting for installation to complete..."
+        sleep 10
+    done
+
+    echo "✅ Xcode command line tools installation completed!"
+    echo ""
+    echo "🔧 Now attempting to rebuild and install the menubar application..."
+    cd {{ sparkdock_path }}
+
+    # Try to build the menubar app
+    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
+        echo ""
+        echo "🎉 Success! Sparkdock menu bar app has been rebuilt and installed!"
+        echo "💡 The app should now be running via LaunchAgent"
+    else
+        echo ""
+        echo "❌ Menubar installation still failed after fixing command line tools"
+        echo "💡 You may need to:"
+        echo "   - Restart your terminal/shell session"
+        echo "   - Check for other Swift/Xcode related issues"
+        echo "   - Verify Xcode license acceptance: sudo xcodebuild -license accept"
+        exit 1
+    fi
+
 # Helper function to validate plist and unload service
 _menubar_plist_unload:
     #!/usr/bin/env bash
