@@ -439,8 +439,11 @@
 
             - name: Load menubar app launch agent
               shell: |
-                launchctl unload "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist" 2>/dev/null || true
-                launchctl load "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+                pkill -f "sparkdock-manager" 2>/dev/null || true
+                launchctl bootout gui/$(id -u) "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist" 2>/dev/null || true
+                launchctl bootstrap gui/$(id -u) "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+                launchctl enable gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
+                launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
               become: no
               ignore_errors: yes
           when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
