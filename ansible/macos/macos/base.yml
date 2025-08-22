@@ -410,14 +410,7 @@
           debug:
             msg: "{{ sparkdock_status.stdout_lines }}"
 
-        - name: Check CI environment
-          debug:
-            msg:
-              - "HOME: {{ ansible_env.HOME | default('undefined') }}"
-              - "USER: {{ ansible_env.USER | default('undefined') }}"
-              - "CI: {{ ansible_env.CI | default('undefined') }}"
-              - "GITHUB_ACTIONS: {{ ansible_env.GITHUB_ACTIONS | default('undefined') }}"
-              - "RUNNER_OS: {{ ansible_env.RUNNER_OS | default('undefined') }}"
+
 
         - name: LaunchAgent installation (local environment only)
           block:
