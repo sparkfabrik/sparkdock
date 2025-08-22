@@ -12,21 +12,10 @@ run-ansible-macos TAGS="all":
         exit 1
     fi
     
-    # Capture original user information before running ansible with --become
-    ORIGINAL_USER=$(id -un)
-    ORIGINAL_UID=$(id -u)
-    ORIGINAL_GID=$(id -g)
-    
     if [ -z "${TAGS}" ]; then
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become -v \
-            -e "original_user=${ORIGINAL_USER}" \
-            -e "original_uid=${ORIGINAL_UID}" \
-            -e "original_gid=${ORIGINAL_GID}"
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become -v
     else
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become --tags=${TAGS} -v \
-            -e "original_user=${ORIGINAL_USER}" \
-            -e "original_uid=${ORIGINAL_UID}" \
-            -e "original_gid=${ORIGINAL_GID}"
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become --tags=${TAGS} -v
     fi
 
 # Create macOS VM with Tart (installs Tart if needed)

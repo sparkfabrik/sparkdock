@@ -204,7 +204,6 @@ sparkdock-install-tags tags:
         exit 1
     fi
     
-    # Capture original user information before running ansible with --become
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --become
 
 # Update Sparkdock git repository to latest version, it doesn't run any ansible task.
@@ -277,7 +276,6 @@ sparkdock-menubar-install:
             exit 1
         fi
         
-        # Capture original user information before running ansible with --become
         ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become
     fi
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
