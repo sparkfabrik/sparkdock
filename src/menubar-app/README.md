@@ -39,7 +39,9 @@ sudo cp .build/release/sparkdock-manager /usr/local/bin/
 
 # Create launch agent (auto-start at login)
 cp com.sparkfabrik.sparkdock.menubar.plist ~/Library/LaunchAgents/
-launchctl load ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist
+launchctl enable gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
+launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
 ```
 
 ## Adding Custom Logo
