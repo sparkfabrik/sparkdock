@@ -72,7 +72,7 @@ http-proxy-install-update:
         echo "🔧 Configuring git permissions..."
         uid=$(id -u)
         gid=$(id -g)
-        sudo chown -R "$uid:$gid" .
+        sudo chown -R "${uid}:${gid}" .
         git config --local --add safe.directory $PWD
 
         # Check if we're on main branch (http-proxy uses main, not master)
