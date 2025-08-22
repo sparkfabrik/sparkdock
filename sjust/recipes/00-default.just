@@ -116,7 +116,14 @@ http-proxy-install-update:
         echo "🤖 Detected non-interactive environment, running without password prompt..."
         ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" -e "ansible_become_password=" --become
     else
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
+        # Validate sudo access before running ansible to prevent hanging
+        echo "🔒 Validating sudo access..."
+        if ! sudo -v; then
+            echo "❌ Failed to validate sudo access. Please check your password and try again."
+            exit 1
+        fi
+        
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --become
     fi
 
     # Clean up and restart
@@ -195,7 +202,15 @@ sparkdock-install-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
     cd {{ sparkdock_path }}
-    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
+    
+    # Validate sudo access before running ansible to prevent hanging
+    echo "🔒 Validating sudo access..."
+    if ! sudo -v; then
+        echo "❌ Failed to validate sudo access. Please check your password and try again."
+        exit 1
+    fi
+    
+    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --become
 
 # Update Sparkdock git repository to latest version, it doesn't run any ansible task.
 [group('sparkdock')]
@@ -260,7 +275,14 @@ sparkdock-menubar-install:
         echo "🤖 Detected non-interactive environment, running without password prompt..."
         ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e "ansible_become_password=" --become
     else
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass
+        # Validate sudo access before running ansible to prevent hanging
+        echo "🔒 Validating sudo access..."
+        if ! sudo -v; then
+            echo "❌ Failed to validate sudo access. Please check your password and try again."
+            exit 1
+        fi
+        
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become
     fi
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
@@ -315,8 +337,15 @@ menubar-reinstall:
     echo "🔧 Now attempting to rebuild and install the menubar application..."
     cd {{ sparkdock_path }}
 
+    # Validate sudo access before running ansible to prevent hanging
+    echo "🔒 Validating sudo access..."
+    if ! sudo -v; then
+        echo "❌ Failed to validate sudo access. Please check your password and try again."
+        exit 1
+    fi
+
     # Try to build the menubar app
-    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
+    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become; then
         echo ""
         echo "🎉 Success! Sparkdock menu bar app has been rebuilt and installed!"
         echo "💡 The app should now be running via LaunchAgent"
