@@ -461,7 +461,7 @@
               - "Common symptoms include Swift compiler errors or missing headers."
               - ""
               - "🔧 To fix this issue, run the following command:"
-              - "   sjust sparkdock-menubar-fix-and-install"
+              - "   sjust menubar-reinstall"
               - ""
               - "This command will:"
               - "  1. Remove existing Xcode command line tools"
@@ -480,7 +480,7 @@
         - name: Fail with helpful message
           fail:
             msg: |
-              Menubar app compilation failed. Run 'sjust sparkdock-menubar-fix-and-install' to fix Xcode command line tools and retry installation.
+              Menubar app compilation failed. Run 'sjust menubar-reinstall' to fix Xcode command line tools and retry installation.
 
   post_tasks:
     - name: Print installation complete message

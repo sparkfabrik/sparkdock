@@ -260,8 +260,8 @@ sparkdock-menubar-install:
     echo "💡 The app should now be running via LaunchAgent"
 
 # Fix Xcode command line tools and rebuild menubar application.
-[group('sparkdock')]
-sparkdock-menubar-fix-and-install:
+[group('menubar')]
+menubar-reinstall:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "🔧 Fixing Xcode command line tools and rebuilding Sparkdock menu bar application..."
