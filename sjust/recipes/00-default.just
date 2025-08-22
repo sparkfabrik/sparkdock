@@ -117,15 +117,7 @@ http-proxy-install-update:
             exit 1
         fi
         
-        # Capture original user information before running ansible with --become
-        ORIGINAL_USER=$(id -un)
-        ORIGINAL_UID=$(id -u)
-        ORIGINAL_GID=$(id -g)
-        
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --become \
-            -e "original_user=${ORIGINAL_USER}" \
-            -e "original_uid=${ORIGINAL_UID}" \
-            -e "original_gid=${ORIGINAL_GID}"
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --become
     fi
 
     # Clean up and restart
@@ -213,14 +205,7 @@ sparkdock-install-tags tags:
     fi
     
     # Capture original user information before running ansible with --become
-    ORIGINAL_USER=$(id -un)
-    ORIGINAL_UID=$(id -u)
-    ORIGINAL_GID=$(id -g)
-    
-    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --become \
-        -e "original_user=${ORIGINAL_USER}" \
-        -e "original_uid=${ORIGINAL_UID}" \
-        -e "original_gid=${ORIGINAL_GID}"
+    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --become
 
 # Update Sparkdock git repository to latest version, it doesn't run any ansible task.
 [group('sparkdock')]
@@ -293,14 +278,7 @@ sparkdock-menubar-install:
         fi
         
         # Capture original user information before running ansible with --become
-        ORIGINAL_USER=$(id -un)
-        ORIGINAL_UID=$(id -u)
-        ORIGINAL_GID=$(id -g)
-        
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become \
-            -e "original_user=${ORIGINAL_USER}" \
-            -e "original_uid=${ORIGINAL_UID}" \
-            -e "original_gid=${ORIGINAL_GID}"
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become
     fi
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
@@ -362,16 +340,8 @@ menubar-reinstall:
         exit 1
     fi
 
-    # Capture original user information before running ansible with --become
-    ORIGINAL_USER=$(id -un)
-    ORIGINAL_UID=$(id -u)
-    ORIGINAL_GID=$(id -g)
-
     # Try to build the menubar app
-    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become \
-        -e "original_user=${ORIGINAL_USER}" \
-        -e "original_uid=${ORIGINAL_UID}" \
-        -e "original_gid=${ORIGINAL_GID}"; then
+    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become; then
         echo ""
         echo "🎉 Success! Sparkdock menu bar app has been rebuilt and installed!"
         echo "💡 The app should now be running via LaunchAgent"
