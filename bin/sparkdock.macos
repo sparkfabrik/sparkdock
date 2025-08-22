@@ -181,7 +181,7 @@ if ! sudo -v; then
 fi
 
 print_info "Running ansible playbook..."
-ansible-playbook "$SPARKDOCK_ROOT/ansible/macos.yml" -i "$SPARKDOCK_ROOT/ansible/inventory.ini" --ask-become-pass -v
+ansible-playbook "$SPARKDOCK_ROOT/ansible/macos.yml" -i "$SPARKDOCK_ROOT/ansible/inventory.ini" --become -v
 
 print_success "Installation completed successfully"
 

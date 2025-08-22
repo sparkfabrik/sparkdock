@@ -116,7 +116,7 @@ http-proxy-install-update:
             echo "❌ Failed to validate sudo access. Please check your password and try again."
             exit 1
         fi
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --become
     fi
 
     # Clean up and restart
@@ -203,7 +203,7 @@ sparkdock-install-tags tags:
         exit 1
     fi
     
-    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
+    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --become
 
 # Update Sparkdock git repository to latest version, it doesn't run any ansible task.
 [group('sparkdock')]
@@ -274,7 +274,7 @@ sparkdock-menubar-install:
             echo "❌ Failed to validate sudo access. Please check your password and try again."
             exit 1
         fi
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become
     fi
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
@@ -337,7 +337,7 @@ menubar-reinstall:
     fi
 
     # Try to build the menubar app
-    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
+    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become; then
         echo ""
         echo "🎉 Success! Sparkdock menu bar app has been rebuilt and installed!"
         echo "💡 The app should now be running via LaunchAgent"

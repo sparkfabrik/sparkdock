@@ -8,9 +8,9 @@ run-ansible-macos:
 		exit 1; \
 	fi
 ifeq ($(TAGS),)
-	ansible-playbook ./ansible/macos.yml --ask-become-pass
+	ansible-playbook ./ansible/macos.yml --become
 else
-	ansible-playbook ./ansible/macos.yml --ask-become-pass --tags=$(TAGS)
+	ansible-playbook ./ansible/macos.yml --become --tags=$(TAGS)
 endif
 
 # Install sjust only (for manual http-proxy migration workflow)

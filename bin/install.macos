@@ -132,7 +132,7 @@ else
     print "Failed to validate sudo access. Please check your password and try again."
     exit 1
   fi
-  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v
+  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become -v
 fi
 if [[ $? -ne 0 ]]; then
   print "Ansible playbook failed. Exiting..."

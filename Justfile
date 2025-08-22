@@ -13,9 +13,9 @@ run-ansible-macos TAGS="all":
     fi
     
     if [ -z "${TAGS}" ]; then
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become -v
     else
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass --tags=${TAGS} -v
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become --tags=${TAGS} -v
     fi
 
 # Create macOS VM with Tart (installs Tart if needed)
