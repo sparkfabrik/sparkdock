@@ -110,7 +110,20 @@ http-proxy-install-update:
         echo "🤖 Detected non-interactive environment, running without password prompt..."
         ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" -e "ansible_become_password=" --become
     else
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
+        echo "🔧 Running ansible configuration with timeout protection..."
+        if ! timeout 300 ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass; then
+            exit_code=$?
+            if [ $exit_code -eq 124 ]; then
+                echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"
+                echo "   - Wrong sudo password was entered"
+                echo "   - System is unresponsive during fact gathering"
+                echo "💡 Please try again with the correct password."
+                exit $exit_code
+            else
+                echo "❌ Ansible playbook failed with exit code $exit_code"
+                exit $exit_code
+            fi
+        fi
     fi
 
     # Clean up and restart
@@ -189,7 +202,19 @@ sparkdock-install-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
     cd {{ sparkdock_path }}
-    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
+    if ! timeout 300 ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass; then
+        exit_code=$?
+        if [ $exit_code -eq 124 ]; then
+            echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"
+            echo "   - Wrong sudo password was entered"
+            echo "   - System is unresponsive during fact gathering"
+            echo "💡 Please try again with the correct password."
+            exit $exit_code
+        else
+            echo "❌ Ansible playbook failed with exit code $exit_code"
+            exit $exit_code
+        fi
+    fi
 
 # Update Sparkdock git repository to latest version, it doesn't run any ansible task.
 [group('sparkdock')]
@@ -254,7 +279,20 @@ sparkdock-menubar-install:
         echo "🤖 Detected non-interactive environment, running without password prompt..."
         ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e "ansible_become_password=" --become
     else
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass
+        echo "🔧 Running ansible configuration with timeout protection..."
+        if ! timeout 300 ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
+            exit_code=$?
+            if [ $exit_code -eq 124 ]; then
+                echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"
+                echo "   - Wrong sudo password was entered"
+                echo "   - System is unresponsive during fact gathering"
+                echo "💡 Please try again with the correct password."
+                exit $exit_code
+            else
+                echo "❌ Ansible playbook failed with exit code $exit_code"
+                exit $exit_code
+            fi
+        fi
     fi
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
@@ -310,14 +348,23 @@ menubar-reinstall:
     cd {{ sparkdock_path }}
 
     # Try to build the menubar app
-    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
+    echo "🔧 Attempting to rebuild the menubar app with timeout protection..."
+    if timeout 300 ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
         echo ""
         echo "🎉 Success! Sparkdock menu bar app has been rebuilt and installed!"
         echo "💡 The app should now be running via LaunchAgent"
     else
-        echo ""
-        echo "❌ Menubar installation still failed after fixing command line tools"
-        echo "💡 You may need to:"
+        exit_code=$?
+        if [ $exit_code -eq 124 ]; then
+            echo ""
+            echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"
+            echo "   - Wrong sudo password was entered"
+            echo "   - System is unresponsive during fact gathering"
+            echo "💡 Please try again with the correct password."
+        else
+            echo ""
+            echo "❌ Menubar installation still failed after fixing command line tools"
+            echo "💡 You may need to:"
         echo "   - Restart your terminal/shell session"
         echo "   - Check for other Swift/Xcode related issues"
         echo "   - Verify Xcode license acceptance: sudo xcodebuild -license accept"

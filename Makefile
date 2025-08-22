@@ -3,9 +3,27 @@ DEFAULT_BRANCH := master
 
 run-ansible-macos:
 ifeq ($(TAGS),)
-	ansible-playbook ./ansible/macos.yml --ask-become-pass
+	@if ! timeout 300 ansible-playbook ./ansible/macos.yml --ask-become-pass; then \
+		exit_code=$$?; \
+		if [ $$exit_code -eq 124 ]; then \
+			echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"; \
+			echo "   - Wrong sudo password was entered"; \
+			echo "   - System is unresponsive during fact gathering"; \
+			echo "💡 Please try again with the correct password."; \
+		fi; \
+		exit $$exit_code; \
+	fi
 else
-	ansible-playbook ./ansible/macos.yml --ask-become-pass --tags=$(TAGS)
+	@if ! timeout 300 ansible-playbook ./ansible/macos.yml --ask-become-pass --tags=$(TAGS); then \
+		exit_code=$$?; \
+		if [ $$exit_code -eq 124 ]; then \
+			echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"; \
+			echo "   - Wrong sudo password was entered"; \
+			echo "   - System is unresponsive during fact gathering"; \
+			echo "💡 Please try again with the correct password."; \
+		fi; \
+		exit $$exit_code; \
+	fi
 endif
 
 # Install sjust only (for manual http-proxy migration workflow)

@@ -127,11 +127,19 @@ if [[ "$NON_INTERACTIVE" == "true" ]]; then
   fi
   ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become -v
 else
-  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v
-fi
-if [[ $? -ne 0 ]]; then
-  print "Ansible playbook failed. Exiting..."
-  exit 1
+  # Run ansible-playbook with timeout to prevent hanging on wrong passwords  
+  if ! timeout 300 ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v; then
+    exit_code=$?
+    if [ $exit_code -eq 124 ]; then
+      print "Ansible playbook timed out after 5 minutes. This usually happens when:"
+      print "- Wrong sudo password was entered"
+      print "- System is unresponsive during fact gathering"
+      print "Please try running the installation again with the correct password."
+    else
+      print "Ansible playbook failed with exit code $exit_code"
+    fi
+    exit $exit_code
+  fi
 fi
 
 # Run http-proxy.
