@@ -269,8 +269,10 @@ _menubar_plist_unload:
         exit 1
     fi
 
-    # Unload the service if it's currently loaded (ignore errors)
-    launchctl unload "${PLIST_PATH}" 2>/dev/null || true
+    # Use the helper script to unload the service
+    if ! /usr/local/bin/launchctl-helper unload "${PLIST_PATH}"; then
+        echo "⚠️  Failed to unload LaunchAgent, but continuing..."
+    fi
 
 # Start/restart the Sparkdock menu bar application using LaunchAgent.
 [group('sparkdock')]
@@ -278,10 +280,12 @@ sparkdock-menubar-start:
     #!/usr/bin/env bash
     just _menubar_plist_unload
 
-    # Load the service
+    # Load the service using helper script
     PLIST_PATH="{{sparkdock_menubar_plist_path}}"
-    if ! launchctl load "${PLIST_PATH}"; then
+    if ! /usr/local/bin/launchctl-helper load "${PLIST_PATH}"; then
         echo "❌ Failed to start menu bar app via LaunchAgent"
+        echo "💡 Try running the command manually for more details:"
+        echo "   /usr/local/bin/launchctl-helper load \"${PLIST_PATH}\""
         exit 1
     fi
 

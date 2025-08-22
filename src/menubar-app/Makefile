@@ -17,12 +17,11 @@ install: build
 	sudo cp .build/release/sparkdock-manager /usr/local/bin/
 	sudo chmod 755 /usr/local/bin/sparkdock-manager
 	cp com.sparkfabrik.sparkdock.menubar.plist ~/Library/LaunchAgents/
-	launchctl unload ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist 2>/dev/null || true
-	launchctl load ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist
+	/usr/local/bin/launchctl-helper reload ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist
 
 # Uninstall the application
 uninstall:
-	launchctl unload ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist 2>/dev/null || true
+	/usr/local/bin/launchctl-helper unload ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist 2>/dev/null || true
 	rm -f ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist
 	sudo rm -f /usr/local/bin/sparkdock-manager
 

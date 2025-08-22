@@ -437,12 +437,24 @@
                 mode: "0644"
               become: no
 
+            - name: Install launchctl helper script
+              copy:
+                src: "{{ dev_env_dir }}/bin/launchctl-helper.sh"
+                dest: "/usr/local/bin/launchctl-helper"
+                mode: "0755"
+              become: yes
+              become_method: sudo
+
             - name: Load menubar app launch agent
               shell: |
-                launchctl unload "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist" 2>/dev/null || true
-                launchctl load "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+                /usr/local/bin/launchctl-helper reload "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
               become: no
-              ignore_errors: yes
+              register: launchagent_result
+              failed_when: launchagent_result.rc != 0
+
+            - name: Display LaunchAgent loading result
+              debug:
+                msg: "{{ launchagent_result.stdout_lines }}"
           when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
 
   post_tasks:
