@@ -467,8 +467,6 @@
               - "  1. Remove existing Xcode command line tools"
               - "  2. Reinstall them properly"
               - "  3. Retry the menubar app installation"
-              - ""
-              - "💡 More info: https://ryanblunden.com/having-issues-with-macos-compilation-and-commandline-tools-3a5a8a36bb34"
 
         - name: Show build error output
           debug:

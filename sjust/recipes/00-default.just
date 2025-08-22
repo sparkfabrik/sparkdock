@@ -289,8 +289,6 @@ sparkdock-menubar-fix-and-install:
     if [[ -d "/Library/Developer/CommandLineTools" ]]; then
         sudo rm -rf /Library/Developer/CommandLineTools
         echo "✅ Existing command line tools removed"
-    else
-        echo "ℹ️  No existing command line tools found"
     fi
 
     echo "📥 Installing Xcode command line tools..."
