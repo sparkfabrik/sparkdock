@@ -7,11 +7,21 @@ run-ansible-macos:
 		echo "❌ Failed to validate sudo access. Please check your password and try again."; \
 		exit 1; \
 	fi
-ifeq ($(TAGS),)
-	ansible-playbook ./ansible/macos.yml --become
-else
-	ansible-playbook ./ansible/macos.yml --become --tags=$(TAGS)
-endif
+	@# Capture original user information before running ansible with --become
+	@ORIGINAL_USER=$$(id -un); \
+	ORIGINAL_UID=$$(id -u); \
+	ORIGINAL_GID=$$(id -g); \
+	if [ -z "$(TAGS)" ]; then \
+		ansible-playbook ./ansible/macos.yml --become \
+			-e "original_user=$$ORIGINAL_USER" \
+			-e "original_uid=$$ORIGINAL_UID" \
+			-e "original_gid=$$ORIGINAL_GID"; \
+	else \
+		ansible-playbook ./ansible/macos.yml --become --tags=$(TAGS) \
+			-e "original_user=$$ORIGINAL_USER" \
+			-e "original_uid=$$ORIGINAL_UID" \
+			-e "original_gid=$$ORIGINAL_GID"; \
+	fi
 
 # Install sjust only (for manual http-proxy migration workflow)
 install-sjust:

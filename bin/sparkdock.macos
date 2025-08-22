@@ -180,8 +180,16 @@ if ! sudo -v; then
     exit 1
 fi
 
+# Capture original user information before running ansible with --become
+ORIGINAL_USER=$(id -un)
+ORIGINAL_UID=$(id -u)
+ORIGINAL_GID=$(id -g)
+
 print_info "Running ansible playbook..."
-ansible-playbook "$SPARKDOCK_ROOT/ansible/macos.yml" -i "$SPARKDOCK_ROOT/ansible/inventory.ini" --become -v
+ansible-playbook "$SPARKDOCK_ROOT/ansible/macos.yml" -i "$SPARKDOCK_ROOT/ansible/inventory.ini" --become -v \
+    -e "original_user=${ORIGINAL_USER}" \
+    -e "original_uid=${ORIGINAL_UID}" \
+    -e "original_gid=${ORIGINAL_GID}"
 
 print_success "Installation completed successfully"
 
