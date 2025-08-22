@@ -41,7 +41,6 @@ sudo cp .build/release/sparkdock-manager /usr/local/bin/
 cp com.sparkfabrik.sparkdock.menubar.plist ~/Library/LaunchAgents/
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist
 launchctl enable gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
-launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
 ```
 
 ## Adding Custom Logo
