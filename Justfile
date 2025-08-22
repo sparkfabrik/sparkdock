@@ -4,28 +4,18 @@ _default:
 run-ansible-macos TAGS="all":
     #!/usr/bin/env bash
     TAGS={{TAGS}}
+    
+    # Validate sudo access before running ansible to prevent hanging
+    echo "Validating sudo access..."
+    if ! sudo -v; then
+        echo "❌ Failed to validate sudo access. Please check your password and try again."
+        exit 1
+    fi
+    
     if [ -z "${TAGS}" ]; then
-        if ! timeout 300 ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v; then
-            exit_code=$?
-            if [ $exit_code -eq 124 ]; then
-                echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"
-                echo "   - Wrong sudo password was entered"
-                echo "   - System is unresponsive during fact gathering"
-                echo "💡 Please try again with the correct password."
-                exit $exit_code
-            fi
-        fi
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v
     else
-        if ! timeout 300 ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass --tags=${TAGS} -v; then
-            exit_code=$?
-            if [ $exit_code -eq 124 ]; then
-                echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"
-                echo "   - Wrong sudo password was entered"
-                echo "   - System is unresponsive during fact gathering"
-                echo "💡 Please try again with the correct password."
-                exit $exit_code
-            fi
-        fi
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass --tags=${TAGS} -v
     fi
 
 # Create macOS VM with Tart (installs Tart if needed)

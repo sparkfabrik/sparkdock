@@ -171,23 +171,17 @@ checkMacosVersion
 
 print_section "System Update"
 print_info "Sparkdock provisioner: Updating your system in progress..."
-print_info "Running ansible playbook..."
-print_warning "You'll be asked to insert your password to become root"
 
-# Run ansible-playbook with timeout to prevent hanging on wrong passwords
-# Timeout after 5 minutes (300 seconds) which should be enough for password entry
-if ! timeout 300 ansible-playbook "$SPARKDOCK_ROOT/ansible/macos.yml" -i "$SPARKDOCK_ROOT/ansible/inventory.ini" --ask-become-pass -v; then
-    exit_code=$?
-    if [ $exit_code -eq 124 ]; then
-        print_error "Ansible playbook timed out after 5 minutes. This usually happens when:"
-        print_error "- Wrong sudo password was entered"
-        print_error "- System is unresponsive during fact gathering"
-        print_error "Please try running sparkdock again with the correct password."
-    else
-        print_error "Ansible playbook failed with exit code $exit_code"
-    fi
-    exit $exit_code
+# Validate sudo access before running ansible to prevent hanging
+print_info "Validating sudo access..."
+print_warning "You'll be asked to insert your password to become root"
+if ! sudo -v; then
+    print_error "Failed to validate sudo access. Please check your password and try again."
+    exit 1
 fi
+
+print_info "Running ansible playbook..."
+ansible-playbook "$SPARKDOCK_ROOT/ansible/macos.yml" -i "$SPARKDOCK_ROOT/ansible/inventory.ini" --ask-become-pass -v
 
 print_success "Installation completed successfully"
 

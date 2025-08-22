@@ -110,20 +110,13 @@ http-proxy-install-update:
         echo "🤖 Detected non-interactive environment, running without password prompt..."
         ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" -e "ansible_become_password=" --become
     else
-        echo "🔧 Running ansible configuration with timeout protection..."
-        if ! timeout 300 ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass; then
-            exit_code=$?
-            if [ $exit_code -eq 124 ]; then
-                echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"
-                echo "   - Wrong sudo password was entered"
-                echo "   - System is unresponsive during fact gathering"
-                echo "💡 Please try again with the correct password."
-                exit $exit_code
-            else
-                echo "❌ Ansible playbook failed with exit code $exit_code"
-                exit $exit_code
-            fi
+        # Validate sudo access before running ansible to prevent hanging
+        echo "🔒 Validating sudo access..."
+        if ! sudo -v; then
+            echo "❌ Failed to validate sudo access. Please check your password and try again."
+            exit 1
         fi
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
     fi
 
     # Clean up and restart
@@ -202,19 +195,15 @@ sparkdock-install-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
     cd {{ sparkdock_path }}
-    if ! timeout 300 ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass; then
-        exit_code=$?
-        if [ $exit_code -eq 124 ]; then
-            echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"
-            echo "   - Wrong sudo password was entered"
-            echo "   - System is unresponsive during fact gathering"
-            echo "💡 Please try again with the correct password."
-            exit $exit_code
-        else
-            echo "❌ Ansible playbook failed with exit code $exit_code"
-            exit $exit_code
-        fi
+    
+    # Validate sudo access before running ansible to prevent hanging
+    echo "🔒 Validating sudo access..."
+    if ! sudo -v; then
+        echo "❌ Failed to validate sudo access. Please check your password and try again."
+        exit 1
     fi
+    
+    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
 
 # Update Sparkdock git repository to latest version, it doesn't run any ansible task.
 [group('sparkdock')]
@@ -279,20 +268,13 @@ sparkdock-menubar-install:
         echo "🤖 Detected non-interactive environment, running without password prompt..."
         ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e "ansible_become_password=" --become
     else
-        echo "🔧 Running ansible configuration with timeout protection..."
-        if ! timeout 300 ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
-            exit_code=$?
-            if [ $exit_code -eq 124 ]; then
-                echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"
-                echo "   - Wrong sudo password was entered"
-                echo "   - System is unresponsive during fact gathering"
-                echo "💡 Please try again with the correct password."
-                exit $exit_code
-            else
-                echo "❌ Ansible playbook failed with exit code $exit_code"
-                exit $exit_code
-            fi
+        # Validate sudo access before running ansible to prevent hanging
+        echo "🔒 Validating sudo access..."
+        if ! sudo -v; then
+            echo "❌ Failed to validate sudo access. Please check your password and try again."
+            exit 1
         fi
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass
     fi
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
@@ -347,24 +329,22 @@ menubar-reinstall:
     echo "🔧 Now attempting to rebuild and install the menubar application..."
     cd {{ sparkdock_path }}
 
+    # Validate sudo access before running ansible to prevent hanging
+    echo "🔒 Validating sudo access..."
+    if ! sudo -v; then
+        echo "❌ Failed to validate sudo access. Please check your password and try again."
+        exit 1
+    fi
+
     # Try to build the menubar app
-    echo "🔧 Attempting to rebuild the menubar app with timeout protection..."
-    if timeout 300 ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
+    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
         echo ""
         echo "🎉 Success! Sparkdock menu bar app has been rebuilt and installed!"
         echo "💡 The app should now be running via LaunchAgent"
     else
-        exit_code=$?
-        if [ $exit_code -eq 124 ]; then
-            echo ""
-            echo "❌ Ansible playbook timed out after 5 minutes. This usually happens when:"
-            echo "   - Wrong sudo password was entered"
-            echo "   - System is unresponsive during fact gathering"
-            echo "💡 Please try again with the correct password."
-        else
-            echo ""
-            echo "❌ Menubar installation still failed after fixing command line tools"
-            echo "💡 You may need to:"
+        echo ""
+        echo "❌ Menubar installation still failed after fixing command line tools"
+        echo "💡 You may need to:"
         echo "   - Restart your terminal/shell session"
         echo "   - Check for other Swift/Xcode related issues"
         echo "   - Verify Xcode license acceptance: sudo xcodebuild -license accept"
