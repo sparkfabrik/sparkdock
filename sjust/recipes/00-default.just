@@ -69,10 +69,16 @@ http-proxy-install-update:
         echo "🔄 Updating existing http-proxy repository..."
         cd http-proxy
 
-        # Fix git ownership issues
-        echo "🔧 Configuring git safe directory..."
-        git config --local --add safe.directory $PWD
+        echo "🔧 Configuring git permissions..."
+        uid=$(id -u)
+        gid=$(id -g)
+        current_uid=$(stat -f "%u" .)
+        current_gid=$(stat -f "%g" .)
+        if [[ "$current_uid" != "$uid" || "$current_gid" != "$gid" ]]; then
+            sudo chown -R "${uid}:${gid}" .
+        fi
 
+        git config --local --add safe.directory $PWD
         # Check if we're on main branch (http-proxy uses main, not master)
         current_branch=$(git branch --show-current)
         if [[ "${current_branch}" != "main" ]]; then
@@ -343,7 +349,7 @@ sparkdock-menubar-start:
     #!/usr/bin/env bash
     # Kill any running processes first
     pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
-    
+
     just _menubar_plist_unload
 
     # Load and start the service
@@ -352,12 +358,12 @@ sparkdock-menubar-start:
         echo "❌ Failed to bootstrap menu bar app via LaunchAgent"
         exit 1
     fi
-    
+
     if ! launchctl enable gui/$(id -u)/com.sparkfabrik.sparkdock.menubar; then
         echo "❌ Failed to enable menu bar app via LaunchAgent"
         exit 1
     fi
-    
+
     if ! launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar; then
         echo "❌ Failed to kickstart menu bar app via LaunchAgent"
         exit 1
