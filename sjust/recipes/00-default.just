@@ -276,6 +276,9 @@ _menubar_plist_unload:
 [group('sparkdock')]
 sparkdock-menubar-start:
     #!/usr/bin/env bash
+    # Kill any running processes first
+    pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
+    
     just _menubar_plist_unload
 
     # Load and start the service
@@ -287,11 +290,6 @@ sparkdock-menubar-start:
     
     if ! launchctl enable gui/$(id -u)/com.sparkfabrik.sparkdock.menubar; then
         echo "❌ Failed to enable menu bar app via LaunchAgent"
-        exit 1
-    fi
-    
-    if ! launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar; then
-        echo "❌ Failed to kickstart menu bar app via LaunchAgent"
         exit 1
     fi
 
