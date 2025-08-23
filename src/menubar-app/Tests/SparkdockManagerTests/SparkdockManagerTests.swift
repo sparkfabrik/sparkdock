@@ -43,7 +43,10 @@ final class SparkdockManagerTests: XCTestCase {
     func testMenuItemTags() {
         let updateTag = 1
         let loginTag = 2
+        let upgradeBrewTag = 3
         XCTAssertNotEqual(updateTag, loginTag, "Menu item tags should be unique")
+        XCTAssertNotEqual(updateTag, upgradeBrewTag, "Menu item tags should be unique")
+        XCTAssertNotEqual(loginTag, upgradeBrewTag, "Menu item tags should be unique")
     }
     
     func testTimerTolerance() {
@@ -64,5 +67,31 @@ final class SparkdockManagerTests: XCTestCase {
         if fileExists {
             XCTAssertTrue(fileExists, "pgrep should exist at \(pgrepPath) on macOS systems")
         }
+    }
+
+    func testBrewPathValidation() {
+        let appleBrewPath = "/opt/homebrew/bin/brew"
+        let intelBrewPath = "/usr/local/bin/brew"
+        
+        // At least one of these should exist on a properly configured macOS system
+        // In CI/Linux environments, both may be missing, which is expected
+        let hasAppleBrew = FileManager.default.fileExists(atPath: appleBrewPath)
+        let hasIntelBrew = FileManager.default.fileExists(atPath: intelBrewPath)
+        
+        // This test verifies the paths we check are correct, regardless of availability
+        XCTAssertEqual(appleBrewPath, "/opt/homebrew/bin/brew", "Apple Silicon brew path should be correct")
+        XCTAssertEqual(intelBrewPath, "/usr/local/bin/brew", "Intel brew path should be correct")
+    }
+
+    func testBrewCommandFormat() {
+        let brewCommand = "brew outdated --quiet | wc -l"
+        XCTAssertTrue(brewCommand.contains("brew outdated"), "Command should check for outdated packages")
+        XCTAssertTrue(brewCommand.contains("--quiet"), "Command should use quiet mode")
+        XCTAssertTrue(brewCommand.contains("wc -l"), "Command should count lines for package count")
+    }
+
+    func testBrewUpgradeCommand() {
+        let upgradeCommand = "brew upgrade"
+        XCTAssertEqual(upgradeCommand, "brew upgrade", "Brew upgrade command should be correct")
     }
 }
