@@ -45,8 +45,11 @@ check_for_updates() {
     REMOTE=$(git rev-parse origin/${DEFAULT_BRANCH})
 
     if [ "$LOCAL" != "$REMOTE" ]; then
-        echo "Updates available:"
-        git --no-pager log --oneline HEAD..origin/${DEFAULT_BRANCH}
+        DIFF=$(git --no-pager log --oneline HEAD..origin/${DEFAULT_BRANCH})
+        if [ -n "$DIFF" ]; then
+            echo "Updates available:"
+            echo "$DIFF"
+        fi
         return 0
     fi
     return 1
