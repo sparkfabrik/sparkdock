@@ -313,66 +313,15 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func findBrewPath() async -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/which")
-        process.arguments = ["brew"]
-        
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
-        
-        var terminationStatus: Int32 = -1
-        do {
-            try process.run()
-            
-            // Await process termination with timeout
-            let finished: Bool = await withTaskCancellationHandler(
-                operation: {
-                    do {
-                        terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                            await withCheckedContinuation { continuation in
-                                process.terminationHandler = { proc in
-                                    continuation.resume(returning: proc.terminationStatus)
-                                }
-                            }
-                        }
-                        return true
-                    } catch {
-                        return false
-                    }
-                },
-                onCancel: {
-                    process.terminate()
-                }
-            )
-            
-            if !finished {
-                AppConstants.logger.error("Which brew process timed out after \(AppConstants.processTimeout) seconds")
-                return nil
-            }
-            
-            if terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let path = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines)
-                AppConstants.logger.info("Found brew at: \(path ?? "unknown")")
-                return path
-            } else {
-                AppConstants.logger.warning("Which brew command failed with status: \(terminationStatus)")
-                return nil
-            }
-        } catch {
-            AppConstants.logger.error("Failed to run which brew: \(error)")
-            return nil
-        }
-    }
-
     private func runBrewOutdatedCheck() async -> Int {
-        // Use 'which' to find the brew binary dynamically
-        guard let brewPath = await findBrewPath() else {
-            AppConstants.logger.warning("Homebrew not found in PATH")
+        guard FileManager.default.fileExists(atPath: "/opt/homebrew/bin/brew") || 
+              FileManager.default.fileExists(atPath: "/usr/local/bin/brew") else {
+            AppConstants.logger.warning("Homebrew not found at expected locations")
             return 0
         }
+
+        let brewPath = FileManager.default.fileExists(atPath: "/opt/homebrew/bin/brew") ? 
+                      "/opt/homebrew/bin/brew" : "/usr/local/bin/brew"
         
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
