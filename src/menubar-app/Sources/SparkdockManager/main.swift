@@ -202,7 +202,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         let updateItem = NSMenuItem(title: "", action: #selector(updateNow), keyEquivalent: "")
         updateItem.target = self
         updateItem.tag = MenuItemTag.updateNow.rawValue
-        updateItem.attributedTitle = NSAttributedString(string: "Update Now", attributes: [
+        updateItem.attributedTitle = NSAttributedString(string: "Upgrade Sparkdock", attributes: [
             .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
         ])
         menu.addItem(updateItem)
@@ -504,10 +504,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         statusMenuItem?.attributedTitle = createStatusTitle(title, color: color)
 
-        // Update the "Update Now" menu item visibility
+        // Update the "Upgrade Sparkdock" menu item visibility
         if let updateItem = updateNowMenuItem {
             if hasUpdates {
-                updateItem.title = "Update Now"
+                updateItem.title = "Upgrade Sparkdock"
                 updateItem.isEnabled = true
                 updateItem.isHidden = false
             } else {
