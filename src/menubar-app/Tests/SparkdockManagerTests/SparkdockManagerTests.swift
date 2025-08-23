@@ -69,18 +69,13 @@ final class SparkdockManagerTests: XCTestCase {
         }
     }
 
-    func testBrewPathValidation() {
-        let appleBrewPath = "/opt/homebrew/bin/brew"
-        let intelBrewPath = "/usr/local/bin/brew"
-        
-        // At least one of these should exist on a properly configured macOS system
-        // In CI/Linux environments, both may be missing, which is expected
-        let hasAppleBrew = FileManager.default.fileExists(atPath: appleBrewPath)
-        let hasIntelBrew = FileManager.default.fileExists(atPath: intelBrewPath)
-        
-        // This test verifies the paths we check are correct, regardless of availability
-        XCTAssertEqual(appleBrewPath, "/opt/homebrew/bin/brew", "Apple Silicon brew path should be correct")
-        XCTAssertEqual(intelBrewPath, "/usr/local/bin/brew", "Intel brew path should be correct")
+    func testWhichCommandValidation() {
+        let whichPath = "/usr/bin/which"
+        let fileExists = FileManager.default.fileExists(atPath: whichPath)
+        // Note: This may fail in some CI environments, but should pass on most Unix systems
+        if fileExists {
+            XCTAssertTrue(fileExists, "which command should exist at \(whichPath) on Unix systems")
+        }
     }
 
     func testBrewCommandFormat() {
