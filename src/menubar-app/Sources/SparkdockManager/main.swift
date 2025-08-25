@@ -205,7 +205,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         brewStatusItem.target = self
         menu.addItem(brewStatusItem)
         self.brewStatusMenuItem = brewStatusItem
-        
+
         menu.addItem(.separator())
 
         let updateItem = NSMenuItem(title: "", action: #selector(updateNow), keyEquivalent: "")
@@ -355,9 +355,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         // Get outdated formulae count
         let formulaeCount = await getBrewOutdatedCount(brewPath: brewPath, type: "formulae")
-        // Get outdated casks count  
+        // Get outdated casks count
         let casksCount = await getBrewOutdatedCount(brewPath: brewPath, type: "casks")
-        
+
         let totalCount = formulaeCount + casksCount
         AppConstants.logger.info("Found \(formulaeCount) outdated formulae and \(casksCount) outdated casks (total: \(totalCount))")
         return (formulaeCount, casksCount)
@@ -366,7 +366,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private func getBrewOutdatedCount(brewPath: String, type: String) async -> Int {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
-        
+
         let command = switch type {
         case "formulae":
             "\(brewPath) outdated --formula --quiet | wc -l"
@@ -375,9 +375,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         default:
             "\(brewPath) outdated --quiet | wc -l"
         }
-        
+
         process.arguments = ["-c", command]
-        
+
         // Set environment variables including PATH
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
@@ -500,7 +500,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         } else if outdatedBrewCasks > 0 {
             tooltipParts.append("\(outdatedBrewCasks) brew casks outdated")
         }
-        
+
         if tooltipParts.isEmpty {
             statusItem?.button?.toolTip = "Sparkdock - Up to date"
         } else {
@@ -513,7 +513,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         } else {
             sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Sparkdock is up to date", color: .systemGreen)
         }
-        
+
         // Update Brew status line
         if totalBrewCount > 0 {
             let brewStatusText = outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 ?
@@ -557,7 +557,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     @objc private func upgradeBrew() {
         guard totalOutdatedBrewCount > 0 else { return }
-        
+
         // Create a compound command that upgrades both formulae and casks
         let upgradeCommand = "brew upgrade && brew upgrade --cask"
         executeTerminalCommand(upgradeCommand)
@@ -694,30 +694,30 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 // MARK: - CLI Handling
 private func checkForExistingInstance() -> Bool {
     let currentPID = ProcessInfo.processInfo.processIdentifier
-    
+
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
     process.arguments = ["-f", "sparkdock-manager"]
-    
+
     let pipe = Pipe()
     process.standardOutput = pipe
     process.standardError = Pipe()
-    
+
     do {
         try process.run()
         process.waitUntilExit()
-        
+
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         let output = String(data: data, encoding: .utf8) ?? ""
-        
+
         // Parse PIDs from output and check if any other instance is running
         let pids = output.trimmingCharacters(in: .whitespacesAndNewlines)
             .components(separatedBy: .newlines)
             .compactMap { Int32($0) }
             .filter { $0 != currentPID }
-        
+
         return !pids.isEmpty
-        
+
     } catch {
         AppConstants.logger.warning("Failed to check for existing instances: \(error.localizedDescription)")
         return false
