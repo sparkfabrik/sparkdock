@@ -574,8 +574,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     @objc private func upgradeBrew() {
         guard totalOutdatedBrewCount > 0 else { return }
 
-        // Create a compound command that attempts both upgrades even if one fails
-        let upgradeCommand = "brew upgrade; brew upgrade --cask"
+        // Create a compound command that only runs the second upgrade if the first succeeds
+        let upgradeCommand = "brew upgrade && brew upgrade --cask"
         executeTerminalCommand(upgradeCommand)
     }
 
