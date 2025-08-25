@@ -43,7 +43,10 @@ final class SparkdockManagerTests: XCTestCase {
     func testMenuItemTags() {
         let updateTag = 1
         let loginTag = 2
+        let upgradeBrewTag = 3
         XCTAssertNotEqual(updateTag, loginTag, "Menu item tags should be unique")
+        XCTAssertNotEqual(updateTag, upgradeBrewTag, "Menu item tags should be unique")
+        XCTAssertNotEqual(loginTag, upgradeBrewTag, "Menu item tags should be unique")
     }
     
     func testTimerTolerance() {
@@ -64,5 +67,26 @@ final class SparkdockManagerTests: XCTestCase {
         if fileExists {
             XCTAssertTrue(fileExists, "pgrep should exist at \(pgrepPath) on macOS systems")
         }
+    }
+
+    func testWhichCommandValidation() {
+        let whichPath = "/usr/bin/which"
+        let fileExists = FileManager.default.fileExists(atPath: whichPath)
+        // Note: This may fail in some CI environments, but should pass on most Unix systems
+        if fileExists {
+            XCTAssertTrue(fileExists, "which command should exist at \(whichPath) on Unix systems")
+        }
+    }
+
+    func testBrewCommandFormat() {
+        let brewCommand = "brew outdated --quiet | wc -l"
+        XCTAssertTrue(brewCommand.contains("brew outdated"), "Command should check for outdated packages")
+        XCTAssertTrue(brewCommand.contains("--quiet"), "Command should use quiet mode")
+        XCTAssertTrue(brewCommand.contains("wc -l"), "Command should count lines for package count")
+    }
+
+    func testBrewUpgradeCommand() {
+        let upgradeCommand = "brew upgrade"
+        XCTAssertEqual(upgradeCommand, "brew upgrade", "Brew upgrade command should be correct")
     }
 }

@@ -1,7 +1,7 @@
 ---
 name: swift-macos-engineer
 description: Use this agent when you need expert-level Swift development for macOS applications, including architecture decisions, performance optimization, SwiftUI/AppKit integration, Core Data implementation, or macOS-specific features. Examples: <example>Context: User is building a macOS document-based app and needs help with Core Data integration. user: 'I need to implement document persistence for my macOS app using Core Data' assistant: 'I'll use the swift-macos-engineer agent to provide expert guidance on Core Data implementation for macOS document-based applications' <commentary>The user needs specialized macOS development expertise, so use the swift-macos-engineer agent.</commentary></example> <example>Context: User is working on SwiftUI performance issues in their macOS app. user: 'My SwiftUI views are rendering slowly on macOS, especially with large data sets' assistant: 'Let me engage the swift-macos-engineer agent to analyze and optimize your SwiftUI performance issues' <commentary>This requires deep macOS and SwiftUI expertise, perfect for the swift-macos-engineer agent.</commentary></example>
-model: sonnet
+model: opus
 color: purple
 ---
 

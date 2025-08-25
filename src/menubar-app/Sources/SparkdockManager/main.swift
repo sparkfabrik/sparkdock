@@ -48,6 +48,31 @@ fileprivate struct MenuItem: Codable {
 private enum MenuItemTag: Int {
     case updateNow = 1
     case loginItem = 2
+    case upgradeBrew = 3
+}
+
+// MARK: - Brew Package Types
+private enum BrewPackageType {
+    case formulae
+    case casks
+
+    var commandSuffix: String {
+        switch self {
+        case .formulae:
+            return "--formula"
+        case .casks:
+            return "--cask"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .formulae:
+            return "formulae"
+        case .casks:
+            return "casks"
+        }
+    }
 }
 
 // MARK: - Async Utilities
@@ -75,8 +100,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var menu: NSMenu?
     var hasUpdates = false
+    var outdatedBrewFormulaeCount = 0
+    var outdatedBrewCasksCount = 0
+    var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
     var statusMenuItem: NSMenuItem?
+    var sparkdockStatusMenuItem: NSMenuItem?
+    var brewStatusMenuItem: NSMenuItem?
     var updateNowMenuItem: NSMenuItem?
+    var upgradeBrewMenuItem: NSMenuItem?
     private var pathMonitor: NWPathMonitor?
     fileprivate var menuConfig: MenuConfig?
     // Cache icons to avoid recreating them
@@ -130,7 +161,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         setupUpdateObservers()
 
         // Set initial status and check for updates
-        statusMenuItem?.attributedTitle = createStatusTitle("Checking for updates...", color: .systemYellow)
+        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -187,21 +219,36 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(titleItem)
         menu.addItem(.separator())
 
-        // Create status menu item
-        let statusMenuItem = NSMenuItem(title: "Checking for updates...", action: #selector(checkForUpdatesAction), keyEquivalent: "")
-        statusMenuItem.target = self
-        menu.addItem(statusMenuItem)
-        self.statusMenuItem = statusMenuItem
+        // Create separate status menu items (clickable to trigger specific checks)
+        let sparkdockStatusItem = NSMenuItem(title: "Checking for updates (Sparkdock)...", action: #selector(checkSparkdockUpdatesAction), keyEquivalent: "")
+        sparkdockStatusItem.target = self
+        menu.addItem(sparkdockStatusItem)
+        self.sparkdockStatusMenuItem = sparkdockStatusItem
+
+        let brewStatusItem = NSMenuItem(title: "Checking for updates (Brew)...", action: #selector(checkBrewUpdatesAction), keyEquivalent: "")
+        brewStatusItem.target = self
+        menu.addItem(brewStatusItem)
+        self.brewStatusMenuItem = brewStatusItem
+
         menu.addItem(.separator())
 
         let updateItem = NSMenuItem(title: "", action: #selector(updateNow), keyEquivalent: "")
         updateItem.target = self
         updateItem.tag = MenuItemTag.updateNow.rawValue
-        updateItem.attributedTitle = NSAttributedString(string: "Update Now", attributes: [
+        updateItem.attributedTitle = NSAttributedString(string: "Upgrade Sparkdock", attributes: [
             .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
         ])
         menu.addItem(updateItem)
         updateNowMenuItem = updateItem
+
+        let upgradeBrewItem = NSMenuItem(title: "", action: #selector(upgradeBrew), keyEquivalent: "")
+        upgradeBrewItem.target = self
+        upgradeBrewItem.tag = MenuItemTag.upgradeBrew.rawValue
+        upgradeBrewItem.attributedTitle = NSAttributedString(string: "Upgrade Brew Packages", attributes: [
+            .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
+        ])
+        menu.addItem(upgradeBrewItem)
+        upgradeBrewMenuItem = upgradeBrewItem
 
         menu.addItem(.separator())
 
@@ -265,7 +312,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         monitor.pathUpdateHandler = { [weak self] path in
             if path.status == .satisfied {
                 DispatchQueue.main.async {
-                    self?.statusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates...", color: .systemYellow)
+                    self?.sparkdockStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+                    self?.brewStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
                     self?.checkForUpdates()
                 }
             }
@@ -282,21 +330,121 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
     @objc private func systemDidWake() {
         AppConstants.logger.info("System woke from sleep - checking for updates")
-        statusMenuItem?.attributedTitle = createStatusTitle("Checking for updates...", color: .systemYellow)
+        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         checkForUpdates()
     }
 
     @objc private func checkForUpdatesAction() {
-        statusMenuItem?.attributedTitle = createStatusTitle("Checking for updates...", color: .systemYellow)
+        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
+        checkForUpdates()
+    }
+
+    @objc private func checkSparkdockUpdatesAction() {
+        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+        checkForUpdates()
+    }
+
+    @objc private func checkBrewUpdatesAction() {
+        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         checkForUpdates()
     }
 
     private func checkForUpdates() {
         Task(priority: .background) {
             let hasUpdates = await runSparkdockCheck()
+            let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
             await MainActor.run {
-                updateUI(hasUpdates: hasUpdates)
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount)
             }
+        }
+    }
+
+    private func findBrewPath() async -> String? {
+        if FileManager.default.fileExists(atPath: "/opt/homebrew/bin/brew") {
+            return "/opt/homebrew/bin/brew"
+        } else if FileManager.default.fileExists(atPath: "/usr/local/bin/brew") {
+            return "/usr/local/bin/brew"
+        }
+        return nil
+    }
+
+    private func runBrewOutdatedCheck() async -> (formulae: Int, casks: Int) {
+        AppConstants.logger.info("runBrewOutdatedCheck called")
+        guard let brewPath = await findBrewPath() else {
+            AppConstants.logger.warning("Homebrew not found at expected locations")
+            return (0, 0)
+        }
+
+        // Get outdated formulae count
+        let formulaeCount = await getBrewOutdatedCount(brewPath: brewPath, type: .formulae)
+        // Get outdated casks count
+        let casksCount = await getBrewOutdatedCount(brewPath: brewPath, type: .casks)
+
+        let totalCount = formulaeCount + casksCount
+        AppConstants.logger.info("Found \(formulaeCount) outdated formulae and \(casksCount) outdated casks (total: \(totalCount))")
+        return (formulaeCount, casksCount)
+    }
+
+    private func getBrewOutdatedCount(brewPath: String, type: BrewPackageType) async -> Int {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+
+        let command = "\(brewPath) outdated \(type.commandSuffix) --quiet | wc -l"
+        process.arguments = ["-c", command]
+
+        // Set environment variables including PATH
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        process.environment = environment
+
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = Pipe()
+
+        var terminationStatus: Int32 = -1
+        do {
+            try process.run()
+
+            let finished: Bool = await withTaskCancellationHandler(
+                operation: {
+                    do {
+                        terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
+                            await withCheckedContinuation { continuation in
+                                process.terminationHandler = { proc in
+                                    continuation.resume(returning: proc.terminationStatus)
+                                }
+                            }
+                        }
+                        return true
+                    } catch {
+                        return false
+                    }
+                },
+                onCancel: {
+                    process.terminate()
+                }
+            )
+
+            if !finished {
+                AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.processTimeout) seconds")
+                return 0
+            }
+
+            if terminationStatus == 0 {
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
+                let count = Int(output) ?? 0
+                AppConstants.logger.info("Found \(count) outdated \(type.description)")
+                return count
+            } else {
+                AppConstants.logger.warning("Brew outdated check (\(type.description)) failed with exit code \(terminationStatus)")
+                return 0
+            }
+        } catch {
+            AppConstants.logger.error("Failed to run brew outdated check (\(type.description)): \(error.localizedDescription)")
+            return 0
         }
     }
 
@@ -347,26 +495,73 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func updateUI(hasUpdates: Bool) {
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0) {
         self.hasUpdates = hasUpdates
+        self.outdatedBrewFormulaeCount = outdatedBrewFormulae
+        self.outdatedBrewCasksCount = outdatedBrewCasks
+        let totalBrewCount = totalOutdatedBrewCount
 
-        statusItem?.button?.image = loadIcon(hasUpdates: hasUpdates)
-        statusItem?.button?.toolTip = hasUpdates ? "Sparkdock - Updates available" : "Sparkdock - Up to date"
+        let hasAnyUpdates = hasUpdates || totalBrewCount > 0
+        statusItem?.button?.image = loadIcon(hasUpdates: hasAnyUpdates)
 
-        let (title, color) = hasUpdates ?
-            ("Updates Available", NSColor.systemOrange) :
-            ("Sparkdock is up to date", NSColor.systemGreen)
+        // Create more detailed tooltip
+        var tooltipParts: [String] = []
+        if hasUpdates {
+            tooltipParts.append("Sparkdock updates available")
+        }
+        if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
+            tooltipParts.append("\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks outdated")
+        } else if outdatedBrewFormulae > 0 {
+            tooltipParts.append("\(outdatedBrewFormulae) brew formulae outdated")
+        } else if outdatedBrewCasks > 0 {
+            tooltipParts.append("\(outdatedBrewCasks) brew casks outdated")
+        }
 
-        statusMenuItem?.attributedTitle = createStatusTitle(title, color: color)
+        if tooltipParts.isEmpty {
+            statusItem?.button?.toolTip = "Sparkdock - Up to date"
+        } else {
+            statusItem?.button?.toolTip = "Sparkdock - " + tooltipParts.joined(separator: ", ")
+        }
 
-        // Update the "Update Now" menu item visibility
+        // Update Sparkdock status line
+        if hasUpdates {
+            sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Sparkdock updates available", color: .systemOrange)
+        } else {
+            sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Sparkdock is up to date", color: .systemGreen)
+        }
+
+        // Update Brew status line
+        if totalBrewCount > 0 {
+            let brewStatusText = outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 ?
+                "Brew packages: \(totalBrewCount) to be updated (\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks)" :
+                "Brew packages: \(totalBrewCount) to be updated"
+            brewStatusMenuItem?.attributedTitle = createStatusTitle(brewStatusText, color: .systemOrange)
+        } else {
+            brewStatusMenuItem?.attributedTitle = createStatusTitle("Brew packages: up to date", color: .systemGreen)
+        }
+
+        // Update the "Upgrade Sparkdock" menu item visibility
         if let updateItem = updateNowMenuItem {
             if hasUpdates {
-                updateItem.title = "Update Now"
+                updateItem.title = "Upgrade Sparkdock"
                 updateItem.isEnabled = true
                 updateItem.isHidden = false
             } else {
                 updateItem.isHidden = true
+            }
+        }
+
+        // Update the "Upgrade Brew Packages" menu item visibility
+        if let upgradeBrewItem = upgradeBrewMenuItem {
+            if totalBrewCount > 0 {
+                let menuTitle = outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 ?
+                    "Upgrade Brew Packages (\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks)" :
+                    "Upgrade Brew Packages (\(totalBrewCount))"
+                upgradeBrewItem.title = menuTitle
+                upgradeBrewItem.isEnabled = true
+                upgradeBrewItem.isHidden = false
+            } else {
+                upgradeBrewItem.isHidden = true
             }
         }
     }
@@ -374,6 +569,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     @objc private func updateNow() {
         guard hasUpdates else { return }
         executeTerminalCommand("sparkdock")
+    }
+
+    @objc private func upgradeBrew() {
+        guard totalOutdatedBrewCount > 0 else { return }
+
+        // Create a compound command that only runs the second upgrade if the first succeeds
+        let upgradeCommand = "brew upgrade && brew upgrade --cask"
+        executeTerminalCommand(upgradeCommand)
     }
 
 
@@ -484,9 +687,21 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func createDefaultIcon() -> NSImage {
-        let systemImage = NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: "Sparkdock")!
+        guard let systemImage = NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: "Sparkdock") else {
+            AppConstants.logger.warning("System symbol 'gearshape.fill' not available, using fallback icon")
+            return createFallbackIcon()
+        }
+
         let config = NSImage.SymbolConfiguration(pointSize: AppConstants.iconSize.width, weight: .medium)
         return systemImage.withSymbolConfiguration(config) ?? systemImage
+    }
+
+    private func createFallbackIcon() -> NSImage {
+        return NSImage(size: AppConstants.iconSize, flipped: false) { rect in
+            NSColor.systemBlue.setFill()
+            NSBezierPath(ovalIn: rect).fill()
+            return true
+        }
     }
 
     @objc private func quit() {
@@ -497,30 +712,30 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 // MARK: - CLI Handling
 private func checkForExistingInstance() -> Bool {
     let currentPID = ProcessInfo.processInfo.processIdentifier
-    
+
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
     process.arguments = ["-f", "sparkdock-manager"]
-    
+
     let pipe = Pipe()
     process.standardOutput = pipe
     process.standardError = Pipe()
-    
+
     do {
         try process.run()
         process.waitUntilExit()
-        
+
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         let output = String(data: data, encoding: .utf8) ?? ""
-        
+
         // Parse PIDs from output and check if any other instance is running
         let pids = output.trimmingCharacters(in: .whitespacesAndNewlines)
             .components(separatedBy: .newlines)
             .compactMap { Int32($0) }
             .filter { $0 != currentPID }
-        
+
         return !pids.isEmpty
-        
+
     } catch {
         AppConstants.logger.warning("Failed to check for existing instances: \(error.localizedDescription)")
         return false
