@@ -392,7 +392,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
 
         let command = "\(brewPath) outdated \(type.commandSuffix) --quiet | wc -l"
-
         process.arguments = ["-c", command]
 
         // Set environment variables including PATH
@@ -575,8 +574,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     @objc private func upgradeBrew() {
         guard totalOutdatedBrewCount > 0 else { return }
 
-        // Create a compound command that upgrades both formulae and casks
-        let upgradeCommand = "brew upgrade && brew upgrade --cask"
+        // Create a compound command that attempts both upgrades even if one fails
+        let upgradeCommand = "brew upgrade; brew upgrade --cask"
         executeTerminalCommand(upgradeCommand)
     }
 
@@ -689,18 +688,20 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func createDefaultIcon() -> NSImage {
         guard let systemImage = NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: "Sparkdock") else {
-            // Fallback to a basic geometric shape if system symbol is not available
-            let fallbackImage = NSImage(size: AppConstants.iconSize, flipped: false) { rect in
-                NSColor.systemBlue.setFill()
-                NSBezierPath(ovalIn: rect).fill()
-                return true
-            }
             AppConstants.logger.warning("System symbol 'gearshape.fill' not available, using fallback icon")
-            return fallbackImage
+            return createFallbackIcon()
         }
 
         let config = NSImage.SymbolConfiguration(pointSize: AppConstants.iconSize.width, weight: .medium)
         return systemImage.withSymbolConfiguration(config) ?? systemImage
+    }
+
+    private func createFallbackIcon() -> NSImage {
+        return NSImage(size: AppConstants.iconSize, flipped: false) { rect in
+            NSColor.systemBlue.setFill()
+            NSBezierPath(ovalIn: rect).fill()
+            return true
+        }
     }
 
     @objc private func quit() {
