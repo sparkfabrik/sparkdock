@@ -80,6 +80,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var outdatedBrewCasksCount = 0
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
     var statusMenuItem: NSMenuItem?
+    var sparkdockStatusMenuItem: NSMenuItem?
+    var brewStatusMenuItem: NSMenuItem?
     var updateNowMenuItem: NSMenuItem?
     var upgradeBrewMenuItem: NSMenuItem?
     private var pathMonitor: NWPathMonitor?
@@ -135,7 +137,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         setupUpdateObservers()
 
         // Set initial status and check for updates
-        statusMenuItem?.attributedTitle = createStatusTitle("Checking for updates...", color: .systemYellow)
+        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -192,11 +195,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(titleItem)
         menu.addItem(.separator())
 
-        // Create status menu item
-        let statusMenuItem = NSMenuItem(title: "Checking for updates...", action: #selector(checkForUpdatesAction), keyEquivalent: "")
-        statusMenuItem.target = self
-        menu.addItem(statusMenuItem)
-        self.statusMenuItem = statusMenuItem
+        // Create separate status menu items (clickable to trigger specific checks)
+        let sparkdockStatusItem = NSMenuItem(title: "Checking for updates (Sparkdock)...", action: #selector(checkSparkdockUpdatesAction), keyEquivalent: "")
+        sparkdockStatusItem.target = self
+        menu.addItem(sparkdockStatusItem)
+        self.sparkdockStatusMenuItem = sparkdockStatusItem
+
+        let brewStatusItem = NSMenuItem(title: "Checking for updates (Brew)...", action: #selector(checkBrewUpdatesAction), keyEquivalent: "")
+        brewStatusItem.target = self
+        menu.addItem(brewStatusItem)
+        self.brewStatusMenuItem = brewStatusItem
+        
         menu.addItem(.separator())
 
         let updateItem = NSMenuItem(title: "", action: #selector(updateNow), keyEquivalent: "")
@@ -279,7 +288,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         monitor.pathUpdateHandler = { [weak self] path in
             if path.status == .satisfied {
                 DispatchQueue.main.async {
-                    self?.statusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates...", color: .systemYellow)
+                    self?.sparkdockStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+                    self?.brewStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
                     self?.checkForUpdates()
                 }
             }
@@ -296,12 +306,24 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
     @objc private func systemDidWake() {
         AppConstants.logger.info("System woke from sleep - checking for updates")
-        statusMenuItem?.attributedTitle = createStatusTitle("Checking for updates...", color: .systemYellow)
+        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         checkForUpdates()
     }
 
     @objc private func checkForUpdatesAction() {
-        statusMenuItem?.attributedTitle = createStatusTitle("Checking for updates...", color: .systemYellow)
+        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
+        checkForUpdates()
+    }
+
+    @objc private func checkSparkdockUpdatesAction() {
+        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+        checkForUpdates()
+    }
+
+    @objc private func checkBrewUpdatesAction() {
+        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -485,24 +507,22 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             statusItem?.button?.toolTip = "Sparkdock - " + tooltipParts.joined(separator: ", ")
         }
 
-        // Update status text
-        var statusParts: [String] = []
+        // Update Sparkdock status line
         if hasUpdates {
-            statusParts.append("Sparkdock updates available")
+            sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Sparkdock updates available", color: .systemOrange)
+        } else {
+            sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Sparkdock is up to date", color: .systemGreen)
         }
+        
+        // Update Brew status line
         if totalBrewCount > 0 {
-            if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
-                statusParts.append("\(totalBrewCount) brew packages outdated (\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks)")
-            } else {
-                statusParts.append("\(totalBrewCount) brew packages outdated")
-            }
+            let brewStatusText = outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 ?
+                "Brew packages: \(totalBrewCount) to be updated (\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks)" :
+                "Brew packages: \(totalBrewCount) to be updated"
+            brewStatusMenuItem?.attributedTitle = createStatusTitle(brewStatusText, color: .systemOrange)
+        } else {
+            brewStatusMenuItem?.attributedTitle = createStatusTitle("Brew packages: up to date", color: .systemGreen)
         }
-
-        let (title, color) = statusParts.isEmpty ?
-            ("Sparkdock is up to date", NSColor.systemGreen) :
-            (statusParts.joined(separator: ", "), NSColor.systemOrange)
-
-        statusMenuItem?.attributedTitle = createStatusTitle(title, color: color)
 
         // Update the "Upgrade Sparkdock" menu item visibility
         if let updateItem = updateNowMenuItem {
@@ -651,7 +671,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func createDefaultIcon() -> NSImage {
-        let systemImage = NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: "Sparkdock")!
+        guard let systemImage = NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: "Sparkdock") else {
+            // Fallback to a basic geometric shape if system symbol is not available
+            let fallbackImage = NSImage(size: AppConstants.iconSize, flipped: false) { rect in
+                NSColor.systemBlue.setFill()
+                NSBezierPath(ovalIn: rect).fill()
+                return true
+            }
+            AppConstants.logger.warning("System symbol 'gearshape.fill' not available, using fallback icon")
+            return fallbackImage
+        }
+
         let config = NSImage.SymbolConfiguration(pointSize: AppConstants.iconSize.width, weight: .medium)
         return systemImage.withSymbolConfiguration(config) ?? systemImage
     }
