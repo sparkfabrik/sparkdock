@@ -31,7 +31,7 @@ make install-sjust
 ### HTTP Proxy Management
 ```bash
 spark-http-proxy start           # Start proxy services
-spark-http-proxy stop            # Stop proxy services  
+spark-http-proxy stop            # Stop proxy services
 spark-http-proxy status          # Check service status
 ```
 

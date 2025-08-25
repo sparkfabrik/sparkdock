@@ -51,6 +51,30 @@ private enum MenuItemTag: Int {
     case upgradeBrew = 3
 }
 
+// MARK: - Brew Package Types
+private enum BrewPackageType {
+    case formulae
+    case casks
+
+    var commandSuffix: String {
+        switch self {
+        case .formulae:
+            return "--formula"
+        case .casks:
+            return "--cask"
+        }
+    }
+
+    var description: String {
+        switch self {
+        case .formulae:
+            return "formulae"
+        case .casks:
+            return "casks"
+        }
+    }
+}
+
 // MARK: - Async Utilities
 private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
     try await withThrowingTaskGroup(of: T.self) { group in
@@ -354,27 +378,20 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
 
         // Get outdated formulae count
-        let formulaeCount = await getBrewOutdatedCount(brewPath: brewPath, type: "formulae")
+        let formulaeCount = await getBrewOutdatedCount(brewPath: brewPath, type: .formulae)
         // Get outdated casks count
-        let casksCount = await getBrewOutdatedCount(brewPath: brewPath, type: "casks")
+        let casksCount = await getBrewOutdatedCount(brewPath: brewPath, type: .casks)
 
         let totalCount = formulaeCount + casksCount
         AppConstants.logger.info("Found \(formulaeCount) outdated formulae and \(casksCount) outdated casks (total: \(totalCount))")
         return (formulaeCount, casksCount)
     }
 
-    private func getBrewOutdatedCount(brewPath: String, type: String) async -> Int {
+    private func getBrewOutdatedCount(brewPath: String, type: BrewPackageType) async -> Int {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
 
-        let command = switch type {
-        case "formulae":
-            "\(brewPath) outdated --formula --quiet | wc -l"
-        case "casks":
-            "\(brewPath) outdated --cask --quiet | wc -l"
-        default:
-            "\(brewPath) outdated --quiet | wc -l"
-        }
+        let command = "\(brewPath) outdated \(type.commandSuffix) --quiet | wc -l"
 
         process.arguments = ["-c", command]
 
@@ -412,7 +429,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             )
 
             if !finished {
-                AppConstants.logger.error("Brew outdated check (\(type)) process timed out after \(AppConstants.processTimeout) seconds")
+                AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.processTimeout) seconds")
                 return 0
             }
 
@@ -420,14 +437,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 let data = pipe.fileHandleForReading.readDataToEndOfFile()
                 let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
                 let count = Int(output) ?? 0
-                AppConstants.logger.info("Found \(count) outdated \(type)")
+                AppConstants.logger.info("Found \(count) outdated \(type.description)")
                 return count
             } else {
-                AppConstants.logger.warning("Brew outdated check (\(type)) failed with exit code \(terminationStatus)")
+                AppConstants.logger.warning("Brew outdated check (\(type.description)) failed with exit code \(terminationStatus)")
                 return 0
             }
         } catch {
-            AppConstants.logger.error("Failed to run brew outdated check (\(type)): \(error.localizedDescription)")
+            AppConstants.logger.error("Failed to run brew outdated check (\(type.description)): \(error.localizedDescription)")
             return 0
         }
     }
