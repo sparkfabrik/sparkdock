@@ -128,55 +128,13 @@
       failed_when: brew_check.rc != 0
       become: false
 
-    - name: Handle yarn linking with conflict resolution
-      shell: |
-        set -euo pipefail
-
-        # Function to check if yarn is installed via brew
-        is_yarn_installed() {
-          brew list yarn >/dev/null 2>&1
-        }
-
-        # Function to check if yarn symlink points to brew installation
-        is_yarn_properly_linked() {
-          if [ -L "{{ homebrew_prefix }}/bin/yarn" ]; then
-            local target=$(readlink "{{ homebrew_prefix }}/bin/yarn")
-            # Check if target contains yarn cellar path
-            echo "$target" | grep -q "Cellar/yarn/"
-          else
-            false
-          fi
-        }
-
-        if is_yarn_installed; then
-          echo "Yarn is installed via brew"
-          if is_yarn_properly_linked; then
-            echo "Yarn is already properly linked"
-          else
-            echo "Yarn is not properly linked, attempting to fix..."
-            # Use --overwrite to handle conflicts
-            brew link --overwrite yarn
-            echo "Yarn linked successfully with --overwrite"
-          fi
-        else
-          echo "Yarn is not installed via brew"
-          if [ -L "{{ homebrew_prefix }}/bin/yarn" ] || [ -f "{{ homebrew_prefix }}/bin/yarn" ]; then
-            echo "Removing unmanaged yarn symlink, it must be managed by yarn brew package..."
-            rm -f "{{ homebrew_prefix }}/bin/yarn"
-          fi
-        fi
-      args:
-        executable: /bin/bash
+    - name: Link yarn with conflict resolution
+      command: brew link --overwrite yarn
       when: "'yarn' in all_linked_packages"
       become: false
-      register: yarn_link_result
+      ignore_errors: yes
 
-    - name: Show yarn linking result
-      debug:
-        msg: "{{ yarn_link_result.stdout_lines }}"
-      when: "'yarn' in all_linked_packages and yarn_link_result is defined"
-
-    - name: Link other required packages (non-yarn)
+    - name: Link required packages
       community.general.homebrew:
         name: "{{ item }}"
         state: linked
