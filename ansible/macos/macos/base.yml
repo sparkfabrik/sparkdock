@@ -130,7 +130,7 @@
 
     - name: Link yarn with conflict resolution
       command: brew link --overwrite yarn
-      when: "'yarn' in all_linked_packages"
+      when: "'yarn' in all_homebrew_packages"
       become: false
       ignore_errors: yes
 
@@ -138,8 +138,8 @@
       community.general.homebrew:
         name: "{{ item }}"
         state: linked
-      loop: "{{ all_linked_packages | difference(['yarn']) }}"
-      when: all_linked_packages | difference(['yarn']) | length > 0
+      loop: "{{ all_linked_packages }}"
+      when: all_linked_packages | length > 0
       become: false
 
     - name: Run brew doctor
