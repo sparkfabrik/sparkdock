@@ -139,8 +139,8 @@
         
         # Function to check if yarn symlink points to brew installation
         is_yarn_properly_linked() {
-          if [ -L "${homebrew_prefix}/bin/yarn" ]; then
-            local target=$(readlink "${homebrew_prefix}/bin/yarn")
+          if [ -L "{{ homebrew_prefix }}/bin/yarn" ]; then
+            local target=$(readlink "{{ homebrew_prefix }}/bin/yarn")
             # Check if target contains yarn cellar path
             echo "$target" | grep -q "Cellar/yarn/"
           else
@@ -150,9 +150,9 @@
         
         # Function to remove orphaned yarn symlink
         remove_orphaned_yarn_symlink() {
-          if [ -L "${homebrew_prefix}/bin/yarn" ] || [ -f "${homebrew_prefix}/bin/yarn" ]; then
+          if [ -L "{{ homebrew_prefix }}/bin/yarn" ] || [ -f "{{ homebrew_prefix }}/bin/yarn" ]; then
             echo "Removing orphaned yarn symlink..."
-            rm -f "${homebrew_prefix}/bin/yarn"
+            rm -f "{{ homebrew_prefix }}/bin/yarn"
           fi
         }
         
@@ -169,7 +169,7 @@
         else
           echo "Yarn is not installed via brew"
           # If yarn symlink exists but package is not installed, remove it
-          if [ -L "${homebrew_prefix}/bin/yarn" ] || [ -f "${homebrew_prefix}/bin/yarn" ]; then
+          if [ -L "{{ homebrew_prefix }}/bin/yarn" ] || [ -f "{{ homebrew_prefix }}/bin/yarn" ]; then
             echo "Found orphaned yarn symlink, removing it..."
             remove_orphaned_yarn_symlink
           fi
