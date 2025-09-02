@@ -145,19 +145,19 @@ system-install-mkcert:
 # Configure Google Cloud SDK and install required components.
 [group('system')]
 system-gcloud-reconfigure:
-    #!/usr/bin/env bash
+    #!/usr/bin/env zsh
     set -euo pipefail
     echo "Configuring Google Cloud SDK..."
-    
+
     # Install gcloud-cli via Homebrew if not already installed
     if ! brew list --cask google-cloud-sdk >/dev/null 2>&1; then
         echo "Installing Google Cloud SDK via Homebrew..."
         brew install --cask google-cloud-sdk
     fi
-    
+
     # Get the Homebrew prefix
     HOMEBREW_PREFIX=$(brew --prefix)
-    
+
     # Source the gcloud environment
     if [[ -f "${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc" ]]; then
         echo "Sourcing Google Cloud SDK environment..."
@@ -167,11 +167,11 @@ system-gcloud-reconfigure:
         echo "❌ Google Cloud SDK path script not found at ${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc"
         exit 1
     fi
-    
+
     # Install gke-gcloud-auth-plugin component
     echo "Installing gke-gcloud-auth-plugin component..."
     gcloud components install gke-gcloud-auth-plugin --quiet
-    
+
     # Verify installation
     echo "Verifying gke-gcloud-auth-plugin installation..."
     if gke-gcloud-auth-plugin --version >/dev/null 2>&1; then
@@ -181,14 +181,14 @@ system-gcloud-reconfigure:
         echo "❌ Failed to verify gke-gcloud-auth-plugin installation"
         exit 1
     fi
-    
+
     # Add Google Cloud SDK paths to zshrc if not already present
     ZSHRC_FILE="${HOME}/.zshrc"
     echo "Updating ${ZSHRC_FILE} with Google Cloud SDK configuration..."
-    
+
     # Create zshrc if it doesn't exist
     touch "${ZSHRC_FILE}"
-    
+
     # Check if Google Cloud SDK lines are already in zshrc
     if ! grep -q "google-cloud-sdk/path.zsh.inc" "${ZSHRC_FILE}"; then
         {
@@ -203,7 +203,7 @@ system-gcloud-reconfigure:
     else
         echo "✅ Google Cloud SDK configuration already present in ${ZSHRC_FILE}"
     fi
-    
+
     echo "🎉 Google Cloud SDK reconfiguration completed successfully!"
     echo "💡 You may need to restart your terminal or run 'source ~/.zshrc' to use the updated PATH"
 
