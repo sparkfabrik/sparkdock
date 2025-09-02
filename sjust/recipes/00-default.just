@@ -142,6 +142,71 @@ system-install-mkcert:
     mkcert -install
     echo "mkcert installed successfully!"
 
+# Configure Google Cloud SDK and install required components.
+[group('system')]
+system-gcloud-reconfigure:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "Configuring Google Cloud SDK..."
+    
+    # Install gcloud-cli via Homebrew if not already installed
+    if ! brew list --cask google-cloud-sdk >/dev/null 2>&1; then
+        echo "Installing Google Cloud SDK via Homebrew..."
+        brew install --cask google-cloud-sdk
+    fi
+    
+    # Get the Homebrew prefix
+    HOMEBREW_PREFIX=$(brew --prefix)
+    
+    # Source the gcloud environment
+    if [[ -f "${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc" ]]; then
+        echo "Sourcing Google Cloud SDK environment..."
+        # shellcheck source=/dev/null
+        source "${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc"
+    else
+        echo "❌ Google Cloud SDK path script not found at ${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc"
+        exit 1
+    fi
+    
+    # Install gke-gcloud-auth-plugin component
+    echo "Installing gke-gcloud-auth-plugin component..."
+    gcloud components install gke-gcloud-auth-plugin --quiet
+    
+    # Verify installation
+    echo "Verifying gke-gcloud-auth-plugin installation..."
+    if gke-gcloud-auth-plugin --version >/dev/null 2>&1; then
+        echo "✅ gke-gcloud-auth-plugin installed successfully!"
+        gke-gcloud-auth-plugin --version
+    else
+        echo "❌ Failed to verify gke-gcloud-auth-plugin installation"
+        exit 1
+    fi
+    
+    # Add Google Cloud SDK paths to zshrc if not already present
+    ZSHRC_FILE="${HOME}/.zshrc"
+    echo "Updating ${ZSHRC_FILE} with Google Cloud SDK configuration..."
+    
+    # Create zshrc if it doesn't exist
+    touch "${ZSHRC_FILE}"
+    
+    # Check if Google Cloud SDK lines are already in zshrc
+    if ! grep -q "google-cloud-sdk/path.zsh.inc" "${ZSHRC_FILE}"; then
+        {
+            echo ""
+            echo "# The next line updates PATH for the Google Cloud SDK."
+            echo "if [ -f '${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc' ]; then . '${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc'; fi"
+            echo ""
+            echo "# The next line enables shell command completion for gcloud."
+            echo "if [ -f '${HOMEBREW_PREFIX}/share/google-cloud-sdk/completion.zsh.inc' ]; then . '${HOMEBREW_PREFIX}/share/google-cloud-sdk/completion.zsh.inc'; fi"
+        } >> "${ZSHRC_FILE}"
+        echo "✅ Added Google Cloud SDK configuration to ${ZSHRC_FILE}"
+    else
+        echo "✅ Google Cloud SDK configuration already present in ${ZSHRC_FILE}"
+    fi
+    
+    echo "🎉 Google Cloud SDK reconfiguration completed successfully!"
+    echo "💡 You may need to restart your terminal or run 'source ~/.zshrc' to use the updated PATH"
+
 # System cleanup to free up disk space (Homebrew and Docker).
 [group('system')]
 system-cleanup:
