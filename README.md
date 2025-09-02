@@ -109,6 +109,29 @@ sjust                    # Show available commands
 sjust --list             # List all tasks
 sjust docker-ps          # Show running containers
 sjust system-upgrade     # Update system packages
+sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gcloud-auth-plugin
+```
+
+### Google Cloud SDK Configuration
+
+Sparkdock automatically installs and configures Google Cloud SDK during provisioning, including the `gke-gcloud-auth-plugin` component required for GKE authentication.
+
+To manually reconfigure Google Cloud SDK:
+
+```bash
+sjust system-gcloud-reconfigure
+```
+
+This command will:
+- Install Google Cloud SDK via Homebrew (if not present)
+- Install the `gke-gcloud-auth-plugin` component
+- Configure shell completion in your `.zshrc`
+- Verify the installation
+
+After configuration, you can verify the plugin is working:
+
+```bash
+gke-gcloud-auth-plugin --version
 ```
 
 ### HTTP Proxy
