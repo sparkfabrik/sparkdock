@@ -171,6 +171,12 @@
       failed_when: brew_check.rc != 0
       become: false
 
+    - name: Link yarn with conflict resolution
+      command: brew link --overwrite yarn
+      when: "'yarn' in all_homebrew_packages"
+      become: false
+      ignore_errors: yes
+
     - name: Link required packages
       community.general.homebrew:
         name: "{{ item }}"
@@ -428,7 +434,7 @@
             swift build -c release
           register: build_result
           changed_when: build_result.rc == 0
-          failed_when: false  # Don't fail immediately, handle errors in rescue block
+          failed_when: false # Don't fail immediately, handle errors in rescue block
 
         - name: Check if build was successful
           fail:
@@ -452,8 +458,6 @@
         - name: Display menu bar app status
           debug:
             msg: "{{ sparkdock_status.stdout_lines }}"
-
-
 
         - name: LaunchAgent installation (local environment only)
           block:
