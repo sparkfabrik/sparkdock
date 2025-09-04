@@ -7,7 +7,7 @@ _default:
     source /opt/sparkdock/sjust/libs/libcolors.sh
     echo "${bold}${cyan}Welcome to SparkJust${normal} - ${green}this is a tool to automate some useful tasks.${normal}"
     echo
-    echo "👉 Rember you can add your own tasks in ~/.config/sjust/100-custom.just"
+    echo "👉 Remember you can add your own tasks in ~/.config/sjust/100-custom.just"
     echo
     echo "$(Urllink "https://just.systems/man/en/" "click here to view the Just documentation")"
     echo
