@@ -28,7 +28,7 @@ for arg in "$@"; do
             ;;
         --preserve-existing)
             PRESERVE_EXISTING=true
-            print "Preserving existing /opt/sparkdock installation for idempotency testing"
+            print "Preserving existing /opt/sparkdock installation for idempotency"
             ;;
     esac
 done
