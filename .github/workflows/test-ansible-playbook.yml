@@ -77,11 +77,20 @@ jobs:
           # Test basic functionality
           echo "✅ First installation completed successfully"
 
-      - name: Fix ownership permissions before second run
+      - name: Fix ownership permissions and clean git state before second run
         run: |
-          echo "=== Fixing ownership permissions for second run ==="
+          echo "=== Fixing ownership permissions and git state for second run ==="
           # Fix ownership permissions recursively on /opt/sparkdock to resolve git permission issues
           sudo chown -R $(whoami):staff /opt/sparkdock
+          
+          # Clean git state in http-proxy repository to avoid permission issues
+          if [ -d "/opt/sparkdock/http-proxy/.git" ]; then
+            echo "Cleaning git state in http-proxy repository..."
+            cd /opt/sparkdock/http-proxy
+            git reset --hard HEAD
+            git clean -fd
+            echo "Git state cleaned successfully"
+          fi
 
       - name: Run installer script in non-interactive mode (second run - already provisioned)
         run: |
