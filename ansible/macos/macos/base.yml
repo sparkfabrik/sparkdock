@@ -117,18 +117,18 @@
           failed_when: false
 
         - name: Install gke-gcloud-auth-plugin component
-          shell: |
-            source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc
-            gcloud components install gke-gcloud-auth-plugin --quiet
+          shell: source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc && gcloud components install gke-gcloud-auth-plugin --quiet
+          args:
+            executable: /bin/bash
           register: gcloud_component_install
           changed_when: gcloud_component_install.rc == 0
           when: gcloud_installed.rc == 0
           become: false
 
         - name: Verify gke-gcloud-auth-plugin installation
-          shell: |
-            source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc
-            gke-gcloud-auth-plugin --version
+          shell: source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc && gke-gcloud-auth-plugin --version
+          args:
+            executable: /bin/bash
           register: gcloud_plugin_check
           changed_when: false
           when: gcloud_installed.rc == 0
