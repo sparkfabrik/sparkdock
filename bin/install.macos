@@ -142,8 +142,8 @@ fi
 # it should exit if ansible fails.
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
   # Make the sed replacement idempotent - only replace if the original pattern exists
-  if grep -q -- "--ask-become-pass" /opt/sparkdock/bin/sparkdock.macos; then
-    sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
+  if grep -q -- "--ask-become-pass" ./bin/sparkdock.macos; then
+    sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' ./bin/sparkdock.macos
   fi
   # Try to remove spurious files, they are part of the tart VM.
   # Yarn: /opt/homebrew/lib/node_modules/yarn/bin/yarn.js
