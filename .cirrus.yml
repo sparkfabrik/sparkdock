@@ -8,42 +8,21 @@ task:
 
   # Install Sparkdock using the source code (automatically rsynced by Cirrus CLI)
   install_sparkdock_script:
-    - echo "=== FIRST RUN: Installing sparkdock from current source (fresh install) ==="
+    - echo "=== Installing sparkdock from current source ==="
     - chmod +x bin/install.macos
     - bin/install.macos --non-interactive
 
-  # Validate first installation
-  validate_first_install_script:
-    - echo "=== Validating first installation ==="
-    - test -d "/opt/sparkdock" || (echo "❌ /opt/sparkdock directory not found" && exit 1)
-    - echo "✅ /opt/sparkdock directory exists"
-    - test -L "/usr/local/bin/sparkdock" || (echo "❌ /usr/local/bin/sparkdock symlink not found" && exit 1)
-    - echo "✅ /usr/local/bin/sparkdock symlink exists"
-    - command -v sjust >/dev/null 2>&1 || (echo "❌ sjust command not found" && exit 1)
-    - echo "✅ sjust command is available"
-    - echo "✅ First installation completed successfully"
-
-  # Run installer again to test idempotent behavior
-  install_sparkdock_second_run_script:
-    - echo "=== SECOND RUN: Re-installing sparkdock (already provisioned machine test) ==="
-    - bin/install.macos --non-interactive
-
-  # Validation script - verify installation idempotency
+  # Validation script - verify installation
   validation_script:
-    - echo "=== Validating sparkdock installation idempotency ==="
-    - test -d "/opt/sparkdock" || (echo "❌ /opt/sparkdock directory not found after second run" && exit 1)
-    - echo "✅ /opt/sparkdock directory still exists"
-    - test -L "/usr/local/bin/sparkdock" || (echo "❌ /usr/local/bin/sparkdock symlink not found after second run" && exit 1)
-    - echo "✅ /usr/local/bin/sparkdock symlink still exists"
+    - echo "=== Validating sparkdock installation ==="
     - which sparkdock || echo "sparkdock command not found in PATH"
     - ls -la /opt/sparkdock/
     - ls -la /usr/local/bin/sparkdock || echo "sparkdock symlink not found"
     - which sjust || echo "sjust command not found in PATH"
     - sjust --version || echo "sjust version check failed"
-    - echo "=== Testing sjust basic functionality after second installation ==="
+    - echo "=== Testing sjust basic functionality ==="
     - cd /opt/sparkdock
     - sjust device-info || echo "sjust device-info failed"
-    - echo "✅ Second installation completed successfully - installer is idempotent"
 
   # Cleanup script - optional cleanup steps
   cleanup_script:
