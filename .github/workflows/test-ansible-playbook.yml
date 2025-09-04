@@ -80,8 +80,8 @@ jobs:
       - name: Run installer script in non-interactive mode (second run - already provisioned)
         run: |
           echo "=== SECOND RUN: Already provisioned machine ==="
-          # Run the installation script again to test idempotent behavior
-          /bin/zsh -c "./bin/install.macos --non-interactive"
+          # Run the installation script again with --preserve-existing to test idempotent behavior
+          /bin/zsh -c "./bin/install.macos --non-interactive --preserve-existing"
 
       - name: Validate second installation (idempotency test)
         run: |

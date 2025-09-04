@@ -15,12 +15,23 @@ checkMacosVersion() {
     return 0
 }
 
-# Check for non-interactive mode
+# Check for command line flags
 NON_INTERACTIVE=false
-if [[ "$1" == "--non-interactive" ]]; then
-    NON_INTERACTIVE=true
-    print "Running in non-interactive mode for CI environment"
-fi
+PRESERVE_EXISTING=false
+
+# Parse command line arguments
+for arg in "$@"; do
+    case $arg in
+        --non-interactive)
+            NON_INTERACTIVE=true
+            print "Running in non-interactive mode for CI environment"
+            ;;
+        --preserve-existing)
+            PRESERVE_EXISTING=true
+            print "Preserving existing /opt/sparkdock installation for idempotency testing"
+            ;;
+    esac
+done
 
 # Architecture - using proper command
 ARCH=$(uname -m)
@@ -87,16 +98,27 @@ brew install git curl python3
 
 ## Check out a copy of this repo (first time only)
 print 'Checking out Sparkdock repo...'
-sudo rm -rf /opt/sparkdock && \
-sudo mkdir -p /opt/sparkdock && \
-sudo chown $(id -u):$(id -g) /opt/sparkdock
 
-# In CI, we have the repo already checked out, so copy it instead of cloning
-if [[ "$NON_INTERACTIVE" == "true" ]]; then
-  # we are in a CI environment, so we assume the repo is already checked out and we are at the root of the repo.
-  rsync -azh --exclude='.git' . /opt/sparkdock
+# Only remove existing installation if not preserving it
+if [[ "$PRESERVE_EXISTING" != "true" ]]; then
+    sudo rm -rf /opt/sparkdock && \
+    sudo mkdir -p /opt/sparkdock && \
+    sudo chown $(id -u):$(id -g) /opt/sparkdock
+    
+    # In CI, we have the repo already checked out, so copy it instead of cloning
+    if [[ "$NON_INTERACTIVE" == "true" ]]; then
+      # we are in a CI environment, so we assume the repo is already checked out and we are at the root of the repo.
+      rsync -azh --exclude='.git' . /opt/sparkdock
+    else
+      git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
+    fi
 else
-  git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
+    print "Preserving existing /opt/sparkdock installation"
+    # Just ensure the directory exists and is accessible
+    if [[ ! -d /opt/sparkdock ]]; then
+        print "ERROR: /opt/sparkdock does not exist but --preserve-existing was specified"
+        exit 1
+    fi
 fi
 
 # Note: Update checking is now handled by the Sparkdock Manager menu bar app
@@ -119,12 +141,9 @@ fi
 # Modify sparkdock.macos to use non-interactive mode if needed
 # it should exit if ansible fails.
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
-  # Check if the sparkdock.macos file exists before modifying it
-  if [[ -f /opt/sparkdock/bin/sparkdock.macos ]]; then
-    # Make the sed replacement idempotent - handle both original and already-modified cases
-    if grep -q -- "--ask-become-pass" /opt/sparkdock/bin/sparkdock.macos; then
-      sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
-    fi
+  # Make the sed replacement idempotent - only replace if the original pattern exists
+  if grep -q -- "--ask-become-pass" /opt/sparkdock/bin/sparkdock.macos; then
+    sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' /opt/sparkdock/bin/sparkdock.macos
   fi
   # Try to remove spurious files, they are part of the tart VM.
   # Yarn: /opt/homebrew/lib/node_modules/yarn/bin/yarn.js
