@@ -112,8 +112,6 @@
       shell: source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc && gcloud components install gke-gcloud-auth-plugin --quiet
       args:
         executable: /bin/zsh
-      register: gcloud_component_install
-      changed_when: gcloud_component_install.rc == 0
       when: "'google-cloud-sdk' in all_cask_packages"
       become: false
 
