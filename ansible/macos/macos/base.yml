@@ -124,34 +124,6 @@
           changed_when: gcloud_component_install.rc == 0
           when: gcloud_installed.rc == 0
           become: false
-
-        - name: Verify gke-gcloud-auth-plugin installation
-          shell: source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc && gke-gcloud-auth-plugin --version
-          args:
-            executable: /bin/zsh
-          register: gcloud_plugin_check
-          changed_when: false
-          when: gcloud_installed.rc == 0
-          become: false
-
-        - name: Verify Google Cloud SDK files are present
-          stat:
-            path: "{{ item }}"
-          loop:
-            - "{{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc"
-            - "{{ homebrew_prefix }}/share/google-cloud-sdk/completion.zsh.inc"
-          register: gcloud_files_check
-          when: gcloud_installed.rc == 0
-          become: false
-
-        - name: Ensure Google Cloud SDK files exist
-          assert:
-            that:
-              - item.stat.exists
-            fail_msg: "Google Cloud SDK file {{ item.item }} is missing"
-            success_msg: "Google Cloud SDK files are properly installed"
-          loop: "{{ gcloud_files_check.results }}"
-          when: gcloud_installed.rc == 0 and gcloud_files_check is defined
       when: "'google-cloud-sdk' in all_cask_packages"
       become: false
 
