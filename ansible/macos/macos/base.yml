@@ -87,6 +87,19 @@
             all_cask_packages: "{{ all_cask_packages | difference(['docker-desktop']) }}"
           when: "'docker-desktop' in all_cask_packages and docker_desktop_installed.stdout == 'yes'"
 
+    - name: Google Chrome installation
+      tags: [chrome]
+      block:
+        - name: Check if Google Chrome is already installed
+          shell: brew list --cask google-chrome >/dev/null 2>&1 && echo yes || echo no
+          register: google_chrome_installed
+          changed_when: false
+
+        - name: Remove Google Chrome from install list if already installed
+          set_fact:
+            all_cask_packages: "{{ all_cask_packages | difference(['google-chrome']) }}"
+          when: "'google-chrome' in all_cask_packages and google_chrome_installed.stdout == 'yes'"
+
     - name: Install cask packages
       tags: cask
       community.general.homebrew_cask:
@@ -108,46 +121,10 @@
       failed_when: cask_check.rc != 0
       become: false
 
-    - name: Install Google Cloud SDK components
-      block:
-        - name: Check if Google Cloud SDK is installed
-          shell: brew list --cask google-cloud-sdk >/dev/null 2>&1
-          register: gcloud_installed
-          changed_when: false
-          failed_when: false
-
-        - name: Install gke-gcloud-auth-plugin component
-          shell: |
-            source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc
-            gcloud components install gke-gcloud-auth-plugin --quiet
-          register: gcloud_component_install
-          changed_when: gcloud_component_install.rc == 0
-          when: gcloud_installed.rc == 0
-          become: false
-
-        - name: Verify gke-gcloud-auth-plugin installation
-          shell: |
-            source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc
-            gke-gcloud-auth-plugin --version
-          register: gcloud_plugin_check
-          changed_when: false
-          when: gcloud_installed.rc == 0
-          become: false
-
-        - name: Add Google Cloud SDK to user's zshrc
-          lineinfile:
-            path: "{{ ansible_env.HOME }}/.zshrc"
-            line: "{{ item }}"
-            create: yes
-            backup: yes
-          loop:
-            - "# The next line updates PATH for the Google Cloud SDK."
-            - "if [ -f '{{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc' ]; then . '{{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc'; fi"
-            - ""
-            - "# The next line enables shell command completion for gcloud."
-            - "if [ -f '{{ homebrew_prefix }}/share/google-cloud-sdk/completion.zsh.inc' ]; then . '{{ homebrew_prefix }}/share/google-cloud-sdk/completion.zsh.inc'; fi"
-          when: gcloud_installed.rc == 0
-          become: false
+    - name: Install gke-gcloud-auth-plugin component
+      shell: source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc && gcloud components install gke-gcloud-auth-plugin --quiet
+      args:
+        executable: /bin/zsh
       when: "'google-cloud-sdk' in all_cask_packages"
       become: false
 
