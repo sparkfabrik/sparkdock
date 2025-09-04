@@ -134,20 +134,24 @@
           when: gcloud_installed.rc == 0
           become: false
 
-        - name: Add Google Cloud SDK to user's zshrc
-          lineinfile:
-            path: "{{ ansible_env.HOME }}/.zshrc"
-            line: "{{ item }}"
-            create: yes
-            backup: yes
+        - name: Verify Google Cloud SDK files are present
+          stat:
+            path: "{{ item }}"
           loop:
-            - "# The next line updates PATH for the Google Cloud SDK."
-            - "if [ -f '{{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc' ]; then . '{{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc'; fi"
-            - ""
-            - "# The next line enables shell command completion for gcloud."
-            - "if [ -f '{{ homebrew_prefix }}/share/google-cloud-sdk/completion.zsh.inc' ]; then . '{{ homebrew_prefix }}/share/google-cloud-sdk/completion.zsh.inc'; fi"
+            - "{{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc"
+            - "{{ homebrew_prefix }}/share/google-cloud-sdk/completion.zsh.inc"
+          register: gcloud_files_check
           when: gcloud_installed.rc == 0
           become: false
+
+        - name: Ensure Google Cloud SDK files exist
+          assert:
+            that:
+              - item.stat.exists
+            fail_msg: "Google Cloud SDK file {{ item.item }} is missing"
+            success_msg: "Google Cloud SDK files are properly installed"
+          loop: "{{ gcloud_files_check.results }}"
+          when: gcloud_installed.rc == 0 and gcloud_files_check is defined
       when: "'google-cloud-sdk' in all_cask_packages"
       become: false
 
