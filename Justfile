@@ -59,7 +59,20 @@ test-e2e-with-tart: tart-create-vm
     #!/usr/bin/env bash
     tart run --no-graphics --dir=sparkdock:$PWD sparkdock-test &
     sleep 5
+    echo "=== FIRST RUN: Fresh installation ==="
     tart exec sparkdock-test bash -c "cd /Volumes/My\ Shared\ Files/sparkdock && ./bin/install.macos --non-interactive"
+    echo "=== Validating first installation ==="
+    tart exec sparkdock-test bash -c "test -d '/opt/sparkdock' && echo '✅ /opt/sparkdock exists' || (echo '❌ /opt/sparkdock missing' && exit 1)"
+    tart exec sparkdock-test bash -c "test -L '/usr/local/bin/sparkdock' && echo '✅ sparkdock symlink exists' || (echo '❌ sparkdock symlink missing' && exit 1)"
+    tart exec sparkdock-test bash -c "command -v sjust >/dev/null 2>&1 && echo '✅ sjust available' || (echo '❌ sjust missing' && exit 1)"
+    echo "=== SECOND RUN: Already provisioned machine ==="
+    tart exec sparkdock-test bash -c "cd /Volumes/My\ Shared\ Files/sparkdock && ./bin/install.macos --non-interactive"
+    echo "=== Validating second installation (idempotency) ==="
+    tart exec sparkdock-test bash -c "test -d '/opt/sparkdock' && echo '✅ /opt/sparkdock still exists' || (echo '❌ /opt/sparkdock missing after second run' && exit 1)"
+    tart exec sparkdock-test bash -c "test -L '/usr/local/bin/sparkdock' && echo '✅ sparkdock symlink still exists' || (echo '❌ sparkdock symlink missing after second run' && exit 1)"
+    tart exec sparkdock-test bash -c "command -v sjust >/dev/null 2>&1 && echo '✅ sjust still available' || (echo '❌ sjust missing after second run' && exit 1)"
+    tart exec sparkdock-test bash -c "sjust --list > /dev/null && echo '✅ sjust functionality verified' || (echo '❌ sjust not working after second run' && exit 1)"
+    echo "✅ Both installation runs completed successfully"
 
 # Run end-to-end sparkdock test using Cirrus CLI
 test-e2e-with-cirrus:

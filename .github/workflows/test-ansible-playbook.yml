@@ -43,10 +43,76 @@ jobs:
           chmod +x ./bin/sparkdock.macos
           chmod +x ./bin/common/utils.sh
 
-      - name: Run installer script in non-interactive mode
+      - name: Run installer script in non-interactive mode (first run - fresh install)
         run: |
+          echo "=== FIRST RUN: Fresh installation ==="
           # Run the installation script with the non-interactive flag
           /bin/zsh -c "./bin/install.macos --non-interactive"
+
+      - name: Validate first installation
+        run: |
+          echo "=== Validating first installation ==="
+          
+          # Check that sparkdock was installed to /opt/sparkdock
+          if [ ! -d "/opt/sparkdock" ]; then
+            echo "❌ /opt/sparkdock directory not found"
+            exit 1
+          fi
+          echo "✅ /opt/sparkdock directory exists"
+          
+          # Check that sparkdock symlink was created
+          if [ ! -L "/usr/local/bin/sparkdock" ]; then
+            echo "❌ /usr/local/bin/sparkdock symlink not found"
+            exit 1
+          fi
+          echo "✅ /usr/local/bin/sparkdock symlink exists"
+          
+          # Check that sjust was installed
+          if ! command -v sjust >/dev/null 2>&1; then
+            echo "❌ sjust command not found"
+            exit 1
+          fi
+          echo "✅ sjust command is available"
+          
+          # Test basic functionality
+          echo "✅ First installation completed successfully"
+
+      - name: Run installer script in non-interactive mode (second run - already provisioned)
+        run: |
+          echo "=== SECOND RUN: Already provisioned machine ==="
+          # Run the installation script again to test idempotent behavior
+          /bin/zsh -c "./bin/install.macos --non-interactive"
+
+      - name: Validate second installation (idempotency test)
+        run: |
+          echo "=== Validating second installation (idempotency) ==="
+          
+          # Check that sparkdock still exists
+          if [ ! -d "/opt/sparkdock" ]; then
+            echo "❌ /opt/sparkdock directory not found after second run"
+            exit 1
+          fi
+          echo "✅ /opt/sparkdock directory still exists"
+          
+          # Check that sparkdock symlink still works
+          if [ ! -L "/usr/local/bin/sparkdock" ]; then
+            echo "❌ /usr/local/bin/sparkdock symlink not found after second run"
+            exit 1
+          fi
+          echo "✅ /usr/local/bin/sparkdock symlink still exists"
+          
+          # Check that sjust still works
+          if ! command -v sjust >/dev/null 2>&1; then
+            echo "❌ sjust command not found after second run"
+            exit 1
+          fi
+          echo "✅ sjust command still available"
+          
+          # Test that sjust can list commands (idempotency test)
+          sjust --list > /dev/null
+          echo "✅ sjust functionality verified"
+          
+          echo "✅ Second installation completed successfully - installer is idempotent"
 
       - name: Clean up test installations (optional)
         if: always()
