@@ -227,18 +227,6 @@
           become: yes
           become_method: sudo
 
-        - name: Reset git repository permissions when preserving existing installation
-          shell: |
-            cd "{{ dev_env_dir }}/http-proxy"
-            if [ -d .git ]; then
-              # Reset git repository to clean state for permission issues
-              git reset --hard HEAD
-              git clean -fd
-            fi
-          when: http_proxy_dir.stat.exists
-          become: no
-          ignore_errors: yes
-
         - name: Clone http-proxy repository
           git:
             repo: https://github.com/sparkfabrik/http-proxy.git

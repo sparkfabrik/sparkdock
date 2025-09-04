@@ -77,6 +77,12 @@ jobs:
           # Test basic functionality
           echo "✅ First installation completed successfully"
 
+      - name: Fix ownership permissions before second run
+        run: |
+          echo "=== Fixing ownership permissions for second run ==="
+          # Fix ownership permissions recursively on /opt/sparkdock to resolve git permission issues
+          sudo chown -R $(whoami):staff /opt/sparkdock
+
       - name: Run installer script in non-interactive mode (second run - already provisioned)
         run: |
           echo "=== SECOND RUN: Already provisioned machine ==="
