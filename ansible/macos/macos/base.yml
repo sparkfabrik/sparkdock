@@ -87,6 +87,19 @@
             all_cask_packages: "{{ all_cask_packages | difference(['docker-desktop']) }}"
           when: "'docker-desktop' in all_cask_packages and docker_desktop_installed.stdout == 'yes'"
 
+    - name: Google Chrome installation
+      tags: [chrome]
+      block:
+        - name: Check if Google Chrome is already installed
+          shell: brew list --cask google-chrome >/dev/null 2>&1 && echo yes || echo no
+          register: google_chrome_installed
+          changed_when: false
+
+        - name: Remove Google Chrome from install list if already installed
+          set_fact:
+            all_cask_packages: "{{ all_cask_packages | difference(['google-chrome']) }}"
+          when: "'google-chrome' in all_cask_packages and google_chrome_installed.stdout == 'yes'"
+
     - name: Install cask packages
       tags: cask
       community.general.homebrew_cask:
