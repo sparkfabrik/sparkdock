@@ -332,7 +332,7 @@ sparkdock-menubar-install:
 
 # Fix Xcode command line tools and rebuild menubar application.
 [group('sparkdock')]
-menubar-reinstall:
+sparkdock-menubar-reinstall:
     #!/usr/bin/env bash
     set -euo pipefail
     echo "🔧 Fixing Xcode command line tools and rebuilding Sparkdock menu bar application..."
