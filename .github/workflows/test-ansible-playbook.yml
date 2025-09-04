@@ -81,7 +81,7 @@ jobs:
         run: |
           echo "=== Fixing ownership permissions and git state for second run ==="
           # Fix ownership permissions recursively on /opt/sparkdock to resolve git permission issues
-          sudo chown -R $(whoami):staff /opt/sparkdock
+          sudo chown -R $(whoami):$(id -gn) /opt/sparkdock
           
           # Clean git state in http-proxy repository to avoid permission issues
           if [ -d "/opt/sparkdock/http-proxy/.git" ]; then
