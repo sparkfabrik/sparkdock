@@ -2,11 +2,16 @@
 DEFAULT_BRANCH := master
 
 run-ansible-macos:
-ifeq ($(TAGS),)
-	ansible-playbook ./ansible/macos.yml --ask-become-pass
-else
-	ansible-playbook ./ansible/macos.yml --ask-become-pass --tags=$(TAGS)
-endif
+	@echo "Validating sudo access..."
+	@if ! sudo -v; then \
+		echo "❌ Failed to validate sudo access. Please check your password and try again."; \
+		exit 1; \
+	fi
+	@if [ -z "$(TAGS)" ]; then \
+		ansible-playbook ./ansible/macos.yml --become; \
+	else \
+		ansible-playbook ./ansible/macos.yml --become --tags=$(TAGS); \
+	fi
 
 # Install sjust only (for manual http-proxy migration workflow)
 install-sjust:

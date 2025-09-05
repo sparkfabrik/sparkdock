@@ -220,8 +220,8 @@
         - name: Fix ownership of http-proxy directory for git operations
           file:
             path: "{{ dev_env_dir }}/http-proxy"
-            owner: "{{ ansible_user_id }}"
-            group: "{{ ansible_user_gid }}"
+            owner: "{{ ansible_env.SUDO_USER | default(ansible_user_id) }}"
+            group: "{{ lookup('pipe', 'id -g ' + ansible_env.SUDO_USER) if ansible_env.SUDO_USER is defined else ansible_user_gid }}"
             recurse: yes
           when: http_proxy_dir.stat.exists
           become: yes
