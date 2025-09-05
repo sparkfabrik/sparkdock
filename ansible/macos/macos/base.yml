@@ -223,11 +223,7 @@
             owner: "{{ ansible_user_id }}"
             group: "{{ ansible_user_gid }}"
             recurse: yes
-          when: 
-            - http_proxy_dir.stat.exists
-            - ansible_env.GITHUB_ACTIONS is undefined
-            - ansible_env.CI is undefined
-            - ansible_env.RUNNER_OS is undefined
+          when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
           become: yes
           become_method: sudo
 
