@@ -6,8 +6,6 @@ BLUE='\033[0;34m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-setopt PROMPT_SUBST
-
 # Print functions for different message types
 print_info() {
     printf "${BOLD}${BLUE}[INFO]${NC} %s\n" "$1"
@@ -70,16 +68,68 @@ get_version_info() {
 }
 
 print_banner() {
-cat <<"EOF"
-
-
-  ___                _      _         _
- / __|_ __  __ _ _ _| |____| |___  __| |__
- \__ \ '_ \/ _` | '_| / / _` / _ \/ _| / /
- |___/ .__/\__,_|_| |_\_\__,_\___/\__|_\_\
-     |_|
-
-EOF
+    # Source advanced color libraries if available for cyberpunk effects
+    local script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    local sparkdock_root="$(cd "${script_dir}/../.." && pwd)"
+    
+    # Try to source color libraries for enhanced effects
+    if [[ -f "${sparkdock_root}/sjust/libs/libcolors.sh" ]]; then
+        # shellcheck source=../../sjust/libs/libcolors.sh
+        source "${sparkdock_root}/sjust/libs/libcolors.sh" 2>/dev/null || true
+    fi
+    if [[ -f "${sparkdock_root}/sjust/libs/libformatting.sh" ]]; then
+        # shellcheck source=../../sjust/libs/libformatting.sh  
+        source "${sparkdock_root}/sjust/libs/libformatting.sh" 2>/dev/null || true
+    fi
+    
+    # Check if advanced colors are available, fall back to basic if not
+    if [[ -n "${lightred:-}" && -n "${cyan:-}" && -n "${bold:-}" ]]; then
+        # Advanced cyberpunk banner with gradient effects
+        echo ""
+        echo ""
+        # Modern cyberpunk gradient border
+        echo -e "${bold}${red}  ░▒▓${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}▓▒░${normal:-${NC}}"
+        echo ""
+        
+        # SPARKDOCK in clean block letters with cyberpunk colors
+        echo -e "${bold}${lightred}     ▄█████▄ ▄█████▄  ▄█████▄ ▄█████▄ ██  ██ ▄█████▄${normal:-${NC}}"
+        echo -e "${bold}${red}     █${cyan}▄▄▄▄▄${red}█ █${cyan}██████${red}█ █${cyan}██████${red}█ █${cyan}██████${red}█ █${cyan}██${red}██ █${cyan}██████${red}█${normal:-${NC}}"
+        echo -e "${bold}${cyan}     █${red}████${cyan}█▄ █${red}██████${cyan}█ █${red}██████${cyan}█ █${red}██████${cyan}█ █${red}██${cyan}██ █${red}██████${cyan}█${normal:-${NC}}"
+        echo -e "${bold}${red}     ▄${cyan}▄▄▄▄${red}██ █${cyan}██${red}█▄▄▄▄ █${cyan}██${red}█▄▄▄▄ █${cyan}██${red}█▄▄▄▄ █${cyan}██${red}██ █${cyan}██${red}█▄▄▄▄${normal:-${NC}}"
+        echo -e "${bold}${cyan}     █████▄▄ █${red}██${cyan}█     █${red}██${cyan}█     █${red}██████${cyan}█ █${red}██${cyan}██ █${red}██${cyan}█${normal:-${NC}}"
+        echo ""
+        echo -e "${bold}${cyan}     ▄█████▄  ▄█████▄  ▄█████▄ ██  ██${normal:-${NC}}"
+        echo -e "${bold}${red}     █${cyan}██████${red}█ █${cyan}██████${red}█ █${cyan}██████${red}█ █${cyan}██${red}██${normal:-${NC}}"
+        echo -e "${bold}${cyan}     █${red}██████${cyan}█ █${red}██████${cyan}█ █${red}██${cyan}█  ▄▄ █${red}██${cyan}██${normal:-${NC}}"
+        echo -e "${bold}${red}     █${cyan}██${red}█  ▄▄ █${cyan}██${red}█  ▄▄ █${cyan}██${red}█ ▄██ █${cyan}██${red}██${normal:-${NC}}"
+        echo -e "${bold}${cyan}     █${red}██${cyan}█  ▄▄ ████████ ▄█████▄ █${red}██${cyan}██${normal:-${NC}}"
+        
+        echo ""
+        # Modern cyberpunk gradient border
+        echo -e "${bold}${red}  ░▒▓${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}█${cyan}█${lightcyan:-${cyan}}█${cyan}█${red}█${lightred}█${red}▓▒░${normal:-${NC}}"
+        echo ""
+    else
+        # Fallback to enhanced basic colors if advanced libraries not available
+        echo ""
+        echo ""
+        echo -e "${BOLD}${RED}  ░▒▓████████████████████████████████████████████▓▒░${NC}"
+        echo ""
+        echo -e "${BOLD}${RED}     ▄█████▄ ▄█████▄  ▄█████▄ ▄█████▄ ██  ██ ▄█████▄${NC}"
+        echo -e "${BOLD}${RED}     █▄▄▄▄▄█ ████████ ████████ ████████ █████ ████████${NC}"  
+        echo -e "${BOLD}${BLUE}     ██████▄ ████████ ████████ ████████ █████ ████████${NC}"
+        echo -e "${BOLD}${RED}     ▄▄▄▄▄██ ████▄▄▄▄ ████▄▄▄▄ ████▄▄▄▄ █████ ████▄▄▄▄${NC}"
+        echo -e "${BOLD}${BLUE}     █████▄▄ ████     ████     ████████ █████ ████${NC}"
+        echo ""
+        echo -e "${BOLD}${BLUE}     ▄█████▄  ▄█████▄  ▄█████▄ ██  ██${NC}"
+        echo -e "${BOLD}${RED}     ████████ ████████ ████████ █████${NC}"
+        echo -e "${BOLD}${BLUE}     ████████ ████████ ████  ▄▄ █████${NC}"
+        echo -e "${BOLD}${RED}     ████  ▄▄ ████  ▄▄ ████ ▄██ █████${NC}"
+        echo -e "${BOLD}${BLUE}     ████  ▄▄ ████████ ▄█████▄ █████${NC}"
+        echo ""
+        echo -e "${BOLD}${RED}  ░▒▓████████████████████████████████████████████▓▒░${NC}"
+        echo ""
+    fi
+    
     print_section "System Information"
     get_version_info
     echo ""
