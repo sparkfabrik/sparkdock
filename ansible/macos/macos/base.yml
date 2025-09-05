@@ -217,7 +217,7 @@
             path: "{{ dev_env_dir }}/http-proxy"
           register: http_proxy_dir
 
-        - name: Fix ownership of http-proxy directory for git operations (local environments only)
+        - name: Fix ownership of http-proxy directory for git operations.
           file:
             path: "{{ dev_env_dir }}/http-proxy"
             owner: "{{ ansible_user_id }}"
