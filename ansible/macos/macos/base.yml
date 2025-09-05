@@ -217,13 +217,13 @@
             path: "{{ dev_env_dir }}/http-proxy"
           register: http_proxy_dir
 
-        - name: Fix ownership of http-proxy directory for git operations
+        - name: Fix ownership of http-proxy directory for git operations.
           file:
             path: "{{ dev_env_dir }}/http-proxy"
             owner: "{{ ansible_user_id }}"
             group: "{{ ansible_user_gid }}"
             recurse: yes
-          when: http_proxy_dir.stat.exists
+          when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
           become: yes
           become_method: sudo
 
