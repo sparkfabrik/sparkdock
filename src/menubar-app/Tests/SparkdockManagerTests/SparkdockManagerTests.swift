@@ -44,9 +44,13 @@ final class SparkdockManagerTests: XCTestCase {
         let updateTag = 1
         let loginTag = 2
         let upgradeBrewTag = 3
+        let upgradeHttpProxyTag = 4
         XCTAssertNotEqual(updateTag, loginTag, "Menu item tags should be unique")
         XCTAssertNotEqual(updateTag, upgradeBrewTag, "Menu item tags should be unique")
+        XCTAssertNotEqual(updateTag, upgradeHttpProxyTag, "Menu item tags should be unique")
         XCTAssertNotEqual(loginTag, upgradeBrewTag, "Menu item tags should be unique")
+        XCTAssertNotEqual(loginTag, upgradeHttpProxyTag, "Menu item tags should be unique")
+        XCTAssertNotEqual(upgradeBrewTag, upgradeHttpProxyTag, "Menu item tags should be unique")
     }
     
     func testTimerTolerance() {
@@ -88,5 +92,15 @@ final class SparkdockManagerTests: XCTestCase {
     func testBrewUpgradeCommand() {
         let upgradeCommand = "brew upgrade"
         XCTAssertEqual(upgradeCommand, "brew upgrade", "Brew upgrade command should be correct")
+    }
+    
+    func testHttpProxyUpgradeCommand() {
+        let httpProxyUpgradeCommand = "sjust http-proxy-install-update"
+        XCTAssertEqual(httpProxyUpgradeCommand, "sjust http-proxy-install-update", "Http-proxy upgrade command should be correct")
+    }
+    
+    func testHttpProxyCheckUpdatesCommand() {
+        let httpProxyCheckCommand = ["http-proxy-check-updates"]
+        XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "Http-proxy check command should be correct")
     }
 }
