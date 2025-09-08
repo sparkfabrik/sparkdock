@@ -476,7 +476,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func runSparkdockCheck() async -> Bool {
+    private func runSparkdockCommand(_ command: String) async -> Bool {
         guard FileManager.default.fileExists(atPath: AppConstants.sparkdockExecutablePath) else {
             AppConstants.logger.warning("Sparkdock executable not found at \(AppConstants.sparkdockExecutablePath)")
             return false
@@ -484,7 +484,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: AppConstants.sparkdockExecutablePath)
-        process.arguments = ["check-updates"]
+        process.arguments = [command]
 
         var terminationStatus: Int32 = -1
         do {
@@ -512,62 +512,23 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 }
             )
             if !finished {
-                AppConstants.logger.error("Sparkdock check-updates process timed out after \(AppConstants.processTimeout) seconds")
+                AppConstants.logger.error("Sparkdock command '\(command)' process timed out after \(AppConstants.processTimeout) seconds")
                 return false
             }
 
             return terminationStatus == 0
         } catch {
-            AppConstants.logger.error("Failed to run sparkdock check: \(error.localizedDescription)")
+            AppConstants.logger.error("Failed to run sparkdock command '\(command)': \(error.localizedDescription)")
             return false
         }
     }
 
+    private func runSparkdockCheck() async -> Bool {
+        return await runSparkdockCommand("check-updates")
+    }
+
     private func runHttpProxyCheck() async -> Bool {
-        guard FileManager.default.fileExists(atPath: AppConstants.sparkdockExecutablePath) else {
-            AppConstants.logger.warning("Sparkdock executable not found at \(AppConstants.sparkdockExecutablePath)")
-            return false
-        }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: AppConstants.sparkdockExecutablePath)
-        process.arguments = ["http-proxy-check-updates"]
-
-        var terminationStatus: Int32 = -1
-        do {
-            try process.run()
-
-            // Await process termination with timeout
-            let finished: Bool = await withTaskCancellationHandler(
-                operation: {
-                    do {
-                        terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                            await withCheckedContinuation { continuation in
-                                process.terminationHandler = { proc in
-                                    continuation.resume(returning: proc.terminationStatus)
-                                }
-                            }
-                        }
-                        return true
-                    } catch {
-                        return false
-                    }
-                },
-                onCancel: {
-                    // If cancelled, terminate the process
-                    process.terminate()
-                }
-            )
-            if !finished {
-                AppConstants.logger.error("Http-proxy check-updates process timed out after \(AppConstants.processTimeout) seconds")
-                return false
-            }
-
-            return terminationStatus == 0
-        } catch {
-            AppConstants.logger.error("Failed to run http-proxy check: \(error.localizedDescription)")
-            return false
-        }
+        return await runSparkdockCommand("http-proxy-check-updates")
     }
 
     private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false) {
