@@ -52,6 +52,33 @@ check_for_updates() {
     return 1
 }
 
+check_http_proxy_updates() {
+    HTTP_PROXY_DIR="/opt/sparkdock/http-proxy"
+    
+    # Check if http-proxy directory exists
+    if [ ! -d "${HTTP_PROXY_DIR}" ]; then
+        return 1
+    fi
+    
+    cd "${HTTP_PROXY_DIR}"
+    
+    # Ensure it's a git repository
+    if [ ! -d ".git" ]; then
+        return 1
+    fi
+    
+    git fetch origin main -q
+    LOCAL=$(git rev-parse HEAD)
+    REMOTE=$(git rev-parse origin/main)
+    
+    if [ "$LOCAL" != "$REMOTE" ]; then
+        echo "Http-proxy updates available:"
+        git --no-pager log --oneline HEAD..origin/main
+        return 0
+    fi
+    return 1
+}
+
 # Add update lock to prevent parallel updates
  check_update_lock() {
     LOCK_FILE="/tmp/sparkdock.lock"
@@ -92,6 +119,15 @@ fi
 if [ "$1" = "check-updates" ] ; then
     if check_for_updates; then
         notify "Updates are available. Run 'sparkdock' to update your system."
+        exit 0  # Updates available
+    fi
+    exit 1  # No updates available
+fi
+
+# Http-proxy update check mode
+if [ "$1" = "http-proxy-check-updates" ] ; then
+    if check_http_proxy_updates; then
+        notify "Http-proxy updates are available. Run 'sjust http-proxy-install-update' to update."
         exit 0  # Updates available
     fi
     exit 1  # No updates available
