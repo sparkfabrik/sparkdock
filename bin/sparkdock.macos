@@ -207,9 +207,17 @@ checkMacosVersion
 
 print_section "System Update"
 print_info "Sparkdock provisioner: Updating your system in progress..."
-print_info "Running ansible playbook..."
+
+# Validate sudo access before running ansible to prevent hanging
+print_info "Validating sudo access..."
 print_warning "You'll be asked to insert your password to become root"
-ansible-playbook "$SPARKDOCK_ROOT/ansible/macos.yml" -i "$SPARKDOCK_ROOT/ansible/inventory.ini" --ask-become-pass -v
+if ! sudo -v; then
+    print_error "Failed to validate sudo access. Please check your password and try again."
+    exit 1
+fi
+
+print_info "Running ansible playbook..."
+ansible-playbook "$SPARKDOCK_ROOT/ansible/macos.yml" -i "$SPARKDOCK_ROOT/ansible/inventory.ini" --become -v
 
 print_success "Installation completed successfully"
 

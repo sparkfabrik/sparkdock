@@ -4,10 +4,18 @@ _default:
 run-ansible-macos TAGS="all":
     #!/usr/bin/env bash
     TAGS={{TAGS}}
+    
+    # Validate sudo access before running ansible to prevent hanging
+    echo "Validating sudo access..."
+    if ! sudo -v; then
+        echo "❌ Failed to validate sudo access. Please check your password and try again."
+        exit 1
+    fi
+    
     if [ -z "${TAGS}" ]; then
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become -v
     else
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass --tags=${TAGS} -v
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --become --tags=${TAGS} -v
     fi
 
 # Create macOS VM with Tart (installs Tart if needed)
