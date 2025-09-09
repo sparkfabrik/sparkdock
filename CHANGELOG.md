@@ -8,6 +8,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Renamed `sparkdock-update-repository` command to `sparkdock-fetch-updates` to better communicate its purpose
-- Improved command description: now explains that it fetches latest updates without running system configuration, useful for getting newest sjust recipes and commands without triggering a full system update
-- Updated output messages to match new naming: "Fetching latest Sparkdock updates..." and "Sparkdock updates fetched successfully!"
+- Renamed `sparkdock-update-repository` command to `sparkdock-fetch-updates` with improved description and updated output messages

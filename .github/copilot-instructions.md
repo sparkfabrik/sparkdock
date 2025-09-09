@@ -147,3 +147,4 @@ Do this:
 
 - Maintain a CHANGELOG.md file
 - Document all changes, including bug fixes and new features
+- Keep each changelog entry to just one line for clarity and consistency
