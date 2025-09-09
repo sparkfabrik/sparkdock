@@ -257,12 +257,12 @@ sparkdock-install-tags tags:
     cd {{ sparkdock_path }}
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
 
-# Update Sparkdock git repository to latest version, it doesn't run any ansible task.
+# Fetch latest Sparkdock updates from git repository without running system configuration. Useful for getting the newest sjust recipes and commands without triggering a full system update.
 [group('sparkdock')]
-sparkdock-update-repository:
+sparkdock-fetch-updates:
     #!/usr/bin/env bash
     set -e
-    echo "Updating Sparkdock repository to latest version..."
+    echo "Fetching latest Sparkdock updates..."
     cd {{ sparkdock_path }}
 
     # Fix git ownership issues
@@ -297,7 +297,7 @@ sparkdock-update-repository:
     echo "⬆️  Updating to latest {{ default_branch }}..."
     git reset --hard origin/{{ default_branch }}
 
-    echo "✅ Sparkdock updated successfully!"
+    echo "✅ Sparkdock updates fetched successfully!"
     echo "📝 You now have access to the latest sjust commands and configurations."
     echo "💡 Run 'sjust --list' to see available commands."
 
