@@ -142,3 +142,9 @@ Do this:
 **Update Safety**: Automatic stashing of local changes during updates
 **Lock File**: `/tmp/sparkdock.lock` prevents concurrent updates
 **Rollback**: Built-in rollback on failed updates using stored commit hashes
+
+## Changelog
+
+- Maintain a CHANGELOG.md file
+- Document all changes, including bug fixes and new features
+- Keep each changelog entry to just one line for clarity and consistency
