@@ -49,6 +49,7 @@ private enum MenuItemTag: Int {
     case updateNow = 1
     case loginItem = 2
     case upgradeBrew = 3
+    case upgradeHttpProxy = 4
 }
 
 // MARK: - Brew Package Types
@@ -100,14 +101,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var menu: NSMenu?
     var hasUpdates = false
+    var hasHttpProxyUpdates = false
     var outdatedBrewFormulaeCount = 0
     var outdatedBrewCasksCount = 0
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
     var statusMenuItem: NSMenuItem?
     var sparkdockStatusMenuItem: NSMenuItem?
     var brewStatusMenuItem: NSMenuItem?
+    var httpProxyStatusMenuItem: NSMenuItem?
     var updateNowMenuItem: NSMenuItem?
     var upgradeBrewMenuItem: NSMenuItem?
+    var upgradeHttpProxyMenuItem: NSMenuItem?
     private var pathMonitor: NWPathMonitor?
     fileprivate var menuConfig: MenuConfig?
     // Cache icons to avoid recreating them
@@ -163,6 +167,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         // Set initial status and check for updates
         sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
+        httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -230,6 +235,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(brewStatusItem)
         self.brewStatusMenuItem = brewStatusItem
 
+        let httpProxyStatusItem = NSMenuItem(title: "Checking for updates (Http-proxy)...", action: #selector(checkHttpProxyUpdatesAction), keyEquivalent: "")
+        httpProxyStatusItem.target = self
+        menu.addItem(httpProxyStatusItem)
+        self.httpProxyStatusMenuItem = httpProxyStatusItem
+
         menu.addItem(.separator())
 
         let updateItem = NSMenuItem(title: "", action: #selector(updateNow), keyEquivalent: "")
@@ -249,6 +259,15 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         ])
         menu.addItem(upgradeBrewItem)
         upgradeBrewMenuItem = upgradeBrewItem
+
+        let upgradeHttpProxyItem = NSMenuItem(title: "", action: #selector(upgradeHttpProxy), keyEquivalent: "")
+        upgradeHttpProxyItem.target = self
+        upgradeHttpProxyItem.tag = MenuItemTag.upgradeHttpProxy.rawValue
+        upgradeHttpProxyItem.attributedTitle = NSAttributedString(string: "Upgrade Http-proxy", attributes: [
+            .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
+        ])
+        menu.addItem(upgradeHttpProxyItem)
+        upgradeHttpProxyMenuItem = upgradeHttpProxyItem
 
         menu.addItem(.separator())
 
@@ -314,6 +333,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 DispatchQueue.main.async {
                     self?.sparkdockStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
                     self?.brewStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
+                    self?.httpProxyStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
                     self?.checkForUpdates()
                 }
             }
@@ -332,12 +352,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         AppConstants.logger.info("System woke from sleep - checking for updates")
         sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
+        httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
         checkForUpdates()
     }
 
     @objc private func checkForUpdatesAction() {
         sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
+        httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -351,12 +373,18 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         checkForUpdates()
     }
 
+    @objc private func checkHttpProxyUpdatesAction() {
+        httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
+        checkForUpdates()
+    }
+
     private func checkForUpdates() {
         Task(priority: .background) {
             let hasUpdates = await runSparkdockCheck()
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
+            let hasHttpProxyUpdates = await runHttpProxyCheck()
             await MainActor.run {
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount)
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates)
             }
         }
     }
@@ -448,7 +476,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func runSparkdockCheck() async -> Bool {
+    private func runSparkdockCommand(_ command: String) async -> Bool {
         guard FileManager.default.fileExists(atPath: AppConstants.sparkdockExecutablePath) else {
             AppConstants.logger.warning("Sparkdock executable not found at \(AppConstants.sparkdockExecutablePath)")
             return false
@@ -456,7 +484,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: AppConstants.sparkdockExecutablePath)
-        process.arguments = ["check-updates"]
+        process.arguments = [command]
 
         var terminationStatus: Int32 = -1
         do {
@@ -484,30 +512,42 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 }
             )
             if !finished {
-                AppConstants.logger.error("Sparkdock check-updates process timed out after \(AppConstants.processTimeout) seconds")
+                AppConstants.logger.error("Sparkdock command '\(command)' process timed out after \(AppConstants.processTimeout) seconds")
                 return false
             }
 
             return terminationStatus == 0
         } catch {
-            AppConstants.logger.error("Failed to run sparkdock check: \(error.localizedDescription)")
+            AppConstants.logger.error("Failed to run sparkdock command '\(command)': \(error.localizedDescription)")
             return false
         }
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0) {
+    private func runSparkdockCheck() async -> Bool {
+        return await runSparkdockCommand("check-updates")
+    }
+
+    private func runHttpProxyCheck() async -> Bool {
+        return await runSparkdockCommand("http-proxy-check-updates")
+    }
+
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false) {
         self.hasUpdates = hasUpdates
+        self.hasHttpProxyUpdates = hasHttpProxyUpdates
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
         self.outdatedBrewCasksCount = outdatedBrewCasks
         let totalBrewCount = totalOutdatedBrewCount
 
-        let hasAnyUpdates = hasUpdates || totalBrewCount > 0
+        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates
         statusItem?.button?.image = loadIcon(hasUpdates: hasAnyUpdates)
 
         // Create more detailed tooltip
         var tooltipParts: [String] = []
         if hasUpdates {
             tooltipParts.append("Sparkdock updates available")
+        }
+        if hasHttpProxyUpdates {
+            tooltipParts.append("Http-proxy updates available")
         }
         if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
             tooltipParts.append("\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks outdated")
@@ -540,6 +580,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             brewStatusMenuItem?.attributedTitle = createStatusTitle("Brew packages: up to date", color: .systemGreen)
         }
 
+        // Update Http-proxy status line
+        if hasHttpProxyUpdates {
+            httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Http-proxy updates available", color: .systemOrange)
+        } else {
+            httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Http-proxy is up to date", color: .systemGreen)
+        }
+
         // Update the "Upgrade Sparkdock" menu item visibility
         if let updateItem = updateNowMenuItem {
             if hasUpdates {
@@ -564,6 +611,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 upgradeBrewItem.isHidden = true
             }
         }
+
+        // Update the "Upgrade Http-proxy" menu item visibility
+        if let upgradeHttpProxyItem = upgradeHttpProxyMenuItem {
+            if hasHttpProxyUpdates {
+                upgradeHttpProxyItem.title = "Upgrade Http-proxy"
+                upgradeHttpProxyItem.isEnabled = true
+                upgradeHttpProxyItem.isHidden = false
+            } else {
+                upgradeHttpProxyItem.isHidden = true
+            }
+        }
     }
 
     @objc private func updateNow() {
@@ -577,6 +635,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         // Create a compound command that only runs the second upgrade if the first succeeds
         let upgradeCommand = "brew upgrade && brew upgrade --cask"
         executeTerminalCommand(upgradeCommand)
+    }
+
+    @objc private func upgradeHttpProxy() {
+        guard hasHttpProxyUpdates else { return }
+        executeTerminalCommand("sjust http-proxy-install-update")
     }
 
 
