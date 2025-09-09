@@ -59,18 +59,6 @@
         upgrade_all: false
       become: false
 
-    - name: Pin Homebrew to version 4.6.9 (temporary workaround)
-      # Temporary fix for brew 4.6.10 issues
-      # See: https://github.com/Homebrew/homebrew-cask/issues/227138
-      # Remove this task once the issue is resolved
-      shell: |
-        cd "$(brew --repository)"
-        git fetch --unshallow 2>/dev/null || git fetch
-        git checkout 4.6.9
-      become: false
-      ignore_errors: yes
-      tags: always
-
     - name: Remove unwanted packages
       community.general.homebrew:
         name: "{{ all_removed_homebrew }}"
