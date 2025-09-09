@@ -57,7 +57,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 ### System Requirements
 
 **Operating System:**
-- macOS Big Sur (11.x), Monterey (12.x), Ventura (13.x), Sonoma (14.x), or Sequoia (15.x)
+- macOS Sonoma (14.x) or Sequoia (15.x)
 - Apple Silicon (M1/M2/M3) and Intel Macs supported
 
 **Hardware Requirements:**

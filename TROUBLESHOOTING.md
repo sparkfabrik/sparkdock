@@ -7,9 +7,6 @@ Please find hints and troubleshooting information on our company playbook: http:
 ### System Requirements
 
 **Supported macOS Versions:**
-- macOS Big Sur (11.x)
-- macOS Monterey (12.x) 
-- macOS Ventura (13.x)
 - macOS Sonoma (14.x)
 - macOS Sequoia (15.x)
 
