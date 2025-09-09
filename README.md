@@ -56,9 +56,22 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 
 ### System Requirements
 
+**Operating System:**
 - macOS Big Sur (11.x), Monterey (12.x), Ventura (13.x), Sonoma (14.x), or Sequoia (15.x)
-- Administrator privileges
-- Internet connection
+- Apple Silicon (M1/M2/M3) and Intel Macs supported
+
+**Hardware Requirements:**
+- At least 8GB RAM recommended (16GB for heavy development workloads)
+- Minimum 10GB free disk space (20GB+ recommended for full development environment)
+- Stable internet connection for package downloads
+
+**User Requirements:**
+- Administrator privileges (required for system-level configurations)
+- Command line familiarity (basic terminal usage)
+
+**Network Requirements:**
+- Access to GitHub, Homebrew, and Docker Hub repositories
+- Corporate firewalls may need to allow access to development tool repositories
 
 ### What Gets Installed
 
@@ -190,9 +203,11 @@ For detailed troubleshooting information, see our [troubleshooting guide](TROUBL
 ### Common Issues
 
 - **Permission Errors**: Ensure administrator privileges
-- **Network Issues**: Check internet connectivity
+- **Network Issues**: Check internet connectivity and firewall settings
+- **Docker Desktop Network Problems**: Use `sjust docker-desktop-*` commands for UDP and host networking issues
 - **Update Failures**: System automatically rolls back failed updates
-- **Lock File Issues**: Remove `/tmp/sparkdock.lock` if stuck
+- **Lock File Issues**: Remove `/tmp/sparkdock.lock` if installation appears stuck
+- **DNS Resolution**: Clear macOS DNS cache or restart HTTP proxy services
 
 ## Development
 
