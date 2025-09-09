@@ -7,4 +7,4 @@ then
     brew install just
 fi
 
-just --justfile /opt/sparkdock/sjust/justfile "${@}"
+just --justfile /opt/sparkdock/sjust/Justfile "${@}"
