@@ -59,7 +59,7 @@ docker-desktop-disable-host-networking: _docker_desktop_check_cli
 
 # Install specific version of Docker Desktop (4.41.2) to work around network issues
 [group('docker-desktop')]
-docker-desktop-install-specific-version:
+docker-desktop-install-version-4412:
     #!/usr/bin/env bash
     set -euo pipefail
     
