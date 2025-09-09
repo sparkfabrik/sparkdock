@@ -7,5 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added `docker-desktop-install-version-4412` task to download Docker Desktop 4.41.2 to work around network issues
+
 ### Changed
 - Renamed `sparkdock-update-repository` command to `sparkdock-fetch-updates` with improved description and updated output messages
