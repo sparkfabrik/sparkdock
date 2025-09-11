@@ -71,7 +71,6 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 
 **Network Requirements:**
 - Access to GitHub, Homebrew, and Docker Hub repositories
-- Corporate firewalls may need to allow access to development tool repositories
 
 ### What Gets Installed
 
@@ -203,11 +202,10 @@ For detailed troubleshooting information, see our [troubleshooting guide](TROUBL
 ### Common Issues
 
 - **Permission Errors**: Ensure administrator privileges
-- **Network Issues**: Check internet connectivity and firewall settings
 - **Docker Desktop Network Problems**: Use `sjust docker-desktop-*` commands for UDP and host networking issues
 - **Update Failures**: System automatically rolls back failed updates
 - **Lock File Issues**: Remove `/tmp/sparkdock.lock` if installation appears stuck
-- **DNS Resolution**: Clear macOS DNS cache or restart HTTP proxy services
+- **DNS Resolution**: Use `sjust http-proxy-restart` to restart proxy services or clear DNS cache
 
 ## Development
 

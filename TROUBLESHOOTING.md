@@ -40,11 +40,11 @@ Add your own tasks to `~/.config/sjust/100-custom.just` for project-specific aut
 
 ### Docker Desktop Network Issues
 
-Docker Desktop can experience network connectivity issues that affect containerized applications. Sparkdock provides sjust commands to resolve common network problems:
+Docker Desktop can experience network connectivity issues that affect containerized applications. Use the following sjust commands to resolve common network problems:
 
-#### UDP Networking Issues
+#### Network Connectivity Issues
 
-If you experience UDP connectivity problems with containers:
+If you experience network connectivity problems with containers:
 
 **Enable kernel networking for UDP (may not be compatible with VPN software):**
 ```bash
@@ -54,20 +54,6 @@ sjust docker-desktop-enable-kernel-udp
 **Disable kernel networking for UDP:**
 ```bash
 sjust docker-desktop-disable-kernel-udp
-```
-
-#### Host Networking Issues
-
-When containers need to access localhost services on the host:
-
-**Enable host networking:**
-```bash
-sjust docker-desktop-enable-host-networking
-```
-
-**Disable host networking:**
-```bash
-sjust docker-desktop-disable-host-networking
 ```
 
 #### General Docker Desktop Issues
@@ -124,23 +110,12 @@ MulticastDNS setting: no
 - Verify access to GitHub and Homebrew repositories
 - Some corporate networks may block required domains
 
-**Lock file issues:**
-If Sparkdock appears to be stuck or reports lock file errors:
-```bash
-rm -f /tmp/sparkdock.lock
-```
-
 #### Update Problems
 
 **Failed updates:**
 - Sparkdock automatically rolls back failed updates
 - Check `/opt/sparkdock` directory exists and has proper permissions
 - Ensure git repository in `/opt/sparkdock` is in a clean state
-
-**Menu bar app not updating:**
-```bash
-sjust menubar          # Restart the menu bar app manually
-```
 
 #### HTTP Proxy Issues
 
@@ -151,9 +126,11 @@ spark-http-proxy restart   # Restart all proxy services
 ```
 
 **`.loc` domains not resolving:**
+```bash
+sjust http-proxy-restart        # Restart HTTP proxy system
+sjust dns-flush-cache          # Clear macOS DNS cache
+```
 - Verify DNS resolver configuration in `/etc/resolver/loc`
-- Clear DNS cache (see macOS DNS troubleshooting below)
-- Restart the HTTP proxy system
 
 #### Package Installation Issues
 
