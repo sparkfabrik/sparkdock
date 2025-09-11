@@ -101,15 +101,17 @@ sparkdock
 Run specific parts of the configuration using Ansible tags:
 
 **macOS System Defaults:**
-```bash
-ansible-playbook ansible/macos.yml --tags macos-defaults --ask-become-pass
-```
 
-**Using SparkJust (Easier Alternative):**
+The macOS defaults configuration is implemented as a unified sjust task. Both Ansible and direct usage execute the same implementation:
+
 ```bash
+# Direct usage (recommended for individual use)
 sjust macos-defaults              # Apply all macOS developer defaults
-sjust macos-defaults-check        # Preview what would be changed (dry-run)
+sjust macos-defaults-check        # Preview current defaults status
 sjust macos-defaults-reset        # Reset selected defaults (use with caution)
+
+# Via Ansible (calls sjust internally)
+ansible-playbook ansible/macos.yml --tags macos-defaults --ask-become-pass
 ```
 
 **Skip macOS Defaults:**

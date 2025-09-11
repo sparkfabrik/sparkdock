@@ -361,11 +361,6 @@
             dest: "~/Library/KeyBindings",
           }
 
-    # Include macOS system defaults configuration
-    - name: Include macOS defaults configuration
-      include_tasks: defaults.yml
-      tags: macos-defaults
-
     # Install to /usr/local/bin as the other binaries.
     - name: Install sjust executable
       tags: sjust
@@ -393,6 +388,12 @@
           file:
             path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
             mode: "0644"
+
+    # Apply macOS system defaults configuration using sjust
+    - name: Apply macOS system defaults for developers
+      shell: /usr/local/bin/sjust macos-defaults
+      become: no
+      tags: macos-defaults
 
     - name: Remove unwanted cask packages
       community.general.homebrew_cask:
