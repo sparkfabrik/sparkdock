@@ -4,10 +4,12 @@ uid := `id -u`
 shell := `grep :$(id -u): /etc/passwd | cut -d: -f7`
 sparkdock_path := "/opt/sparkdock"
 default_branch := "master"
+sparkdock_menubar_plist_path := "${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+sparkdock_menubar_process_name := "sparkdock-manager"
 
 # Print system information.
 [group('system')]
-device-info:
+system-device-info:
     #!/usr/bin/env bash
 
     read -r -d '' AYSE << EOM
@@ -50,82 +52,82 @@ device-info:
 
 # Clear DNS cache on macOS.
 [group('system')]
-clear-dns-cache:
+system-clear-dns-cache:
     @sudo dscacheutil -flushcache && sudo killall -HUP mDNSResponder
     @echo "DNS cache cleared successfully!"
 
-# Run default docker http proxy.
+# Install and update http-proxy to latest version.
 [group('http-proxy')]
-start-http-proxy:
+http-proxy-install-update:
     #!/usr/bin/env bash
-
-    # The certs directory for the new http-proxy
-    # Rerun the script to update the certs.
-    mkdir -p ~/.local/spark/http-proxy/certs
-
-    echo "Starting http-proxy container using spark-http-proxy..."
-    if ! command -v spark-http-proxy &> /dev/null; then
-        echo "Error: spark-http-proxy is not installed or not in PATH. Please install it and try again."
-        exit 1
-    fi
-    spark-http-proxy start
-
-# Start http-proxy with monitoring (Grafana + Prometheus).
-[group('http-proxy')]
-start-http-proxy-with-metrics:
-    #!/usr/bin/env bash
-    echo "Starting http-proxy with monitoring services..."
-    spark-http-proxy start-with-metrics
-
-# Show http-proxy status and dashboard links.
-[group('http-proxy')]
-http-proxy-status:
-    #!/usr/bin/env bash
-    echo "Checking http-proxy status..."
-    spark-http-proxy status
-
-# Open http-proxy dashboard in browser.
-[group('http-proxy')]
-http-proxy-dashboard:
-    #!/usr/bin/env bash
-    echo "Opening http-proxy dashboard..."
-    spark-http-proxy dashboard
-
-# Generate SSL certificates for a domain.
-[group('http-proxy')]
-generate-ssl-cert domain:
-    #!/usr/bin/env bash
-    echo "Generating SSL certificate for {{ domain }}..."
-    spark-http-proxy generate-mkcert "{{ domain }}"
-
-# Configure system DNS to resolve proxy domains.
-[group('http-proxy')]
-configure-dns:
-    #!/usr/bin/env bash
-    echo "Configuring system DNS for proxy domains..."
-    spark-http-proxy configure-dns
-
-# Show http-proxy configuration and file locations.
-[group('http-proxy')]
-http-proxy-config:
-    #!/usr/bin/env bash
-    echo "Showing http-proxy configuration..."
-    spark-http-proxy show-config
-
-# Install http-proxy without full system update (faster, targeted).
-[group('http-proxy')]
-install-http-proxy:
-    #!/usr/bin/env bash
-    echo "Configuring http-proxy system (targeted update)..."
+    set -e
+    echo "Installing/updating http-proxy system to latest version..."
     cd {{ sparkdock_path }}
-    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
+
+    # Update http-proxy repository if it exists
+    if [ -d "http-proxy" ]; then
+        echo "🔄 Updating existing http-proxy repository..."
+        cd http-proxy
+
+        echo "🔧 Configuring git permissions..."
+        uid=$(id -u)
+        gid=$(id -g)
+        current_uid=$(stat -f "%u" .)
+        current_gid=$(stat -f "%g" .)
+        if [[ "$current_uid" != "$uid" || "$current_gid" != "$gid" ]]; then
+            sudo chown -R "${uid}:${gid}" .
+        fi
+
+        git config --local --add safe.directory $PWD
+        # Check if we're on main branch (http-proxy uses main, not master)
+        current_branch=$(git branch --show-current)
+        if [[ "${current_branch}" != "main" ]]; then
+            echo "❌ Error: Not on main branch (currently on '${current_branch}')"
+            echo "💡 Switch to main branch first: git checkout main"
+            exit 1
+        fi
+
+        # Fetch latest changes to compare
+        echo "🔄 Fetching latest changes..."
+        git fetch origin
+
+        # Check if we're already up to date
+        if git diff --quiet HEAD origin/main; then
+            echo "✅ Http-proxy repository already up to date!"
+        else
+            # Stash any local changes
+            if ! git diff --quiet || ! git diff --cached --quiet; then
+                echo "📦 Stashing local changes..."
+                git stash -m "Auto-stash before update $(date)"
+            fi
+
+            echo "⬆️  Updating to latest main..."
+            git reset --hard origin/main
+            echo "✅ Http-proxy repository updated successfully!"
+        fi
+
+        cd {{ sparkdock_path }}
+    fi
+
+    # Run ansible installation/update
+    echo "🔧 Running ansible configuration..."
+    # Check if running in CI/non-interactive mode (detect based on common CI environment variables)
+    if [[ -n "$CI" || -n "$GITHUB_ACTIONS" || -n "$NON_INTERACTIVE" ]]; then
+        echo "🤖 Detected non-interactive environment, running without password prompt..."
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" -e "ansible_become_password=" --become
+    else
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
+    fi
+
+    # Clean up and restart
+    echo "🔄 Restarting http-proxy services..."
     docker rm -vf http-proxy || true
     spark-http-proxy start
-    echo "Http-proxy configuration completed!"
+    echo "✅ Http-proxy installation/update completed!"
 
-# Update system packages via Homebrew.
+# Update system packages via Homebrew (not sparkdock)
 [group('system')]
-upgrade-system:
+system-upgrade:
     #!/usr/bin/env bash
     echo "Updating system packages..."
     brew update && brew upgrade && brew cleanup
@@ -133,14 +135,79 @@ upgrade-system:
 
 # Install mkcert for local SSL certificate generation.
 [group('system')]
-install-mkcert:
+system-install-mkcert:
     #!/usr/bin/env bash
     echo "Installing mkcert..."
     brew install mkcert nss
     mkcert -install
     echo "mkcert installed successfully!"
 
-# System cleanup to free up disk space.
+# Configure Google Cloud SDK and install required components.
+[group('system')]
+system-gcloud-reconfigure:
+    #!/usr/bin/env zsh
+    set -euo pipefail
+    echo "Configuring Google Cloud SDK..."
+
+    # Install gcloud-cli via Homebrew if not already installed
+    if ! brew list --cask google-cloud-sdk >/dev/null 2>&1; then
+        echo "Installing Google Cloud SDK via Homebrew..."
+        brew install --cask google-cloud-sdk
+    fi
+
+    # Get the Homebrew prefix
+    HOMEBREW_PREFIX=$(brew --prefix)
+
+    # Source the gcloud environment
+    if [[ -f "${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc" ]]; then
+        echo "Sourcing Google Cloud SDK environment..."
+        # shellcheck source=/dev/null
+        source "${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc"
+    else
+        echo "❌ Google Cloud SDK path script not found at ${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc"
+        exit 1
+    fi
+
+    # Install gke-gcloud-auth-plugin component
+    echo "Installing gke-gcloud-auth-plugin component..."
+    gcloud components install gke-gcloud-auth-plugin --quiet
+
+    # Verify installation
+    echo "Verifying gke-gcloud-auth-plugin installation..."
+    if gke-gcloud-auth-plugin --version >/dev/null 2>&1; then
+        echo "✅ gke-gcloud-auth-plugin installed successfully!"
+        gke-gcloud-auth-plugin --version
+    else
+        echo "❌ Failed to verify gke-gcloud-auth-plugin installation"
+        exit 1
+    fi
+
+    # Add Google Cloud SDK paths to zshrc if not already present
+    ZSHRC_FILE="${HOME}/.zshrc"
+    echo "Updating ${ZSHRC_FILE} with Google Cloud SDK configuration..."
+
+    # Create zshrc if it doesn't exist
+    touch "${ZSHRC_FILE}"
+
+    # Check if Google Cloud SDK lines are already in zshrc
+    if ! grep -q "google-cloud-sdk/path.zsh.inc" "${ZSHRC_FILE}"; then
+        {
+            echo ""
+            echo "# The next line updates PATH for the Google Cloud SDK."
+            echo "if [ -f '${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc' ]; then . '${HOMEBREW_PREFIX}/share/google-cloud-sdk/path.zsh.inc'; fi"
+            echo ""
+            echo "# The next line enables shell command completion for gcloud."
+            echo "if [ -f '${HOMEBREW_PREFIX}/share/google-cloud-sdk/completion.zsh.inc' ]; then . '${HOMEBREW_PREFIX}/share/google-cloud-sdk/completion.zsh.inc'; fi"
+        } >> "${ZSHRC_FILE}"
+        echo "✅ Added Google Cloud SDK configuration to ${ZSHRC_FILE}"
+    else
+        echo "✅ Google Cloud SDK configuration already present in ${ZSHRC_FILE}"
+    fi
+
+    echo "🎉 Google Cloud SDK reconfiguration completed successfully!"
+    echo "💡 You may need to restart your terminal or run 'source ~/.zshrc' to use the updated PATH"
+
+# System cleanup to free up disk space (Homebrew and Docker).
 [group('system')]
 system-cleanup:
     #!/usr/bin/env bash
@@ -182,27 +249,27 @@ docker-ps:
 docker-prune:
     @docker system prune -f
 
-# Restart the Docker daemon to resolve common issues.
-[group('docker')]
-docker-restart:
-    @osascript -e 'quit app "Docker"' && open -a Docker
-
 # Install sparkdock ansible tag.
 [group('sparkdock')]
-install-tags tags:
+sparkdock-install-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
     cd {{ sparkdock_path }}
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
 
-# Update Sparkdock git repository to latest version, it doesn't run any ansible task.
+# Fetch latest Sparkdock updates from git repository without running system configuration. Useful for getting the newest sjust recipes and commands without triggering a full system update.
 [group('sparkdock')]
-update-sparkdock:
+sparkdock-fetch-updates:
     #!/usr/bin/env bash
-    echo "Updating Sparkdock repository to latest version..."
+    set -e
+    echo "Fetching latest Sparkdock updates..."
     cd {{ sparkdock_path }}
 
-    # Check if we're on master branch
+    # Fix git ownership issues
+    echo "🔧 Configuring git safe directory..."
+    git config --local --add safe.directory $PWD
+
+    # Check if we're on {{ default_branch }} branch.
     current_branch=$(git branch --show-current)
     if [[ "${current_branch}" != "{{ default_branch }}" ]]; then
         echo "❌ Error: Not on {{ default_branch }} branch (currently on '${current_branch}')"
@@ -230,13 +297,134 @@ update-sparkdock:
     echo "⬆️  Updating to latest {{ default_branch }}..."
     git reset --hard origin/{{ default_branch }}
 
-    echo "✅ Sparkdock updated successfully!"
+    echo "✅ Sparkdock updates fetched successfully!"
     echo "📝 You now have access to the latest sjust commands and configurations."
     echo "💡 Run 'sjust --list' to see available commands."
 
 # Run sparkdock system configuration and updates.
 [group('sparkdock')]
-upgrade:
+sparkdock-upgrade:
     #!/usr/bin/env bash
     {{ sparkdock_path }}/bin/sparkdock.macos
     echo "System configuration and updates completed!"
+
+# Rebuild and install the latest Sparkdock menu bar application.
+[group('sparkdock')]
+sparkdock-menubar-install:
+    #!/usr/bin/env bash
+    echo "Rebuilding and installing Sparkdock menu bar application..."
+    cd {{ sparkdock_path }}
+    echo "🔧 Running ansible with menubar tag to rebuild and install..."
+    # Check if running in CI/non-interactive mode (detect based on common CI environment variables)
+    if [[ -n "$CI" || -n "$GITHUB_ACTIONS" || -n "$NON_INTERACTIVE" ]]; then
+        echo "🤖 Detected non-interactive environment, running without password prompt..."
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e "ansible_become_password=" --become
+    else
+        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass
+    fi
+    echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
+    echo "💡 The app should now be running via LaunchAgent"
+
+# Fix Xcode command line tools and rebuild menubar application.
+[group('sparkdock')]
+sparkdock-menubar-reinstall:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "🔧 Fixing Xcode command line tools and rebuilding Sparkdock menu bar application..."
+    echo ""
+    echo "This will fix common Swift compilation issues by reinstalling Xcode command line tools."
+    echo "You will be prompted for your password and may need to interact with the installer."
+    echo ""
+
+    # Check if we're in a CI environment
+    if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" || -n "${NON_INTERACTIVE:-}" ]]; then
+        echo "❌ This task cannot run in CI/non-interactive environments"
+        echo "💡 Run this task manually on your local machine if you encounter compilation issues"
+        exit 1
+    fi
+
+    # Confirm with user
+    read -p "🤔 Do you want to proceed with removing and reinstalling Xcode command line tools? (y/N): " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "❌ Operation cancelled"
+        exit 1
+    fi
+
+    echo "🗑️  Removing existing Xcode command line tools..."
+    if [[ -d "/Library/Developer/CommandLineTools" ]]; then
+        sudo rm -rf /Library/Developer/CommandLineTools
+        echo "✅ Existing command line tools removed"
+    fi
+
+    echo "📥 Installing Xcode command line tools..."
+    echo "💡 A dialog will appear - please click 'Install' and wait for completion"
+    xcode-select --install
+
+    # Wait for installation to complete
+    echo "⏳ Waiting for Xcode command line tools installation to complete..."
+    echo "💡 This may take several minutes. Please be patient..."
+
+    while ! xcode-select -p &> /dev/null; do
+        echo "⏳ Still waiting for installation to complete..."
+        sleep 10
+    done
+
+    echo "✅ Xcode command line tools installation completed!"
+    echo ""
+    echo "🔧 Now attempting to rebuild and install the menubar application..."
+    cd {{ sparkdock_path }}
+
+    # Try to build the menubar app
+    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
+        echo ""
+        echo "🎉 Success! Sparkdock menu bar app has been rebuilt and installed!"
+        echo "💡 The app should now be running via LaunchAgent"
+    else
+        echo ""
+        echo "❌ Menubar installation still failed after fixing command line tools"
+        echo "💡 You may need to:"
+        echo "   - Restart your terminal/shell session"
+        echo "   - Check for other Swift/Xcode related issues"
+        echo "   - Verify Xcode license acceptance: sudo xcodebuild -license accept"
+        exit 1
+    fi
+
+# Start/restart the Sparkdock menu bar application using LaunchAgent.
+[group('sparkdock')]
+sparkdock-menubar-start:
+    #!/usr/bin/env bash
+    # Kill any running processes first
+    pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
+
+    just _menubar_plist_unload
+
+    # Load and start the service
+    PLIST_PATH="{{sparkdock_menubar_plist_path}}"
+    if ! launchctl bootstrap gui/$(id -u) "${PLIST_PATH}"; then
+        echo "❌ Failed to bootstrap menu bar app via LaunchAgent"
+        exit 1
+    fi
+
+    if ! launchctl enable gui/$(id -u)/com.sparkfabrik.sparkdock.menubar; then
+        echo "❌ Failed to enable menu bar app via LaunchAgent"
+        exit 1
+    fi
+
+    if ! launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar; then
+        echo "❌ Failed to kickstart menu bar app via LaunchAgent"
+        exit 1
+    fi
+
+    echo "✅ Sparkdock menu bar app started successfully"
+
+# Stop the Sparkdock menu bar application using LaunchAgent.
+[group('sparkdock')]
+sparkdock-menubar-stop:
+    #!/usr/bin/env bash
+    just _menubar_plist_unload
+
+    # Kill any running processes
+    pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
+
+    echo "✅ Sparkdock menu bar app stopped successfully"

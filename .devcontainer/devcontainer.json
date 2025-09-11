@@ -24,6 +24,18 @@
     },
     "customizations": {
         "vscode": {
+            "mcp": {
+                "servers": {
+                    "context7": {
+                        "type": "stdio",
+                        "command": "npx",
+                        "args": [
+                            "-y",
+                            "@upstash/context7-mcp"
+                        ]
+                    }
+                }
+            },
             "extensions": [
                 "redhat.ansible",
                 "editorconfig.editorconfig",
@@ -36,7 +48,8 @@
                 "ms-azuretools.vscode-docker",
                 "ms-vscode.makefile-tools",
                 "ms-vsliveshare.vsliveshare",
-                "ms-vscode.vscode-websearchforcopilot"
+                "ms-vscode.vscode-websearchforcopilot",
+                "swiftlang.swift-vscode"
             ],
             "settings": {
                 "editor.defaultFormatter": "golang.go",

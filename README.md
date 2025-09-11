@@ -126,7 +126,7 @@ cd /opt/sparkdock
 git switch master
 git fetch && git reset --hard origin/master
 make install-sjust
-sjust install-http-proxy
+sjust http-proxy-install-update
 ```
 
 This workflow:
@@ -143,7 +143,30 @@ View and run available development tasks:
 sjust                    # Show available commands
 sjust --list             # List all tasks
 sjust docker-ps          # Show running containers
-sjust upgrade-system     # Update system packages
+sjust system-upgrade     # Update system packages
+sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gcloud-auth-plugin
+```
+
+### Google Cloud SDK Configuration
+
+Sparkdock automatically installs and configures Google Cloud SDK during provisioning, including the `gke-gcloud-auth-plugin` component required for GKE authentication.
+
+To manually reconfigure Google Cloud SDK:
+
+```bash
+sjust system-gcloud-reconfigure
+```
+
+This command will:
+- Install Google Cloud SDK via Homebrew (if not present)
+- Install the `gke-gcloud-auth-plugin` component
+- Configure shell completion in your `.zshrc`
+- Verify the installation
+
+After configuration, you can verify the plugin is working:
+
+```bash
+gke-gcloud-auth-plugin --version
 ```
 
 ### HTTP Proxy
@@ -155,6 +178,26 @@ spark-http-proxy start   # Start proxy services
 spark-http-proxy stop    # Stop proxy services
 spark-http-proxy status  # Check service status
 ```
+
+### Menu Bar App
+
+Sparkdock includes a native macOS menu bar application that provides quick access to system status and common tasks:
+
+![Sparkdock Menu Bar](static/menubar.png)
+
+**Features:**
+- Real-time system status with colored indicators
+- Quick access to development tools and dashboards
+- Battery-efficient event-driven updates
+- Automatically starts at login via LaunchAgent
+
+**Control the menu bar app:**
+
+```bash
+sjust menubar            # Launch the menu bar app manually
+```
+
+The app is automatically installed as a LaunchAgent (`com.sparkfabrik.sparkdock.menubar.plist`) and starts at login. It shows update availability and provides one-click access to system updates and development tools.
 
 ## Configuration
 

@@ -87,6 +87,19 @@
             all_cask_packages: "{{ all_cask_packages | difference(['docker-desktop']) }}"
           when: "'docker-desktop' in all_cask_packages and docker_desktop_installed.stdout == 'yes'"
 
+    - name: Google Chrome installation
+      tags: [chrome]
+      block:
+        - name: Check if Google Chrome is already installed
+          shell: brew list --cask google-chrome >/dev/null 2>&1 && echo yes || echo no
+          register: google_chrome_installed
+          changed_when: false
+
+        - name: Remove Google Chrome from install list if already installed
+          set_fact:
+            all_cask_packages: "{{ all_cask_packages | difference(['google-chrome']) }}"
+          when: "'google-chrome' in all_cask_packages and google_chrome_installed.stdout == 'yes'"
+
     - name: Install cask packages
       tags: cask
       community.general.homebrew_cask:
@@ -108,6 +121,13 @@
       failed_when: cask_check.rc != 0
       become: false
 
+    - name: Install gke-gcloud-auth-plugin component
+      shell: source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc && gcloud components install gke-gcloud-auth-plugin --quiet
+      args:
+        executable: /bin/zsh
+      when: "'google-cloud-sdk' in all_cask_packages"
+      become: false
+
     - name: Install homebrew packages
       community.general.homebrew:
         name: "{{ all_homebrew_packages }}"
@@ -127,6 +147,12 @@
       changed_when: false
       failed_when: brew_check.rc != 0
       become: false
+
+    - name: Link yarn with conflict resolution
+      command: brew link --overwrite yarn
+      when: "'yarn' in all_homebrew_packages"
+      become: false
+      ignore_errors: yes
 
     - name: Link required packages
       community.general.homebrew:
@@ -171,11 +197,35 @@
       become: yes
       become_method: sudo
 
+    - name: Configure git safe directory for sparkdock
+      command: git config --global --add safe.directory "{{ dev_env_dir }}"
+      become: no
+      tags: [always]
+
     - name: Install system scripts
       tags: http-proxy
       block:
+        - name: Configure git safe directory for http-proxy
+          command: git config --global --add safe.directory "{{ dev_env_dir }}/http-proxy"
+          become: no
+
         - name: Ensure /usr/local/bin exists
           file: path=/usr/local/bin state=directory
+
+        - name: Check if http-proxy directory exists
+          stat:
+            path: "{{ dev_env_dir }}/http-proxy"
+          register: http_proxy_dir
+
+        - name: Fix ownership of http-proxy directory for git operations.
+          file:
+            path: "{{ dev_env_dir }}/http-proxy"
+            owner: "{{ ansible_user_id }}"
+            group: "{{ ansible_user_gid }}"
+            recurse: yes
+          when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
+          become: yes
+          become_method: sudo
 
         - name: Clone http-proxy repository
           git:
@@ -185,6 +235,7 @@
             force: yes
             update: yes
           register: http_proxy_clone
+          become: no
 
         - name: Make spark-http-proxy executable
           file:
@@ -332,12 +383,6 @@
           register: brew_prefix
           changed_when: false
 
-        - name: Ensure bash completion directory exists
-          file:
-            path: "{{ brew_prefix.stdout }}/etc/bash_completion.d"
-            state: directory
-            mode: "0755"
-
         - name: Generate sjust zsh completion
           shell: |
             just --completions zsh | sed -E 's/([\(_" ])just/\1sjust/g' > "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
@@ -355,6 +400,106 @@
         state: absent
       when: all_removed_cask_packages | length > 0
       become: false
+
+    - name: Install Sparkdock Menu Bar App
+      tags: menubar
+      block:
+        - name: Build menu bar app
+          shell: |
+            cd {{ dev_env_dir }}/src/menubar-app
+            swift build -c release
+          register: build_result
+          changed_when: build_result.rc == 0
+          failed_when: false # Don't fail immediately, handle errors in rescue block
+
+        - name: Check if build was successful
+          fail:
+            msg: "Swift build failed. See rescue block for instructions."
+          when: build_result.rc != 0
+
+        - name: Install menu bar app binary
+          copy:
+            src: "{{ dev_env_dir }}/src/menubar-app/.build/release/sparkdock-manager"
+            dest: "/usr/local/bin/sparkdock-manager"
+            mode: "0755"
+            remote_src: true
+          become: yes
+          become_method: sudo
+
+        - name: Verify menu bar app works
+          command: /usr/local/bin/sparkdock-manager --status
+          register: sparkdock_status
+          changed_when: false
+
+        - name: Display menu bar app status
+          debug:
+            msg: "{{ sparkdock_status.stdout_lines }}"
+
+        - name: LaunchAgent installation (local environment only)
+          block:
+            - name: Remove old update service (replace with menubar app)
+              file:
+                path: "{{ item }}"
+                state: absent
+              loop:
+                - "~/Library/LaunchAgents/com.sparkfabrik.sparkdock.plist"
+              ignore_errors: yes
+
+            - name: Ensure user LaunchAgents directory exists
+              file:
+                path: "{{ ansible_env.HOME }}/Library/LaunchAgents"
+                state: directory
+                mode: "0755"
+              become: no
+
+            - name: Install menubar app launch agent
+              copy:
+                src: "{{ dev_env_dir }}/src/menubar-app/com.sparkfabrik.sparkdock.menubar.plist"
+                dest: "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+                mode: "0644"
+              become: no
+
+            - name: Load menubar app launch agent
+              shell: |
+                pkill -f "sparkdock-manager" 2>/dev/null || true
+                launchctl bootout gui/$(id -u) "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist" 2>/dev/null || true
+                launchctl bootstrap gui/$(id -u) "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+                launchctl enable gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
+                launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
+              become: no
+              ignore_errors: yes
+          when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
+
+      rescue:
+        - name: Display compilation failure message
+          debug:
+            msg:
+              - "❌ Sparkdock Menu Bar App compilation failed!"
+              - ""
+              - "This is often caused by issues with Xcode command line tools."
+              - "Common symptoms include Swift compiler errors or missing headers."
+              - ""
+              - "🔧 To fix this issue, run the following command:"
+              - "   sjust sparkdock-menubar-reinstall"
+              - ""
+              - "This command will:"
+              - "  1. Remove existing Xcode command line tools"
+              - "  2. Reinstall them properly"
+              - "  3. Retry the menubar app installation"
+
+        - name: Show build error output
+          debug:
+            msg:
+              - "Build command output:"
+              - "{{ build_result.stdout_lines | default(['No stdout']) }}"
+              - "Build command stderr:"
+              - "{{ build_result.stderr_lines | default(['No stderr']) }}"
+          when: build_result is defined
+
+        - name: Fail with helpful message
+          fail:
+            msg: |
+              Menubar app compilation failed. Run 'sjust sparkdock-menubar-reinstall' to fix Xcode command line tools and retry installation.
 
   post_tasks:
     - name: Print installation complete message
