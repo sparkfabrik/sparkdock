@@ -363,7 +363,9 @@
 
     # Install to /usr/local/bin as the other binaries.
     - name: Install sjust executable
-      tags: sjust
+      tags: 
+        - sjust
+        - macos-defaults
       block:
         - name: Copy sjust executable
           copy:
@@ -393,7 +395,9 @@
     - name: Apply macOS system defaults for developers
       shell: /usr/local/bin/sjust macos-defaults
       become: no
-      tags: macos-defaults
+      tags: 
+        - sjust
+        - macos-defaults
 
     - name: Remove unwanted cask packages
       community.general.homebrew_cask:
