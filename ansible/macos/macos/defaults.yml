@@ -313,6 +313,7 @@
     value: true
   tags: macos-defaults
 
+# Enable Safari Web Inspector for WebKit2/Safari (modern engine)
 - name: Enable Safari Web Inspector (WebKit2)
   community.general.osx_defaults:
     domain: com.apple.Safari
