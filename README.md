@@ -102,17 +102,34 @@ Run specific parts of the configuration using Ansible tags:
 
 **macOS System Defaults:**
 
-The macOS defaults configuration is implemented as a unified sjust task. Both Ansible and direct usage execute the same implementation:
+The macOS defaults configuration is implemented as a YAML-driven sjust task. Both Ansible and direct usage execute the same implementation:
 
 ```bash
 # Direct usage (recommended for individual use)
 sjust macos-defaults              # Apply all macOS developer defaults
 sjust macos-defaults-check        # Preview current defaults status
 sjust macos-defaults-reset        # Reset selected defaults (use with caution)
+sjust macos-defaults-init-overrides  # Create user overrides configuration
 
 # Via Ansible (calls sjust internally)
 ansible-playbook ansible/macos.yml --tags macos-defaults --ask-become-pass
 ```
+
+**User Customization:**
+
+You can override any defaults by creating user-specific configuration:
+
+```bash
+# Initialize user overrides directory and example file
+sjust macos-defaults-init-overrides
+
+# Edit your custom settings
+nano ~/.local/spark/macos-defaults/overrides.yml
+```
+
+The system automatically merges your overrides with the default configuration. Configuration is stored in:
+- **Default settings**: `config/macos/defaults.yml` (40+ developer-optimized defaults)
+- **User overrides**: `~/.local/spark/macos-defaults/overrides.yml` (your customizations)
 
 **Skip macOS Defaults:**
 ```bash

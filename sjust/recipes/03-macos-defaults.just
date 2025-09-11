@@ -1,9 +1,11 @@
 # vim: set ft=make :
 
 # macOS System Defaults Configuration
-# Apply developer-optimized macOS system defaults
+# Apply developer-optimized macOS system defaults using YAML configuration
 
 sparkdock_path := "/opt/sparkdock"
+config_file := sparkdock_path + "/config/macos/defaults.yml"
+user_overrides := "${HOME}/.local/spark/macos-defaults/overrides.yml"
 
 # Apply macOS system defaults for developers
 [group('macos')]
@@ -13,137 +15,128 @@ macos-defaults:
     source /opt/sparkdock/sjust/libs/libformatting.sh
     source /opt/sparkdock/sjust/libs/libcolors.sh
     
+    # Check if yq is available
+    if ! command -v yq >/dev/null 2>&1; then
+        echo "${red}Error: yq is required but not installed.${normal}"
+        echo "Please install it with: brew install yq"
+        exit 1
+    fi
+    
+    config_file="{{config_file}}"
+    user_overrides="{{user_overrides}}"
+    
     echo "${bold}${cyan}Applying macOS System Defaults for Developers${normal}"
     echo
-    echo "This will configure 40+ macOS system defaults optimized for developer productivity:"
-    echo "  • UI/UX improvements (expand panels, disable smart quotes/dashes)"
-    echo "  • Finder enhancements (show hidden files, extensions, status bar)"
-    echo "  • Dock optimizations (auto-hide, faster animations, no recents)"
-    echo "  • Keyboard/trackpad settings (faster key repeat, right-click enabled)"
-    echo "  • Safari developer settings (enable dev menu, web inspector)"
-    echo "  • Terminal and development tools (UTF-8, secure keyboard entry)"
-    echo "  • Accessibility improvements (reduce motion for better focus)"
+    echo "Configuration file: ${config_file}"
+    if [[ -f "${user_overrides}" ]]; then
+        echo "User overrides: ${user_overrides}"
+    fi
+    echo
+    
+    # Create temporary merged config if user overrides exist
+    temp_config="/tmp/macos-defaults-merged.yml"
+    if [[ -f "${user_overrides}" ]]; then
+        echo "${green}Merging user overrides...${normal}"
+        yq eval-all '. as $item ireduce ({}; . * $item)' "${config_file}" "${user_overrides}" > "${temp_config}"
+        config_to_use="${temp_config}"
+    else
+        config_to_use="${config_file}"
+    fi
+    
+    # Function to apply defaults from YAML
+    apply_defaults_category() {
+        local category="$1"
+        local description="$2"
+        
+        echo "• Configuring ${description}..."
+        
+        # Get all items in this category
+        yq eval ".${category}[]" "${config_to_use}" -o json | while IFS= read -r item; do
+            if [[ -n "${item}" && "${item}" != "null" ]]; then
+                domain=$(echo "${item}" | yq eval '.domain' -)
+                key=$(echo "${item}" | yq eval '.key' -)
+                type=$(echo "${item}" | yq eval '.type' -)
+                value=$(echo "${item}" | yq eval '.value' -)
+                description=$(echo "${item}" | yq eval '.description' -)
+                
+                # Handle different value types
+                case "${type}" in
+                    "bool")
+                        if [[ "${value}" == "true" ]]; then
+                            defaults write "${domain}" "${key}" -bool true
+                        else
+                            defaults write "${domain}" "${key}" -bool false
+                        fi
+                        ;;
+                    "int")
+                        defaults write "${domain}" "${key}" -int "${value}"
+                        ;;
+                    "float")
+                        defaults write "${domain}" "${key}" -float "${value}"
+                        ;;
+                    "string")
+                        # Handle environment variable expansion
+                        expanded_value=$(eval echo "${value}")
+                        defaults write "${domain}" "${key}" -string "${expanded_value}"
+                        ;;
+                    "array")
+                        # Handle arrays (like [4] for encoding)
+                        array_values=$(echo "${item}" | yq eval '.value[]' - | tr '\n' ' ')
+                        defaults write "${domain}" "${key}" -array ${array_values}
+                        ;;
+                    *)
+                        echo "${yellow}Warning: Unknown type '${type}' for ${domain}.${key}${normal}"
+                        ;;
+                esac
+            fi
+        done
+    }
+    
+    echo "This will configure macOS system defaults optimized for developer productivity."
+    echo "Settings are defined in: ${config_file}"
     echo
     echo "${yellow}Note: Some settings require applications to be restarted to take effect.${normal}"
     echo
-    
     echo "${green}Applying macOS defaults...${normal}"
     
-    # General UI/UX improvements
-    echo "• Configuring UI/UX settings..."
-    defaults write NSGlobalDomain NSNavPanelExpandedStateForSaveMode -bool true
-    defaults write NSGlobalDomain PMPrintingExpandedStateForPrint -bool true
-    defaults write NSGlobalDomain NSDocumentSaveNewDocumentsToCloud -bool false
-    defaults write NSGlobalDomain NSAutomaticCapitalizationEnabled -bool false
-    defaults write NSGlobalDomain NSAutomaticDashSubstitutionEnabled -bool false
-    defaults write NSGlobalDomain NSAutomaticPeriodSubstitutionEnabled -bool false
-    defaults write NSGlobalDomain NSAutomaticQuoteSubstitutionEnabled -bool false
-    defaults write NSGlobalDomain NSAutomaticSpellingCorrectionEnabled -bool false
-    
-    # Keyboard and input settings for developers
-    echo "• Configuring keyboard settings..."
-    defaults write NSGlobalDomain KeyRepeat -int 1
-    defaults write NSGlobalDomain InitialKeyRepeat -int 10
-    defaults write NSGlobalDomain ApplePressAndHoldEnabled -bool false
-    
-    # Accessibility improvements for developers
-    echo "• Configuring accessibility settings..."
-    defaults write com.apple.universalaccess reduceMotion -int 1
-    
-    # Trackpad settings
-    echo "• Configuring trackpad settings..."
-    defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad Clicking -bool true
-    defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadRightClick -bool true
-    defaults write com.apple.driver.AppleBluetoothMultitouch.trackpad TrackpadCornerSecondaryClick -int 2
-    
-    # Finder improvements for developers
-    echo "• Configuring Finder settings..."
-    defaults write NSGlobalDomain AppleShowAllExtensions -bool true
-    defaults write com.apple.finder AppleShowAllFiles -bool true
-    defaults write com.apple.finder ShowStatusBar -bool true
-    defaults write com.apple.finder ShowPathbar -bool true
-    defaults write com.apple.finder _FXShowPosixPathInTitle -bool true
-    defaults write com.apple.finder _FXSortFoldersFirst -bool true
-    defaults write com.apple.finder FXDefaultSearchScope -string "SCcf"
-    defaults write com.apple.finder FXEnableExtensionChangeWarning -bool false
-    defaults write com.apple.desktopservices DSDontWriteNetworkStores -bool true
-    defaults write com.apple.desktopservices DSDontWriteUSBStores -bool true
-    defaults write com.apple.finder FXPreferredViewStyle -string "Nlsv"
-    
-    # Dock improvements
-    echo "• Configuring Dock settings..."
-    defaults write com.apple.dock tilesize -float 48
-    defaults write com.apple.dock mineffect -string "scale"
-    defaults write com.apple.dock minimize-to-application -bool true
-    defaults write com.apple.dock enable-spring-load-actions-on-all-items -bool true
-    defaults write com.apple.dock show-process-indicators -bool true
-    defaults write com.apple.dock launchanim -bool false
-    defaults write com.apple.dock autohide -bool true
-    defaults write com.apple.dock autohide-delay -float 0
-    defaults write com.apple.dock autohide-time-modifier -float 0
-    defaults write com.apple.dock show-recents -bool false
-    
-    # Safari developer settings
-    echo "• Configuring Safari developer settings..."
-    defaults write com.apple.Safari IncludeInternalDebugMenu -bool true
-    defaults write com.apple.Safari IncludeDevelopMenu -bool true
-    defaults write com.apple.Safari WebKitDeveloperExtrasEnabledPreferenceKey -bool true
-    defaults write com.apple.Safari WebKitDeveloperExtras -bool true
-    defaults write com.apple.Safari ShowFullURLInSmartSearchField -bool true
-    defaults write com.apple.Safari AutoOpenSafeDownloads -bool false
-    defaults write com.apple.Safari ShowStatusBar -bool true
-    
-    # Terminal improvements
-    echo "• Configuring Terminal settings..."
-    defaults write com.apple.terminal StringEncodings -array 4
-    defaults write com.apple.terminal SecureKeyboardEntry -bool true
-    
-    # TextEdit improvements for developers
-    echo "• Configuring TextEdit settings..."
-    defaults write com.apple.TextEdit RichText -int 0
-    defaults write com.apple.TextEdit PlainTextEncoding -int 4
-    defaults write com.apple.TextEdit PlainTextEncodingForWrite -int 4
-    
-    # Activity Monitor improvements
-    echo "• Configuring Activity Monitor settings..."
-    defaults write com.apple.ActivityMonitor OpenMainWindow -bool true
-    defaults write com.apple.ActivityMonitor IconType -int 5
-    defaults write com.apple.ActivityMonitor ShowCategory -int 0
-    defaults write com.apple.ActivityMonitor SortColumn -string "CPUUsage"
-    defaults write com.apple.ActivityMonitor SortDirection -int 0
-    
-    # Screenshots improvements
-    echo "• Configuring screenshot settings..."
-    defaults write com.apple.screencapture location -string "${HOME}/Desktop"
-    defaults write com.apple.screencapture type -string "png"
-    defaults write com.apple.screencapture disable-shadow -bool true
-    
-    # Time Machine improvements
-    echo "• Configuring Time Machine settings..."
-    defaults write com.apple.TimeMachine DoNotOfferNewDisksForBackup -bool true
-    
-    # Disk Utility improvements
-    echo "• Configuring Disk Utility settings..."
-    defaults write com.apple.DiskUtility DUDebugMenuEnabled -bool true
-    defaults write com.apple.DiskUtility advanced-image-options -bool true
+    # Apply all categories
+    apply_defaults_category "ui_ux" "UI/UX settings"
+    apply_defaults_category "keyboard" "keyboard settings"
+    apply_defaults_category "accessibility" "accessibility settings"
+    apply_defaults_category "trackpad" "trackpad settings"
+    apply_defaults_category "finder" "Finder settings"
+    apply_defaults_category "dock" "Dock settings"
+    apply_defaults_category "safari" "Safari developer settings"
+    apply_defaults_category "terminal" "Terminal settings"
+    apply_defaults_category "textedit" "TextEdit settings"
+    apply_defaults_category "activity_monitor" "Activity Monitor settings"
+    apply_defaults_category "screenshots" "screenshot settings"
+    apply_defaults_category "time_machine" "Time Machine settings"
+    apply_defaults_category "disk_utility" "Disk Utility settings"
     
     echo
     echo "${green}Restarting affected applications...${normal}"
     
-    # Restart affected applications to apply changes
-    killall Finder 2>/dev/null || true
-    killall Dock 2>/dev/null || true
-    killall Safari 2>/dev/null || true
-    killall "Activity Monitor" 2>/dev/null || true
+    # Get applications to restart from config
+    restart_apps=$(yq eval '.restart_applications[]' "${config_to_use}")
+    for app in ${restart_apps}; do
+        # Remove quotes if present
+        app_clean=$(echo "${app}" | tr -d '"')
+        killall "${app_clean}" 2>/dev/null || true
+    done
+    
+    # Clean up temporary file
+    if [[ -f "${temp_config}" ]]; then
+        rm -f "${temp_config}"
+    fi
     
     echo
     echo "${bold}${green}✅ macOS system defaults applied successfully!${normal}"
     echo
-    echo "The following applications have been restarted:"
-    echo "  • Finder"
-    echo "  • Dock" 
-    echo "  • Safari (if running)"
-    echo "  • Activity Monitor (if running)"
+    echo "Applications restarted:"
+    echo "${restart_apps}" | while read app; do
+        echo "  • ${app}"
+    done
     echo
     echo "Some changes may require a logout/login or system restart to fully take effect."
 
@@ -155,62 +148,106 @@ macos-defaults-check:
     source /opt/sparkdock/sjust/libs/libformatting.sh
     source /opt/sparkdock/sjust/libs/libcolors.sh
     
+    # Check if yq is available
+    if ! command -v yq >/dev/null 2>&1; then
+        echo "${red}Error: yq is required but not installed.${normal}"
+        echo "Please install it with: brew install yq"
+        exit 1
+    fi
+    
+    config_file="{{config_file}}"
+    user_overrides="{{user_overrides}}"
+    
     echo "${bold}${cyan}Checking macOS System Defaults Status${normal}"
     echo
-    echo "This will show the current state of key developer macOS defaults:"
+    echo "Configuration file: ${config_file}"
+    if [[ -f "${user_overrides}" ]]; then
+        echo "User overrides: ${user_overrides}"
+    fi
     echo
     
-    # Function to check a defaults setting
-    check_default() {
-        local domain="$1"
-        local key="$2"
-        local expected="$3"
-        local description="$4"
+    # Create temporary merged config if user overrides exist
+    temp_config="/tmp/macos-defaults-check.yml"
+    if [[ -f "${user_overrides}" ]]; then
+        echo "${green}Using merged configuration with user overrides...${normal}"
+        yq eval-all '. as $item ireduce ({}; . * $item)' "${config_file}" "${user_overrides}" > "${temp_config}"
+        config_to_use="${temp_config}"
+    else
+        config_to_use="${config_file}"
+    fi
+    
+    # Function to check defaults from a category
+    check_defaults_category() {
+        local category="$1"
+        local display_name="$2"
         
-        current=$(defaults read "$domain" "$key" 2>/dev/null || echo "not set")
+        echo "${bold}${display_name}:${normal}"
         
-        if [[ "$current" == "$expected" ]]; then
-            echo "  ${green}✓${normal} $description: ${green}$current${normal}"
-        else
-            echo "  ${red}✗${normal} $description: ${red}$current${normal} (expected: ${yellow}$expected${normal})"
-        fi
+        # Get all items in this category
+        yq eval ".${category}[]" "${config_to_use}" -o json | while IFS= read -r item; do
+            if [[ -n "${item}" && "${item}" != "null" ]]; then
+                domain=$(echo "${item}" | yq eval '.domain' -)
+                key=$(echo "${item}" | yq eval '.key' -)
+                type=$(echo "${item}" | yq eval '.type' -)
+                expected=$(echo "${item}" | yq eval '.value' -)
+                description=$(echo "${item}" | yq eval '.description' -)
+                
+                # Get current value
+                current=$(defaults read "${domain}" "${key}" 2>/dev/null || echo "not set")
+                
+                # Handle different expected value types for comparison
+                case "${type}" in
+                    "bool")
+                        if [[ "${expected}" == "true" ]]; then
+                            expected_display="1"
+                        else
+                            expected_display="0"
+                        fi
+                        ;;
+                    "string")
+                        # Handle environment variable expansion
+                        expected_display=$(eval echo "${expected}")
+                        ;;
+                    "array")
+                        # Format array for display
+                        expected_display="(${expected})"
+                        current=$(defaults read "${domain}" "${key}" 2>/dev/null | tr '\n' ' ' | xargs || echo "not set")
+                        ;;
+                    *)
+                        expected_display="${expected}"
+                        ;;
+                esac
+                
+                # Compare and display result
+                if [[ "${current}" == "${expected_display}" ]] || [[ "${current}" == "${expected}" ]]; then
+                    echo "  ${green}✓${normal} ${description}: ${green}${current}${normal}"
+                else
+                    echo "  ${red}✗${normal} ${description}: ${red}${current}${normal} (expected: ${yellow}${expected_display}${normal})"
+                fi
+            fi
+        done
+        echo
     }
     
-    echo "${bold}UI/UX Settings:${normal}"
-    check_default "NSGlobalDomain" "NSNavPanelExpandedStateForSaveMode" "1" "Expand save panel by default"
-    check_default "NSGlobalDomain" "NSDocumentSaveNewDocumentsToCloud" "0" "Save to disk (not iCloud) by default"
-    check_default "NSGlobalDomain" "NSAutomaticCapitalizationEnabled" "0" "Disable automatic capitalization"
-    check_default "NSGlobalDomain" "NSAutomaticQuoteSubstitutionEnabled" "0" "Disable smart quotes"
+    # Check all categories
+    check_defaults_category "ui_ux" "UI/UX Settings"
+    check_defaults_category "keyboard" "Keyboard Settings"
+    check_defaults_category "accessibility" "Accessibility Settings"
+    check_defaults_category "trackpad" "Trackpad Settings"
+    check_defaults_category "finder" "Finder Settings"
+    check_defaults_category "dock" "Dock Settings"
+    check_defaults_category "safari" "Safari Developer Settings"
+    check_defaults_category "terminal" "Terminal Settings"
+    check_defaults_category "textedit" "TextEdit Settings"
+    check_defaults_category "activity_monitor" "Activity Monitor Settings"
+    check_defaults_category "screenshots" "Screenshot Settings"
+    check_defaults_category "time_machine" "Time Machine Settings"
+    check_defaults_category "disk_utility" "Disk Utility Settings"
     
-    echo
-    echo "${bold}Keyboard Settings:${normal}"
-    check_default "NSGlobalDomain" "KeyRepeat" "1" "Key repeat rate"
-    check_default "NSGlobalDomain" "InitialKeyRepeat" "10" "Initial key repeat delay"
-    check_default "NSGlobalDomain" "ApplePressAndHoldEnabled" "0" "Disable press-and-hold for key repeat"
-    
-    echo
-    echo "${bold}Accessibility Settings:${normal}"
-    check_default "com.apple.universalaccess" "reduceMotion" "1" "Reduce motion for better focus"
-    
-    echo
-    echo "${bold}Finder Settings:${normal}"
-    check_default "NSGlobalDomain" "AppleShowAllExtensions" "1" "Show all filename extensions"
-    check_default "com.apple.finder" "AppleShowAllFiles" "1" "Show hidden files"
-    check_default "com.apple.finder" "ShowStatusBar" "1" "Show status bar"
-    check_default "com.apple.finder" "ShowPathbar" "1" "Show path bar"
-    
-    echo
-    echo "${bold}Dock Settings:${normal}"
-    check_default "com.apple.dock" "autohide" "1" "Auto-hide dock"
-    check_default "com.apple.dock" "show-recents" "0" "Hide recent applications"
-    check_default "com.apple.dock" "launchanim" "0" "Disable launch animations"
-    
-    echo
-    echo "${bold}Safari Developer Settings:${normal}"
-    check_default "com.apple.Safari" "IncludeDevelopMenu" "1" "Enable developer menu"
-    check_default "com.apple.Safari" "WebKitDeveloperExtras" "1" "Enable web inspector"
-    
-    echo
+    # Clean up temporary file
+    if [[ -f "${temp_config}" ]]; then
+        rm -f "${temp_config}"
+    fi
 
 # Reset macOS defaults to system defaults (use with caution)
 [group('macos')]
@@ -220,41 +257,64 @@ macos-defaults-reset:
     source /opt/sparkdock/sjust/libs/libformatting.sh
     source /opt/sparkdock/sjust/libs/libcolors.sh
     
+    # Check if yq is available
+    if ! command -v yq >/dev/null 2>&1; then
+        echo "${red}Error: yq is required but not installed.${normal}"
+        echo "Please install it with: brew install yq"
+        exit 1
+    fi
+    
+    config_file="{{config_file}}"
+    
     echo "${bold}${red}⚠️  Reset macOS System Defaults${normal}"
     echo
-    echo "${yellow}This will reset some of the developer-optimized defaults back to system defaults.${normal}"
+    echo "${yellow}This will reset the developer-optimized defaults back to system defaults.${normal}"
     echo "${red}This action cannot be easily undone!${normal}"
+    echo
+    echo "Settings to be reset are defined in: ${config_file}"
     echo
     echo -n "Are you sure you want to continue? [y/N]: "
     read -r response
     
     if [[ "${response}" =~ ^[Yy]$ ]]; then
         echo
-        echo "${green}Resetting selected macOS defaults...${normal}"
+        echo "${green}Resetting macOS defaults...${normal}"
         
-        # Reset key developer-affecting defaults
-        echo "Resetting keyboard settings..."
-        defaults delete NSGlobalDomain KeyRepeat 2>/dev/null || true
-        defaults delete NSGlobalDomain InitialKeyRepeat 2>/dev/null || true
-        defaults delete NSGlobalDomain ApplePressAndHoldEnabled 2>/dev/null || true
+        # Function to reset defaults from a category
+        reset_defaults_category() {
+            local category="$1"
+            local description="$2"
+            
+            echo "Resetting ${description}..."
+            
+            # Get all items in this category
+            yq eval ".${category}[]" "${config_file}" -o json | while IFS= read -r item; do
+                if [[ -n "${item}" && "${item}" != "null" ]]; then
+                    domain=$(echo "${item}" | yq eval '.domain' -)
+                    key=$(echo "${item}" | yq eval '.key' -)
+                    
+                    # Delete the key to restore system default
+                    defaults delete "${domain}" "${key}" 2>/dev/null || true
+                fi
+            done
+        }
         
-        echo "Resetting Finder settings..."
-        defaults delete com.apple.finder AppleShowAllFiles 2>/dev/null || true
-        defaults delete NSGlobalDomain AppleShowAllExtensions 2>/dev/null || true
-        defaults delete com.apple.finder ShowStatusBar 2>/dev/null || true
-        defaults delete com.apple.finder ShowPathbar 2>/dev/null || true
+        # Reset selected categories (those that are commonly customized)
+        reset_defaults_category "keyboard" "keyboard settings"
+        reset_defaults_category "accessibility" "accessibility settings"
+        reset_defaults_category "finder" "Finder settings"
+        reset_defaults_category "dock" "Dock settings"
         
-        echo "Resetting Dock settings..."
-        defaults delete com.apple.dock autohide 2>/dev/null || true
-        defaults delete com.apple.dock autohide-delay 2>/dev/null || true
-        defaults delete com.apple.dock show-recents 2>/dev/null || true
+        echo
+        echo "${green}Restarting affected applications...${normal}"
         
-        echo "Resetting accessibility settings..."
-        defaults delete com.apple.universalaccess reduceMotion 2>/dev/null || true
-        
-        # Restart affected applications
-        killall Finder 2>/dev/null || true
-        killall Dock 2>/dev/null || true
+        # Get applications to restart from config
+        restart_apps=$(yq eval '.restart_applications[]' "${config_file}")
+        for app in ${restart_apps}; do
+            # Remove quotes if present
+            app_clean=$(echo "${app}" | tr -d '"')
+            killall "${app_clean}" 2>/dev/null || true
+        done
         
         echo
         echo "${bold}${green}✅ Selected macOS defaults have been reset.${normal}"
@@ -262,3 +322,71 @@ macos-defaults-reset:
     else
         echo "Reset cancelled."
     fi
+
+# Create user overrides directory and example file
+[group('macos')]
+macos-defaults-init-overrides:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source /opt/sparkdock/sjust/libs/libformatting.sh
+    source /opt/sparkdock/sjust/libs/libcolors.sh
+    
+    user_overrides="{{user_overrides}}"
+    overrides_dir="$(dirname "${user_overrides}")"
+    
+    echo "${bold}${cyan}Initializing macOS Defaults User Overrides${normal}"
+    echo
+    echo "This will create a user overrides file at: ${user_overrides}"
+    echo
+    
+    # Create directory if it doesn't exist
+    if [[ ! -d "${overrides_dir}" ]]; then
+        echo "Creating directory: ${overrides_dir}"
+        mkdir -p "${overrides_dir}"
+    fi
+    
+    # Create example overrides file if it doesn't exist
+    if [[ ! -f "${user_overrides}" ]]; then
+        echo "Creating example overrides file..."
+        cat > "${user_overrides}" << 'EOF'
+# macOS Defaults User Overrides
+# This file allows you to override the default macOS settings.
+# 
+# Example: To disable dock auto-hide and keep recent applications visible:
+#
+# dock:
+#   - domain: com.apple.dock
+#     key: autohide
+#     type: bool
+#     value: false
+#     description: "Don't auto-hide dock"
+#   
+#   - domain: com.apple.dock
+#     key: show-recents
+#     type: bool
+#     value: true
+#     description: "Show recent applications in dock"
+#
+# Example: To change key repeat settings:
+#
+# keyboard:
+#   - domain: NSGlobalDomain
+#     key: KeyRepeat
+#     type: int
+#     value: 2
+#     description: "Slower key repeat rate"
+
+# Add your custom overrides below:
+EOF
+        
+        echo "${bold}${green}✅ User overrides file created successfully!${normal}"
+        echo
+        echo "Edit your overrides at: ${user_overrides}"
+        echo "Then run 'sjust macos-defaults' to apply settings with your overrides."
+    else
+        echo "${yellow}User overrides file already exists: ${user_overrides}${normal}"
+    fi
+    
+    echo
+    echo "To view the default configuration structure, see:"
+    echo "  {{config_file}}"
