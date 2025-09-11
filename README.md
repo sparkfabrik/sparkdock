@@ -205,7 +205,8 @@ For detailed troubleshooting information, see our [troubleshooting guide](TROUBL
 - **Docker Desktop Network Problems**: Use `sjust docker-desktop-*` commands for UDP and host networking issues
 - **Update Failures**: System automatically rolls back failed updates
 - **Lock File Issues**: Remove `/tmp/sparkdock.lock` if installation appears stuck
-- **DNS Resolution**: Use `sjust http-proxy-restart` to restart proxy services or clear DNS cache
+- **DNS Resolution**: Use `sjust system-clear-dns-cache` to clear DNS cache
+- **HTTP Proxy Issues**: Use `sjust http-proxy-install-update` to restart proxy services
 
 ## Development
 
