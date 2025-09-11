@@ -48,6 +48,7 @@ homebrew_packages:
   - fzf
   - navi
   - jq
+  - yq
   - yadm
   - tmate
   - tmux
