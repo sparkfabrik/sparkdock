@@ -16,6 +16,7 @@ Sparkdock is an automated macOS development environment provisioner built with A
 - **Keyboard/Input**: Faster key repeat rates, trackpad right-click, disabled press-and-hold
 - **Safari Developer**: Web inspector, developer menu, full URLs, secure defaults
 - **Terminal/Development**: UTF-8 encoding, secure input, plain text TextEdit
+- **Accessibility**: Reduce motion for better focus and performance
 - **System Tools**: Enhanced Activity Monitor, optimized screenshots, Time Machine settings
 
 ### Applications & Tools
@@ -102,6 +103,13 @@ Run specific parts of the configuration using Ansible tags:
 **macOS System Defaults:**
 ```bash
 ansible-playbook ansible/macos.yml --tags macos-defaults --ask-become-pass
+```
+
+**Using SparkJust (Easier Alternative):**
+```bash
+sjust macos-defaults              # Apply all macOS developer defaults
+sjust macos-defaults-check        # Preview what would be changed (dry-run)
+sjust macos-defaults-reset        # Reset selected defaults (use with caution)
 ```
 
 **Skip macOS Defaults:**

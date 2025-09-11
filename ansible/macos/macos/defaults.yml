@@ -93,6 +93,15 @@
     value: false
   tags: macos-defaults
 
+# Accessibility improvements for developers
+- name: Reduce motion for better focus and performance
+  community.general.osx_defaults:
+    domain: com.apple.universalaccess
+    key: reduceMotion
+    type: int
+    value: 1
+  tags: macos-defaults
+
 # Trackpad settings
 - name: Enable tap to click for trackpad
   community.general.osx_defaults:
