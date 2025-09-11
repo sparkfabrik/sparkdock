@@ -56,3 +56,16 @@ docker-desktop-disable-host-networking: _docker_desktop_check_cli
 
     # Update Docker Desktop host networking setting (with automatic backup)
     just _docker_desktop_update_setting "EnableHostNetworking" "false" "host networking"
+
+# Install specific version of Docker Desktop (4.41.2) to work around network issues
+[group('docker-desktop')]
+docker-desktop-install-version-4412:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    
+    DMG_URL="https://desktop.docker.com/mac/main/arm64/191736/Docker.dmg"
+    
+    echo "🐳 Downloading and opening Docker Desktop 4.41.2..."
+    curl -L -o /tmp/Docker.dmg "${DMG_URL}"
+    open /tmp/Docker.dmg
+    echo "✅ Docker Desktop DMG downloaded and opened. Please complete the installation manually."
