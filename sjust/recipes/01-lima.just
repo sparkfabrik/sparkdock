@@ -1,7 +1,7 @@
 # Default values
 lima_default_name := "sf-docker-dev"
 lima_default_cpus := `sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo "4"`
-lima_default_memory := `if [ "$(uname)" = "Darwin" ]; then echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 8589934592) / 1024 / 1024 / 1024 / 2 )); else echo $(( $(grep MemTotal /proc/meminfo | awk '{print $2}' 2>/dev/null || echo 8388608) / 1024 / 1024 / 2 )); fi`
+lima_default_memory := `if [ "$(uname)" = "Darwin" ]; then echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 8589934592) / 1024 / 1024 / 1024 / 2 )); else echo $(( $(awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo 8388608) / 1024 / 1024 / 2 )); fi`
 lima_default_disk := "100"
 
 [group('lima')]
