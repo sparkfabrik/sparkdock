@@ -1,7 +1,7 @@
 # Default values
 lima_default_name := "sf-docker-dev"
-lima_default_cpus := "4"
-lima_default_memory := "8"
+lima_default_cpus := `sysctl -n hw.ncpu 2>/dev/null || nproc 2>/dev/null || echo "4"`
+lima_default_memory := `if [ "$(uname)" = "Darwin" ]; then echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 8589934592) / 1024 / 1024 / 1024 / 2 )); else echo $(( $(grep MemTotal /proc/meminfo | awk '{print $2}' 2>/dev/null || echo 8388608) / 1024 / 1024 / 2 )); fi`
 lima_default_disk := "100"
 
 [group('lima')]
@@ -16,10 +16,10 @@ lima-quick-setup cpus=lima_default_cpus memory=lima_default_memory disk=lima_def
     echo "🚀 Lima VM Quick Setup"
     echo "======================"
     echo ""
-    echo "📋 VM Configuration:"
+    echo "📋 VM Configuration (Auto-detected like Docker Desktop):"
     echo "   • Name: {{ lima_default_name }}"
-    echo "   • CPUs: {{ cpus }}"
-    echo "   • Memory: {{ memory }}GB"
+    echo "   • CPUs: {{ cpus }} (all available processors)"
+    echo "   • Memory: {{ memory }}GB (50% of host memory)"
     echo "   • Disk: {{ disk }}GB"
     echo ""
     echo "🔧 Additional Setup:"
@@ -61,7 +61,7 @@ lima-create-vm cpus=lima_default_cpus memory=lima_default_memory disk=lima_defau
         exit 1
     fi
 
-    echo "Creating Lima VM '{{ lima_default_name }}' with {{ cpus }} CPUs, {{ memory }}GB RAM, {{ disk }}GB disk..."
+    echo "Creating Lima VM '{{ lima_default_name }}' with {{ cpus }} CPUs (auto-detected), {{ memory }}GB RAM (50% of host), {{ disk }}GB disk..."
     limactl create --name={{ lima_default_name }} \
       -y \
       --vm-type=vz \
