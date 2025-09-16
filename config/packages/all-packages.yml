@@ -5,7 +5,6 @@ taps:
 cask_packages:
   - docker-desktop
   - google-cloud-sdk
-  # Applications
   - applite
   - font-droid-sans-mono-nerd-font
   - font-inconsolata-nerd-font
@@ -32,7 +31,6 @@ homebrew_packages:
   - skaffold
   - stern
   - lima
-  # System Utilities
   - atuin
   - bc
   - btop
@@ -57,7 +55,6 @@ homebrew_packages:
   - skhd
   - imagemagick
   - mas
-  # Development Tools
   - gh
   - glab
   - "node@24"
