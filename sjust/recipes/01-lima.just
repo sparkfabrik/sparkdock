@@ -255,7 +255,7 @@ lima-stop:
 # Show status of the default Lima VM
 [group('lima')]
 lima-status:
-    limactl list {{ lima_default_name }} --format 'table'
+    limactl list {{ lima_default_name }} --format table
 
 # List the lima vms.
 [group('lima')]
