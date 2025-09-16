@@ -111,13 +111,7 @@ http-proxy-install-update:
 
     # Run ansible installation/update
     echo "🔧 Running ansible configuration..."
-    # Check if running in CI/non-interactive mode (detect based on common CI environment variables)
-    if [[ -n "$CI" || -n "$GITHUB_ACTIONS" || -n "$NON_INTERACTIVE" ]]; then
-        echo "🤖 Detected non-interactive environment, running without password prompt..."
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" -e "ansible_become_password=" --become
-    else
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "http-proxy" --ask-become-pass
-    fi
+    just -f /opt/sparkdock/Justfile run-ansible-playbook http-proxy
 
     # Clean up and restart
     echo "🔄 Restarting http-proxy services..."
