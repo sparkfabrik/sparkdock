@@ -3,6 +3,11 @@ _default:
 
 run-ansible-playbook TAGS="all":
     #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Unset the password on exit
+    trap 'unset ANSIBLE_BECOME_PASS' EXIT
+
     TAGS={{TAGS}}
 
     # Read password and save to env ANSIBLE_BECOME_PASS
@@ -12,6 +17,7 @@ run-ansible-playbook TAGS="all":
     else
         read -sp "Enter your password (for sudo access): " ANSIBLE_BECOME_PASS
         export ANSIBLE_BECOME_PASS
+        echo
     fi
 
     # Pass the variable to ansible.
