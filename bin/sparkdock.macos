@@ -54,23 +54,23 @@ check_for_updates() {
 
 check_http_proxy_updates() {
     HTTP_PROXY_DIR="/opt/sparkdock/http-proxy"
-    
+
     # Check if http-proxy directory exists
     if [ ! -d "${HTTP_PROXY_DIR}" ]; then
         return 1
     fi
-    
+
     cd "${HTTP_PROXY_DIR}"
-    
+
     # Ensure it's a git repository
     if [ ! -d ".git" ]; then
         return 1
     fi
-    
+
     git fetch origin main -q
     LOCAL=$(git rev-parse HEAD)
     REMOTE=$(git rev-parse origin/main)
-    
+
     if [ "$LOCAL" != "$REMOTE" ]; then
         echo "Http-proxy updates available:"
         git --no-pager log --oneline HEAD..origin/main
@@ -209,8 +209,15 @@ print_section "System Update"
 print_info "Sparkdock provisioner: Updating your system in progress..."
 print_info "Running ansible playbook..."
 print_warning "You'll be asked to insert your password to become root"
-ansible-playbook "$SPARKDOCK_ROOT/ansible/macos.yml" -i "$SPARKDOCK_ROOT/ansible/inventory.ini" --ask-become-pass -v
 
+if ! command -v just &> /dev/null; then
+  brew install just
+fi
+just run-ansible-playbook
+if [[ $? -ne 0 ]]; then
+    print_error "Ansible playbook failed. Exiting..."
+    exit 1
+fi
 print_success "Installation completed successfully"
 
 exit 0

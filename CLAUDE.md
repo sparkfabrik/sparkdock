@@ -14,8 +14,8 @@ Sparkdock is an automated macOS development environment provisioner built with A
 sparkdock
 
 # Run specific Ansible tags
-make run-ansible-macos TAGS="docker,http-proxy"
-just run-ansible-macos "http-proxy"
+make run-ansible-playbook TAGS="docker,http-proxy"
+just run-ansible-playbook "http-proxy"
 ```
 
 ### SparkJust Task Runner (sjust)

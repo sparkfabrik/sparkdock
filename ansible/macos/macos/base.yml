@@ -3,14 +3,20 @@
   hosts: localhost
   connection: local
   gather_facts: yes
+  become: no
 
   vars:
     dev_env_dir: /opt/sparkdock
     homebrew_prefix: "{{ (ansible_machine == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
     homebrew_install_path: "{{ homebrew_prefix }}/Homebrew"
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
+    ansible_become_pass: "{{ lookup('env', 'ANSIBLE_BECOME_PASS') }}"
 
   tasks:
+    - name: Check if running in non-interactive environment
+      set_fact:
+        is_non_interactive: "{{ ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root' or ansible_env.ANSIBLE_SUDO_PASSWORD is defined }}"
+
     - name: Load all packages
       include_vars:
         file: "{{ dev_env_dir }}/config/packages/all-packages.yml"
@@ -106,6 +112,7 @@
         name: "{{ all_cask_packages }}"
         state: present
         install_options: force
+        sudo_password: "{{ ansible_become_pass | default(omit) }}"
       when: all_cask_packages | length > 0
       become: false
 
@@ -223,7 +230,7 @@
             owner: "{{ ansible_user_id }}"
             group: "{{ ansible_user_gid }}"
             recurse: yes
-          when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
+          when: not is_non_interactive
           become: yes
           become_method: sudo
 
@@ -463,7 +470,7 @@
                 launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
               become: no
               ignore_errors: yes
-          when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
+          when: not is_non_interactive
 
       rescue:
         - name: Display compilation failure message

@@ -1,7 +1,15 @@
 #!/usr/bin/env -S zsh
 
 BASE_DIR="$(dirname "$(readlink -f "$0")")"
-source ${BASE_DIR}/common/utils.sh
+
+# When we install this script with this: bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.macos)
+# we do not have the common utils sourced, so we have to grab it first.
+if [ ! -f ${BASE_DIR}/common/utils.sh ]; then
+  curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/common/utils.sh -o /tmp/utils.sh
+  source /tmp/utils.sh
+else
+  source ${BASE_DIR}/common/utils.sh
+fi
 
 print() {
     echo -e "\e[1m\e[93m[ \e[92m•\e[93m ] \e[4m$1\e[0m"
@@ -94,7 +102,7 @@ fi
 
 # Install standard utilities.
 print 'Installing base packages with brew...'
-brew install git curl python3
+brew install git curl python3 just
 
 ## Check out a copy of this repo (first time only)
 print 'Checking out Sparkdock repo...'
@@ -104,7 +112,7 @@ if [[ "$PRESERVE_EXISTING" != "true" ]]; then
     sudo rm -rf /opt/sparkdock && \
     sudo mkdir -p /opt/sparkdock && \
     sudo chown $(id -u):$(id -g) /opt/sparkdock
-    
+
     # In CI, we have the repo already checked out, so copy it instead of cloning
     if [[ "$NON_INTERACTIVE" == "true" ]]; then
       # we are in a CI environment, so we assume the repo is already checked out and we are at the root of the repo.
@@ -150,10 +158,11 @@ if [[ "$NON_INTERACTIVE" == "true" ]]; then
   if [[ -e /opt/homebrew/lib/node_modules/yarn/bin/yarn.js ]]; then
     sudo rm -f /opt/homebrew/lib/node_modules/yarn/bin/yarn.js
   fi
-  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -e "ansible_become_password=" --become -v
-else
-  ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v
 fi
+
+# Run the playbook.
+just run-ansible-playbook
+
 if [[ $? -ne 0 ]]; then
   print "Ansible playbook failed. Exiting..."
   exit 1

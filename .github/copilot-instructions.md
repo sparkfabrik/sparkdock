@@ -82,6 +82,7 @@ if ! tart list | grep -q "sparkdock-test"; then
     echo "✅ VM 'sparkdock-test' created successfully"
 fi
 ```
+
 Instead of this:
 
 Do not do this:
@@ -94,7 +95,7 @@ Do not do this:
     else
         echo "VM 'sparkdock-test' already exists"
     fi
-````
+```
 
 Instead of this:
 
@@ -131,7 +132,7 @@ Do this:
 
 ## Build and Test Patterns
 
-**Ansible**: `make run-ansible-macos TAGS="docker,http-proxy"` for targeted provisioning
+**Ansible**: `make run-ansible-playbook TAGS="docker,http-proxy"` for targeted provisioning
 **Swift App**: `cd src/menubar-app && make build/test/install` for menu bar development
 **System Updates**: `sjust upgrade-system` for Homebrew maintenance
 **Debugging**: Use `sjust device-info` for system diagnostics

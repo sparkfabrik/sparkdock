@@ -1,13 +1,30 @@
 _default:
     @just --list
 
-run-ansible-macos TAGS="all":
+run-ansible-playbook TAGS="all":
     #!/usr/bin/env bash
+    set -euo pipefail
+
+    # Unset the password on exit
+    trap 'unset ANSIBLE_BECOME_PASS' EXIT
+
     TAGS={{TAGS}}
-    if [ -z "${TAGS}" ]; then
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass -v
+
+    # Read password and save to env ANSIBLE_BECOME_PASS
+    if [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
+        echo "Running in CI mode, skipping sudo password prompt"
+        export ANSIBLE_BECOME_PASS=""
     else
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --ask-become-pass --tags=${TAGS} -v
+        read -sp "Enter your password (for sudo access): " ANSIBLE_BECOME_PASS
+        export ANSIBLE_BECOME_PASS
+        echo
+    fi
+
+    # Pass the variable to ansible.
+    if [ -z "${TAGS}" ]; then
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -v
+    else
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --tags=${TAGS} -v
     fi
 
 # Create macOS VM with Tart (installs Tart if needed)
