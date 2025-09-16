@@ -12,6 +12,7 @@ cask_packages:
   - font-fira-code-nerd-font
   - google-chrome
   - ghostty
+  - git-credential-manager
   - iterm2
   - maccy
   - cameracontroller
@@ -63,7 +64,6 @@ homebrew_packages:
   - "php@8.2"
   - golang
   - gitleaks
-  - git-credential-manager
   - uv
   - yarn
   - yarn-completion
