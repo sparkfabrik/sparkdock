@@ -1,7 +1,9 @@
 # Default values
 lima_default_name := "sf-docker-dev"
 lima_default_cpus := `sysctl -n hw.ncpu 2>/dev/null || echo "4"`
-lima_default_memory := `echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 8589934592) / 1024 / 1024 / 1024 / 2 ))`
+# Calculate default memory: take 50% of total system memory (in bytes), convert to GB
+# 1024*1024*1024 = bytes per GB; 2 = 50% factor
+lima_default_memory := `BYTES_PER_GB=1073741824; HALF=2; echo $(( $(sysctl -n hw.memsize 2>/dev/null || echo 8589934592) / BYTES_PER_GB / HALF ))`
 lima_default_disk := "100"
 
 [group('lima')]
