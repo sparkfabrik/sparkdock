@@ -70,7 +70,7 @@ lima-create-vm cpus=lima_default_cpus memory=lima_default_memory disk=lima_defau
       --memory={{ memory }} \
       --cpus={{ cpus }} \
       --disk={{ disk }} \
-      template://docker
+      template://docker-rootful
 
     echo "Starting Lima VM..."
     limactl start {{ lima_default_name }} -y
@@ -96,9 +96,6 @@ lima-destroy:
     echo "Disabling auto-start for Lima VM '{{ lima_default_name }}'..."
     limactl start-at-login {{ lima_default_name }} --enabled=false || true
 
-    echo "Cleaning up Docker socket symlink..."
-    just _lima-cleanup-docker-socket
-
     echo "✅ Docker context for Lima VM '{{ lima_default_name }}' removed successfully!"
 
 # Configure Docker context for Lima VM
@@ -116,9 +113,6 @@ lima-set-docker-context:
 
     echo "Switching to Lima Docker context..."
     docker context use lima-{{ lima_default_name }} >/dev/null
-
-    echo "Setting up Docker socket symlink..."
-    just _lima-setup-docker-socket
 
     echo ""
     docker context ls
@@ -158,10 +152,6 @@ switch-to-docker-desktop-context:
         exit 1
     fi
     docker context use "$desktop_context"
-
-    echo "Cleaning up Lima Docker socket symlink..."
-    just _lima-cleanup-docker-socket
-
     echo "✅ Now using Docker Desktop context '$desktop_context'!"
 
 # Switch to Lima Docker context
@@ -172,10 +162,6 @@ switch-to-lima-docker-context:
 
     echo "Switching to Lima context..."
     docker context use lima-{{ lima_default_name }}
-
-    echo "Setting up Docker socket symlink..."
-    just _lima-setup-docker-socket
-
     echo "✅ Now using Lima VM '{{ lima_default_name }}'!"
 
 # Internal helper: Ask for user confirmation
@@ -278,44 +264,3 @@ lima-list:
     set -euo pipefail
 
     limactl list --format 'table'
-
-# Internal helper: Setup Docker socket symlink for Lima
-_lima-setup-docker-socket:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    lima_socket="$HOME/.lima/{{ lima_default_name }}/sock/docker.sock"
-    system_socket="/var/run/docker.sock"
-
-    # Check if Lima socket exists
-    if [ ! -S "${lima_socket}" ]; then
-        echo "⚠️  Lima Docker socket not found at ${lima_socket}"
-        echo "💡 Make sure Lima VM '{{ lima_default_name }}' is running"
-        return 0
-    fi
-
-    # Remove existing symlink if it exists
-    if [ -L "${system_socket}" ]; then
-        sudo rm "${system_socket}"
-    fi
-
-    # Create symlink to Lima socket
-    sudo ln -sf "${lima_socket}" "${system_socket}"
-    echo "✅ Docker socket symlinked: ${system_socket} → ${lima_socket}"
-
-# Internal helper: Cleanup Lima Docker socket symlink
-_lima-cleanup-docker-socket:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    system_socket="/var/run/docker.sock"
-    lima_socket="$HOME/.lima/{{ lima_default_name }}/sock/docker.sock"
-
-    # Only remove the symlink if it points to our Lima socket
-    if [ -L "${system_socket}" ]; then
-        current_target=$(readlink "${system_socket}" || true)
-        if [ "${current_target}" = "${lima_socket}" ]; then
-            sudo rm "${system_socket}"
-            echo "✅ Lima Docker socket symlink removed"
-        fi
-    fi
