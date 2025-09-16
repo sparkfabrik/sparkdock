@@ -70,7 +70,7 @@ lima-create-vm cpus=lima_default_cpus memory=lima_default_memory disk=lima_defau
       --memory={{ memory }} \
       --cpus={{ cpus }} \
       --disk={{ disk }} \
-      template://docker
+      template://docker-rootful
 
     echo "Starting Lima VM..."
     limactl start {{ lima_default_name }} -y
