@@ -11,13 +11,14 @@ run-ansible-playbook TAGS="all":
     TAGS={{TAGS}}
 
     # Read password and save to env ANSIBLE_BECOME_PASS
-    if [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
-        echo "Running in CI mode, skipping sudo password prompt"
-        export ANSIBLE_BECOME_PASS=""
-    else
+    # Check if we're running in CI (GitHub Actions sets these variables)
+    if [ -z "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ]; then
         read -sp "Enter your password (for sudo access): " ANSIBLE_BECOME_PASS
         export ANSIBLE_BECOME_PASS
         echo
+    else
+        echo "Running in CI mode, skipping sudo password prompt"
+        export ANSIBLE_BECOME_PASS=""
     fi
 
     # Pass the variable to ansible.
