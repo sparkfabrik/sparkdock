@@ -230,7 +230,7 @@
             owner: "{{ ansible_user_id }}"
             group: "{{ ansible_user_gid }}"
             recurse: yes
-          when: not is_non_interactive
+          when: not (vars.is_non_interactive | default(false))
           become: yes
           become_method: sudo
 
