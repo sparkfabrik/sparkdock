@@ -1,7 +1,9 @@
 # Default values
 lima_default_name := "sf-docker-dev"
-lima_default_cpus := "4"
-lima_default_memory := "8"
+# CPU detection: system_profiler first, then sysctl fallback for older systems
+lima_default_cpus := `system_profiler SPHardwareDataType 2>/dev/null | awk '/Total Number of Cores:/ {print $5}' || sysctl -n hw.ncpu 2>/dev/null || echo "4"`
+# Memory detection: use system_profiler to get memory in GB format, take 50%
+lima_default_memory := `system_profiler SPHardwareDataType 2>/dev/null | awk '/Memory:/ {gsub(/[^0-9]/, "", $2); print int($2/2)}' || echo "4"`
 lima_default_disk := "100"
 
 [group('lima')]
@@ -16,10 +18,10 @@ lima-quick-setup cpus=lima_default_cpus memory=lima_default_memory disk=lima_def
     echo "🚀 Lima VM Quick Setup"
     echo "======================"
     echo ""
-    echo "📋 VM Configuration:"
+    echo "📋 VM Configuration (Auto-detected like Docker Desktop):"
     echo "   • Name: {{ lima_default_name }}"
-    echo "   • CPUs: {{ cpus }}"
-    echo "   • Memory: {{ memory }}GB"
+    echo "   • CPUs: {{ cpus }} (all available processors)"
+    echo "   • Memory: {{ memory }}GB (50% of host memory)"
     echo "   • Disk: {{ disk }}GB"
     echo ""
     echo "🔧 Additional Setup:"
@@ -61,7 +63,7 @@ lima-create-vm cpus=lima_default_cpus memory=lima_default_memory disk=lima_defau
         exit 1
     fi
 
-    echo "Creating Lima VM '{{ lima_default_name }}' with {{ cpus }} CPUs, {{ memory }}GB RAM, {{ disk }}GB disk..."
+    echo "Creating Lima VM '{{ lima_default_name }}' with {{ cpus }} CPUs (auto-detected), {{ memory }}GB RAM (50% of host), {{ disk }}GB disk..."
     limactl create --name={{ lima_default_name }} \
       -y \
       --vm-type=vz \
