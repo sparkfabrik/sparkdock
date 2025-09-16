@@ -112,7 +112,7 @@
         name: "{{ all_cask_packages }}"
         state: present
         install_options: force
-        sudo_password: "{{ sudo_password | default(omit) }}"
+        sudo_password: "{{ ansible_become_pass | default(omit) }}"
       when: all_cask_packages | length > 0
       become: false
 
