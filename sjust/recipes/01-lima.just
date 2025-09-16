@@ -155,7 +155,7 @@ switch-to-docker-desktop-context:
     set -euo pipefail
 
     echo "Switching to Docker Desktop context..."
-    if docker context ls | grep -q 'desktop-linux'; then
+    if docker context ls | grep 'desktop-linux'; then
         docker context use docker-desktop
     else
         echo "❌ No Docker Desktop context found. Please ensure Docker Desktop is installed and configured."
