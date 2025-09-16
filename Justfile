@@ -1,7 +1,7 @@
 _default:
     @just --list
 
-run-ansible-macos TAGS="all":
+run-ansible-playbook TAGS="all":
     #!/usr/bin/env bash
     TAGS={{TAGS}}
 

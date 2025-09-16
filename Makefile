@@ -1,7 +1,7 @@
 # Default branch name (change to "main" when migrating)
 DEFAULT_BRANCH := master
 
-run-ansible-macos:
+run-ansible-playbook:
 ifeq ($(TAGS),)
 	ansible-playbook ./ansible/macos.yml --ask-become-pass
 else
