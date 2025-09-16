@@ -156,7 +156,7 @@ switch-to-docker-desktop-context:
 
     echo "Switching to Docker Desktop context..."
     if docker context ls | grep 'desktop-linux'; then
-        docker context use docker-desktop
+        docker context use desktop-linux
     else
         echo "❌ No Docker Desktop context found. Please ensure Docker Desktop is installed and configured."
         exit 1
