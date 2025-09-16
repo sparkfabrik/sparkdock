@@ -11,7 +11,7 @@ run-ansible-playbook TAGS="all":
     TAGS={{TAGS}}
 
     # Read password and save to env ANSIBLE_BECOME_PASS
-    if [ -n "$CI" ] || [ -n "$GITHUB_ACTIONS" ]; then
+    if [ -n "${CI:-}" ] || [ -n "${GITHUB_ACTIONS:-}" ]; then
         echo "Running in CI mode, skipping sudo password prompt"
         export ANSIBLE_BECOME_PASS=""
     else
