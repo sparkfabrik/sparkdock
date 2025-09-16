@@ -155,14 +155,12 @@ switch-to-docker-desktop-context:
     set -euo pipefail
 
     echo "Switching to Docker Desktop context..."
-    if docker context ls | grep 'desktop-linux'; then
+    if docker context ls | grep 'desktop-linux' 1> /dev/null; then
         docker context use desktop-linux
     else
         echo "❌ No Docker Desktop context found. Please ensure Docker Desktop is installed and configured."
         exit 1
     fi
-
-    echo "✅ Now using Docker Desktop context '$desktop_context'!"
 
 # Switch to Lima Docker context
 [group('lima')]
@@ -172,7 +170,6 @@ switch-to-lima-docker-context:
 
     echo "Switching to Lima context..."
     docker context use lima-{{ lima_default_name }}
-    echo "✅ Now using Lima VM '{{ lima_default_name }}'!"
 
 # Internal helper: Ask for user confirmation
 _confirm_action message:
