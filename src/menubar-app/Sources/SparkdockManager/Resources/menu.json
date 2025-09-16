@@ -29,6 +29,11 @@
             "title": "Core Skills",
             "type": "url",
             "url": "https://playbook.sparkfabrik.com/working-at-sparkfabrik/core-skills"
+          },
+          {
+            "title": "Universal Definition of Done",
+            "type": "url",
+            "url": "https://playbook.sparkfabrik.com/tools-and-policies/universal-dod"
           }
         ]
       }
