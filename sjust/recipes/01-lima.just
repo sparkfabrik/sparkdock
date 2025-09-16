@@ -70,7 +70,7 @@ lima-create-vm cpus=lima_default_cpus memory=lima_default_memory disk=lima_defau
       --memory={{ memory }} \
       --cpus={{ cpus }} \
       --disk={{ disk }} \
-      template://docker
+      template://docker-rootful
 
     echo "Starting Lima VM..."
     limactl start {{ lima_default_name }} -y
@@ -241,6 +241,21 @@ lima-show-config name=lima_default_name:
         echo "❌ VM '{{ name }}' does not exist."
         echo "💡 Use 'sjust lima-create-vm' to create it first."
     fi
+
+# Start the default Lima VM
+[group('lima')]
+lima-start:
+    limactl start {{ lima_default_name }} -y
+
+# Stop the default Lima VM
+[group('lima')]
+lima-stop:
+    limactl stop {{ lima_default_name }}
+
+# Show status of the default Lima VM
+[group('lima')]
+lima-status:
+    limactl list {{ lima_default_name }} --format table
 
 # List the lima vms.
 [group('lima')]
