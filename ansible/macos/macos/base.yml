@@ -3,10 +3,6 @@
   hosts: localhost
   connection: local
   gather_facts: yes
-  vars_prompt:
-    - name: sudo_password
-      prompt: "Enter your sudo password"
-      private: yes
 
   vars:
     dev_env_dir: /opt/sparkdock
@@ -15,6 +11,53 @@
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
 
   tasks:
+    - name: Check if running in non-interactive environment
+      set_fact:
+        is_non_interactive: "{{ ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root' or ansible_env.ANSIBLE_SUDO_PASSWORD is defined }}"
+
+    - name: Check if sudo requires password
+      shell: sudo -n true
+      register: sudo_check
+      failed_when: false
+      changed_when: false
+
+    - name: Set sudo password from environment variable if available
+      set_fact:
+        sudo_password: "{{ ansible_env.ANSIBLE_SUDO_PASSWORD }}"
+      when: ansible_env.ANSIBLE_SUDO_PASSWORD is defined
+
+    - name: Prompt for sudo password in interactive mode
+      pause:
+        prompt: "Enter your sudo password"
+        echo: no
+      register: sudo_password_prompt
+      when:
+        - not is_non_interactive
+        - sudo_check.rc != 0
+        - ansible_env.ANSIBLE_SUDO_PASSWORD is not defined
+
+    - name: Set sudo password from prompt
+      set_fact:
+        sudo_password: "{{ sudo_password_prompt.user_input }}"
+      when:
+        - not is_non_interactive
+        - sudo_check.rc != 0
+        - ansible_env.ANSIBLE_SUDO_PASSWORD is not defined
+        - sudo_password_prompt.user_input is defined
+
+    - name: Handle non-interactive environment without passwordless sudo
+      fail:
+        msg: |
+          Running in non-interactive environment but sudo requires a password.
+          Either:
+          1. Configure passwordless sudo for your user, or
+          2. Set ANSIBLE_SUDO_PASSWORD environment variable, or
+          3. Run with --ask-become-pass flag
+      when:
+        - is_non_interactive
+        - sudo_check.rc != 0
+        - ansible_env.ANSIBLE_SUDO_PASSWORD is not defined
+
     - name: Load all packages
       include_vars:
         file: "{{ dev_env_dir }}/config/packages/all-packages.yml"
@@ -110,7 +153,7 @@
         name: "{{ all_cask_packages }}"
         state: present
         install_options: force
-        sudo_password: "{{ sudo_password }}"
+        sudo_password: "{{ sudo_password | default(omit) }}"
       when: all_cask_packages | length > 0
       become: false
 
@@ -228,7 +271,7 @@
             owner: "{{ ansible_user_id }}"
             group: "{{ ansible_user_gid }}"
             recurse: yes
-          when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
+          when: not is_non_interactive
           become: yes
           become_method: sudo
 
@@ -468,7 +511,7 @@
                 launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
               become: no
               ignore_errors: yes
-          when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
+          when: not is_non_interactive
 
       rescue:
         - name: Display compilation failure message
