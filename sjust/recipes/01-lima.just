@@ -245,94 +245,17 @@ lima-show-config name=lima_default_name:
 # Start the default Lima VM
 [group('lima')]
 lima-start:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    # Check if VM exists
-    if ! limactl list | grep -q "{{ lima_default_name }}"; then
-        echo "❌ Lima VM '{{ lima_default_name }}' does not exist!"
-        echo ""
-        echo "💡 Create it first with: sjust lima-create-vm"
-        echo "💡 Or use quick setup: sjust lima-quick-setup"
-        exit 1
-    fi
-
-    # Check current status
-    vm_status=$(limactl list {{ lima_default_name }} --format 'json' | jq -r '.status' 2>/dev/null || echo "Unknown")
-
-    if [ "$vm_status" = "Running" ]; then
-        echo "✅ Lima VM '{{ lima_default_name }}' is already running!"
-        exit 0
-    fi
-
-    echo "🚀 Starting Lima VM '{{ lima_default_name }}'..."
     limactl start {{ lima_default_name }} -y
-    echo "✅ Lima VM '{{ lima_default_name }}' started successfully!"
 
 # Stop the default Lima VM
 [group('lima')]
 lima-stop:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    # Check if VM exists
-    if ! limactl list | grep -q "{{ lima_default_name }}"; then
-        echo "❌ Lima VM '{{ lima_default_name }}' does not exist!"
-        echo ""
-        echo "💡 Nothing to stop - VM doesn't exist"
-        exit 1
-    fi
-
-    # Check current status
-    vm_status=$(limactl list {{ lima_default_name }} --format 'json' | jq -r '.status' 2>/dev/null || echo "Unknown")
-
-    if [ "$vm_status" = "Stopped" ]; then
-        echo "✅ Lima VM '{{ lima_default_name }}' is already stopped!"
-        exit 0
-    fi
-
-    echo "🛑 Stopping Lima VM '{{ lima_default_name }}'..."
     limactl stop {{ lima_default_name }}
-    echo "✅ Lima VM '{{ lima_default_name }}' stopped successfully!"
 
 # Show status of the default Lima VM
 [group('lima')]
 lima-status:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    echo "Status for Lima VM '{{ lima_default_name }}':"
-    echo ""
-
-    # Check if VM exists
-    if ! limactl list | grep -q "{{ lima_default_name }}"; then
-        echo "❌ Lima VM '{{ lima_default_name }}' does not exist!"
-        echo ""
-        echo "💡 Create it with: sjust lima-create-vm"
-        echo "💡 Or use quick setup: sjust lima-quick-setup"
-        exit 1
-    fi
-
-    # Show VM status
     limactl list {{ lima_default_name }} --format 'table'
-    echo ""
-
-    # Get detailed status
-    vm_status=$(limactl list {{ lima_default_name }} --format 'json' | jq -r '.status' 2>/dev/null || echo "Unknown")
-
-    case "$vm_status" in
-        "Running")
-            echo "🟢 Status: Running"
-            echo "💡 You can stop it with: sjust lima-stop"
-            ;;
-        "Stopped")
-            echo "🔴 Status: Stopped"
-            echo "💡 You can start it with: sjust lima-start"
-            ;;
-        *)
-            echo "⚪ Status: $vm_status"
-            ;;
-    esac
 
 # List the lima vms.
 [group('lima')]
