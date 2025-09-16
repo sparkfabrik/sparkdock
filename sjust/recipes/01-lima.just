@@ -11,14 +11,14 @@ lima-quick-setup cpus=lima_default_cpus memory=lima_default_memory disk=lima_def
     #!/usr/bin/env bash
     set -euo pipefail
 
-    if limactl list | grep -q "{{ lima_default_name }}"; then
+    if limactl list 2> /dev/null | grep -q "{{ lima_default_name }}"; then
         echo "❌ A Lima VM named '{{ lima_default_name }}' already exists. Please remove it first with 'sjust lima-destroy'."
         exit 1
     fi
-    echo "🚀 Lima VM Quick Setup"
-    echo "======================"
+    echo "🚀 Lima VM Quick Setup (experimental)"
+    echo "====================================="
     echo ""
-    echo "📋 VM Configuration (Auto-detected like Docker Desktop):"
+    echo "📋 VM Configuration (auto detected):"
     echo "   • Name: {{ lima_default_name }}"
     echo "   • CPUs: {{ cpus }} (all available processors)"
     echo "   • Memory: {{ memory }}GB (50% of host memory)"
@@ -42,6 +42,13 @@ lima-quick-setup cpus=lima_default_cpus memory=lima_default_memory disk=lima_def
 
     echo "Enabling auto-start at login..."
     sjust lima-enable-autostart
+
+    echo "Check if Docker Desktop is running..."
+    if docker desktop status >/dev/null 2>&1; then
+        echo
+        echo "Stopping Docker Desktop to avoid conflicts..."
+        docker desktop stop
+    fi
 
     echo "✅ Quick setup completed! You can now use the Lima VM with Docker."
 
@@ -148,13 +155,12 @@ switch-to-docker-desktop-context:
     set -euo pipefail
 
     echo "Switching to Docker Desktop context..."
-    desktop_context=$(docker context ls --format '{{{{.Name}}}}' | grep -E '^desktop-' || true)
-    if [ -z "$desktop_context" ]; then
+    if docker context ls | grep 'desktop-linux' 1> /dev/null; then
+        docker context use desktop-linux
+    else
         echo "❌ No Docker Desktop context found. Please ensure Docker Desktop is installed and configured."
         exit 1
     fi
-    docker context use "$desktop_context"
-    echo "✅ Now using Docker Desktop context '$desktop_context'!"
 
 # Switch to Lima Docker context
 [group('lima')]
@@ -164,7 +170,6 @@ switch-to-lima-docker-context:
 
     echo "Switching to Lima context..."
     docker context use lima-{{ lima_default_name }}
-    echo "✅ Now using Lima VM '{{ lima_default_name }}'!"
 
 # Internal helper: Ask for user confirmation
 _confirm_action message:
@@ -175,7 +180,7 @@ _confirm_action message:
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
         echo "❌ Operation cancelled."
-        exit 0
+        exit 1
     fi
 
 # Internal helper: Update Lima VM configuration (stops, edits, starts VM)
