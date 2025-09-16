@@ -3,6 +3,10 @@
   hosts: localhost
   connection: local
   gather_facts: yes
+  vars_prompt:
+    - name: sudo_password
+      prompt: "Enter your sudo password"
+      private: yes
 
   vars:
     dev_env_dir: /opt/sparkdock
@@ -106,6 +110,7 @@
         name: "{{ all_cask_packages }}"
         state: present
         install_options: force
+        sudo_password: "{{ sudo_password }}"
       when: all_cask_packages | length > 0
       become: false
 
@@ -196,6 +201,7 @@
           command: killall -HUP mDNSResponder
       become: yes
       become_method: sudo
+      become_password: "{{ sudo_password }}"
 
     - name: Configure git safe directory for sparkdock
       command: git config --global --add safe.directory "{{ dev_env_dir }}"
@@ -226,6 +232,7 @@
           when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root')
           become: yes
           become_method: sudo
+          become_password: "{{ sudo_password }}"
 
         - name: Clone http-proxy repository
           git:
@@ -275,6 +282,7 @@
               }
       become: yes
       become_method: sudo
+      become_password: "{{ sudo_password }}"
 
     - name: Handle transition from dinghy-proxy to http-proxy
       tags: http-proxy
@@ -309,6 +317,7 @@
           when: item.stat.exists and not item.stat.islnk
           become: yes
           become_method: sudo
+          become_password: "{{ sudo_password }}"
 
         - name: Migrate old dinghy certificates to new location
           block:
@@ -372,6 +381,7 @@
             mode: "0755"
           become: yes
           become_method: sudo
+          become_password: "{{ sudo_password }}"
 
         - name: Get Homebrew prefix
           command: brew --prefix
@@ -420,6 +430,7 @@
             remote_src: true
           become: yes
           become_method: sudo
+          become_password: "{{ sudo_password }}"
 
         - name: Verify menu bar app works
           command: /usr/local/bin/sparkdock-manager --status

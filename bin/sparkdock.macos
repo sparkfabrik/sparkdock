@@ -54,23 +54,23 @@ check_for_updates() {
 
 check_http_proxy_updates() {
     HTTP_PROXY_DIR="/opt/sparkdock/http-proxy"
-    
+
     # Check if http-proxy directory exists
     if [ ! -d "${HTTP_PROXY_DIR}" ]; then
         return 1
     fi
-    
+
     cd "${HTTP_PROXY_DIR}"
-    
+
     # Ensure it's a git repository
     if [ ! -d ".git" ]; then
         return 1
     fi
-    
+
     git fetch origin main -q
     LOCAL=$(git rev-parse HEAD)
     REMOTE=$(git rev-parse origin/main)
-    
+
     if [ "$LOCAL" != "$REMOTE" ]; then
         echo "Http-proxy updates available:"
         git --no-pager log --oneline HEAD..origin/main

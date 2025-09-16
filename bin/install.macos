@@ -104,7 +104,7 @@ if [[ "$PRESERVE_EXISTING" != "true" ]]; then
     sudo rm -rf /opt/sparkdock && \
     sudo mkdir -p /opt/sparkdock && \
     sudo chown $(id -u):$(id -g) /opt/sparkdock
-    
+
     # In CI, we have the repo already checked out, so copy it instead of cloning
     if [[ "$NON_INTERACTIVE" == "true" ]]; then
       # we are in a CI environment, so we assume the repo is already checked out and we are at the root of the repo.
