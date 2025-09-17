@@ -63,6 +63,16 @@ sjust docker-desktop-disable-kernel-udp
 sjust docker-desktop-restart
 ```
 
+**Run Docker Desktop diagnostics to collect system information:**
+```bash
+sjust docker-desktop-diagnose
+```
+
+**Run diagnostics and upload to Docker support:**
+```bash
+sjust docker-desktop-diagnose true
+```
+
 **Note:** These settings are automatically backed up before changes are made. If you experience issues after enabling these features, you can disable them using the corresponding disable commands.
 
 ### Linux
