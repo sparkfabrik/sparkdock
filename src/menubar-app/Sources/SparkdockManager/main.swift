@@ -105,6 +105,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var outdatedBrewFormulaeCount = 0
     var outdatedBrewCasksCount = 0
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
+    var hasBrewLicenseError = false
     var statusMenuItem: NSMenuItem?
     var sparkdockStatusMenuItem: NSMenuItem?
     var brewStatusMenuItem: NSMenuItem?
@@ -381,10 +382,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private func checkForUpdates() {
         Task(priority: .background) {
             let hasUpdates = await runSparkdockCheck()
-            let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
+            let (formulaeCount, casksCount, hasLicenseError) = await runBrewOutdatedCheck()
             let hasHttpProxyUpdates = await runHttpProxyCheck()
             await MainActor.run {
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates)
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasBrewLicenseError: hasLicenseError)
             }
         }
     }
@@ -398,24 +399,31 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return nil
     }
 
-    private func runBrewOutdatedCheck() async -> (formulae: Int, casks: Int) {
+    private func runBrewOutdatedCheck() async -> (formulae: Int, casks: Int, hasLicenseError: Bool) {
         AppConstants.logger.info("runBrewOutdatedCheck called")
         guard let brewPath = await findBrewPath() else {
             AppConstants.logger.warning("Homebrew not found at expected locations")
-            return (0, 0)
+            return (0, 0, false)
         }
 
         // Get outdated formulae count
-        let formulaeCount = await getBrewOutdatedCount(brewPath: brewPath, type: .formulae)
+        let (formulaeCount, formulaeLicenseError) = await getBrewOutdatedCount(brewPath: brewPath, type: .formulae)
         // Get outdated casks count
-        let casksCount = await getBrewOutdatedCount(brewPath: brewPath, type: .casks)
+        let (casksCount, casksLicenseError) = await getBrewOutdatedCount(brewPath: brewPath, type: .casks)
 
+        let hasLicenseError = formulaeLicenseError || casksLicenseError
         let totalCount = formulaeCount + casksCount
-        AppConstants.logger.info("Found \(formulaeCount) outdated formulae and \(casksCount) outdated casks (total: \(totalCount))")
-        return (formulaeCount, casksCount)
+        
+        if hasLicenseError {
+            AppConstants.logger.error("Brew outdated check failed due to Xcode license not accepted")
+        } else {
+            AppConstants.logger.info("Found \(formulaeCount) outdated formulae and \(casksCount) outdated casks (total: \(totalCount))")
+        }
+        
+        return (formulaeCount, casksCount, hasLicenseError)
     }
 
-    private func getBrewOutdatedCount(brewPath: String, type: BrewPackageType) async -> Int {
+    private func getBrewOutdatedCount(brewPath: String, type: BrewPackageType) async -> (count: Int, hasLicenseError: Bool) {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
 
@@ -427,9 +435,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         environment["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         process.environment = environment
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = Pipe()
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
 
         var terminationStatus: Int32 = -1
         do {
@@ -457,22 +466,34 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
             if !finished {
                 AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.processTimeout) seconds")
-                return 0
+                return (0, false)
             }
 
             if terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
+                let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                let output = String(data: outputData, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
                 let count = Int(output) ?? 0
                 AppConstants.logger.info("Found \(count) outdated \(type.description)")
-                return count
+                return (count, false)
             } else {
-                AppConstants.logger.warning("Brew outdated check (\(type.description)) failed with exit code \(terminationStatus)")
-                return 0
+                // Read stderr to check for xcodebuild license error
+                let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+                let errorOutput = String(data: errorData, encoding: .utf8) ?? ""
+                
+                let hasXcodeLicenseError = errorOutput.contains("You have not agreed to the Xcode license") || 
+                                          errorOutput.contains("xcodebuild -license accept")
+                
+                if hasXcodeLicenseError {
+                    AppConstants.logger.error("Brew outdated check (\(type.description)) failed due to Xcode license not accepted: \(errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))")
+                    return (0, true)
+                } else {
+                    AppConstants.logger.warning("Brew outdated check (\(type.description)) failed with exit code \(terminationStatus): \(errorOutput.trimmingCharacters(in: .whitespacesAndNewlines))")
+                    return (0, false)
+                }
             }
         } catch {
             AppConstants.logger.error("Failed to run brew outdated check (\(type.description)): \(error.localizedDescription)")
-            return 0
+            return (0, false)
         }
     }
 
@@ -531,14 +552,15 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return await runSparkdockCommand("http-proxy-check-updates")
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false) {
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasBrewLicenseError: Bool = false) {
         self.hasUpdates = hasUpdates
         self.hasHttpProxyUpdates = hasHttpProxyUpdates
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
         self.outdatedBrewCasksCount = outdatedBrewCasks
+        self.hasBrewLicenseError = hasBrewLicenseError
         let totalBrewCount = totalOutdatedBrewCount
 
-        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates
+        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates || hasBrewLicenseError
         statusItem?.button?.image = loadIcon(hasUpdates: hasAnyUpdates)
 
         // Create more detailed tooltip
@@ -549,7 +571,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         if hasHttpProxyUpdates {
             tooltipParts.append("Http-proxy updates available")
         }
-        if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
+        if hasBrewLicenseError {
+            tooltipParts.append("Brew license error")
+        } else if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
             tooltipParts.append("\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks outdated")
         } else if outdatedBrewFormulae > 0 {
             tooltipParts.append("\(outdatedBrewFormulae) brew formulae outdated")
@@ -571,7 +595,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
 
         // Update Brew status line
-        if totalBrewCount > 0 {
+        if hasBrewLicenseError {
+            brewStatusMenuItem?.attributedTitle = createStatusTitle("Brew packages: License error - run 'sudo xcodebuild -license accept'", color: .systemRed)
+        } else if totalBrewCount > 0 {
             let brewStatusText = outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 ?
                 "Brew packages: \(totalBrewCount) to be updated (\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks)" :
                 "Brew packages: \(totalBrewCount) to be updated"
@@ -600,7 +626,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         // Update the "Upgrade Brew Packages" menu item visibility
         if let upgradeBrewItem = upgradeBrewMenuItem {
-            if totalBrewCount > 0 {
+            if hasBrewLicenseError {
+                upgradeBrewItem.title = "Fix Xcode License (run 'sudo xcodebuild -license accept')"
+                upgradeBrewItem.isEnabled = false
+                upgradeBrewItem.isHidden = false
+            } else if totalBrewCount > 0 {
                 let menuTitle = outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 ?
                     "Upgrade Brew Packages (\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks)" :
                     "Upgrade Brew Packages (\(totalBrewCount))"
