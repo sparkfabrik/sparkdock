@@ -71,6 +71,25 @@ lima-create-vm cpus=lima_default_cpus memory=lima_default_memory disk=lima_defau
     fi
 
     echo "Creating Lima VM '{{ lima_default_name }}' with {{ cpus }} CPUs (auto-detected), {{ memory }}GB RAM (50% of host), {{ disk }}GB disk..."
+
+    # Create custom template with UDP forwarding
+    TEMP_TEMPLATE=$(mktemp -t lima-docker-rootful-udp.XXXXXX.yaml)
+    trap 'rm -f "${TEMP_TEMPLATE}"' EXIT
+
+    cat > "${TEMP_TEMPLATE}" << 'EOF'
+    # Custom Docker rootful template with UDP forwarding
+    base:
+    - template://docker-rootful
+
+    # Add UDP port forwarding for container networking, set a range.
+    portForwards:
+    - guestIP: "127.0.0.1"
+      guestPortRange: [1024, 65535]
+      hostIP: "127.0.0.1"
+      hostPortRange: [1024, 65535]
+      proto: "udp"
+    EOF
+
     limactl create --name={{ lima_default_name }} \
       -y \
       --vm-type=vz \
@@ -79,7 +98,7 @@ lima-create-vm cpus=lima_default_cpus memory=lima_default_memory disk=lima_defau
       --memory={{ memory }} \
       --cpus={{ cpus }} \
       --disk={{ disk }} \
-      template://docker-rootful
+      "${TEMP_TEMPLATE}"
 
     echo "Starting Lima VM..."
     limactl start {{ lima_default_name }} -y
