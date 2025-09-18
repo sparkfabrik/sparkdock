@@ -74,7 +74,7 @@ lima-create-vm cpus=lima_default_cpus memory=lima_default_memory disk=lima_defau
 
     # Create custom template with UDP forwarding
     TEMP_TEMPLATE=$(mktemp -t lima-docker-rootful-udp.XXXXXX.yaml)
-    cat > "$TEMP_TEMPLATE" << 'EOF'
+    cat > "${TEMP_TEMPLATE}" << 'EOF'
     # Custom Docker rootful template with UDP forwarding
     base:
     - template://docker-rootful
@@ -96,10 +96,10 @@ lima-create-vm cpus=lima_default_cpus memory=lima_default_memory disk=lima_defau
       --memory={{ memory }} \
       --cpus={{ cpus }} \
       --disk={{ disk }} \
-      "$TEMP_TEMPLATE"
+      "${TEMP_TEMPLATE}"
 
     # Clean up temporary template file.
-    rm -f "$TEMP_TEMPLATE"
+    rm -f "${TEMP_TEMPLATE}"
 
     echo "Starting Lima VM..."
     limactl start {{ lima_default_name }} -y
