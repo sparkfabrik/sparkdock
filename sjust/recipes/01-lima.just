@@ -118,8 +118,21 @@ lima-destroy:
 
     just _confirm_action "Are you sure you want to remove the Lima VM '{{ lima_default_name }}'? This action cannot be undone."
 
-    echo "Stopping Lima VM..."
-    limactl stop {{ lima_default_name }}
+    # Check VM status before attempting to stop
+    vm_status=$(limactl list {{ lima_default_name }} --format 'json' | jq -r '.status' 2>/dev/null || echo "NotFound")
+
+    if [ "$vm_status" = "NotFound" ]; then
+        echo "❌ VM '{{ lima_default_name }}' does not exist!"
+        exit 1
+    fi
+
+    if [ "$vm_status" = "Running" ]; then
+        echo "Stopping Lima VM..."
+        limactl stop {{ lima_default_name }}
+    elif [ "$vm_status" = "Stopped" ]; then
+        echo "Lima VM is already stopped, proceeding with deletion..."
+    fi
+
     echo "Removing Lima VM '{{ lima_default_name }}'..."
     limactl delete {{ lima_default_name }}
     echo "✅ Lima VM '{{ lima_default_name }}' removed successfully!"
