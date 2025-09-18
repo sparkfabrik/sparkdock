@@ -18,6 +18,16 @@ lima-quick-setup cpus=lima_default_cpus memory=lima_default_memory disk=lima_def
     echo "🚀 Lima VM Quick Setup (experimental)"
     echo "====================================="
     echo ""
+    
+    # Display Lima version
+    echo "🔧 Lima version:"
+    if limactl --version >/dev/null 2>&1; then
+        echo "   • $(limactl --version)"
+    else
+        echo "   • Lima version could not be determined"
+    fi
+    echo ""
+    
     echo "📋 VM Configuration (auto detected):"
     echo "   • Name: {{ lima_default_name }}"
     echo "   • CPUs: {{ cpus }} (all available processors)"
