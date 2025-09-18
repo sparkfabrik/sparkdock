@@ -21,8 +21,9 @@ lima-quick-setup cpus=lima_default_cpus memory=lima_default_memory disk=lima_def
     
     # Display Lima version
     echo "🔧 Lima version:"
-    if limactl --version >/dev/null 2>&1; then
-        echo "   • $(limactl --version)"
+    if command -v limactl >/dev/null 2>&1; then
+        version_output=$(limactl --version)
+        echo "   • ${version_output}"
     fi
     echo ""
     
