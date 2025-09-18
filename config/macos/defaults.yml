@@ -1,0 +1,390 @@
+# macOS System Defaults Configuration for Developers
+# This file defines the macOS system defaults that will be applied
+# to optimize the system for developer productivity.
+
+# General UI/UX improvements
+ui_ux:
+  - domain: NSGlobalDomain
+    key: NSNavPanelExpandedStateForSaveMode
+    type: bool
+    value: true
+    description: "Expand save panel by default"
+  
+  - domain: NSGlobalDomain
+    key: PMPrintingExpandedStateForPrint
+    type: bool
+    value: true
+    description: "Expand print panel by default"
+  
+  - domain: NSGlobalDomain
+    key: NSDocumentSaveNewDocumentsToCloud
+    type: bool
+    value: false
+    description: "Save to disk (not iCloud) by default"
+  
+  - domain: NSGlobalDomain
+    key: NSAutomaticCapitalizationEnabled
+    type: bool
+    value: false
+    description: "Disable automatic capitalization"
+  
+  - domain: NSGlobalDomain
+    key: NSAutomaticDashSubstitutionEnabled
+    type: bool
+    value: false
+    description: "Disable automatic dash substitution"
+  
+  - domain: NSGlobalDomain
+    key: NSAutomaticPeriodSubstitutionEnabled
+    type: bool
+    value: false
+    description: "Disable automatic period substitution"
+  
+  - domain: NSGlobalDomain
+    key: NSAutomaticQuoteSubstitutionEnabled
+    type: bool
+    value: false
+    description: "Disable smart quotes"
+  
+  - domain: NSGlobalDomain
+    key: NSAutomaticSpellingCorrectionEnabled
+    type: bool
+    value: false
+    description: "Disable automatic spelling correction"
+
+# Keyboard and input settings for developers
+keyboard:
+  - domain: NSGlobalDomain
+    key: KeyRepeat
+    type: int
+    value: 1
+    description: "Set key repeat rate (fastest)"
+  
+  - domain: NSGlobalDomain
+    key: InitialKeyRepeat
+    type: int
+    value: 10
+    description: "Set initial key repeat delay"
+  
+  - domain: NSGlobalDomain
+    key: ApplePressAndHoldEnabled
+    type: bool
+    value: false
+    description: "Disable press-and-hold for key repeat"
+
+# Accessibility improvements for developers
+accessibility:
+  - domain: com.apple.universalaccess
+    key: reduceMotion
+    type: int
+    value: 1
+    description: "Reduce motion for better focus and performance"
+
+# Trackpad settings
+trackpad:
+  - domain: com.apple.driver.AppleBluetoothMultitouch.trackpad
+    key: Clicking
+    type: bool
+    value: true
+    description: "Enable tap to click"
+  
+  - domain: com.apple.driver.AppleBluetoothMultitouch.trackpad
+    key: TrackpadRightClick
+    type: bool
+    value: true
+    description: "Enable right click"
+  
+  - domain: com.apple.driver.AppleBluetoothMultitouch.trackpad
+    key: TrackpadCornerSecondaryClick
+    type: int
+    value: 2
+    description: "Right click in bottom right corner"
+
+# Finder improvements for developers
+finder:
+  - domain: NSGlobalDomain
+    key: AppleShowAllExtensions
+    type: bool
+    value: true
+    description: "Show all filename extensions"
+  
+  - domain: com.apple.finder
+    key: AppleShowAllFiles
+    type: bool
+    value: true
+    description: "Show hidden files"
+  
+  - domain: com.apple.finder
+    key: ShowStatusBar
+    type: bool
+    value: true
+    description: "Show status bar"
+  
+  - domain: com.apple.finder
+    key: ShowPathbar
+    type: bool
+    value: true
+    description: "Show path bar"
+  
+  - domain: com.apple.finder
+    key: _FXShowPosixPathInTitle
+    type: bool
+    value: true
+    description: "Show full POSIX path in title bar"
+  
+  - domain: com.apple.finder
+    key: _FXSortFoldersFirst
+    type: bool
+    value: true
+    description: "Sort folders first"
+  
+  - domain: com.apple.finder
+    key: FXDefaultSearchScope
+    type: string
+    value: "SCcf"
+    description: "Search current folder by default"
+  
+  - domain: com.apple.finder
+    key: FXEnableExtensionChangeWarning
+    type: bool
+    value: false
+    description: "Disable extension change warning"
+  
+  - domain: com.apple.desktopservices
+    key: DSDontWriteNetworkStores
+    type: bool
+    value: true
+    description: "Don't create .DS_Store files on network volumes"
+  
+  - domain: com.apple.desktopservices
+    key: DSDontWriteUSBStores
+    type: bool
+    value: true
+    description: "Don't create .DS_Store files on USB volumes"
+  
+  - domain: com.apple.finder
+    key: FXPreferredViewStyle
+    type: string
+    value: "Nlsv"
+    description: "Use list view by default"
+
+# Dock improvements
+dock:
+  - domain: com.apple.dock
+    key: tilesize
+    type: float
+    value: 48
+    description: "Set dock tile size"
+  
+  - domain: com.apple.dock
+    key: mineffect
+    type: string
+    value: "scale"
+    description: "Use scale effect for minimizing"
+  
+  - domain: com.apple.dock
+    key: minimize-to-application
+    type: bool
+    value: true
+    description: "Minimize windows to application icon"
+  
+  - domain: com.apple.dock
+    key: enable-spring-load-actions-on-all-items
+    type: bool
+    value: true
+    description: "Enable spring loading for all dock items"
+  
+  - domain: com.apple.dock
+    key: show-process-indicators
+    type: bool
+    value: true
+    description: "Show indicator lights for open applications"
+  
+  - domain: com.apple.dock
+    key: launchanim
+    type: bool
+    value: false
+    description: "Disable launch animations"
+  
+  - domain: com.apple.dock
+    key: autohide
+    type: bool
+    value: true
+    description: "Auto-hide dock"
+  
+  - domain: com.apple.dock
+    key: autohide-delay
+    type: float
+    value: 0
+    description: "Remove auto-hide delay"
+  
+  - domain: com.apple.dock
+    key: autohide-time-modifier
+    type: float
+    value: 0
+    description: "Remove auto-hide animation"
+  
+  - domain: com.apple.dock
+    key: show-recents
+    type: bool
+    value: false
+    description: "Hide recent applications in dock"
+
+# Safari developer settings
+safari:
+  - domain: com.apple.Safari
+    key: IncludeInternalDebugMenu
+    type: bool
+    value: true
+    description: "Enable internal debug menu"
+  
+  - domain: com.apple.Safari
+    key: IncludeDevelopMenu
+    type: bool
+    value: true
+    description: "Enable developer menu"
+  
+  - domain: com.apple.Safari
+    key: WebKitDeveloperExtrasEnabledPreferenceKey
+    type: bool
+    value: true
+    description: "Enable WebKit developer extras"
+  
+  - domain: com.apple.Safari
+    key: WebKitDeveloperExtras
+    type: bool
+    value: true
+    description: "Enable web inspector"
+  
+  - domain: com.apple.Safari
+    key: ShowFullURLInSmartSearchField
+    type: bool
+    value: true
+    description: "Show full URL in address bar"
+  
+  - domain: com.apple.Safari
+    key: AutoOpenSafeDownloads
+    type: bool
+    value: false
+    description: "Disable auto-opening safe downloads"
+  
+  - domain: com.apple.Safari
+    key: ShowStatusBar
+    type: bool
+    value: true
+    description: "Show status bar"
+
+# Terminal improvements
+terminal:
+  - domain: com.apple.terminal
+    key: StringEncodings
+    type: array
+    value: [4]
+    description: "Set UTF-8 encoding"
+  
+  - domain: com.apple.terminal
+    key: SecureKeyboardEntry
+    type: bool
+    value: true
+    description: "Enable secure keyboard entry"
+
+# TextEdit improvements for developers
+textedit:
+  - domain: com.apple.TextEdit
+    key: RichText
+    type: int
+    value: 0
+    description: "Use plain text by default"
+  
+  - domain: com.apple.TextEdit
+    key: PlainTextEncoding
+    type: int
+    value: 4
+    description: "Set UTF-8 encoding for reading"
+  
+  - domain: com.apple.TextEdit
+    key: PlainTextEncodingForWrite
+    type: int
+    value: 4
+    description: "Set UTF-8 encoding for writing"
+
+# Activity Monitor improvements
+activity_monitor:
+  - domain: com.apple.ActivityMonitor
+    key: OpenMainWindow
+    type: bool
+    value: true
+    description: "Show main window when launching"
+  
+  - domain: com.apple.ActivityMonitor
+    key: IconType
+    type: int
+    value: 5
+    description: "Show CPU usage in dock icon"
+  
+  - domain: com.apple.ActivityMonitor
+    key: ShowCategory
+    type: int
+    value: 0
+    description: "Show all processes"
+  
+  - domain: com.apple.ActivityMonitor
+    key: SortColumn
+    type: string
+    value: "CPUUsage"
+    description: "Sort by CPU usage"
+  
+  - domain: com.apple.ActivityMonitor
+    key: SortDirection
+    type: int
+    value: 0
+    description: "Sort in descending order"
+
+# Screenshots improvements
+screenshots:
+  - domain: com.apple.screencapture
+    key: location
+    type: string
+    value: "${HOME}/Desktop"
+    description: "Save screenshots to desktop"
+  
+  - domain: com.apple.screencapture
+    key: type
+    type: string
+    value: "png"
+    description: "Save screenshots as PNG"
+  
+  - domain: com.apple.screencapture
+    key: disable-shadow
+    type: bool
+    value: true
+    description: "Disable screenshot shadows"
+
+# Time Machine improvements
+time_machine:
+  - domain: com.apple.TimeMachine
+    key: DoNotOfferNewDisksForBackup
+    type: bool
+    value: true
+    description: "Don't offer new disks for backup"
+
+# Disk Utility improvements
+disk_utility:
+  - domain: com.apple.DiskUtility
+    key: DUDebugMenuEnabled
+    type: bool
+    value: true
+    description: "Enable debug menu"
+  
+  - domain: com.apple.DiskUtility
+    key: advanced-image-options
+    type: bool
+    value: true
+    description: "Enable advanced image options"
+
+# Applications to restart after applying defaults
+restart_applications:
+  - Finder
+  - Dock
+  - Safari
+  - "Activity Monitor"

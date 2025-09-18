@@ -396,6 +396,13 @@
             path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
             mode: "0644"
 
+    # Apply macOS system defaults configuration using sjust
+    - name: Apply macOS system defaults for developers
+      shell: /usr/local/bin/sjust macos-defaults
+      become: no
+      tags: macos-defaults
+      when: "'/usr/local/bin/sjust' is exists"
+
     - name: Remove unwanted cask packages
       community.general.homebrew_cask:
         name: "{{ all_removed_cask_packages }}"
