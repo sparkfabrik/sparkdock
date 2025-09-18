@@ -21,8 +21,7 @@ lima-quick-setup cpus=lima_default_cpus memory=lima_default_memory disk=lima_def
     
     # Display Lima version
     echo "🔧 Lima version:"
-    version_output=$(limactl --version)
-    echo "   • ${version_output}"
+    echo "   • $(limactl --version)"
     echo ""
     
     echo "📋 VM Configuration (auto detected):"
