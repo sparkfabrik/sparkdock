@@ -9,6 +9,7 @@ Please find hints and troubleshooting information on our company playbook: http:
 **Supported macOS Versions:**
 - macOS Sonoma (14.x)
 - macOS Sequoia (15.x)
+- macOS 16.x
 
 **Prerequisites:**
 - Administrator privileges required for installation
