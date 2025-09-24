@@ -7,8 +7,8 @@ Please find hints and troubleshooting information on our company playbook: http:
 ### System Requirements
 
 **Supported macOS Versions:**
-- macOS Sonoma (14.x)
 - macOS Sequoia (15.x)
+- macOS Tahoe (26.x)
 
 **Prerequisites:**
 - Administrator privileges required for installation
