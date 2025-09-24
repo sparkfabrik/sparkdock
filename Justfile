@@ -13,7 +13,7 @@ run-ansible-playbook TAGS="all":
     # Read password and save to env ANSIBLE_BECOME_PASS
     # Check if we're running in CI (GitHub Actions sets these variables)
     if [ -z "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ]; then
-        read -sp "Enter your password (for sudo access): " ANSIBLE_BECOME_PASS
+        read -rsp "Enter your password (for sudo access): " ANSIBLE_BECOME_PASS
         export ANSIBLE_BECOME_PASS
         echo
     else
