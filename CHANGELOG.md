@@ -20,3 +20,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed `lima-destroy` command to handle VMs that are already stopped, preventing fatal error when VM is not running
+- Fixed menubar app incorrectly showing "all green" when brew commands fail due to unaccepted Xcode license

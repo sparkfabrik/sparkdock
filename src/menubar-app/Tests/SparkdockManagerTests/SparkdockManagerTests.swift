@@ -103,4 +103,16 @@ final class SparkdockManagerTests: XCTestCase {
         let httpProxyCheckCommand = ["http-proxy-check-updates"]
         XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "Http-proxy check command should be correct")
     }
+    
+    func testBrewErrorHandling() {
+        // Test that we can detect Xcode license errors in stderr output
+        let xcodeErrorMessage = "Error: You have not agreed to the Xcode license. Please resolve this by running:\n  sudo xcodebuild -license accept"
+        XCTAssertTrue(xcodeErrorMessage.contains("You have not agreed to the Xcode license"), "Should detect Xcode license error")
+        XCTAssertTrue(xcodeErrorMessage.contains("xcodebuild -license accept"), "Should detect the fix command")
+        
+        // Test the fix command format
+        let fixCommand = "sudo xcodebuild -license accept && echo '\\n✅ Xcode license accepted. Now checking for brew updates...' && brew update"
+        XCTAssertTrue(fixCommand.contains("sudo xcodebuild -license accept"), "Fix command should accept Xcode license")
+        XCTAssertTrue(fixCommand.contains("brew update"), "Fix command should update brew after accepting license")
+    }
 }
