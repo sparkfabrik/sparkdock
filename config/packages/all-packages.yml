@@ -77,7 +77,7 @@ removed_homebrew_packages:
 removed_taps:
   - homebrew/cask-versions
   - homebrew/cask-fonts
-  - homebrew/homebrew-cask-fonts  # Deprecated full name
+  - homebrew/homebrew-cask-fonts
   - homebrew/cask-drivers
 
 removed_cask_packages: []
