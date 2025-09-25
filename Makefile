@@ -38,7 +38,10 @@ endif
 	@echo "Generating zsh completion for sjust..."
 	@BREW_PREFIX=$$(brew --prefix 2>/dev/null || echo "/usr/local"); \
 	sudo mkdir -p "$$BREW_PREFIX/share/zsh/site-functions"; \
-	just --completions zsh | sed -E 's/([\(_" ])just/\1sjust/g' | sudo tee "$$BREW_PREFIX/share/zsh/site-functions/_sjust" > /dev/null; \
-	sudo chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"
+	just --completions zsh | sed -E 's/([\(_" ])just/\1sjust/g' > "/tmp/_sjust"; \
+	sudo cp "/tmp/_sjust" "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
+	sudo chown $$(id -u):$$(id -g) "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
+	sudo chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
+	rm -f "/tmp/_sjust"
 	@echo "✅ sjust installed successfully!"
 	@echo "You can now run: sjust http-proxy-install-update"
