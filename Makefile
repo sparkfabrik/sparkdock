@@ -2,10 +2,16 @@
 DEFAULT_BRANCH := master
 
 run-ansible-playbook:
+	@# Check if just binary is available, install if needed
+	@if ! command -v just >/dev/null 2>&1; then \
+		echo "Just not found. Installing just via Homebrew..."; \
+		brew install just; \
+	fi
+	@# Delegate to the justfile implementation
 ifeq ($(TAGS),)
-	ansible-playbook ./ansible/macos.yml --ask-become-pass
+	just run-ansible-playbook
 else
-	ansible-playbook ./ansible/macos.yml --ask-become-pass --tags=$(TAGS)
+	just run-ansible-playbook TAGS="$(TAGS)"
 endif
 
 # Install sjust only (for manual http-proxy migration workflow)
