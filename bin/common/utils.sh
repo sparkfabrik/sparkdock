@@ -6,7 +6,10 @@ BLUE='\033[0;34m'
 BOLD='\033[1m'
 NC='\033[0m'
 
-setopt PROMPT_SUBST
+# Only set zsh options if we're running in zsh
+if [[ -n "${ZSH_VERSION:-}" ]]; then
+    setopt PROMPT_SUBST
+fi
 
 # Print functions for different message types
 print_info() {
@@ -83,6 +86,69 @@ EOF
     print_section "System Information"
     get_version_info
     echo ""
+}
+
+# Check for Xcode command line tools issues using brew doctor
+check_xcode_issues() {
+    # Skip check in CI environments
+    if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" || -n "${NON_INTERACTIVE:-}" ]]; then
+        return 0
+    fi
+
+    # Check if brew is available
+    if ! command -v brew &> /dev/null; then
+        print_warning "Homebrew not found. Skipping Xcode command line tools check."
+        return 0
+    fi
+
+    print_info "Checking for Xcode command line tools issues..."
+    
+    # Run brew doctor and capture output
+    local brew_doctor_output
+    brew_doctor_output=$(brew doctor 2>&1 || true)
+    
+    # Check for the specific Swift compilation issue mentioned in the GitHub issue
+    if echo "${brew_doctor_output}" | grep -q "No Cask quarantine support available.*Swift compilation failed"; then
+        print_error "Xcode command line tools issue detected!"
+        echo ""
+        print_warning "brew doctor reports: No Cask quarantine support available: Swift compilation failed."
+        print_warning "This is usually due to a broken or incompatible Command Line Tools installation."
+        echo ""
+        print_info "To resolve this issue, please run:"
+        echo "  xcode-select --install"
+        echo ""
+        print_info "If that doesn't resolve your issues, run:"
+        echo "  sudo rm -rf /Library/Developer/CommandLineTools"
+        echo "  sudo xcode-select --install"
+        echo ""
+        print_info "Alternatively, manually download them from:"
+        echo "  https://developer.apple.com/download/all/"
+        echo ""
+        
+        # Ask user if they want to continue
+        echo -n "Do you want to continue with the provisioning anyway? (y/N): "
+        read -r response
+        if [[ ! "${response}" =~ ^[Yy]$ ]]; then
+            print_info "Exiting. Please resolve the Xcode issues first."
+            exit 1
+        fi
+        echo ""
+        return 1
+    fi
+    
+    # Check for other Command Line Tools related issues in brew doctor output
+    if echo "${brew_doctor_output}" | grep -qi "command line tools"; then
+        print_warning "Potential Xcode command line tools issue detected in brew doctor output:"
+        echo "${brew_doctor_output}" | grep -i "command line tools" | sed 's/^/  /'
+        echo ""
+        print_info "You may want to check your Xcode command line tools installation."
+        print_info "If you encounter issues during provisioning, try running: xcode-select --install"
+        echo ""
+        return 1
+    fi
+    
+    print_success "No Xcode command line tools issues detected."
+    return 0
 }
 
 # Keep old function name for backward compatibility
