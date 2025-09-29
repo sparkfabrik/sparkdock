@@ -101,8 +101,6 @@ check_xcode_issues() {
         return 0
     fi
 
-    print_info "Checking for Xcode command line tools issues..."
-    
     # Run brew doctor and capture output
     local brew_doctor_output
     brew_doctor_output=$(brew doctor 2>&1 || true)
