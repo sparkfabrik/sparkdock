@@ -137,9 +137,9 @@ check_xcode_issues() {
     fi
     
     # Check for other Command Line Tools related issues in brew doctor output
-    if echo "${brew_doctor_output}" | grep -qi "command line tools"; then
+    if echo "${brew_doctor_output}" | grep -qi "command line tools\|xcode-select"; then
         print_warning "Potential Xcode command line tools issue detected in brew doctor output:"
-        echo "${brew_doctor_output}" | grep -i "command line tools" | sed 's/^/  /'
+        echo "${brew_doctor_output}" | grep -i "command line tools\|xcode-select" | sed 's/^/  /'
         echo ""
         print_info "You may want to check your Xcode command line tools installation."
         print_info "If you encounter issues during provisioning, try running: xcode-select --install"
