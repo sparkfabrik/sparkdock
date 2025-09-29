@@ -60,7 +60,12 @@
           - "Bin path: {{ homebrew_brew_bin_path }}"
 
     - name: Remove deprecated taps before homebrew update
-      shell: brew untap --force "{{ item }}"
+      ansible.builtin.command:
+        argv:
+          - brew
+          - untap
+          - --force
+          - "{{ item }}"
       loop: "{{ all_removed_taps }}"
       when: all_removed_taps | length > 0
       become: false
