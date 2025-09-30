@@ -163,6 +163,7 @@
       become: false
 
     - name: Assert homebrew packages installed
+      tags: brew_packages
       shell: |
         missing=0
         for pkg in {{ all_homebrew_packages | map('quote') | join(' ') }}; do
