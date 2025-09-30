@@ -21,9 +21,10 @@
       include_vars:
         file: "{{ dev_env_dir }}/config/packages/all-packages.yml"
         name: all_packages
-      tags: always
+      tags: [always, brew_packages]
 
     - name: Collect all package lists
+      tags: brew_packages
       set_fact:
         all_cask_packages: "{{ all_packages.cask_packages | default([]) }}"
         all_homebrew_packages: "{{ all_packages.homebrew_packages | default([]) }}"
@@ -81,6 +82,7 @@
         - all_removed_taps | length > 0
         - item in installed_taps.stdout
       become: false
+      ignore_errors: yes
 
     - name: Update homebrew
       community.general.homebrew:
@@ -152,6 +154,7 @@
       become: false
 
     - name: Install homebrew packages
+      tags: brew_packages
       community.general.homebrew:
         name: "{{ all_homebrew_packages }}"
         state: present
