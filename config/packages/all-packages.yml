@@ -57,7 +57,7 @@ homebrew_packages:
   - mas
   - gh
   - glab
-  - "node@24"
+  - "node"
   - "php@8.2"
   - golang
   - gitleaks
@@ -70,6 +70,7 @@ linked_packages: []
 # Removed packages/taps
 removed_homebrew_packages:
   - "node@20"
+  - "node@24"
   - docker-compose
   - neofetch
   - "php@8.3"
