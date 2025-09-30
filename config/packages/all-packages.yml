@@ -70,7 +70,6 @@ linked_packages: []
 # Removed packages/taps
 removed_homebrew_packages:
   - "node@20"
-  - "node@24"
   - docker-compose
   - neofetch
   - "php@8.3"
