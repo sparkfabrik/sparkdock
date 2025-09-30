@@ -97,9 +97,10 @@
     - name: Remove unwanted packages
       tags: brew_packages
       community.general.homebrew:
-        name: "{{ all_removed_homebrew }}"
+        name: "{{ item }}"
         state: absent
         update_homebrew: false
+      loop: "{{ all_removed_homebrew }}"
       when: all_removed_homebrew | length > 0
       become: false
 
