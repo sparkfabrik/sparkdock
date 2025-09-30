@@ -156,9 +156,10 @@
     - name: Install homebrew packages
       tags: brew_packages
       community.general.homebrew:
-        name: "{{ all_homebrew_packages }}"
+        name: "{{ item }}"
         state: present
         update_homebrew: false
+      loop: "{{ all_homebrew_packages }}"
       when: all_homebrew_packages | length > 0
       become: false
 
