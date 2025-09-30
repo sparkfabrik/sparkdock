@@ -20,6 +20,7 @@ import "/opt/sparkdock/sjust/recipes/_private.just"
 import "/opt/sparkdock/sjust/recipes/00-default.just"
 import "/opt/sparkdock/sjust/recipes/01-lima.just"
 import "/opt/sparkdock/sjust/recipes/02-docker-desktop.just"
+import "/opt/sparkdock/sjust/recipes/03-macos-defaults.just"
 
 # this is optional and let the user to add custom tasks.
 import? "~/.config/sjust/100-custom.just"
