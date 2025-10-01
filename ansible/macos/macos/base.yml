@@ -21,7 +21,7 @@
       include_vars:
         file: "{{ dev_env_dir }}/config/packages/all-packages.yml"
         name: all_packages
-      tags: [always, brew_packages]
+      tags: ['always', 'brew_packages']
 
     - name: Collect all package lists
       tags: brew_packages
