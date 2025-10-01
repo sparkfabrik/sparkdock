@@ -85,7 +85,7 @@
         - all_removed_taps | length > 0
         - item in installed_taps.stdout
       become: false
-      ignore_errors: yes
+      ignore_errors: true
 
     - name: Update homebrew
       tags: brew_packages
