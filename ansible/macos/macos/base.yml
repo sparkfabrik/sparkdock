@@ -59,14 +59,28 @@
           - "Install path: {{ homebrew_install_path }}"
           - "Bin path: {{ homebrew_brew_bin_path }}"
 
-    - name: Remove deprecated taps before homebrew update
-      community.general.homebrew_tap:
-        name: "{{ item }}"
-        state: absent
-      loop: "{{ all_removed_taps }}"
+    - name: Check which deprecated taps are actually installed
+      ansible.builtin.command:
+        argv:
+          - brew
+          - tap
+      register: installed_taps
       when: all_removed_taps | length > 0
       become: false
-      ignore_errors: yes
+      changed_when: false
+
+    - name: Remove deprecated taps before homebrew update
+      ansible.builtin.command:
+        argv:
+          - brew
+          - untap
+          - --force
+          - "{{ item }}"
+      loop: "{{ all_removed_taps }}"
+      when: 
+        - all_removed_taps | length > 0
+        - item in installed_taps.stdout
+      become: false
 
     - name: Update homebrew
       community.general.homebrew:
