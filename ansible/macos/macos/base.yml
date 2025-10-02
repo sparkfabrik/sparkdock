@@ -397,7 +397,7 @@
           become: yes
           become_method: sudo
 
-        - name: Fix ownership of existing _sjust completion file if it exists
+        - name: Ensure _sjust completion file has correct ownership (if present)
           file:
             path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
             owner: "{{ ansible_user_id }}"
