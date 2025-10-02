@@ -24,6 +24,7 @@
       tags: always
 
     - name: Collect all package lists
+      tags: brew_packages
       set_fact:
         all_cask_packages: "{{ all_packages.cask_packages | default([]) }}"
         all_homebrew_packages: "{{ all_packages.homebrew_packages | default([]) }}"
@@ -34,6 +35,7 @@
         all_removed_cask_packages: "{{ all_packages.removed_cask_packages | default([]) }}"
 
     - name: Configure homebrew taps
+      tags: brew_packages
       community.general.homebrew_tap:
         name: "{{ item }}"
         state: present
@@ -60,6 +62,7 @@
           - "Bin path: {{ homebrew_brew_bin_path }}"
 
     - name: Check which deprecated taps are actually installed
+      tags: brew_packages
       ansible.builtin.command:
         argv:
           - brew
@@ -70,6 +73,7 @@
       changed_when: false
 
     - name: Remove deprecated taps before homebrew update
+      tags: brew_packages
       ansible.builtin.command:
         argv:
           - brew
@@ -81,18 +85,22 @@
         - all_removed_taps | length > 0
         - item in installed_taps.stdout
       become: false
+      ignore_errors: true
 
     - name: Update homebrew
+      tags: brew_packages
       community.general.homebrew:
         update_homebrew: true
         upgrade_all: false
       become: false
 
     - name: Remove unwanted packages
+      tags: brew_packages
       community.general.homebrew:
-        name: "{{ all_removed_homebrew }}"
+        name: "{{ item }}"
         state: absent
         update_homebrew: false
+      loop: "{{ all_removed_homebrew }}"
       when: all_removed_homebrew | length > 0
       become: false
 
@@ -125,10 +133,11 @@
     - name: Install cask packages
       tags: cask
       community.general.homebrew_cask:
-        name: "{{ all_cask_packages }}"
+        name: "{{ item }}"
         state: present
         install_options: force
         sudo_password: "{{ ansible_become_pass | default(omit) }}"
+      loop: "{{ all_cask_packages }}"
       when: all_cask_packages | length > 0
       become: false
 
@@ -152,14 +161,17 @@
       become: false
 
     - name: Install homebrew packages
+      tags: brew_packages
       community.general.homebrew:
-        name: "{{ all_homebrew_packages }}"
+        name: "{{ item }}"
         state: present
         update_homebrew: false
+      loop: "{{ all_homebrew_packages }}"
       when: all_homebrew_packages | length > 0
       become: false
 
     - name: Assert homebrew packages installed
+      tags: brew_packages
       shell: |
         missing=0
         for pkg in {{ all_homebrew_packages | map('quote') | join(' ') }}; do
@@ -414,8 +426,9 @@
 
     - name: Remove unwanted cask packages
       community.general.homebrew_cask:
-        name: "{{ all_removed_cask_packages }}"
+        name: "{{ item }}"
         state: absent
+      loop: "{{ all_removed_cask_packages }}"
       when: all_removed_cask_packages | length > 0
       become: false
 
