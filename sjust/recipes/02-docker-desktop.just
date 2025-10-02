@@ -90,8 +90,22 @@ docker-desktop-install-version-4412:
     set -euo pipefail
     
     DMG_URL="https://desktop.docker.com/mac/main/arm64/191736/Docker.dmg"
+    MCP_PLUGIN_PATH="/Applications/Docker.app/Contents/Resources/cli-plugins/docker-mcp"
     
     echo "🐳 Downloading and opening Docker Desktop 4.41.2..."
     curl -L -o /tmp/Docker.dmg "${DMG_URL}"
     open /tmp/Docker.dmg
     echo "✅ Docker Desktop DMG downloaded and opened. Please complete the installation manually."
+    echo ""
+    echo "⏳ Waiting for you to complete the installation..."
+    echo "💡 Press Enter after you've completed the Docker Desktop installation"
+    read -r
+    
+    # Remove docker-mcp plugin if it exists (causes issues with version 4.41.2)
+    if [[ -f "${MCP_PLUGIN_PATH}" ]]; then
+        echo "🧹 Removing incompatible docker-mcp plugin..."
+        rm "${MCP_PLUGIN_PATH}"
+        echo "✅ docker-mcp plugin removed successfully"
+    fi
+    
+    echo "✅ Installation complete! You can now start Docker Desktop."
