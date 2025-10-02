@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed sjust zsh completion file ownership issue where `_sjust` file could be owned by root, causing Ansible task failures
+
 ### Added
 - Added UDP port forwarding support in Lima (see https://github.com/lima-vm/lima/issues/4040)
 - Added `docker-desktop-diagnose` task to run Docker Desktop diagnostics with optional upload functionality
