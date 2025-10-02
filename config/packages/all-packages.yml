@@ -52,12 +52,12 @@ homebrew_packages:
   - tmux
   - watch
   - openssl@3
-  - skhd
+  - koekeishiya/formulae/skhd
   - imagemagick
   - mas
   - gh
   - glab
-  - "node@24"
+  - "node"
   - "php@8.2"
   - golang
   - gitleaks
