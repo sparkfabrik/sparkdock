@@ -35,6 +35,6 @@ if command -v fzf &> /dev/null && command -v fd &> /dev/null; then
 fi
 
 # Optional: Source user customizations
-if [[ -f "${HOME}/.sparkdock/shell.zsh" ]]; then
-  source "${HOME}/.sparkdock/shell.zsh"
+if [[ -f "${HOME}/.local/spark/sparkdock/shell.zsh" ]]; then
+  source "${HOME}/.local/spark/sparkdock/shell.zsh"
 fi

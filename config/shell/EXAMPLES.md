@@ -283,7 +283,7 @@ git log --oneline | fzf --preview 'git show --color=always {1}'
 
 ## Customization Examples
 
-### Custom Aliases in ~/.sparkdock/shell.zsh
+### Custom Aliases in ~/.local/spark/sparkdock/shell.zsh
 
 ```bash
 # Project shortcuts
@@ -314,7 +314,7 @@ function extract() {
 ### Environment Variables
 
 ```bash
-# In ~/.sparkdock/shell.zsh
+# In ~/.local/spark/sparkdock/shell.zsh
 
 # Preferred editor
 export EDITOR="code"
@@ -340,7 +340,7 @@ export FZF_DEFAULT_OPTS="--height 60% --border --color=16"
 ### Quick Project Switcher
 
 ```bash
-# Create this function in ~/.sparkdock/shell.zsh
+# Create this function in ~/.local/spark/sparkdock/shell.zsh
 function proj() {
   local project
   project=$(fd . ~/projects --type d --max-depth 2 | fzf)

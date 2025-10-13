@@ -185,7 +185,7 @@ source /opt/sparkdock/config/shell/sparkdock.zshrc
 
 **Customization:**
 
-Create `~/.sparkdock/shell.zsh` for your personal shell customizations. This file is automatically sourced if it exists.
+Create `~/.local/spark/sparkdock/shell.zsh` for your personal shell customizations. This file is automatically sourced if it exists.
 
 ### HTTP Proxy
 

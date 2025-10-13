@@ -535,7 +535,7 @@ shell-info:
     echo "  - Main config: /opt/sparkdock/config/shell/sparkdock.zshrc"
     echo "  - Aliases: /opt/sparkdock/config/shell/aliases.zsh"
     echo "  - Init scripts: /opt/sparkdock/config/shell/init.zsh"
-    echo "  - User custom: ~/.sparkdock/shell.zsh (optional)"
+    echo "  - User custom: ~/.local/spark/sparkdock/shell.zsh (optional)"
     echo ""
     echo "Key features when enabled:"
     echo "  - ls/ll/la/lt → eza with icons and colors"

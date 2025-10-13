@@ -113,11 +113,11 @@ man zoxide     # Smart cd
 
 ### User Custom Configuration
 
-Create `~/.sparkdock/shell.zsh` for your personal customizations:
+Create `~/.local/spark/sparkdock/shell.zsh` for your personal customizations:
 
 ```bash
-mkdir -p ~/.sparkdock
-cat > ~/.sparkdock/shell.zsh << 'EOF'
+mkdir -p ~/.local/spark/sparkdock
+cat > ~/.local/spark/sparkdock/shell.zsh << 'EOF'
 # My custom aliases
 alias myproject='cd ~/projects/myproject'
 
@@ -138,7 +138,7 @@ This file is automatically sourced if it exists.
 If you prefer the traditional commands, you can override the aliases in your custom config:
 
 ```bash
-# In ~/.sparkdock/shell.zsh
+# In ~/.local/spark/sparkdock/shell.zsh
 unalias ls
 unalias cat
 unalias grep
@@ -250,7 +250,7 @@ source /opt/sparkdock/config/shell/sparkdock.zshrc
 1. Guard check prevents double-loading
 2. `init.zsh` - Initialize shell tools (zoxide, fzf)
 3. `aliases.zsh` - Set up command aliases
-4. `~/.sparkdock/shell.zsh` - User customizations (if exists)
+4. `~/.local/spark/sparkdock/shell.zsh` - User customizations (if exists)
 
 ### Environment Variables
 
