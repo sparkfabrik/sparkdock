@@ -33,9 +33,11 @@ homebrew_packages:
   - stern
   - lima
   - atuin
+  - bat
   - bc
   - btop
   - fastfetch
+  - fd
   - gnupg
   - jless
   - just
@@ -44,6 +46,7 @@ homebrew_packages:
   - mergiraf
   - mkcert
   - nss
+  - ripgrep
   - thefuck
   - fzf
   - navi
@@ -52,6 +55,7 @@ homebrew_packages:
   - tmate
   - tmux
   - watch
+  - zoxide
   - openssl@3
   - koekeishiya/formulae/skhd
   - imagemagick

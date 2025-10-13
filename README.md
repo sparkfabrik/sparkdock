@@ -24,6 +24,7 @@ Sparkdock is an automated macOS development environment provisioner built with A
 
 **System Utilities:**
 
+- **Modern Shell Tools**: eza (ls), fd (find), ripgrep (grep), bat (cat), zoxide (cd)
 - **Shell Enhancement**: Atuin (shell history), fzf (fuzzy finder), thefuck (command correction)
 - **Terminal Tools**: tmux, tmate, watch, jq, jless
 - **System Info**: fastfetch, mactop
@@ -146,6 +147,45 @@ After configuration, you can verify the plugin is working:
 ```bash
 gke-gcloud-auth-plugin --version
 ```
+
+### Shell Enhancements
+
+Sparkdock includes modern shell tools that enhance your command-line experience:
+
+**Modern Command Replacements:**
+- `eza` - Modern replacement for `ls` with colors and icons
+- `fd` - Modern replacement for `find`
+- `ripgrep` (rg) - Modern replacement for `grep`
+- `bat` - Modern replacement for `cat` with syntax highlighting
+- `fzf` - Fuzzy finder for files and command history
+- `zoxide` - Smarter `cd` that remembers your directories
+
+**Enable Shell Enhancements:**
+
+```bash
+sjust shell-enable       # Add Sparkdock shell config to your ~/.zshrc
+sjust shell-info         # View status and available features
+sjust shell-disable      # Remove from your ~/.zshrc
+```
+
+**Manual Setup:**
+
+Add this line to your `~/.zshrc`:
+
+```bash
+source /opt/sparkdock/config/shell/sparkdock.zshrc
+```
+
+**Key Features:**
+- Modern aliases: `ls`, `ll`, `la`, `lt` use eza with icons
+- Enhanced commands: `cat` → bat, `grep` → ripgrep
+- Fuzzy finding: `ff` to search and open files with preview
+- History search: `Ctrl+R` for fzf-powered history search
+- Smart navigation: `z <dir>` to jump to frequently used directories
+
+**Customization:**
+
+Create `~/.sparkdock/shell.zsh` for your personal shell customizations. This file is automatically sourced if it exists.
 
 ### HTTP Proxy
 

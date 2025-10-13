@@ -422,3 +422,128 @@ sparkdock-menubar-stop:
     pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
 
     echo "✅ Sparkdock menu bar app stopped successfully"
+
+# Enable Sparkdock shell enhancements in your zshrc.
+[group('shell')]
+shell-enable:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    ZSHRC_FILE="${HOME}/.zshrc"
+    SPARKDOCK_SOURCE_LINE="source /opt/sparkdock/config/shell/sparkdock.zshrc"
+
+    # Create zshrc if it doesn't exist
+    touch "${ZSHRC_FILE}"
+
+    # Check if already enabled
+    if grep -qF "${SPARKDOCK_SOURCE_LINE}" "${ZSHRC_FILE}"; then
+        echo "ℹ️  Sparkdock shell enhancements are already enabled in ${ZSHRC_FILE}"
+        exit 0
+    fi
+
+    echo ""
+    echo "This will add the following line to ${ZSHRC_FILE}:"
+    echo "  ${SPARKDOCK_SOURCE_LINE}"
+    echo ""
+    echo "This enables modern shell tools and aliases including:"
+    echo "  - eza (modern ls with icons)"
+    echo "  - fd (modern find)"
+    echo "  - ripgrep (modern grep)"
+    echo "  - bat (modern cat with syntax highlighting)"
+    echo "  - fzf (fuzzy finder with Ctrl+R history search)"
+    echo "  - zoxide (smarter cd)"
+    echo ""
+
+    read -p "Do you want to enable Sparkdock shell enhancements? (y/n) " -n 1 -r
+    echo
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        {
+            echo ""
+            echo "# Sparkdock shell enhancements"
+            echo "${SPARKDOCK_SOURCE_LINE}"
+        } >> "${ZSHRC_FILE}"
+        echo "✅ Sparkdock shell enhancements enabled in ${ZSHRC_FILE}"
+        echo "💡 Run 'source ~/.zshrc' or restart your terminal to activate"
+    else
+        echo "❌ Shell enhancement setup cancelled"
+    fi
+
+# Disable Sparkdock shell enhancements from your zshrc.
+[group('shell')]
+shell-disable:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    ZSHRC_FILE="${HOME}/.zshrc"
+    SPARKDOCK_SOURCE_LINE="source /opt/sparkdock/config/shell/sparkdock.zshrc"
+
+    if ! grep -qF "${SPARKDOCK_SOURCE_LINE}" "${ZSHRC_FILE}"; then
+        echo "ℹ️  Sparkdock shell enhancements are not enabled in ${ZSHRC_FILE}"
+        exit 0
+    fi
+
+    # Create a backup
+    cp "${ZSHRC_FILE}" "${ZSHRC_FILE}.backup"
+
+    # Remove the Sparkdock lines from zshrc
+    sed -i.tmp '/# Sparkdock shell enhancements/d' "${ZSHRC_FILE}"
+    sed -i.tmp "\|${SPARKDOCK_SOURCE_LINE}|d" "${ZSHRC_FILE}"
+    rm -f "${ZSHRC_FILE}.tmp"
+
+    echo "✅ Sparkdock shell enhancements disabled from ${ZSHRC_FILE}"
+    echo "💡 Backup saved to ${ZSHRC_FILE}.backup"
+    echo "💡 Run 'source ~/.zshrc' or restart your terminal to deactivate"
+
+# Show information about Sparkdock shell enhancements.
+[group('shell')]
+shell-info:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "=========================================="
+    echo "Sparkdock Shell Enhancements"
+    echo "=========================================="
+    echo ""
+    echo "Modern shell tools installed:"
+    echo ""
+
+    # Check which tools are installed
+    for tool in eza fd rg bat fzf zoxide; do
+        if command -v "${tool}" &> /dev/null; then
+            version=$(${tool} --version 2>/dev/null | head -n1 || echo "installed")
+            echo "  ✅ ${tool}: ${version}"
+        else
+            echo "  ❌ ${tool}: not installed"
+        fi
+    done
+
+    echo ""
+    echo "Shell configuration status:"
+    ZSHRC_FILE="${HOME}/.zshrc"
+    SPARKDOCK_SOURCE_LINE="source /opt/sparkdock/config/shell/sparkdock.zshrc"
+
+    if [[ -f "${ZSHRC_FILE}" ]] && grep -qF "${SPARKDOCK_SOURCE_LINE}" "${ZSHRC_FILE}"; then
+        echo "  ✅ Enabled in ${ZSHRC_FILE}"
+    else
+        echo "  ❌ Not enabled in ${ZSHRC_FILE}"
+        echo ""
+        echo "To enable, run: sjust shell-enable"
+    fi
+
+    echo ""
+    echo "Configuration files:"
+    echo "  - Main config: /opt/sparkdock/config/shell/sparkdock.zshrc"
+    echo "  - Aliases: /opt/sparkdock/config/shell/aliases.zsh"
+    echo "  - Init scripts: /opt/sparkdock/config/shell/init.zsh"
+    echo "  - User custom: ~/.sparkdock/shell.zsh (optional)"
+    echo ""
+    echo "Key features when enabled:"
+    echo "  - ls/ll/la/lt → eza with icons and colors"
+    echo "  - cat → bat with syntax highlighting"
+    echo "  - grep → ripgrep (rg)"
+    echo "  - ff → fuzzy file finder (fd + fzf + bat)"
+    echo "  - Ctrl+R → fzf history search"
+    echo "  - z <dir> → zoxide smart directory jump"
+    echo ""
+    echo "For more info: man eza, man fd, man rg, man bat, man fzf, man zoxide"
+    echo "=========================================="

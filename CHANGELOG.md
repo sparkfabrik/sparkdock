@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed sjust zsh completion file ownership issue where `_sjust` file could be owned by root, causing Ansible task failures
 
 ### Added
+- Added modern shell command replacements: ripgrep, zoxide, fd, and bat
+- Added Sparkdock shell configuration system with optional sourcing for users
+- Added shell configuration files: sparkdock.zshrc, aliases.zsh, and init.zsh
+- Added shell management commands: `sjust shell-enable`, `sjust shell-disable`, and `sjust shell-info`
+- Added modern command aliases: eza (ls), bat (cat), ripgrep (grep), fd (find), zoxide (cd)
+- Added fuzzy file finder function (ff) with preview using fzf, fd, and bat
+- Added documentation for shell enhancements in README with setup instructions
 - Added UDP port forwarding support in Lima (see https://github.com/lima-vm/lima/issues/4040)
 - Added `docker-desktop-diagnose` task to run Docker Desktop diagnostics with optional upload functionality
 - Added `docker-desktop-install-version-4412` task to download Docker Desktop 4.41.2 to work around network issues

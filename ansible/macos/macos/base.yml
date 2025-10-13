@@ -396,6 +396,40 @@
             dest: "~/Library/KeyBindings",
           }
 
+    - name: Configure shell enhancements
+      tags: shell
+      block:
+        - name: Display shell configuration message
+          debug:
+            msg: |
+              ℹ️  Sparkdock Shell Configuration Available
+
+              Modern shell tools have been installed:
+              - eza (modern ls with colors and icons)
+              - fd (modern find)
+              - ripgrep/rg (modern grep)
+              - bat (modern cat with syntax highlighting)
+              - fzf (fuzzy finder - use Ctrl+R for history search)
+              - zoxide (smarter cd command)
+
+              To enable Sparkdock shell enhancements, add this line to your ~/.zshrc:
+                source /opt/sparkdock/config/shell/sparkdock.zshrc
+
+              This will enable:
+              - Modern command aliases (ls, ll, la, lt, cat, grep, etc.)
+              - Fuzzy finder key bindings (Ctrl+R for history)
+              - Zoxide for smart directory navigation
+              - Custom functions like 'ff' for fuzzy file finding
+
+              Aliases provided:
+              - ls/ll/la/lt → eza variants with icons
+              - cat → bat with syntax highlighting
+              - grep → ripgrep (rg)
+              - ff → fuzzy file finder
+
+              For custom shell configurations, create:
+                ~/.sparkdock/shell.zsh
+
     # Install to /usr/local/bin as the other binaries.
     - name: Install sjust executable
       tags: sjust
