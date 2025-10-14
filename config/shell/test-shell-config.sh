@@ -66,7 +66,7 @@ test_content "${SPARKDOCK_DIR}/config/packages/all-packages.yml" "bat" "bat in p
 echo ""
 echo "3. Testing configuration content..."
 test_content "${SPARKDOCK_DIR}/config/shell/aliases.zsh" "eza" "eza aliases present"
-test_content "${SPARKDOCK_DIR}/config/shell/aliases.zsh" "alias ls=" "ls alias defined"
+test_content "${SPARKDOCK_DIR}/config/shell/aliases.zsh" "ls()" "ls function defined"
 test_content "${SPARKDOCK_DIR}/config/shell/init.zsh" "zoxide" "zoxide initialization"
 test_content "${SPARKDOCK_DIR}/config/shell/init.zsh" "fzf" "fzf initialization"
 test_content "${SPARKDOCK_DIR}/config/shell/sparkdock.zshrc" "SPARKDOCK_SHELL_LOADED" "Double-load guard present"

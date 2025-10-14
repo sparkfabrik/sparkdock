@@ -177,7 +177,7 @@ source /opt/sparkdock/config/shell/sparkdock.zshrc
 ```
 
 **Key Features:**
-- Modern aliases: `ls`, `ll`, `la`, `lt` use eza with icons
+- Modern ls function: `ls` with smart handling of `-lt` and `-ltr` flags, plus `lsa`, `lt`, `lta` aliases
 - Enhanced commands: `cat` → bat, `grep` → ripgrep
 - Fuzzy finding: `ff` to search and open files with preview
 - History search: `Ctrl+R` for fzf-powered history search

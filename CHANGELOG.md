@@ -27,6 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Renamed `sparkdock-update-repository` command to `sparkdock-fetch-updates` with improved description and updated output messages
 - Lima quick setup now uses dynamic CPU and memory defaults like Docker Desktop: all available processors and 50% of host memory
+- Shell aliases now check for command existence before aliasing to avoid breaking standard Unix tools
+- Improved `ls` implementation with smart handling of `-lt` and `-ltr` flags for sorting by modification time
+- Simplified Homebrew prefix logic to use `/opt/homebrew` consistently on macOS
+- User configuration directory changed from `~/.sparkdock` to `~/.local/spark/sparkdock`
 
 ### Fixed
 - Fixed `lima-destroy` command to handle VMs that are already stopped, preventing fatal error when VM is not running

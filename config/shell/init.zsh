@@ -9,12 +9,8 @@ fi
 
 # Initialize fzf (fuzzy finder) key bindings and completion
 if command -v fzf &> /dev/null; then
-  # Determine Homebrew prefix
-  if [[ -d /opt/homebrew ]]; then
-    HOMEBREW_PREFIX="/opt/homebrew"
-  else
-    HOMEBREW_PREFIX="/usr/local"
-  fi
+  # Homebrew prefix on macOS
+  HOMEBREW_PREFIX="/opt/homebrew"
 
   # Source fzf key bindings
   if [[ -f "${HOMEBREW_PREFIX}/opt/fzf/shell/key-bindings.zsh" ]]; then

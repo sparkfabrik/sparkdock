@@ -2,55 +2,88 @@
 # Sparkdock Shell Aliases
 # This file contains modern command aliases and shortcuts for enhanced shell experience
 
+# Helper function to check if a command exists
+command_exists() {
+  command -v "$1" &> /dev/null
+}
+
 # Modern replacements for classic commands
 # eza - modern replacement for ls with colors and icons
-alias ls='eza --color=auto --icons'
-alias ll='eza -l --color=auto --icons'
-alias la='eza -la --color=auto --icons'
-alias lt='eza --tree --level=2 --color=auto --icons'
-alias lta='eza --tree --level=2 -a --color=auto --icons'
-alias lsa='eza -la --color=auto --icons'
+if command_exists eza; then
+  # bug on macos: https://github.com/eza-community/eza/issues/1224
+  export EZA_CONFIG_DIR=$HOME/.config/eza
+  ls() {
+    local filtered_args=("${@[@]//-ltr/}")
+    filtered_args=("${filtered_args[@]//-lt/}")
 
-# fd - modern replacement for find
-alias ff='fd'
+    case "$*" in
+      *ltr*)
+        eza -la --icons=auto --sort=modified ${filtered_args[@]}
+        ;;
+      *lt*)
+        eza -la --icons=auto --sort=modified --reverse ${filtered_args[@]}
+        ;;
+      *)
+        eza -lh --group-directories-first --icons=auto "$@"
+        ;;
+    esac
+  }
+  alias lsa='ls -a'
+  alias lt='eza --tree --level=2 --long --icons --git'
+  alias lta='lt -a'
+fi
 
 # ripgrep - modern replacement for grep
-alias grep='rg'
+if command_exists rg; then
+  alias grep='rg'
+fi
 
 # bat - modern replacement for cat with syntax highlighting
-if command -v bat &> /dev/null; then
+if command_exists bat; then
   alias cat='bat --style=auto'
   alias ccat='/bin/cat'  # Keep original cat available
 fi
 
 # Docker shortcuts
-alias dc='docker-compose'
-alias dps='docker ps'
-alias dpsa='docker ps -a'
-alias di='docker images'
+if command_exists docker; then
+  alias dc='docker-compose'
+  alias dps='docker ps'
+  alias dpsa='docker ps -a'
+  alias di='docker images'
+fi
 
 # Git shortcuts
-alias gs='git status'
-alias gp='git pull'
-alias gpush='git push'
-alias gc='git commit'
-alias gco='git checkout'
-alias ga='git add'
-alias gd='git diff'
-alias gl='git log --oneline --graph --decorate'
+if command_exists git; then
+  alias gs='git status'
+  alias gp='git pull'
+  alias gpush='git push'
+  alias gc='git commit'
+  alias gco='git checkout'
+  alias ga='git add'
+  alias gd='git diff'
+  alias gl='git log --oneline --graph --decorate'
+fi
 
 # Kubernetes shortcuts
-alias k='kubectl'
-alias kgp='kubectl get pods'
-alias kgs='kubectl get services'
-alias kgd='kubectl get deployments'
-alias kga='kubectl get all'
-alias kdp='kubectl describe pod'
-alias kds='kubectl describe service'
-alias kdd='kubectl describe deployment'
-alias kl='kubectl logs'
-alias kx='kubectx'
-alias kn='kubens'
+if command_exists kubectl; then
+  alias k='kubectl'
+  alias kgp='kubectl get pods'
+  alias kgs='kubectl get services'
+  alias kgd='kubectl get deployments'
+  alias kga='kubectl get all'
+  alias kdp='kubectl describe pod'
+  alias kds='kubectl describe service'
+  alias kdd='kubectl describe deployment'
+  alias kl='kubectl logs'
+fi
+
+if command_exists kubectx; then
+  alias kx='kubectx'
+fi
+
+if command_exists kubens; then
+  alias kn='kubens'
+fi
 
 # Directory navigation
 alias ..='cd ..'
