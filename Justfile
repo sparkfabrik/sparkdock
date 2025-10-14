@@ -16,7 +16,7 @@ run-ansible-playbook TAGS="all":
     TAGS={{TAGS}}
 
     # Ensure Python3 is installed and available at the expected location
-    sparkdock ensure-python3
+    ./bin/sparkdock.macos ensure-python3
 
     # Read password and save to env ANSIBLE_BECOME_PASS
     # Check if we're running in CI (GitHub Actions sets these variables)
