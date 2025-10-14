@@ -7,16 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-- Updated system requirements documentation to clarify Apple Silicon-only support
-- Refactored Python3 check into reusable `ensure_python3` function in `bin/common/utils.sh` and integrated it into `sparkdock.macos` as a command mode (`sparkdock ensure-python3`)
-
 ### Fixed
-- Fixed Python interpreter not found error by checking for missing python3 symlink and automatically relinking Python packages before running Ansible playbook
+- Fixed Python interpreter not found error by implementing `ensure_python3()` function that checks for missing python3 symlink and automatically relinks Python packages before running Ansible playbook
 - Fixed sjust zsh completion file ownership issue where `_sjust` file could be owned by root, causing Ansible task failures
 
 ### Added
-- Added `ensure-python3` command mode to `sparkdock.macos` for checking and fixing Python3 symlink issues
+- Added `ensure-python3` command mode to `sparkdock.macos` for checking and fixing Python3 symlink issues (callable via `sparkdock ensure-python3`)
+
+### Changed
+- Updated system requirements documentation to clarify Apple Silicon-only support (removed Intel Mac references)
 - Added UDP port forwarding support in Lima (see https://github.com/lima-vm/lima/issues/4040)
 - Added `docker-desktop-diagnose` task to run Docker Desktop diagnostics with optional upload functionality
 - Added `docker-desktop-install-version-4412` task to download Docker Desktop 4.41.2 to work around network issues
