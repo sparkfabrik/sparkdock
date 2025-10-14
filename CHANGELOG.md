@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Changed
-- Updated system requirements documentation to clarify Apple Silicon-only support (M1/M2/M3/M4)
+- Updated system requirements documentation to clarify Apple Silicon-only support
 - Refactored Python3 check into reusable `ensure_python3` function in `bin/common/utils.sh` and integrated it into `sparkdock.macos` as a command mode (`sparkdock ensure-python3`)
 
 ### Fixed

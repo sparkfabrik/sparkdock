@@ -4,7 +4,7 @@ Sparkdock is an automated macOS development environment provisioner built with A
 
 ## Platform Support
 
-**Apple Silicon Only**: Sparkdock supports **only Apple Silicon Macs** (M1/M2/M3/M4). Intel-based Macs are **not supported**.
+**Apple Silicon Only**: Sparkdock supports **only Apple Silicon Macs**. Intel-based Macs are **not supported**.
 
 ## Core Architecture
 
