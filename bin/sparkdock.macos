@@ -133,6 +133,12 @@ if [ "$1" = "http-proxy-check-updates" ] ; then
     exit 1  # No updates available
 fi
 
+# Python3 ensure mode
+if [ "$1" = "ensure-python3" ] ; then
+    ensure_python3
+    exit 0
+fi
+
 # Updating myself.
 if [ "$1" != "skip-update" ] ; then
     # Only perform updates if we're running from installed location
