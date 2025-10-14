@@ -215,13 +215,11 @@ print_info "Sparkdock provisioner: Updating your system in progress..."
 if [[ ! -f /opt/homebrew/bin/python3 ]]; then
     print_info "Python3 symlink not found at /opt/homebrew/bin/python3"
     
-    # Check if python@3.x is installed but not linked
-    if brew list python@3.13 &> /dev/null || brew list python@3.12 &> /dev/null || brew list python@3 &> /dev/null; then
+    # Check if python@3 is installed but not linked
+    if brew list python@3 &> /dev/null; then
         print_info "Python is installed but not linked, fixing symlinks..."
-        brew unlink python@3.13 &> /dev/null || true
-        brew unlink python@3.12 &> /dev/null || true
         brew unlink python@3 &> /dev/null || true
-        brew link python@3 &> /dev/null || brew link python@3.13 &> /dev/null || brew link python@3.12 &> /dev/null || true
+        brew link python@3 &> /dev/null || true
     else
         print_info "Installing Python3..."
         brew install python3
