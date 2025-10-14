@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated system requirements documentation to clarify Apple Silicon-only support (M1/M2/M3/M4)
 
 ### Fixed
+- Fixed Python interpreter not found error by ensuring Python3 is installed before running Ansible playbook in `sparkdock.macos` update script
 - Fixed sjust zsh completion file ownership issue where `_sjust` file could be owned by root, causing Ansible task failures
 
 ### Added

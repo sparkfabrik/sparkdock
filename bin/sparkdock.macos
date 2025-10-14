@@ -210,6 +210,18 @@ check_xcode_issues
 
 print_section "System Update"
 print_info "Sparkdock provisioner: Updating your system in progress..."
+
+# Ensure Python3 is installed and available at the expected location
+if [[ ! -f /opt/homebrew/bin/python3 ]]; then
+    print_info "Python3 not found at /opt/homebrew/bin/python3, installing..."
+    brew install python3
+    # Verify installation
+    if [[ ! -f /opt/homebrew/bin/python3 ]]; then
+        print_error "Failed to install Python3. Please install it manually: brew install python3"
+        exit 1
+    fi
+fi
+
 print_info "Running ansible playbook..."
 print_warning "You'll be asked to insert your password to become root"
 
