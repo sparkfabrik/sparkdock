@@ -144,6 +144,24 @@ Do this:
 **Lock File**: `/tmp/sparkdock.lock` prevents concurrent updates
 **Rollback**: Built-in rollback on failed updates using stored commit hashes
 
+## Shell Aliases Maintenance
+
+**When updating shell aliases in `config/shell/aliases.zsh`:**
+
+- Update the `shell-aliases-help` command in `sjust/recipes/00-default.just` to reflect changes
+- Keep the alias list organized by category (File & Directory, Search & Find, Docker, Git, Kubernetes, System)
+- Include descriptions and practical usage tips
+- Test that the help output remains clear and accurate
+
+**Categories to maintain:**
+- 📁 File & Directory Navigation
+- 🔍 Search & Find
+- 📄 File Viewing
+- 🐳 Docker
+- 🔧 Git
+- ☸️  Kubernetes
+- 🔧 System
+
 ## Changelog
 
 - Maintain a CHANGELOG.md file
