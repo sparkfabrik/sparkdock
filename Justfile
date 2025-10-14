@@ -1,6 +1,11 @@
 _default:
     @just --list
 
+run-local-sparkdock:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ./bin/sparkdock.macos skip-update
+
 run-ansible-playbook TAGS="all":
     #!/usr/bin/env bash
     set -euo pipefail
@@ -9,6 +14,9 @@ run-ansible-playbook TAGS="all":
     trap 'unset ANSIBLE_BECOME_PASS' EXIT
 
     TAGS={{TAGS}}
+
+    # Ensure Python3 is installed and available at the expected location
+    ./bin/sparkdock.macos ensure-python3
 
     # Read password and save to env ANSIBLE_BECOME_PASS
     # Check if we're running in CI (GitHub Actions sets these variables)
