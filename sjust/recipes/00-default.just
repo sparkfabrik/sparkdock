@@ -251,17 +251,7 @@ sparkdock-install-tags tags:
     cd {{ sparkdock_path }}
     
     # Ensure Python3 is installed and available at the expected location
-    if [[ -x {{ sparkdock_path }}/bin/sparkdock.macos ]]; then
-        {{ sparkdock_path }}/bin/sparkdock.macos ensure-python3
-    elif command -v sparkdock &> /dev/null; then
-        sparkdock ensure-python3
-    else
-        echo "Warning: sparkdock not found, checking Python3 manually..."
-        if [[ ! -f /opt/homebrew/bin/python3 ]]; then
-            echo "Python3 not found at /opt/homebrew/bin/python3. Please install it with: brew install python3"
-            exit 1
-        fi
-    fi
+    sparkdock ensure-python3
     
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
 

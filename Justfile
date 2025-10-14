@@ -11,20 +11,7 @@ run-ansible-playbook TAGS="all":
     TAGS={{TAGS}}
 
     # Ensure Python3 is installed and available at the expected location
-    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    if [[ -x "${SCRIPT_DIR}/bin/sparkdock.macos" ]]; then
-        "${SCRIPT_DIR}/bin/sparkdock.macos" ensure-python3
-    elif [[ -x /opt/sparkdock/bin/sparkdock.macos ]]; then
-        /opt/sparkdock/bin/sparkdock.macos ensure-python3
-    elif command -v sparkdock &> /dev/null; then
-        sparkdock ensure-python3
-    else
-        echo "Warning: sparkdock not found, checking Python3 manually..."
-        if [[ ! -f /opt/homebrew/bin/python3 ]]; then
-            echo "Python3 not found at /opt/homebrew/bin/python3. Please install it with: brew install python3"
-            exit 1
-        fi
-    fi
+    sparkdock ensure-python3
 
     # Read password and save to env ANSIBLE_BECOME_PASS
     # Check if we're running in CI (GitHub Actions sets these variables)
