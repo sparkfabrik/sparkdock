@@ -251,25 +251,14 @@ sparkdock-install-tags tags:
     cd {{ sparkdock_path }}
     
     # Ensure Python3 is installed and available at the expected location
-    if [[ ! -f /opt/homebrew/bin/python3 ]]; then
-        echo "Python3 symlink not found at /opt/homebrew/bin/python3"
-        
-        # Check if python@3 is installed but not linked
-        if brew list python@3 &> /dev/null; then
-            echo "Python is installed but not linked, fixing symlinks..."
-            brew unlink python@3 &> /dev/null || true
-            brew link python@3 &> /dev/null || true
-        else
-            echo "Installing Python3..."
-            brew install python3
-        fi
-        
-        # Verify python3 symlink is now available
+    if [[ -x {{ sparkdock_path }}/bin/sparkdock-ensure-python3 ]]; then
+        {{ sparkdock_path }}/bin/sparkdock-ensure-python3
+    else
+        echo "Warning: sparkdock-ensure-python3 not found, checking Python3 manually..."
         if [[ ! -f /opt/homebrew/bin/python3 ]]; then
-            echo "Failed to create python3 symlink. Please run: brew link python@3"
+            echo "Python3 not found at /opt/homebrew/bin/python3. Please install it with: brew install python3"
             exit 1
         fi
-        echo "Python3 is now available at /opt/homebrew/bin/python3"
     fi
     
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
