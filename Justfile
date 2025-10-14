@@ -1,6 +1,11 @@
 _default:
     @just --list
 
+run-local-sparkdock:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    ./bin/sparkdock.macos skip-update
+
 run-ansible-playbook TAGS="all":
     #!/usr/bin/env bash
     set -euo pipefail
