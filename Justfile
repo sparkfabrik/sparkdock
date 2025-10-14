@@ -10,6 +10,28 @@ run-ansible-playbook TAGS="all":
 
     TAGS={{TAGS}}
 
+    # Ensure Python3 is installed and available at the expected location
+    if [[ ! -f /opt/homebrew/bin/python3 ]]; then
+        echo "Python3 symlink not found at /opt/homebrew/bin/python3"
+        
+        # Check if python@3 is installed but not linked
+        if brew list python@3 &> /dev/null; then
+            echo "Python is installed but not linked, fixing symlinks..."
+            brew unlink python@3 &> /dev/null || true
+            brew link python@3 &> /dev/null || true
+        else
+            echo "Installing Python3..."
+            brew install python3
+        fi
+        
+        # Verify python3 symlink is now available
+        if [[ ! -f /opt/homebrew/bin/python3 ]]; then
+            echo "Failed to create python3 symlink. Please run: brew link python@3"
+            exit 1
+        fi
+        echo "Python3 is now available at /opt/homebrew/bin/python3"
+    fi
+
     # Read password and save to env ANSIBLE_BECOME_PASS
     # Check if we're running in CI (GitHub Actions sets these variables)
     if [ -z "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ]; then

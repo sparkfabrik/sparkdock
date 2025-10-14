@@ -249,6 +249,29 @@ sparkdock-install-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
     cd {{ sparkdock_path }}
+    
+    # Ensure Python3 is installed and available at the expected location
+    if [[ ! -f /opt/homebrew/bin/python3 ]]; then
+        echo "Python3 symlink not found at /opt/homebrew/bin/python3"
+        
+        # Check if python@3 is installed but not linked
+        if brew list python@3 &> /dev/null; then
+            echo "Python is installed but not linked, fixing symlinks..."
+            brew unlink python@3 &> /dev/null || true
+            brew link python@3 &> /dev/null || true
+        else
+            echo "Installing Python3..."
+            brew install python3
+        fi
+        
+        # Verify python3 symlink is now available
+        if [[ ! -f /opt/homebrew/bin/python3 ]]; then
+            echo "Failed to create python3 symlink. Please run: brew link python@3"
+            exit 1
+        fi
+        echo "Python3 is now available at /opt/homebrew/bin/python3"
+    fi
+    
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
 
 # Fetch latest Sparkdock updates from git repository without running system configuration. Useful for getting the newest sjust recipes and commands without triggering a full system update.
