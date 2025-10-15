@@ -43,27 +43,28 @@ sjust shell-info
 sjust shell-disable
 ```
 
-### Optional Plugins
+### Oh-My-Zsh and Plugins
 
-Sparkdock provides optional zsh plugins that can be enabled:
+Sparkdock integrates with oh-my-zsh and includes several plugins:
 
 ```bash
-# Install external plugins
-sjust shell-plugins-install
-
-# Enable plugins
-sjust shell-plugins-enable ssh-agent
-sjust shell-plugins-enable zsh-autosuggestions
-sjust shell-plugins-enable zsh-syntax-highlighting
-
-# List plugins
-sjust shell-plugins-list
+# Setup oh-my-zsh and plugins
+sjust shell-setup-omz
 ```
 
-Available plugins:
-- **ssh-agent** - Manages SSH keys and agent lifecycle
-- **zsh-autosuggestions** - Command suggestions as you type
-- **zsh-syntax-highlighting** - Syntax highlighting for commands
+This command:
+- Installs oh-my-zsh if not present
+- Downloads and installs zsh plugins:
+  - **zsh-completions** - Additional completion definitions
+  - **zsh-autosuggestions** - Command suggestions as you type
+  - **zsh-syntax-highlighting** - Syntax highlighting for commands
+  - **ssh-agent** - SSH key management (built-in to oh-my-zsh)
+- Creates symlinks to oh-my-zsh custom plugins directory
+- Plugins are automatically enabled via `config/shell/omz-config.zsh`
+
+**Starship Prompt:**
+
+The starship prompt is automatically initialized if installed. It provides a fast, modern, and customizable shell prompt.
 
 See [`zsh-plugins/README.md`](zsh-plugins/README.md) for detailed plugin documentation.
 

@@ -182,6 +182,20 @@ source /opt/sparkdock/config/shell/sparkdock.zshrc
 - Fuzzy finding: `ff` to search and open files with preview
 - History search: `Ctrl+R` for fzf-powered history search
 - Smart navigation: `z <dir>` to jump to frequently used directories
+- **Oh-My-Zsh integration**: Includes zsh-autosuggestions, zsh-syntax-highlighting, zsh-completions, and ssh-agent
+- **Starship prompt**: Modern, fast, and customizable prompt
+
+**Oh-My-Zsh and Plugins Setup:**
+
+```bash
+sjust shell-setup-omz    # Install oh-my-zsh and zsh plugins
+```
+
+This command:
+- Installs oh-my-zsh if not present
+- Downloads zsh-completions, zsh-autosuggestions, and zsh-syntax-highlighting
+- Creates symlinks to oh-my-zsh custom plugins directory
+- Enables plugins automatically when sparkdock.zshrc is sourced
 
 **Customization:**
 

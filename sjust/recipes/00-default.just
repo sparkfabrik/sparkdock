@@ -623,24 +623,44 @@ shell-aliases-help:
     echo "For detailed help: sjust shell-info"
     echo "=========================================="
 
-# Install zsh plugins (autosuggestions and syntax-highlighting).
+# Setup oh-my-zsh and zsh plugins.
 [group('shell')]
-shell-plugins-install:
+shell-setup-omz:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    PLUGINS_DIR="${HOME}/.local/spark/sparkdock/zsh-plugins"
-    echo "Installing zsh plugins to ${PLUGINS_DIR}..."
+    echo "=========================================="
+    echo "Setting up oh-my-zsh and zsh plugins"
+    echo "=========================================="
     echo ""
 
+    # Install oh-my-zsh if not already installed
+    if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+        echo "📦 Installing oh-my-zsh..."
+        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+        echo "✅ oh-my-zsh installed"
+    else
+        echo "✅ oh-my-zsh already installed"
+    fi
+
     # Create plugins directory
+    PLUGINS_DIR="${HOME}/.local/spark/sparkdock/zsh-plugins"
     mkdir -p "${PLUGINS_DIR}"
+    echo ""
+
+    # Install zsh-completions
+    if [[ -d "${PLUGINS_DIR}/zsh-completions" ]]; then
+        echo "📦 Updating zsh-completions..."
+        git -C "${PLUGINS_DIR}/zsh-completions" pull --quiet
+    else
+        echo "📦 Installing zsh-completions..."
+        git clone --quiet https://github.com/zsh-users/zsh-completions "${PLUGINS_DIR}/zsh-completions"
+    fi
 
     # Install zsh-autosuggestions
     if [[ -d "${PLUGINS_DIR}/zsh-autosuggestions" ]]; then
         echo "📦 Updating zsh-autosuggestions..."
-        cd "${PLUGINS_DIR}/zsh-autosuggestions"
-        git pull --quiet
+        git -C "${PLUGINS_DIR}/zsh-autosuggestions" pull --quiet
     else
         echo "📦 Installing zsh-autosuggestions..."
         git clone --quiet https://github.com/zsh-users/zsh-autosuggestions "${PLUGINS_DIR}/zsh-autosuggestions"
@@ -649,125 +669,32 @@ shell-plugins-install:
     # Install zsh-syntax-highlighting
     if [[ -d "${PLUGINS_DIR}/zsh-syntax-highlighting" ]]; then
         echo "📦 Updating zsh-syntax-highlighting..."
-        cd "${PLUGINS_DIR}/zsh-syntax-highlighting"
-        git pull --quiet
+        git -C "${PLUGINS_DIR}/zsh-syntax-highlighting" pull --quiet
     else
         echo "📦 Installing zsh-syntax-highlighting..."
         git clone --quiet https://github.com/zsh-users/zsh-syntax-highlighting "${PLUGINS_DIR}/zsh-syntax-highlighting"
     fi
 
     echo ""
-    echo "✅ Plugins installed successfully!"
+    echo "📂 Creating symlinks to oh-my-zsh custom plugins..."
+
+    # Create oh-my-zsh custom plugins directory
+    mkdir -p "$HOME/.oh-my-zsh/custom/plugins"
+
+    # Symlink plugins to oh-my-zsh
+    ln -sf "${PLUGINS_DIR}/zsh-completions" "$HOME/.oh-my-zsh/custom/plugins/zsh-completions"
+    ln -sf "${PLUGINS_DIR}/zsh-autosuggestions" "$HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions"
+    ln -sf "${PLUGINS_DIR}/zsh-syntax-highlighting" "$HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
+
+    echo "✅ Symlinks created"
     echo ""
-    echo "To enable plugins, run:"
-    echo "  sjust shell-plugins-enable <plugin-name>"
+    echo "✅ Setup complete!"
     echo ""
-    echo "Available plugins:"
-    echo "  - ssh-agent"
+    echo "The following plugins are now available via oh-my-zsh:"
+    echo "  - zsh-completions"
     echo "  - zsh-autosuggestions"
     echo "  - zsh-syntax-highlighting"
-
-# Enable a zsh plugin.
-[group('shell')]
-shell-plugins-enable plugin:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    ENABLED_DIR="${HOME}/.local/spark/sparkdock/plugins-enabled"
-    mkdir -p "${ENABLED_DIR}"
-
-    VALID_PLUGINS=("ssh-agent" "zsh-autosuggestions" "zsh-syntax-highlighting")
-
-    # Check if plugin is valid
-    if [[ ! " ${VALID_PLUGINS[@]} " =~ " {{plugin}} " ]]; then
-        echo "❌ Invalid plugin: {{plugin}}"
-        echo ""
-        echo "Available plugins:"
-        printf '  - %s\n' "${VALID_PLUGINS[@]}"
-        exit 1
-    fi
-
-    # Check if external plugins need installation
-    if [[ "{{plugin}}" == "zsh-autosuggestions" ]] || [[ "{{plugin}}" == "zsh-syntax-highlighting" ]]; then
-        PLUGINS_DIR="${HOME}/.local/spark/sparkdock/zsh-plugins"
-        if [[ ! -d "${PLUGINS_DIR}/{{plugin}}" ]]; then
-            echo "❌ Plugin not installed. Run: sjust shell-plugins-install"
-            exit 1
-        fi
-    fi
-
-    touch "${ENABLED_DIR}/{{plugin}}"
-    echo "✅ Plugin '{{plugin}}' enabled"
-    echo "💡 Restart your terminal or run 'source ~/.zshrc' to activate"
-
-# Disable a zsh plugin.
-[group('shell')]
-shell-plugins-disable plugin:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    ENABLED_DIR="${HOME}/.local/spark/sparkdock/plugins-enabled"
-
-    if [[ -f "${ENABLED_DIR}/{{plugin}}" ]]; then
-        rm "${ENABLED_DIR}/{{plugin}}"
-        echo "✅ Plugin '{{plugin}}' disabled"
-        echo "💡 Restart your terminal or run 'source ~/.zshrc' to deactivate"
-    else
-        echo "ℹ️  Plugin '{{plugin}}' is not enabled"
-    fi
-
-# List installed and enabled zsh plugins.
-[group('shell')]
-shell-plugins-list:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    PLUGINS_DIR="${HOME}/.local/spark/sparkdock/zsh-plugins"
-    ENABLED_DIR="${HOME}/.local/spark/sparkdock/plugins-enabled"
-
-    echo "=========================================="
-    echo "Sparkdock ZSH Plugins"
-    echo "=========================================="
+    echo "  - ssh-agent (built-in to oh-my-zsh)"
     echo ""
-    echo "Built-in plugins:"
-    echo ""
-
-    # Check ssh-agent
-    if [[ -f "${ENABLED_DIR}/ssh-agent" ]]; then
-        echo "  ✅ ssh-agent (enabled)"
-    else
-        echo "  ⚪ ssh-agent (disabled)"
-    fi
-
-    echo ""
-    echo "External plugins:"
-    echo ""
-
-    # Check zsh-autosuggestions
-    if [[ -d "${PLUGINS_DIR}/zsh-autosuggestions" ]]; then
-        if [[ -f "${ENABLED_DIR}/zsh-autosuggestions" ]]; then
-            echo "  ✅ zsh-autosuggestions (installed, enabled)"
-        else
-            echo "  📦 zsh-autosuggestions (installed, disabled)"
-        fi
-    else
-        echo "  ⚪ zsh-autosuggestions (not installed)"
-    fi
-
-    # Check zsh-syntax-highlighting
-    if [[ -d "${PLUGINS_DIR}/zsh-syntax-highlighting" ]]; then
-        if [[ -f "${ENABLED_DIR}/zsh-syntax-highlighting" ]]; then
-            echo "  ✅ zsh-syntax-highlighting (installed, enabled)"
-        else
-            echo "  📦 zsh-syntax-highlighting (installed, disabled)"
-        fi
-    else
-        echo "  ⚪ zsh-syntax-highlighting (not installed)"
-    fi
-
-    echo ""
-    echo "Commands:"
-    echo "  sjust shell-plugins-install        - Install external plugins"
-    echo "  sjust shell-plugins-enable <name>  - Enable a plugin"
-    echo "  sjust shell-plugins-disable <name> - Disable a plugin"
-    echo "=========================================="
+    echo "Plugins are automatically enabled when you source sparkdock.zshrc"
+    echo "Configuration is in: /opt/sparkdock/config/shell/omz-config.zsh"
