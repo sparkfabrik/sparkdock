@@ -15,6 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Sparkdock shell configuration system with optional sourcing for users
 - Added shell configuration files: sparkdock.zshrc, aliases.zsh, and init.zsh
 - Added shell management commands: `sjust shell-enable`, `sjust shell-disable`, `sjust shell-info`, and `sjust shell-aliases-help`
+- Added zsh plugins system with ssh-agent, zsh-autosuggestions, and zsh-syntax-highlighting support
+- Added plugin management commands: `sjust shell-plugins-install`, `sjust shell-plugins-enable`, `sjust shell-plugins-disable`, and `sjust shell-plugins-list`
 - Added modern command aliases: eza (ls), bat (cat), ripgrep (grep), fd (find), zoxide (cd)
 - Added fuzzy file finder function (ff) with preview using fzf, fd, and bat
 - Added documentation for shell enhancements in README with setup instructions

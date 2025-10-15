@@ -7,6 +7,7 @@ This directory contains Sparkdock's modern shell enhancements for zsh.
 - **`sparkdock.zshrc`** - Main entry point that users source in their `~/.zshrc`
 - **`aliases.zsh`** - Modern command aliases and shortcuts
 - **`init.zsh`** - Initialization scripts for shell tools (zoxide, fzf, etc.)
+- **`zsh-plugins/`** - Optional zsh plugins (ssh-agent, autosuggestions, syntax-highlighting)
 
 ## Quick Start
 
@@ -41,6 +42,30 @@ sjust shell-info
 ```bash
 sjust shell-disable
 ```
+
+### Optional Plugins
+
+Sparkdock provides optional zsh plugins that can be enabled:
+
+```bash
+# Install external plugins
+sjust shell-plugins-install
+
+# Enable plugins
+sjust shell-plugins-enable ssh-agent
+sjust shell-plugins-enable zsh-autosuggestions
+sjust shell-plugins-enable zsh-syntax-highlighting
+
+# List plugins
+sjust shell-plugins-list
+```
+
+Available plugins:
+- **ssh-agent** - Manages SSH keys and agent lifecycle
+- **zsh-autosuggestions** - Command suggestions as you type
+- **zsh-syntax-highlighting** - Syntax highlighting for commands
+
+See [`zsh-plugins/README.md`](zsh-plugins/README.md) for detailed plugin documentation.
 
 ## Features
 

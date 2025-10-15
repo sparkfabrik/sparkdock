@@ -22,6 +22,11 @@ if [[ -f "${SPARKDOCK_SHELL_DIR}/aliases.zsh" ]]; then
   source "${SPARKDOCK_SHELL_DIR}/aliases.zsh"
 fi
 
+# Load optional plugins
+if [[ -f "${SPARKDOCK_SHELL_DIR}/zsh-plugins/plugins.zsh" ]]; then
+  source "${SPARKDOCK_SHELL_DIR}/zsh-plugins/plugins.zsh"
+fi
+
 # Add custom functions
 # ff - Fuzzy find files with fzf and preview
 if command -v fzf &> /dev/null && command -v fd &> /dev/null; then
