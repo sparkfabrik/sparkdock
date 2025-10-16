@@ -122,6 +122,7 @@ jobs:
           sjust --dry-run system-upgrade
 
           # Test that packages command can be parsed (dry-run)
+          sjust --dry-run packages
           sjust --dry-run sparkdock-packages
 
       - name: Test sparkdock-packages command
@@ -132,7 +133,7 @@ jobs:
           sjust sparkdock-packages
           
           # Test filtering by package name
-          output=$(sjust sparkdock-packages docker)
+          output=$(sjust packages docker)
           
           # Verify output contains expected packages
           if echo "$output" | grep -q "docker-desktop"; then
@@ -147,6 +148,15 @@ jobs:
             echo "✅ Table format is correct"
           else
             echo "❌ Table format is incorrect"
+            exit 1
+          fi
+          
+          # Test the short alias
+          alias_output=$(sjust packages)
+          if echo "$alias_output" | grep -q "Package.*Category.*Description.*Installed"; then
+            echo "✅ Short alias 'packages' works correctly"
+          else
+            echo "❌ Short alias 'packages' failed"
             exit 1
           fi
 

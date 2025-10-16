@@ -250,6 +250,11 @@ sparkdock-packages package_filter="":
     set -euo pipefail
     bash {{ sparkdock_path }}/sjust/libs/list-packages.sh "{{package_filter}}"
 
+# Alias for sparkdock-packages (short form).
+[group('sparkdock')]
+packages package_filter="":
+    @just sparkdock-packages "{{package_filter}}"
+
 # Install sparkdock ansible tag.
 [group('sparkdock')]
 sparkdock-install-tags tags:
