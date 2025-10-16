@@ -150,56 +150,40 @@ gke-gcloud-auth-plugin --version
 
 ### Shell Enhancements
 
-Sparkdock includes modern shell tools that enhance your command-line experience:
+Sparkdock provides a modern shell experience with oh-my-zsh, starship prompt, and enhanced command-line tools.
 
-**Modern Command Replacements:**
-- `eza` - Modern replacement for `ls` with colors and icons
-- `fd` - Modern replacement for `find`
-- `ripgrep` (rg) - Modern replacement for `grep`
-- `bat` - Modern replacement for `cat` with syntax highlighting
-- `fzf` - Fuzzy finder for files and command history
-- `zoxide` - Smarter `cd` that remembers your directories
-
-**Enable Shell Enhancements:**
-
-```bash
-sjust shell-enable       # Add Sparkdock shell config to your ~/.zshrc
-sjust shell-info         # View status and available features
-sjust shell-disable      # Remove from your ~/.zshrc
-```
-
-**Manual Setup:**
-
-Add this line to your `~/.zshrc`:
-
-```bash
-source /opt/sparkdock/config/shell/sparkdock.zshrc
-```
-
-**Key Features:**
-- Modern ls function: `ls` with smart handling of `-lt` and `-ltr` flags, plus `lsa`, `lt`, `lta` aliases
-- Enhanced commands: `cat` → bat, `grep` → ripgrep
-- Fuzzy finding: `ff` to search and open files with preview
-- History search: `Ctrl+R` for fzf-powered history search
-- Smart navigation: `z <dir>` to jump to frequently used directories
-- **Oh-My-Zsh integration**: Includes zsh-autosuggestions, zsh-syntax-highlighting, zsh-completions, and ssh-agent
-- **Starship prompt**: Modern, fast, and customizable prompt
-
-**Oh-My-Zsh and Plugins Setup:**
+**Setup:**
 
 ```bash
 sjust shell-setup-omz    # Install oh-my-zsh and zsh plugins
+sjust shell-enable       # Add Sparkdock config to your ~/.zshrc
 ```
 
-This command:
-- Installs oh-my-zsh if not present
-- Downloads zsh-completions, zsh-autosuggestions, and zsh-syntax-highlighting
-- Creates symlinks to oh-my-zsh custom plugins directory
-- Enables plugins automatically when sparkdock.zshrc is sourced
+**Modern Tools Included:**
+- `eza` - Modern `ls` with colors and icons (`ls`, `lt`, `lta` aliases)
+- `fd` - Modern `find` for faster file search
+- `ripgrep` (rg) - Modern `grep` for faster text search
+- `bat` - Modern `cat` with syntax highlighting
+- `fzf` - Fuzzy finder (`ff` function, `Ctrl+R` for history)
+- `zoxide` - Smart `cd` (`z <dir>` to jump to directories)
+- **starship** - Fast, customizable prompt
+- **oh-my-zsh** - Zsh configuration framework with plugins:
+  - zsh-autosuggestions - Command suggestions as you type
+  - zsh-syntax-highlighting - Syntax highlighting
+  - zsh-completions - Additional completions
+  - ssh-agent - SSH key management
+
+**Commands:**
+
+```bash
+sjust shell-info              # View status and features
+sjust shell-aliases-help      # List all available aliases
+sjust shell-disable           # Remove from ~/.zshrc
+```
 
 **Customization:**
 
-Create `~/.local/spark/sparkdock/shell.zsh` for your personal shell customizations. This file is automatically sourced if it exists.
+Create `~/.local/spark/sparkdock/shell.zsh` for personal customizations (automatically sourced).
 
 ### HTTP Proxy
 

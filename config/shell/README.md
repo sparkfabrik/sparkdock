@@ -1,306 +1,78 @@
 # Sparkdock Shell Configuration
 
-This directory contains Sparkdock's modern shell enhancements for zsh.
-
-## Files
-
-- **`sparkdock.zshrc`** - Main entry point that users source in their `~/.zshrc`
-- **`aliases.zsh`** - Modern command aliases and shortcuts
-- **`init.zsh`** - Initialization scripts for shell tools (zoxide, fzf, etc.)
-- **`zsh-plugins/`** - Optional zsh plugins (ssh-agent, autosuggestions, syntax-highlighting)
+This directory contains Sparkdock's modern shell enhancements for zsh with oh-my-zsh and starship integration.
 
 ## Quick Start
 
-### Enable Shell Enhancements
-
-The easiest way to enable shell enhancements:
-
 ```bash
-sjust shell-enable
+sjust shell-setup-omz    # Install oh-my-zsh and plugins
+sjust shell-enable       # Enable shell enhancements
+sjust shell-info         # View status
 ```
 
-Or manually add to your `~/.zshrc`:
+## Files
 
-```bash
-source /opt/sparkdock/config/shell/sparkdock.zshrc
-```
-
-Then reload your shell:
-
-```bash
-source ~/.zshrc
-```
-
-### Check Status
-
-```bash
-sjust shell-info
-```
-
-### Disable Shell Enhancements
-
-```bash
-sjust shell-disable
-```
-
-### Oh-My-Zsh and Plugins
-
-Sparkdock integrates with oh-my-zsh and includes several plugins:
-
-```bash
-# Setup oh-my-zsh and plugins
-sjust shell-setup-omz
-```
-
-This command:
-- Installs oh-my-zsh if not present
-- Downloads and installs zsh plugins:
-  - **zsh-completions** - Additional completion definitions
-  - **zsh-autosuggestions** - Command suggestions as you type
-  - **zsh-syntax-highlighting** - Syntax highlighting for commands
-  - **ssh-agent** - SSH key management (built-in to oh-my-zsh)
-- Creates symlinks to oh-my-zsh custom plugins directory
-- Plugins are automatically enabled via `config/shell/omz-config.zsh`
-
-**Starship Prompt:**
-
-The starship prompt is automatically initialized if installed. It provides a fast, modern, and customizable shell prompt.
-
-See [`zsh-plugins/README.md`](zsh-plugins/README.md) for detailed plugin documentation.
+- **`sparkdock.zshrc`** - Main entry point
+- **`omz-config.zsh`** - Oh-my-zsh configuration
+- **`aliases.zsh`** - Modern command aliases
+- **`init.zsh`** - Tool initializations (zoxide, fzf, etc.)
+- **`zsh-plugins/`** - Plugin documentation
 
 ## Features
 
-### Modern Command Replacements
+**Modern Tools:** eza, fd, ripgrep, bat, fzf, zoxide, starship
+**Oh-My-Zsh Plugins:** zsh-autosuggestions, zsh-syntax-highlighting, zsh-completions, ssh-agent
 
-When enabled, the following modern tools are aliased to replace traditional commands:
+**View all aliases:** `sjust shell-aliases-help`
 
-| Traditional | Modern | Description |
-|------------|--------|-------------|
-| `ls` | `eza` | Colorful file listings with icons |
-| `cat` | `bat` | Syntax highlighting for file contents |
-| `grep` | `ripgrep` (rg) | Faster, smarter text search |
-| `find` | `fd` | Simpler, faster file finding |
-| `cd` | `zoxide` (z) | Smart directory jumping |
-
-### Enhanced Aliases
-
-Common shortcuts provided:
-
-```bash
-# File listing
-ls, ll, la     # eza with various options
-lt, lta        # tree view (2 levels deep)
-
-# File operations
-cat            # bat with syntax highlighting
-ccat           # original cat (if you need it)
-
-# Docker
-dc             # docker-compose
-dps, dpsa      # docker ps variants
-di             # docker images
-
-# Git
-gs, gp, gpush  # git status, pull, push
-gc, gco, ga    # git commit, checkout, add
-gd, gl         # git diff, log
-
-# Kubernetes
-k              # kubectl
-kgp, kgs, kgd  # kubectl get pods/services/deployments
-```
-
-### Custom Functions
-
-- **`ff`** - Fuzzy file finder with preview
-  - Uses fd + fzf + bat to search and open files
-  - Press Enter to edit in your default editor
-
-### Key Bindings
-
-- **`Ctrl+R`** - Fuzzy search through command history (fzf)
-- **`Alt+C`** - Change directory using fuzzy finder (fzf)
-- **`Ctrl+T`** - Insert file path from fuzzy finder (fzf)
-
-## Tool Documentation
-
-Each tool has comprehensive manual pages:
-
-```bash
-man eza        # Modern ls
-man fd         # Modern find
-man rg         # ripgrep
-man bat        # Modern cat
-man fzf        # Fuzzy finder
-man zoxide     # Smart cd
-```
+**Key Bindings:**
+- `Ctrl+R` - Fuzzy history search
+- `Alt+C` - Change directory with fuzzy finder
+- `Ctrl+T` - Insert file path from fuzzy finder
+- `ff` - Fuzzy file finder with preview
 
 ## Customization
 
-### User Custom Configuration
-
-Create `~/.local/spark/sparkdock/shell.zsh` for your personal customizations:
+Create `~/.local/spark/sparkdock/shell.zsh` for personal customizations:
 
 ```bash
-mkdir -p ~/.local/spark/sparkdock
-cat > ~/.local/spark/sparkdock/shell.zsh << 'EOF'
-# My custom aliases
+# Custom aliases
 alias myproject='cd ~/projects/myproject'
 
-# My custom functions
-function mkcd() {
-  mkdir -p "$1" && cd "$1"
-}
+# Custom functions
+function mkcd() { mkdir -p "$1" && cd "$1"; }
 
-# Custom environment variables
-export MY_CUSTOM_VAR="value"
-EOF
+# Override defaults if needed
+unalias ls  # Use traditional ls
+
+# Configure oh-my-zsh plugins
+zstyle :omz:plugins:ssh-agent lifetime 4h
 ```
 
-This file is automatically sourced if it exists.
+This file is automatically sourced by sparkdock.zshrc.
 
-### Overriding Default Aliases
+## Usage Examples
 
-If you prefer the traditional commands, you can override the aliases in your custom config:
-
-```bash
-# In ~/.local/spark/sparkdock/shell.zsh
-unalias ls
-unalias cat
-unalias grep
-
-# Or create your own variants
-alias ls='eza --no-icons'
-alias cat='bat --plain'
-```
-
-## Examples
-
-### Using Zoxide
-
-```bash
-# Navigate to a directory once
-cd ~/projects/sparkdock
-
-# Later, jump there from anywhere
-z sparkdock
-# or even shorter
-z spar
-
-# View your directory history
-z -l
-```
-
-### Using Fuzzy Finder
-
-```bash
-# Search command history
-Ctrl+R
-
-# Find and open a file
-ff
-
-# Find files with specific pattern
-fd pattern
-
-# Search file contents
-rg "search term"
-```
-
-### Using Modern ls (eza)
-
-```bash
-# Basic listing with icons
-ls
-
-# Detailed listing
-ll
-
-# Show hidden files
-la
-
-# Tree view (2 levels)
-lt
-
-# Tree with hidden files
-lta
-```
+See [EXAMPLES.md](EXAMPLES.md) for comprehensive usage examples.
 
 ## Troubleshooting
 
-### Tools Not Working
-
-Check if tools are installed:
-
-```bash
-sjust shell-info
-```
-
-If any tools are missing, run:
-
-```bash
-sparkdock  # Full provisioning
-# or
-sjust sparkdock-install-tags "brew_packages"  # Just update packages
-```
-
-### Aliases Not Active
-
-Make sure you've sourced your `.zshrc`:
-
-```bash
-source ~/.zshrc
-```
-
-Or restart your terminal.
-
-### Conflicts with Other Tools
-
-If you have conflicts with other shell frameworks (oh-my-zsh, prezto, etc.),
-you may need to adjust the load order in your `~/.zshrc`.
-
-Load Sparkdock configuration **after** your shell framework:
-
-```bash
-# Load oh-my-zsh or other framework first
-source ~/.oh-my-zsh/oh-my-zsh.sh
-
-# Then load Sparkdock (which can override if desired)
-source /opt/sparkdock/config/shell/sparkdock.zshrc
-```
+**Tools not working:** Run `sjust shell-info` to check installation status
+**Reload shell:** `source ~/.zshrc` or restart terminal
+**Missing packages:** Run `sparkdock` to provision all tools
 
 ## Architecture
 
-### Load Order
+**Load Order:**
+1. omz-config.zsh (oh-my-zsh with plugins)
+2. init.zsh (initialize tools)
+3. aliases.zsh (command aliases)
+4. Custom functions (ff)
+5. Starship prompt
+6. Atuin history
+7. ~/.local/spark/sparkdock/shell.zsh (user customizations)
 
-1. Guard check prevents double-loading
-2. `init.zsh` - Initialize shell tools (zoxide, fzf)
-3. `aliases.zsh` - Set up command aliases
-4. `~/.local/spark/sparkdock/shell.zsh` - User customizations (if exists)
-
-### Environment Variables
-
-The configuration sets these environment variables:
-
+**Environment Variables:**
 - `SPARKDOCK_SHELL_LOADED=1` - Prevents double-loading
-- `FZF_DEFAULT_COMMAND` - Uses fd for file search
-- `FZF_CTRL_T_COMMAND` - Uses fd for Ctrl+T
-- `FZF_ALT_C_COMMAND` - Uses fd for Alt+C
-- `FZF_CTRL_T_OPTS` - Uses bat for preview
-
-## Contributing
-
-To modify the shell configuration:
-
-1. Edit files in `/opt/sparkdock/config/shell/`
-2. Test changes by sourcing: `source /opt/sparkdock/config/shell/sparkdock.zshrc`
-3. Submit a pull request
-
-## References
-
-- [eza](https://eza.rocks/) - Modern ls replacement
-- [fd](https://github.com/sharkdp/fd) - Modern find replacement
-- [ripgrep](https://github.com/BurntSushi/ripgrep) - Modern grep replacement
-- [bat](https://github.com/sharkdp/bat) - Modern cat replacement
-- [fzf](https://github.com/junegunn/fzf) - Fuzzy finder
-- [zoxide](https://github.com/ajeetdsouza/zoxide) - Smarter cd
+- `FZF_*` variables - Configure fzf with fd and bat integration
+- `DISABLE_LS_COLORS=true` - Avoid conflicts with eza

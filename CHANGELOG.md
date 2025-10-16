@@ -16,9 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added shell configuration files: sparkdock.zshrc, aliases.zsh, and init.zsh
 - Added shell management commands: `sjust shell-enable`, `sjust shell-disable`, `sjust shell-info`, and `sjust shell-aliases-help`
 - Added oh-my-zsh integration with starship prompt support
-- Added zsh plugins via oh-my-zsh: zsh-completions, zsh-autosuggestions, zsh-syntax-highlighting, and ssh-agent
+- Added zsh plugins via oh-my-zsh: zsh-completions, zsh-autosuggestions, zsh-syntax-highlighting, and ssh-agent (built-in)
 - Added plugin setup command: `sjust shell-setup-omz`
 - Added starship prompt package to homebrew packages
+- Removed custom ssh-agent plugin (using oh-my-zsh built-in instead)
 - Added modern command aliases: eza (ls), bat (cat), ripgrep (grep), fd (find), zoxide (cd)
 - Added fuzzy file finder function (ff) with preview using fzf, fd, and bat
 - Added documentation for shell enhancements in README with setup instructions
