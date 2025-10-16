@@ -27,7 +27,14 @@ get_yaml_package_entries() {
             gsub(/^[[:space:]]+description: /, "")
             gsub(/"/, "")
             description=$0
-            print package "|" category "|" description
+            # Check if next line has URL
+            url=""
+            if (getline > 0 && $0 ~ /^[[:space:]]+url:/) {
+                gsub(/^[[:space:]]+url: /, "")
+                gsub(/"/, "")
+                url=$0
+            }
+            print package "|" category "|" description "|" url
         }
     ' "${file}"
 }
@@ -40,7 +47,7 @@ main() {
     declare -a all_rows=()
 
     # Process cask packages
-    while IFS='|' read -r package category description; do
+    while IFS='|' read -r package category description url; do
         [[ -z "${package}" ]] && continue
 
         # Skip if filter is set and doesn't match
@@ -48,11 +55,11 @@ main() {
             continue
         fi
 
-        all_rows+=("${package}|${category}|${description}")
+        all_rows+=("${package}|${category}|${description}|${url}")
     done < <(get_yaml_package_entries "${PACKAGES_YML}" "cask_packages")
 
     # Process homebrew packages
-    while IFS='|' read -r package category description; do
+    while IFS='|' read -r package category description url; do
         [[ -z "${package}" ]] && continue
 
         # Skip if filter is set and doesn't match
@@ -60,24 +67,32 @@ main() {
             continue
         fi
 
-        all_rows+=("${package}|${category}|${description}")
+        all_rows+=("${package}|${category}|${description}|${url}")
     done < <(get_yaml_package_entries "${PACKAGES_YML}" "homebrew_packages")
 
     # Print table header
-    printf "%-35s | %-25s | %-60s\n" "Package" "Category" "Description"
-    printf "%-35s-+-%-25s-+-%-60s\n" \
+    printf "%-35s | %-25s | %-45s | %-50s\n" "Package" "Category" "Description" "URL"
+    printf "%-35s-+-%-25s-+-%-45s-+-%-50s\n" \
         "-----------------------------------" \
         "-------------------------" \
-        "------------------------------------------------------------"
+        "---------------------------------------------" \
+        "--------------------------------------------------"
 
     # Sort by category, then by package name
-    printf "%s\n" "${all_rows[@]}" | sort -t'|' -k2,2 -k1,1 | while IFS='|' read -r pkg cat desc; do
+    printf "%s\n" "${all_rows[@]}" | sort -t'|' -k2,2 -k1,1 | while IFS='|' read -r pkg cat desc url; do
         # Truncate long descriptions
         local short_desc="${desc}"
-        if [[ ${#desc} -gt 60 ]]; then
-            short_desc="${desc:0:57}..."
+        if [[ ${#desc} -gt 45 ]]; then
+            short_desc="${desc:0:42}..."
         fi
-        printf "%-35s | %-25s | %-60s\n" "${pkg}" "${cat}" "${short_desc}"
+
+        # Truncate long URLs
+        local short_url="${url}"
+        if [[ ${#url} -gt 50 ]]; then
+            short_url="${url:0:47}..."
+        fi
+
+        printf "%-35s | %-25s | %-45s | %-50s\n" "${pkg}" "${cat}" "${short_desc}" "${short_url}"
     done
 
     # Print summary

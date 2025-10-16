@@ -129,7 +129,7 @@ sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gc
 
 ### Package Management
 
-View all packages managed by Sparkdock with their categories and descriptions:
+View all packages managed by Sparkdock with their categories, descriptions, and URLs:
 
 ```bash
 sjust packages                    # List all packages
@@ -139,11 +139,11 @@ sjust packages kubernetes         # Filter by name (e.g., kubernetes)
 Example output:
 
 ```
-Package                             | Category                  | Description
-------------------------------------+---------------------------+--------------------------------------------------------------
-kubernetes-cli                      | Container Tools           | kubectl - Kubernetes command line tool
-docker-desktop                      | Container Tools           | Docker Desktop - Container development platform
-awscli                              | Cloud Tools               | AWS CLI - Amazon Web Services command line interface
+Package                             | Category                  | Description                                   | URL
+------------------------------------+---------------------------+-----------------------------------------------+---------------------------------------------------
+kubernetes-cli                      | Container Tools           | kubectl - Kubernetes command line tool        | https://github.com/kubernetes/kubernetes
+docker-desktop                      | Container Tools           | Docker Desktop - Container development pla... | https://www.docker.com/products/docker-desktop/
+awscli                              | Cloud Tools               | AWS CLI - Amazon Web Services command line... | https://github.com/aws/aws-cli
 ...
 ```
 

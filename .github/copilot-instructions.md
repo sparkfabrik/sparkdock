@@ -38,17 +38,21 @@ cask_packages:
   - name: docker-desktop
     category: Container Tools
     description: Docker Desktop - Container development platform
+    url: https://www.docker.com/products/docker-desktop/
   - name: visual-studio-code
     category: Code Editors
     description: Visual Studio Code - Code editor with extensions
+    url: https://github.com/microsoft/vscode
 
 homebrew_packages:
   - name: awscli
     category: Cloud Tools
     description: AWS CLI - Amazon Web Services command line interface
+    url: https://github.com/aws/aws-cli
   - name: kubernetes-cli
     category: Container Tools
     description: kubectl - Kubernetes command line tool
+    url: https://github.com/kubernetes/kubernetes
 
 removed_cask_packages: [] # Track for clean uninstalls
 ```
@@ -57,6 +61,7 @@ removed_cask_packages: [] # Track for clean uninstalls
 - `name`: The package name (as it appears in Homebrew)
 - `category`: The category the package belongs to (e.g., "Container Tools", "Cloud Tools", "Development Tools")
 - `description`: A brief description of what the package does
+- `url`: (Optional) URL to the project's git repository or homepage
 
 This metadata is used by the `sjust packages` command to catalog and display all managed packages.
 
