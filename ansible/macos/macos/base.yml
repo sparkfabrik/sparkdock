@@ -214,6 +214,15 @@
         msg: "{{ brew_doctor_result.stderr_lines }}"
       when: brew_doctor_result.stderr != ""
 
+    - name: Install GitHub Copilot CLI
+      tags: copilot-cli
+      community.general.npm:
+        name: "@github/copilot"
+        global: true
+        state: present
+      when: "'node' in all_homebrew_packages"
+      become: false
+
     - name: Configure DNS resolver
       block:
         - name: Create resolver directory
