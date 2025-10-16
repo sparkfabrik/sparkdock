@@ -52,28 +52,35 @@ jobs:
       - name: Validate first installation
         run: |
           echo "=== Validating first installation ==="
-          
+
           # Check that sparkdock was installed to /opt/sparkdock
           if [ ! -d "/opt/sparkdock" ]; then
             echo "❌ /opt/sparkdock directory not found"
             exit 1
           fi
           echo "✅ /opt/sparkdock directory exists"
-          
+
           # Check that sparkdock symlink was created
           if [ ! -L "/usr/local/bin/sparkdock" ]; then
             echo "❌ /usr/local/bin/sparkdock symlink not found"
             exit 1
           fi
           echo "✅ /usr/local/bin/sparkdock symlink exists"
-          
+
           # Check that sjust was installed
           if ! command -v sjust >/dev/null 2>&1; then
             echo "❌ sjust command not found"
             exit 1
           fi
           echo "✅ sjust command is available"
-          
+
+          # Check that GitHub Copilot CLI was installed
+          if ! command -v copilot >/dev/null 2>&1; then
+            echo "❌ copilot command not found"
+            exit 1
+          fi
+          echo "✅ copilot command is available"
+
           # Test basic functionality
           echo "✅ First installation completed successfully"
 
@@ -82,7 +89,7 @@ jobs:
           echo "=== Fixing ownership permissions and git state for second run ==="
           # Fix ownership permissions recursively on /opt/sparkdock to resolve git permission issues
           sudo chown -R $(whoami):$(id -gn) /opt/sparkdock
-          
+
           # Clean git state in http-proxy repository to avoid permission issues
           if [ -d "/opt/sparkdock/http-proxy/.git" ]; then
             echo "Cleaning git state in http-proxy repository..."
@@ -101,32 +108,39 @@ jobs:
       - name: Validate second installation (idempotency test)
         run: |
           echo "=== Validating second installation (idempotency) ==="
-          
+
           # Check that sparkdock still exists
           if [ ! -d "/opt/sparkdock" ]; then
             echo "❌ /opt/sparkdock directory not found after second run"
             exit 1
           fi
           echo "✅ /opt/sparkdock directory still exists"
-          
+
           # Check that sparkdock symlink still works
           if [ ! -L "/usr/local/bin/sparkdock" ]; then
             echo "❌ /usr/local/bin/sparkdock symlink not found after second run"
             exit 1
           fi
           echo "✅ /usr/local/bin/sparkdock symlink still exists"
-          
+
           # Check that sjust still works
           if ! command -v sjust >/dev/null 2>&1; then
             echo "❌ sjust command not found after second run"
             exit 1
           fi
           echo "✅ sjust command still available"
-          
+
+          # Check that GitHub Copilot CLI still works
+          if ! command -v copilot >/dev/null 2>&1; then
+            echo "❌ copilot command not found after second run"
+            exit 1
+          fi
+          echo "✅ copilot command still available"
+
           # Test that sjust can list commands (idempotency test)
           sjust --list > /dev/null
           echo "✅ sjust functionality verified"
-          
+
           echo "✅ Second installation completed successfully - installer is idempotent"
 
       - name: Clean up test installations (optional)

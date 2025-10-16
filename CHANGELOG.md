@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added `ensure-python3` command mode to `sparkdock.macos` for checking and fixing Python3 symlink issues (callable via `sparkdock ensure-python3`)
+- Added GitHub Copilot CLI (`@github/copilot`) as a default npm package installation
 
 ### Changed
 - Updated system requirements documentation to clarify Apple Silicon-only support (removed Intel Mac references)
