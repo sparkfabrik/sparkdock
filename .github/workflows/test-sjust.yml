@@ -121,6 +121,35 @@ jobs:
           # Test that upgrade-system command can be parsed (dry-run)
           sjust --dry-run system-upgrade
 
+          # Test that packages command can be parsed (dry-run)
+          sjust --dry-run sparkdock-packages
+
+      - name: Test sparkdock-packages command
+        run: |
+          echo "Testing sparkdock-packages command..."
+          
+          # Test listing all packages
+          sjust sparkdock-packages
+          
+          # Test filtering by package name
+          output=$(sjust sparkdock-packages docker)
+          
+          # Verify output contains expected packages
+          if echo "$output" | grep -q "docker-desktop"; then
+            echo "✅ Package filtering works correctly"
+          else
+            echo "❌ Package filtering failed"
+            exit 1
+          fi
+          
+          # Verify table format
+          if echo "$output" | grep -q "Package.*Category.*Description.*Installed"; then
+            echo "✅ Table format is correct"
+          else
+            echo "❌ Table format is incorrect"
+            exit 1
+          fi
+
       - name: Test sjust with non-interactive environment
         env:
           NON_INTERACTIVE: "true"

@@ -243,6 +243,13 @@ docker-ps:
 docker-prune:
     @docker system prune -f
 
+# List all sparkdock-managed packages with their categories and descriptions.
+[group('sparkdock')]
+sparkdock-packages package_filter="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash {{ sparkdock_path }}/sjust/libs/list-packages.sh "{{package_filter}}"
+
 # Install sparkdock ansible tag.
 [group('sparkdock')]
 sparkdock-install-tags tags:
