@@ -128,13 +128,13 @@ jobs:
       - name: Test sparkdock-packages command
         run: |
           echo "Testing sparkdock-packages command..."
-          
+
           # Test listing all packages
           sjust sparkdock-packages
-          
+
           # Test filtering by package name
           output=$(sjust packages docker)
-          
+
           # Verify output contains expected packages
           if echo "$output" | grep -q "docker-desktop"; then
             echo "✅ Package filtering works correctly"
@@ -142,7 +142,7 @@ jobs:
             echo "❌ Package filtering failed"
             exit 1
           fi
-          
+
           # Verify table format
           if echo "$output" | grep -q "Package.*Category.*Description.*Installed"; then
             echo "✅ Table format is correct"
@@ -150,7 +150,7 @@ jobs:
             echo "❌ Table format is incorrect"
             exit 1
           fi
-          
+
           # Test the short alias
           alias_output=$(sjust packages)
           if echo "$alias_output" | grep -q "Package.*Category.*Description.*Installed"; then

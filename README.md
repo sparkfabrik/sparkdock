@@ -139,11 +139,11 @@ sjust packages kubernetes         # Filter by name (e.g., kubernetes)
 Example output:
 
 ```
-Package                             | Category                  | Description                                                  | Installed 
+Package                             | Category                  | Description                                                  | Installed
 ------------------------------------+---------------------------+--------------------------------------------------------------+-----------
-kubernetes-cli                      | Container Tools           | kubectl - Kubernetes command line tool                       | No        
-docker-desktop                      | Container Tools           | Docker Desktop - Container development platform              | Yes       
-awscli                              | Cloud Tools               | AWS CLI - Amazon Web Services command line interface         | Yes       
+kubernetes-cli                      | Container Tools           | kubectl - Kubernetes command line tool                       | No
+docker-desktop                      | Container Tools           | Docker Desktop - Container development platform              | Yes
+awscli                              | Cloud Tools               | AWS CLI - Amazon Web Services command line interface         | Yes
 ...
 ```
 
