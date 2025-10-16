@@ -23,7 +23,7 @@ sjust shell-plugins-enable ssh-agent
 
 ### External Plugins
 
-These plugins are downloaded from GitHub and stored in `~/.local/spark/sparkdock/zsh-plugins/`.
+These plugins are downloaded from GitHub and stored in `~/.config/spark/zsh-plugins/`.
 
 #### zsh-autosuggestions
 
@@ -59,7 +59,7 @@ sjust shell-plugins-enable zsh-syntax-highlighting
 sjust shell-plugins-install
 ```
 
-Downloads zsh-autosuggestions and zsh-syntax-highlighting to `~/.local/spark/sparkdock/zsh-plugins/`.
+Downloads zsh-autosuggestions and zsh-syntax-highlighting to `~/.config/spark/zsh-plugins/`.
 
 ### Enable a Plugin
 
@@ -89,8 +89,8 @@ Shows installation and enabled status for all plugins.
 ## Plugin Storage
 
 - **System plugins:** `/opt/sparkdock/config/shell/zsh-plugins/`
-- **User-installed plugins:** `~/.local/spark/sparkdock/zsh-plugins/`
-- **Enabled plugins marker:** `~/.local/spark/sparkdock/plugins-enabled/`
+- **User-installed plugins:** `~/.config/spark/zsh-plugins/`
+- **Enabled plugins marker:** `~/.config/spark/plugins-enabled/`
 
 ## Configuration
 
@@ -99,7 +99,7 @@ Shows installation and enabled status for all plugins.
 You can configure ssh-agent behavior using zstyle:
 
 ```bash
-# In ~/.local/spark/sparkdock/shell.zsh
+# In ~/.config/spark/shell.zsh
 
 # Set key lifetime (in seconds)
 zstyle :omz:plugins:ssh-agent lifetime 4h
@@ -123,7 +123,7 @@ zstyle :omz:plugins:ssh-agent helper ksshaskpass
 ### zsh-autosuggestions Configuration
 
 ```bash
-# In ~/.local/spark/sparkdock/shell.zsh
+# In ~/.config/spark/shell.zsh
 
 # Change suggestion color
 ZSH_AUTOSUGGEST_HIGHLIGHT_STYLE='fg=8'
@@ -135,7 +135,7 @@ ZSH_AUTOSUGGEST_STRATEGY=(history completion)
 ### zsh-syntax-highlighting Configuration
 
 ```bash
-# In ~/.local/spark/sparkdock/shell.zsh
+# In ~/.config/spark/shell.zsh
 
 # Customize highlighters
 ZSH_HIGHLIGHT_HIGHLIGHTERS=(main brackets pattern)
@@ -147,8 +147,8 @@ ZSH_HIGHLIGHT_STYLES[command]='fg=green,bold'
 ## How It Works
 
 1. Plugins are loaded by `config/shell/zsh-plugins/plugins.zsh`
-2. Each plugin is only loaded if there's a marker file in `~/.local/spark/sparkdock/plugins-enabled/`
-3. External plugins are cloned to `~/.local/spark/sparkdock/zsh-plugins/`
+2. Each plugin is only loaded if there's a marker file in `~/.config/spark/plugins-enabled/`
+3. External plugins are cloned to `~/.config/spark/zsh-plugins/`
 4. The main `sparkdock.zshrc` sources `plugins.zsh` after aliases
 
 ## Troubleshooting
@@ -162,8 +162,8 @@ ZSH_HIGHLIGHT_STYLES[command]='fg=green,bold'
 
 2. Verify plugin files exist:
    ```bash
-   ls -la ~/.local/spark/sparkdock/zsh-plugins/
-   ls -la ~/.local/spark/sparkdock/plugins-enabled/
+   ls -la ~/.config/spark/zsh-plugins/
+   ls -la ~/.config/spark/plugins-enabled/
    ```
 
 3. Reload your shell:

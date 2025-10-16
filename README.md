@@ -183,7 +183,7 @@ sjust shell-disable           # Remove from ~/.zshrc
 
 **Customization:**
 
-Create `~/.local/spark/sparkdock/shell.zsh` for personal customizations (automatically sourced).
+Create `~/.config/spark/shell.zsh` for personal customizations (automatically sourced).
 
 ### HTTP Proxy
 

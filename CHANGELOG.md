@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shell aliases now check for command existence before aliasing to avoid breaking standard Unix tools
 - Improved `ls` implementation with smart handling of `-lt` and `-ltr` flags for sorting by modification time
 - Simplified Homebrew prefix logic to use `/opt/homebrew` consistently on macOS
-- User configuration directory changed from `~/.sparkdock` to `~/.local/spark/sparkdock`
+- User configuration directory changed from `~/.sparkdock` to `~/.config/spark`
 
 ### Fixed
 - Fixed `lima-destroy` command to handle VMs that are already stopped, preventing fatal error when VM is not running

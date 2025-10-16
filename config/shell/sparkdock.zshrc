@@ -50,6 +50,6 @@ if command -v atuin &> /dev/null; then
 fi
 
 # Optional: Source user customizations
-if [[ -f "${HOME}/.local/spark/sparkdock/shell.zsh" ]]; then
-  source "${HOME}/.local/spark/sparkdock/shell.zsh"
+if [[ -f "${HOME}/.config/spark/shell.zsh" ]]; then
+  source "${HOME}/.config/spark/shell.zsh"
 fi

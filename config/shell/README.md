@@ -33,7 +33,7 @@ sjust shell-info         # View status
 
 ## Customization
 
-Create `~/.local/spark/sparkdock/shell.zsh` for personal customizations:
+Create `~/.config/spark/shell.zsh` for personal customizations:
 
 ```bash
 # Custom aliases
@@ -70,7 +70,7 @@ See [EXAMPLES.md](EXAMPLES.md) for comprehensive usage examples.
 4. Custom functions (ff)
 5. Starship prompt
 6. Atuin history
-7. ~/.local/spark/sparkdock/shell.zsh (user customizations)
+7. ~/.config/spark/shell.zsh (user customizations)
 
 **Environment Variables:**
 - `SPARKDOCK_SHELL_LOADED=1` - Prevents double-loading
