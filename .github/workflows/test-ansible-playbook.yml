@@ -75,11 +75,11 @@ jobs:
           echo "✅ sjust command is available"
 
           # Check that GitHub Copilot CLI was installed
-          if ! command -v github-copilot-cli >/dev/null 2>&1; then
-            echo "❌ github-copilot-cli command not found"
+          if ! command -v copilot >/dev/null 2>&1; then
+            echo "❌ copilot command not found"
             exit 1
           fi
-          echo "✅ github-copilot-cli command is available"
+          echo "✅ copilot command is available"
 
           # Test basic functionality
           echo "✅ First installation completed successfully"
@@ -131,11 +131,11 @@ jobs:
           echo "✅ sjust command still available"
 
           # Check that GitHub Copilot CLI still works
-          if ! command -v github-copilot-cli >/dev/null 2>&1; then
-            echo "❌ github-copilot-cli command not found after second run"
+          if ! command -v copilot >/dev/null 2>&1; then
+            echo "❌ copilot command not found after second run"
             exit 1
           fi
-          echo "✅ github-copilot-cli command still available"
+          echo "✅ copilot command still available"
 
           # Test that sjust can list commands (idempotency test)
           sjust --list > /dev/null
