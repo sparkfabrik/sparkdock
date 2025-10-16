@@ -3,68 +3,185 @@ taps:
 
 # Cloud Tools, Applications, and Fonts
 cask_packages:
-  - docker-desktop
-  - google-cloud-sdk
-  - applite
-  - font-droid-sans-mono-nerd-font
-  - font-inconsolata-nerd-font
-  - font-fira-code-nerd-font
-  - google-chrome
-  - ghostty
-  - git-credential-manager
-  - iterm2
-  - maccy
-  - cameracontroller
-  - visual-studio-code
-  - slack
-  - zoom
-  - monitorcontrol
+  - name: docker-desktop
+    category: Container Tools
+    description: Docker Desktop - Container development platform
+  - name: google-cloud-sdk
+    category: Cloud Tools
+    description: Google Cloud SDK - Command-line tools for Google Cloud Platform
+  - name: applite
+    category: System Utilities
+    description: ApplitE - Third-party app installer for macOS
+  - name: font-droid-sans-mono-nerd-font
+    category: Fonts
+    description: Droid Sans Mono Nerd Font - Developer font with icons
+  - name: font-inconsolata-nerd-font
+    category: Fonts
+    description: Inconsolata Nerd Font - Monospace font with icons
+  - name: font-fira-code-nerd-font
+    category: Fonts
+    description: Fira Code Nerd Font - Monospace font with ligatures
+  - name: google-chrome
+    category: Browsers
+    description: Google Chrome - Web browser
+  - name: ghostty
+    category: Terminal Emulators
+    description: Ghostty - Fast, native terminal emulator
+  - name: git-credential-manager
+    category: Development Tools
+    description: Git Credential Manager - Secure Git credential storage
+  - name: iterm2
+    category: Terminal Emulators
+    description: iTerm2 - Advanced terminal emulator for macOS
+  - name: maccy
+    category: Productivity
+    description: Maccy - Clipboard manager
+  - name: cameracontroller
+    category: System Utilities
+    description: Camera Controller - Control external camera settings
+  - name: visual-studio-code
+    category: Code Editors
+    description: Visual Studio Code - Code editor with extensions
+  - name: slack
+    category: Communication
+    description: Slack - Team communication platform
+  - name: zoom
+    category: Communication
+    description: Zoom - Video conferencing application
+  - name: monitorcontrol
+    category: System Utilities
+    description: MonitorControl - Control external monitor brightness and volume
 
 homebrew_packages:
-  # Cloud Tools
-  - awscli
-  - eza
-  - docker-credential-helper-ecr
-  - kubernetes-cli
-  - k9s
-  - kind
-  - kubectx
-  - skaffold
-  - stern
-  - lima
-  - atuin
-  - bc
-  - btop
-  - fastfetch
-  - gnupg
-  - jless
-  - just
-  - pinentry-mac
-  - mactop
-  - mergiraf
-  - mkcert
-  - nss
-  - thefuck
-  - fzf
-  - navi
-  - jq
-  - yadm
-  - tmate
-  - tmux
-  - watch
-  - openssl@3
-  - koekeishiya/formulae/skhd
-  - imagemagick
-  - mas
-  - gh
-  - glab
-  - "node"
-  - "php@8.2"
-  - golang
-  - gitleaks
-  - uv
-  - yarn
-  - yarn-completion
+  - name: awscli
+    category: Cloud Tools
+    description: AWS CLI - Amazon Web Services command line interface
+  - name: eza
+    category: Shell Utilities
+    description: eza - Modern replacement for ls with colors and icons
+  - name: docker-credential-helper-ecr
+    category: Cloud Tools
+    description: Docker Credential Helper ECR - AWS ECR authentication
+  - name: kubernetes-cli
+    category: Container Tools
+    description: kubectl - Kubernetes command line tool
+  - name: k9s
+    category: Container Tools
+    description: k9s - Terminal UI for Kubernetes cluster management
+  - name: kind
+    category: Container Tools
+    description: kind - Kubernetes in Docker for local clusters
+  - name: kubectx
+    category: Container Tools
+    description: kubectx - Fast way to switch Kubernetes contexts
+  - name: skaffold
+    category: Container Tools
+    description: Skaffold - Local Kubernetes development tool
+  - name: stern
+    category: Container Tools
+    description: Stern - Multi-pod log tailing for Kubernetes
+  - name: lima
+    category: Container Tools
+    description: Lima - Linux virtual machines for macOS
+  - name: atuin
+    category: Shell Utilities
+    description: Atuin - Shell history sync and search
+  - name: bc
+    category: System Utilities
+    description: bc - Arbitrary precision calculator
+  - name: btop
+    category: System Monitoring
+    description: btop - Resource monitor with terminal UI
+  - name: fastfetch
+    category: System Monitoring
+    description: fastfetch - System information tool
+  - name: gnupg
+    category: Security
+    description: GnuPG - GNU Privacy Guard for encryption
+  - name: jless
+    category: Text Processing
+    description: jless - JSON viewer for terminal
+  - name: just
+    category: Development Tools
+    description: just - Command runner similar to make
+  - name: pinentry-mac
+    category: Security
+    description: pinentry-mac - PIN entry dialog for macOS
+  - name: mactop
+    category: System Monitoring
+    description: mactop - Apple Silicon performance monitor
+  - name: mergiraf
+    category: Development Tools
+    description: mergiraf - Smart Git merge conflict resolver
+  - name: mkcert
+    category: Development Tools
+    description: mkcert - Local SSL certificate generator
+  - name: nss
+    category: Security
+    description: NSS - Network Security Services libraries
+  - name: thefuck
+    category: Shell Utilities
+    description: thefuck - Corrects errors in previous console commands
+  - name: fzf
+    category: Shell Utilities
+    description: fzf - Fuzzy finder for command line
+  - name: navi
+    category: Shell Utilities
+    description: navi - Interactive cheatsheet tool
+  - name: jq
+    category: Text Processing
+    description: jq - JSON processor for command line
+  - name: yadm
+    category: Development Tools
+    description: yadm - Yet Another Dotfiles Manager
+  - name: tmate
+    category: Terminal Utilities
+    description: tmate - Instant terminal sharing
+  - name: tmux
+    category: Terminal Utilities
+    description: tmux - Terminal multiplexer
+  - name: watch
+    category: System Utilities
+    description: watch - Execute program periodically
+  - name: openssl@3
+    category: Security
+    description: OpenSSL 3 - Cryptography and SSL/TLS toolkit
+  - name: koekeishiya/formulae/skhd
+    category: Keyboard Tools
+    description: skhd - Simple hotkey daemon for macOS
+  - name: imagemagick
+    category: Image Processing
+    description: ImageMagick - Image manipulation tools
+  - name: mas
+    category: System Utilities
+    description: mas - Mac App Store command line interface
+  - name: gh
+    category: Development Tools
+    description: gh - GitHub command line tool
+  - name: glab
+    category: Development Tools
+    description: glab - GitLab command line tool
+  - name: node
+    category: Programming Languages
+    description: Node.js - JavaScript runtime
+  - name: php@8.2
+    category: Programming Languages
+    description: PHP 8.2 - Server-side scripting language
+  - name: golang
+    category: Programming Languages
+    description: Go - Programming language by Google
+  - name: gitleaks
+    category: Security
+    description: Gitleaks - Scan git repos for secrets
+  - name: uv
+    category: Programming Languages
+    description: uv - Fast Python package installer
+  - name: yarn
+    category: Package Managers
+    description: Yarn - JavaScript package manager
+  - name: yarn-completion
+    category: Shell Utilities
+    description: Yarn completion - Shell completion for Yarn
 
 linked_packages: []
 

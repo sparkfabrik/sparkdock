@@ -26,8 +26,8 @@
     - name: Collect all package lists
       tags: brew_packages
       set_fact:
-        all_cask_packages: "{{ all_packages.cask_packages | default([]) }}"
-        all_homebrew_packages: "{{ all_packages.homebrew_packages | default([]) }}"
+        all_cask_packages: "{{ all_packages.cask_packages | default([]) | map(attribute='name') | list }}"
+        all_homebrew_packages: "{{ all_packages.homebrew_packages | default([]) | map(attribute='name') | list }}"
         all_linked_packages: "{{ all_packages.linked_packages | default([]) }}"
         all_removed_homebrew: "{{ all_packages.removed_homebrew_packages | default([]) }}"
         all_removed_taps: "{{ all_packages.removed_taps | default([]) }}"
@@ -81,7 +81,7 @@
           - --force
           - "{{ item }}"
       loop: "{{ all_removed_taps }}"
-      when: 
+      when:
         - all_removed_taps | length > 0
         - item in installed_taps.stdout
       become: false

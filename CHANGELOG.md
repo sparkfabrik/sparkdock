@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Added `sparkdock-packages` command to list all Sparkdock-managed packages with their categories and descriptions, with optional filtering by package name
+- Added `sparkdock-packages` (alias: `packages`) command to list all Sparkdock-managed packages with their categories and descriptions, with optional filtering by package name
+- Extended `all-packages.yml` to include category and description metadata inline with each package
 
 ### Fixed
 - Fixed Python interpreter not found error by implementing `ensure_python3()` function that checks for missing python3 symlink and automatically relinks Python packages before running Ansible playbook

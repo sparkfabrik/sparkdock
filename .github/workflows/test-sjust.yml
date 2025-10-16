@@ -143,8 +143,8 @@ jobs:
             exit 1
           fi
 
-          # Verify table format
-          if echo "$output" | grep -q "Package.*Category.*Description.*Installed"; then
+          # Verify table format (3 columns: Package, Category, Description)
+          if echo "$output" | grep -q "Package.*Category.*Description"; then
             echo "✅ Table format is correct"
           else
             echo "❌ Table format is incorrect"
@@ -153,7 +153,7 @@ jobs:
 
           # Test the short alias
           alias_output=$(sjust packages)
-          if echo "$alias_output" | grep -q "Package.*Category.*Description.*Installed"; then
+          if echo "$alias_output" | grep -q "Package.*Category.*Description"; then
             echo "✅ Short alias 'packages' works correctly"
           else
             echo "❌ Short alias 'packages' failed"

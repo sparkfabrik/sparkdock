@@ -1,96 +1,35 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Script to list installed sparkdock packages with category and description
+# Script to list sparkdock packages with category and description
 
 # Paths
 SPARKDOCK_PATH="${SPARKDOCK_PATH:-/opt/sparkdock}"
 PACKAGES_YML="${SPARKDOCK_PATH}/config/packages/all-packages.yml"
-METADATA_YML="${SPARKDOCK_PATH}/config/packages/package-metadata.yml"
 
-# Parse YAML to get package lists and metadata
-get_yaml_packages() {
+# Parse YAML to get package entries with metadata
+get_yaml_package_entries() {
     local file="$1"
     local key="$2"
-    # Use awk to extract package list from YAML
+    # Use awk to extract package entries with metadata from YAML
     awk -v key="${key}:" '
         $0 ~ key {in_section=1; next}
         in_section && /^[a-z_]+:/ {exit}
-        in_section && /^  - / {gsub(/^  - /, ""); gsub(/"/, ""); print}
-    ' "${file}"
-}
-
-# Get package metadata from YAML
-get_package_metadata() {
-    local package="$1"
-    local field="$2"
-    # Normalize package name (remove quotes for lookup, keep version numbers)
-    local normalized_package="${package//\"/}"
-    normalized_package="${normalized_package##*/}"  # Remove tap prefix if present
-
-    awk -v pkg="${normalized_package}" -v field="${field}" '
-        $0 ~ "^" pkg ":" {in_package=1; next}
-        in_package && $0 ~ "^[a-z]" {exit}
-        in_package && $0 ~ field ":" {
-            gsub(/^[[:space:]]+/, "")
-            gsub(field ": \"", "")
-            gsub("\"", "")
-            print
-            exit
+        in_section && /^  - name:/ {
+            gsub(/^  - name: /, "")
+            gsub(/"/, "")
+            package=$0
+            getline
+            gsub(/^[[:space:]]+category: /, "")
+            gsub(/"/, "")
+            category=$0
+            getline
+            gsub(/^[[:space:]]+description: /, "")
+            gsub(/"/, "")
+            description=$0
+            print package "|" category "|" description
         }
-    ' "${METADATA_YML}" | head -1
-}
-
-# Check if package is installed
-is_package_installed() {
-    local package="$1"
-    local type="$2"
-
-    # Normalize package name
-    local normalized_package="${package//\"/}"
-    normalized_package="${normalized_package##*/}"  # Remove tap prefix
-
-    if [[ "${type}" == "cask" ]]; then
-        brew list --cask "${normalized_package}" &>/dev/null
-    else
-        brew list --formula "${normalized_package}" &>/dev/null
-    fi
-}
-
-# Format package info for table
-format_package_row() {
-    local package="$1"
-    local type="$2"
-
-    # Get metadata
-    local category
-    local description
-    category=$(get_package_metadata "${package}" "category")
-    description=$(get_package_metadata "${package}" "description")
-
-    # Default values if metadata not found
-    if [[ -z "${category}" ]]; then
-        category="Uncategorized"
-    fi
-    if [[ -z "${description}" ]]; then
-        # Try to get description from brew
-        if [[ "${type}" == "cask" ]]; then
-            description=$(brew info --cask "${package//\"/}" 2>/dev/null | head -1 || echo "No description")
-        else
-            description=$(brew info "${package//\"/}" 2>/dev/null | head -1 || echo "No description")
-        fi
-    fi
-
-    # Check if installed
-    local installed="No"
-    if is_package_installed "${package}" "${type}"; then
-        installed="Yes"
-    fi
-
-    # Normalize package name for display
-    local display_name="${package//\"/}"
-
-    echo "${display_name}|${category}|${description}|${installed}"
+    ' "${file}"
 }
 
 # Main function
@@ -101,7 +40,7 @@ main() {
     declare -a all_rows=()
 
     # Process cask packages
-    while IFS= read -r package; do
+    while IFS='|' read -r package category description; do
         [[ -z "${package}" ]] && continue
 
         # Skip if filter is set and doesn't match
@@ -109,11 +48,11 @@ main() {
             continue
         fi
 
-        all_rows+=("$(format_package_row "${package}" "cask")")
-    done < <(get_yaml_packages "${PACKAGES_YML}" "cask_packages")
+        all_rows+=("${package}|${category}|${description}")
+    done < <(get_yaml_package_entries "${PACKAGES_YML}" "cask_packages")
 
     # Process homebrew packages
-    while IFS= read -r package; do
+    while IFS='|' read -r package category description; do
         [[ -z "${package}" ]] && continue
 
         # Skip if filter is set and doesn't match
@@ -121,25 +60,24 @@ main() {
             continue
         fi
 
-        all_rows+=("$(format_package_row "${package}" "formula")")
-    done < <(get_yaml_packages "${PACKAGES_YML}" "homebrew_packages")
+        all_rows+=("${package}|${category}|${description}")
+    done < <(get_yaml_package_entries "${PACKAGES_YML}" "homebrew_packages")
 
     # Print table header
-    printf "%-35s | %-25s | %-60s | %-10s\n" "Package" "Category" "Description" "Installed"
-    printf "%-35s-+-%-25s-+-%-60s-+-%-10s\n" \
+    printf "%-35s | %-25s | %-60s\n" "Package" "Category" "Description"
+    printf "%-35s-+-%-25s-+-%-60s\n" \
         "-----------------------------------" \
         "-------------------------" \
-        "------------------------------------------------------------" \
-        "----------"
+        "------------------------------------------------------------"
 
     # Sort by category, then by package name
-    printf "%s\n" "${all_rows[@]}" | sort -t'|' -k2,2 -k1,1 | while IFS='|' read -r pkg cat desc inst; do
+    printf "%s\n" "${all_rows[@]}" | sort -t'|' -k2,2 -k1,1 | while IFS='|' read -r pkg cat desc; do
         # Truncate long descriptions
         local short_desc="${desc}"
         if [[ ${#desc} -gt 60 ]]; then
             short_desc="${desc:0:57}..."
         fi
-        printf "%-35s | %-25s | %-60s | %-10s\n" "${pkg}" "${cat}" "${short_desc}" "${inst}"
+        printf "%-35s | %-25s | %-60s\n" "${pkg}" "${cat}" "${short_desc}"
     done
 
     # Print summary
