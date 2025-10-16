@@ -39,8 +39,3 @@ fi
 if command -v thefuck &> /dev/null; then
   eval "$(thefuck --alias)"
 fi
-
-# Initialize atuin (shell history search) if available
-if command -v atuin &> /dev/null; then
-  eval "$(atuin init zsh)"
-fi
