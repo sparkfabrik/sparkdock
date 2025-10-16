@@ -33,10 +33,32 @@ Sparkdock is an automated macOS development environment provisioner built with A
 ```yaml
 # config/packages/all-packages.yml structure
 taps: [koekeishiya/formulae]
-cask_packages: [docker-desktop, visual-studio-code]
-homebrew_packages: [awscli, kubernetes-cli]
+
+cask_packages:
+  - name: docker-desktop
+    category: Container Tools
+    description: Docker Desktop - Container development platform
+  - name: visual-studio-code
+    category: Code Editors
+    description: Visual Studio Code - Code editor with extensions
+
+homebrew_packages:
+  - name: awscli
+    category: Cloud Tools
+    description: AWS CLI - Amazon Web Services command line interface
+  - name: kubernetes-cli
+    category: Container Tools
+    description: kubectl - Kubernetes command line tool
+
 removed_cask_packages: [] # Track for clean uninstalls
 ```
+
+**Important**: When adding new packages to `all-packages.yml`, you **must** include:
+- `name`: The package name (as it appears in Homebrew)
+- `category`: The category the package belongs to (e.g., "Container Tools", "Cloud Tools", "Development Tools")
+- `description`: A brief description of what the package does
+
+This metadata is used by the `sjust packages` command to catalog and display all managed packages.
 
 **Ansible Tag Strategy:**
 
