@@ -9,7 +9,10 @@ command_exists() {
 
 # Initialize thefuck (command correction)
 if command_exists thefuck; then
-  eval "$(thefuck --alias)"
+  # Only initialize if 'fuck' alias doesn't already exist
+  if ! alias fuck &> /dev/null && ! command_exists fuck; then
+    eval "$(thefuck --alias)"
+  fi
 fi
 
 # check if fzf is installed for fuzzy finding.
@@ -118,3 +121,7 @@ alias reload='exec zsh'
 alias path='echo $PATH | tr ":" "\n"'
 alias h='history'
 alias c='clear'
+
+# Reload Sparkdock shell configuration
+# This unsets the guard variable and re-sources the main config file
+alias reload-sparkdock='unset SPARKDOCK_SHELL_LOADED && [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ] && source /opt/sparkdock/config/shell/sparkdock.zshrc || echo "Sparkdock shell config not found"'
