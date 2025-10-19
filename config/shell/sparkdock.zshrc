@@ -3,12 +3,6 @@
 # Add this line to your ~/.zshrc to enable Sparkdock shell enhancements:
 #   source /opt/sparkdock/config/shell/sparkdock.zshrc
 
-# Guard against multiple sourcing
-if [[ -n "${SPARKDOCK_SHELL_LOADED}" ]]; then
-  return
-fi
-export SPARKDOCK_SHELL_LOADED=1
-
 # Determine the directory where this script is located
 SPARKDOCK_SHELL_DIR="${0:A:h}"
 
