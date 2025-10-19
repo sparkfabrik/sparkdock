@@ -112,8 +112,7 @@ shell-disable:
     cp "${ZSHRC_FILE}" "${ZSHRC_FILE}.backup"
 
     # Remove the Sparkdock lines from zshrc
-    sed -i.tmp '/# Sparkdock shell enhancements/d' "${ZSHRC_FILE}"
-    sed -i.tmp "\|${SPARKDOCK_SOURCE_LINE}|d" "${ZSHRC_FILE}"
+    sed -i.tmp -e '/# Sparkdock shell enhancements/d' -e "\|${SPARKDOCK_SOURCE_LINE}|d" "${ZSHRC_FILE}"
     rm -f "${ZSHRC_FILE}.tmp"
 
     echo "✅ Sparkdock shell enhancements disabled from ${ZSHRC_FILE}"
