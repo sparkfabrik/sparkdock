@@ -14,15 +14,21 @@ fi
 
 # check if fzf is installed for fuzzy finding.
 if command_exists fzf; then
-  alias f='fzf'
-  alias fs='fzf --preview "bat --style=numbers --color=always {}"'
+  alias ff="fzf --preview 'bat --style=numbers --color=always {}'"
 fi
 
-# zoxide integration is handled in init.zsh via 'eval "$(zoxide init zsh)"'
-# This provides the 'z' command for smart directory jumping
-# We keep the builtin 'cd' available as 'ccd' if needed
+# zoxide integration with smart cd replacement
 if command_exists zoxide; then
-  alias ccd='builtin cd'
+  alias cd="zd"
+  zd() {
+    if [ $# -eq 0 ]; then
+      builtin cd ~ && return
+    elif [ -d "$1" ]; then
+      builtin cd "$1"
+    else
+      z "$@" && printf "\U000F17A9 " && pwd || echo "Error: Directory not found"
+    fi
+  }
 fi
 
 # Modern replacements for classic commands

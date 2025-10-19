@@ -119,7 +119,7 @@ shell-disable:
     echo "💡 Backup saved to ${ZSHRC_FILE}.backup"
     echo "💡 Run 'source ~/.zshrc' or restart your terminal to deactivate"
 
-# Show information about Sparkdock shell enhancements.
+# Show information about Sparkdock shell enhancements and aliases.
 [group('shell')]
 shell-info:
     #!/usr/bin/env bash
@@ -179,124 +179,77 @@ shell-info:
 
     echo ""
     echo "✨ Key Features:"
-    echo "  • ls/cat/grep → eza/bat/ripgrep (modern replacements)"
+    echo "  • ls/cat → eza/bat (modern replacements)"
+    echo "  • cd → smart zoxide integration with fallback"
     echo "  • ff → fuzzy file finder | Ctrl+R → history search"
     echo "  • z <dir> → smart directory jump | .., ..., .... shortcuts"
     echo "  • Docker, Git, Kubernetes aliases (dc, gs, k, etc.)"
     echo "  • oh-my-zsh plugins (autosuggestions, syntax highlighting)"
     echo ""
-    echo "📁 File & Directory:"
-    echo "  ls, lsa, lt, lta  - Modern eza-based listings"
-    echo "  .., ..., ....     - Quick directory navigation"
-    echo "  z <partial>       - Jump to frequently used directories"
+    echo "==========================================="
+    echo "Available Aliases & Commands"
+    echo "==========================================="
     echo ""
-    echo "🔍 Search & Tools:"
-    echo "  grep, ff          - Fast search with ripgrep and fuzzy finder"
-    echo "  cat, ccat         - Syntax highlighting with bat"
-    echo "  Ctrl+R, Ctrl+T    - Fuzzy history and file search"
+    echo "📁 FILE & DIRECTORY:"
+    echo "  ls              - Modern eza listing (detects -lt/-ltr flags)"
+    echo "  ls -lt          - List by time, newest first"
+    echo "  ls -ltr         - List by time, oldest first"
+    echo "  lsa             - List all including hidden"
+    echo "  lt              - Tree view (2 levels)"
+    echo "  lta             - Tree with hidden files"
     echo ""
-    echo "🐳 Docker | 🔧 Git | ☸️ Kubernetes:"
-    echo "  dc, dps, di       - docker-compose, ps, images"
-    echo "  gs, gp, gc, gco   - git status, pull, commit, checkout"
-    echo "  k, kgp, kgs, kl   - kubectl shortcuts"
+    echo "🚀 NAVIGATION:"
+    echo "  cd <path>       - Smart cd (uses zoxide for partial matches)"
+    echo "  ..              - Up one directory"
+    echo "  ...             - Up two directories"
+    echo "  ....            - Up three directories"
+    echo "  z <partial>     - Jump to frequently used directory"
+    echo ""
+    echo "🔍 SEARCH:"
+    echo "  ff              - Fuzzy file finder with preview"
+    echo "  rg <pattern>    - Fast ripgrep search"
+    echo "  Ctrl+R          - Fuzzy history search"
+    echo "  Ctrl+T          - Fuzzy file search"
+    echo ""
+    echo "📄 VIEWING:"
+    echo "  cat <file>      - Syntax highlighted view (bat)"
+    echo "  ccat <file>     - Original cat"
+    echo ""
+    echo "🐳 DOCKER:"
+    echo "  dc              - docker-compose"
+    echo "  dps, dpsa       - docker ps (all)"
+    echo "  di              - docker images"
+    echo ""
+    echo "🔧 GIT:"
+    echo "  gs, gp, gpush   - status, pull, push"
+    echo "  gc, gco, ga     - commit, checkout, add"
+    echo "  gd, gl          - diff, log (graph)"
+    echo ""
+    echo "☸️  KUBERNETES:"
+    echo "  k               - kubectl"
+    echo "  kgp, kgs, kgd   - get pods/services/deployments"
+    echo "  kdp, kds, kdd   - describe pod/service/deployment"
+    echo "  kl              - logs"
+    echo "  kx, kn          - kubectx, kubens"
+    echo ""
+    echo "⚙️  SYSTEM:"
+    echo "  reload          - Reload zsh"
+    echo "  path            - Show PATH"
+    echo "  h, c            - history, clear"
     echo ""
     echo "💡 Commands:"
-    echo "  sjust shell-enable        - Enable shell enhancements"
-    echo "  sjust shell-setup-omz     - Install oh-my-zsh and plugins"
+    echo "  sjust shell-enable     - Enable shell enhancements"
+    echo "  sjust shell-setup-omz  - Install oh-my-zsh and plugins"
     echo ""
-    echo "🔧 Optional Features (add to ~/.zshrc before sourcing sparkdock):"
-    echo "  export SPARKDOCK_ENABLE_STARSHIP=1  - Enable starship prompt"
-    echo "  export SPARKDOCK_ENABLE_ATUIN=1     - Enable atuin history sync"
+    echo "🔧 Optional Features (add to ~/.zshrc before sourcing):"
+    echo "  export SPARKDOCK_ENABLE_STARSHIP=1  - Enable starship"
+    echo "  export SPARKDOCK_ENABLE_ATUIN=1     - Enable atuin"
     echo ""
     echo "📚 Configuration:"
     echo "  /opt/sparkdock/config/shell/sparkdock.zshrc"
     echo "  /opt/sparkdock/config/shell/README.md"
-    echo "  ~/.config/spark/shell.zsh (your customizations)"
+    echo "  ~/.config/spark/shell.zsh (customizations)"
     echo "=========================================="
-
-# Display all configured shell aliases by category.
-[group('shell')]
-shell-aliases-help:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    cat << 'EOF'
-==========================================
-Sparkdock Shell Aliases Reference
-==========================================
-
-📁 FILE & DIRECTORY LISTING
-  ls              - Modern listing with eza (auto-detects -lt/-ltr flags)
-  ls -lt          - List by time, newest first
-  ls -ltr         - List by time, oldest first (reversed)
-  lsa             - List all files including hidden
-  lt              - Tree view (2 levels deep)
-  lta             - Tree view including hidden files
-
-🚀 DIRECTORY NAVIGATION
-  ..              - Go up one directory (cd ..)
-  ...             - Go up two directories (cd ../..)
-  ....            - Go up three directories (cd ../../..)
-  z <partial>     - Smart jump to frequently used directory (zoxide)
-  ccd             - Original 'cd' command (when zoxide active)
-
-🔍 SEARCH & FIND
-  rg <pattern>    - Fast content search with ripgrep
-  grep            - Original grep (use 'rg' for ripgrep)
-  ggrep           - Force original GNU grep
-  f               - Launch fzf fuzzy finder
-  fs              - fzf with bat preview
-  ff              - Fuzzy file finder with preview (function in sparkdock.zshrc)
-  Ctrl+R          - Fuzzy history search (fzf)
-  Ctrl+T          - Fuzzy file search (fzf)
-
-📄 FILE VIEWING
-  cat <file>      - View file with syntax highlighting (bat)
-  ccat <file>     - Original 'cat' command
-
-🐳 DOCKER
-  dc              - docker-compose
-  dps             - docker ps
-  dpsa            - docker ps -a (all containers)
-  di              - docker images
-
-🔧 GIT
-  gs              - git status
-  gp              - git pull
-  gpush           - git push
-  gc              - git commit
-  gco             - git checkout
-  ga              - git add
-  gd              - git diff
-  gl              - git log --oneline --graph --decorate
-
-☸️  KUBERNETES
-  k               - kubectl
-  kgp             - kubectl get pods
-  kgs             - kubectl get services
-  kgd             - kubectl get deployments
-  kga             - kubectl get all
-  kdp             - kubectl describe pod
-  kds             - kubectl describe service
-  kdd             - kubectl describe deployment
-  kl              - kubectl logs
-  kx              - kubectx (switch context)
-  kn              - kubens (switch namespace)
-
-⚙️  SYSTEM
-  reload          - Reload zsh configuration (exec zsh)
-  path            - Display PATH variable (one per line)
-  h               - history
-  c               - clear
-
-💡 TIPS
-  - All aliases check if the underlying command exists before activating
-  - Original commands preserved with 'c' prefix (ccat, ccd) or 'g' prefix (ggrep)
-  - Use 'sjust shell-info' to see which tools are installed
-  - Customize via ~/.config/spark/shell.zsh
-
-==========================================
-EOF
 
 # Setup oh-my-zsh and zsh plugins.
 [group('shell')]
