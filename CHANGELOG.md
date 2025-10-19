@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+
+- Add claude code action
 - Added UDP port forwarding support in Lima (see https://github.com/lima-vm/lima/issues/4040)
 - Added `docker-desktop-diagnose` task to run Docker Desktop diagnostics with optional upload functionality
 - Added `docker-desktop-install-version-4412` task to download Docker Desktop 4.41.2 to work around network issues
