@@ -2,10 +2,16 @@
 DEFAULT_BRANCH := master
 
 run-ansible-playbook:
+	@# Check if just binary is available, install if needed
+	@if ! command -v just >/dev/null 2>&1; then \
+		echo "Just not found. Installing just via Homebrew..."; \
+		brew install just; \
+	fi
+	@# Delegate to the justfile implementation
 ifeq ($(TAGS),)
-	ansible-playbook ./ansible/macos.yml --ask-become-pass
+	just run-ansible-playbook
 else
-	ansible-playbook ./ansible/macos.yml --ask-become-pass --tags=$(TAGS)
+	just run-ansible-playbook TAGS="$(TAGS)"
 endif
 
 # Install sjust only (for manual http-proxy migration workflow)
@@ -38,7 +44,11 @@ endif
 	@echo "Generating zsh completion for sjust..."
 	@BREW_PREFIX=$$(brew --prefix 2>/dev/null || echo "/usr/local"); \
 	sudo mkdir -p "$$BREW_PREFIX/share/zsh/site-functions"; \
-	just --completions zsh | sed -E 's/([\(_" ])just/\1sjust/g' | sudo tee "$$BREW_PREFIX/share/zsh/site-functions/_sjust" > /dev/null; \
-	sudo chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"
+	TEMP_FILE=$$(mktemp); \
+	just --completions zsh | sed -E 's/([\(_" ])just/\1sjust/g' > "$$TEMP_FILE"; \
+	sudo cp "$$TEMP_FILE" "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
+	sudo chown $$(id -u):$$(id -g) "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
+	sudo chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
+	rm -f "$$TEMP_FILE"
 	@echo "✅ sjust installed successfully!"
 	@echo "You can now run: sjust http-proxy-install-update"

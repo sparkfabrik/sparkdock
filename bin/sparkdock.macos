@@ -133,6 +133,12 @@ if [ "$1" = "http-proxy-check-updates" ] ; then
     exit 1  # No updates available
 fi
 
+# Python3 ensure mode
+if [ "$1" = "ensure-python3" ] ; then
+    ensure_python3
+    exit 0
+fi
+
 # Updating myself.
 if [ "$1" != "skip-update" ] ; then
     # Only perform updates if we're running from installed location
@@ -205,8 +211,15 @@ print_section "System Check"
 print_info "Checking for macOS supported version..."
 checkMacosVersion
 
+print_info "Checking for Xcode command line tools issues..."
+check_xcode_issues
+
 print_section "System Update"
 print_info "Sparkdock provisioner: Updating your system in progress..."
+
+# Ensure Python3 is installed and available at the expected location
+ensure_python3
+
 print_info "Running ansible playbook..."
 print_warning "You'll be asked to insert your password to become root"
 
