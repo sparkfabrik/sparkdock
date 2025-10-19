@@ -2,6 +2,10 @@
 
 Sparkdock is an automated macOS development environment provisioner built with Ansible, featuring containerized workflows, an HTTP proxy system, and a Swift menu bar app for update notifications.
 
+## Platform Support
+
+**Apple Silicon Only**: Sparkdock supports **only Apple Silicon Macs**. Intel-based Macs are **not supported**.
+
 ## Core Architecture
 
 **Three-Layer System:**

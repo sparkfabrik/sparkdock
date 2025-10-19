@@ -149,6 +149,30 @@ check_xcode_issues() {
     return 0
 }
 
+# Ensure Python3 is installed and available at the expected location
+ensure_python3() {
+    if [[ ! -f /opt/homebrew/bin/python3 ]]; then
+        print_info "Python3 symlink not found at /opt/homebrew/bin/python3"
+        
+        # Check if python@3 is installed but not linked
+        if brew list python@3 &> /dev/null; then
+            print_info "Python is installed but not linked, fixing symlinks..."
+            brew unlink python@3 &> /dev/null || true
+            brew link python@3 &> /dev/null || true
+        else
+            print_info "Installing Python3..."
+            brew install python3
+        fi
+        
+        # Verify python3 symlink is now available
+        if [[ ! -f /opt/homebrew/bin/python3 ]]; then
+            print_error "Failed to create python3 symlink. Please run: brew link python@3"
+            exit 1
+        fi
+        print_info "Python3 is now available at /opt/homebrew/bin/python3"
+    fi
+}
+
 # Keep old function name for backward compatibility
 sparkdockfetch() {
     print_banner

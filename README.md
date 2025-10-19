@@ -60,7 +60,7 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 
 **Operating System:**
 - macOS Sequoia (15.x) or macOS Tahoe (26.x)
-- Apple Silicon (M1/M2/M3) and Intel Macs supported
+- Apple Silicon only
 
 **Hardware Requirements:**
 - At least 8GB RAM recommended (16GB for heavy development workloads)
