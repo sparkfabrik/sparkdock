@@ -150,7 +150,7 @@ gke-gcloud-auth-plugin --version
 
 ### Shell Enhancements
 
-Sparkdock provides a modern shell experience with oh-my-zsh, starship prompt, and enhanced command-line tools.
+Sparkdock provides a modern shell experience with oh-my-zsh, starship prompt, and a curated set of modern Unix tools with convenient aliases.
 
 **Setup:**
 
@@ -159,26 +159,19 @@ sjust shell-setup-omz    # Install oh-my-zsh and zsh plugins
 sjust shell-enable       # Add Sparkdock config to your ~/.zshrc
 ```
 
-**Modern Tools Included:**
-- `eza` - Modern `ls` with colors and icons (`ls`, `lt`, `lta` aliases)
-- `fd` - Modern `find` for faster file search
-- `ripgrep` (rg) - Modern `grep` for faster text search
-- `bat` - Modern `cat` with syntax highlighting
-- `fzf` - Fuzzy finder (`ff` function, `Ctrl+R` for history)
-- `zoxide` - Smart `cd` (`z <dir>` to jump to directories)
-- **starship** - Fast, customizable prompt
-- **oh-my-zsh** - Zsh configuration framework with plugins:
-  - zsh-autosuggestions - Command suggestions as you type
-  - zsh-syntax-highlighting - Syntax highlighting
-  - zsh-completions - Additional completions
-  - ssh-agent - SSH key management
+**Discover Available Tools & Aliases:**
+
+Sparkdock includes modern replacements for traditional Unix tools (like `eza`, `fd`, `ripgrep`, `bat`, `fzf`, `zoxide`) along with helpful aliases and shell enhancements. To see what's available:
+
+```bash
+sjust shell-info         # View configuration status, installed tools, and all available aliases
+```
 
 **Commands:**
 
 ```bash
-sjust shell-info              # View status and features
-sjust shell-aliases-help      # List all available aliases
-sjust shell-disable           # Remove from ~/.zshrc
+sjust shell-info         # View status, features, and complete alias reference
+sjust shell-disable      # Remove from ~/.zshrc
 ```
 
 **Customization:**
