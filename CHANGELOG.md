@@ -12,20 +12,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed sjust zsh completion file ownership issue where `_sjust` file could be owned by root, causing Ansible task failures
 
 ### Added
-- Added modern shell command replacements: ripgrep, zoxide, fd, and bat
-- Added Sparkdock shell configuration system with optional sourcing for users
-- Added shell configuration files: sparkdock.zshrc, aliases.zsh, and init.zsh
-- Added shell management commands: `sjust shell-enable`, `sjust shell-disable`, `sjust shell-info`, and `sjust shell-aliases-help`
-- Added oh-my-zsh integration with starship prompt support
-- Added zsh plugins via oh-my-zsh: zsh-completions, zsh-autosuggestions, zsh-syntax-highlighting, and ssh-agent (built-in)
-- Added plugin setup command: `sjust shell-setup-omz`
-- Added starship prompt package to homebrew packages
-- Removed custom ssh-agent plugin (using oh-my-zsh built-in instead)
-- Added modern command aliases: eza (ls), bat (cat), ripgrep (grep), fd (find), zoxide (cd)
-- Added fuzzy file finder function (ff) with preview using fzf, fd, and bat
-- Added documentation for shell enhancements in README with setup instructions
-- Added maintenance guidelines for shell aliases in copilot-instructions.md
-- Add claude code action
+- Added Sparkdock shell configuration system with modern CLI tools (eza, bat, ripgrep, fd, zoxide, fzf) and optional oh-my-zsh integration with plugins and starship prompt
+- Added Claude Code GitHub workflow for AI-assisted code reviews and issue handling
 - Added `ensure-python3` command mode to `sparkdock.macos` for checking and fixing Python3 symlink issues (callable via `sparkdock ensure-python3`)
 - Added GitHub Copilot CLI (`@github/copilot`) as a default npm package installation
 
