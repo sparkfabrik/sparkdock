@@ -36,10 +36,10 @@ if command_exists eza; then
 
     case "$*" in
       *ltr*)
-        eza -la --icons=auto --sort=modified ${filtered_args[@]}
+        eza -la --icons=auto --sort=modified "${filtered_args[@]}"
         ;;
       *lt*)
-        eza -la --icons=auto --sort=modified --reverse ${filtered_args[@]}
+        eza -la --icons=auto --sort=modified --reverse "${filtered_args[@]}"
         ;;
       *)
         eza -lh --group-directories-first --icons=auto "$@"
