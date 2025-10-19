@@ -233,4 +233,11 @@ if [[ $? -ne 0 ]]; then
 fi
 print_success "Installation completed successfully"
 
+# Configure shell.
+if ! is_ci_environment; then
+    echo ""
+    print_section "Shell Configuration"
+    sjust shell-enable
+fi
+
 exit 0

@@ -74,7 +74,7 @@ fi
 
 ## Naming Conventions
 
-- Use descriptive environment variables: `SPARKDOCK_SHELL_LOADED`, `SPARKDOCK_ENABLE_STARSHIP`, `SPARKDOCK_ENABLE_ATUIN`
+- Use descriptive environment variables: `SPARKDOCK_SHELL_LOADED`, `SPARKDOCK_ENABLE_STARSHIP`, `SPARKDOCK_ENABLE_FZF`, `SPARKDOCK_ENABLE_ATUIN`
 - Prefix all Sparkdock-specific variables with `SPARKDOCK_`
 - Use uppercase for environment variables
 - Use lowercase with underscores for local variables in scripts
@@ -82,7 +82,7 @@ fi
 ## Conditional Loading Priority
 
 1. **User's explicit configuration** (already in .zshrc)
-2. **Opt-in features** (SPARKDOCK*ENABLE*\* for advanced tools like starship, atuin)
+2. **Opt-in features** (SPARKDOCK*ENABLE*\* for advanced tools like starship, fzf, atuin)
 3. **Auto-detection** (check for existing tools/themes)
 4. **Sparkdock defaults** (only if nothing else detected)
 

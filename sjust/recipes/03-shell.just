@@ -6,14 +6,18 @@ shell-enable:
     set -euo pipefail
 
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_SOURCE_LINE="if [ -d /opt/sparkdock ]; then source /opt/sparkdock/config/shell/sparkdock.zshrc; fi"
+    SPARKDOCK_CHECK_LINE="if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
 
     # Create zshrc if it doesn't exist
     touch "${ZSHRC_FILE}"
 
     # Check if already enabled
-    if grep -qF "${SPARKDOCK_SOURCE_LINE}" "${ZSHRC_FILE}"; then
+    if grep -qF "${SPARKDOCK_CHECK_LINE}" "${ZSHRC_FILE}"; then
         echo "ℹ️  Sparkdock shell enhancements are already enabled in ${ZSHRC_FILE}"
+        echo ""
+        echo "If you want reinstall again:"
+        echo "  1) Run 'sjust shell-disable' to remove existing configuration"
+        echo "  2) Run 'sjust shell-enable' to enable again"
         exit 0
     fi
 
@@ -47,29 +51,36 @@ shell-enable:
     fi
 
     if [[ "${HAS_STARSHIP}" == "true" ]]; then
-        echo "  ✅ starship is configured → Sparkdock will not load starship (yours will be used)"
+        echo "  ✅ starship is configured → Yours will take precedence over Sparkdock's"
     else
-        echo "  ⚪ starship not detected → Available as opt-in (set SPARKDOCK_ENABLE_STARSHIP=1)"
+        echo "  ⚪ starship not detected → Will be enabled by default (SPARKDOCK_ENABLE_STARSHIP=1)"
+        echo "     Default config will be copied to ~/.config/starship.toml if not present"
     fi
 
     if [[ "${HAS_ATUIN}" == "true" ]]; then
-        echo "  ✅ atuin is configured → Sparkdock will not load atuin or fzf (yours will be used)"
+        echo "  ✅ atuin is configured → Yours will take precedence over Sparkdock's"
     else
-        echo "  ⚪ atuin not detected → Available as opt-in (set SPARKDOCK_ENABLE_ATUIN=1)"
+        echo "  ⚪ atuin not detected → Disabled by default (set SPARKDOCK_ENABLE_ATUIN=1 to enable)"
     fi
 
     if [[ "${HAS_FZF}" == "true" ]]; then
-        echo "  ✅ fzf is configured → Sparkdock will skip fzf initialization"
+        echo "  ✅ fzf is configured → Yours will take precedence over Sparkdock's"
     else
-        echo "  ⚪ fzf not detected → Sparkdock will initialize fzf if installed"
+        echo "  ⚪ fzf not detected → Will be enabled by default (SPARKDOCK_ENABLE_FZF=1)"
     fi
 
     echo ""
-    echo "This will add the following line to ${ZSHRC_FILE}:"
-    echo "  ${SPARKDOCK_SOURCE_LINE}"
+    echo "This will add the following configuration to ${ZSHRC_FILE}:"
     echo ""
-    echo "📦 Core tools auto-enabled: eza, fd, ripgrep, bat, fzf, zoxide"
-    echo "🔧 Optional tools (add env vars to enable): starship, atuin"
+    echo "  if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
+    echo "    export SPARKDOCK_ENABLE_STARSHIP=1  # ✅ Enabled by default"
+    echo "    export SPARKDOCK_ENABLE_FZF=1       # ✅ Enabled by default"
+    echo "    export SPARKDOCK_ENABLE_ATUIN=0     # ⚪ Disabled by default"
+    echo "    source /opt/sparkdock/config/shell/sparkdock.zshrc;"
+    echo "  fi"
+    echo ""
+    echo "📦 Core tools (always enabled): eza, fd, ripgrep, bat, zoxide, oh-my-zsh"
+    echo "🔧 Optional tools (controlled via env vars above): starship, fzf, atuin"
     echo ""
     echo "💡 To see what features and aliases will be available, run:"
     echo "   sjust shell-info"
@@ -85,10 +96,25 @@ shell-enable:
         {
             echo ""
             echo "# Sparkdock shell enhancements"
-            echo "${SPARKDOCK_SOURCE_LINE}"
+            echo "if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
+            echo "  export SPARKDOCK_ENABLE_STARSHIP=1"
+            echo "  export SPARKDOCK_ENABLE_FZF=1"
+            echo "  export SPARKDOCK_ENABLE_ATUIN=0"
+            echo "  source /opt/sparkdock/config/shell/sparkdock.zshrc;"
+            echo "fi"
         } >> "${ZSHRC_FILE}"
         echo "✅ Sparkdock shell enhancements enabled in ${ZSHRC_FILE}"
         echo ""
+
+        # Setup configurations for tools if they will be enabled
+        if command -v starship &> /dev/null && [[ "${HAS_STARSHIP}" == "false" ]]; then
+            sjust shell-starship-setup 2>/dev/null || true
+        fi
+
+        if command -v eza &> /dev/null; then
+            sjust shell-eza-setup 2>/dev/null || true
+        fi
+
         echo "💡 Run 'source ~/.zshrc' or restart your terminal to activate"
     else
         echo "❌ Shell enhancement setup cancelled"
@@ -101,9 +127,9 @@ shell-disable:
     set -euo pipefail
 
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_SOURCE_LINE="if [ -d /opt/sparkdock ]; then source /opt/sparkdock/config/shell/sparkdock.zshrc; fi"
+    SPARKDOCK_CHECK_LINE="if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
 
-    if ! grep -qF "${SPARKDOCK_SOURCE_LINE}" "${ZSHRC_FILE}"; then
+    if ! grep -qF "${SPARKDOCK_CHECK_LINE}" "${ZSHRC_FILE}"; then
         echo "ℹ️  Sparkdock shell enhancements are not enabled in ${ZSHRC_FILE}"
         exit 0
     fi
@@ -111,8 +137,9 @@ shell-disable:
     # Create a backup
     cp "${ZSHRC_FILE}" "${ZSHRC_FILE}.backup"
 
-    # Remove the Sparkdock lines from zshrc
-    sed -i.tmp -e '/# Sparkdock shell enhancements/d' -e "\|${SPARKDOCK_SOURCE_LINE}|d" "${ZSHRC_FILE}"
+    # Remove the entire Sparkdock configuration block from zshrc
+    # This removes the comment line and the entire if block
+    sed -i.tmp -e '/# Sparkdock shell enhancements/,/^fi$/d' "${ZSHRC_FILE}"
     rm -f "${ZSHRC_FILE}.tmp"
 
     echo "✅ Sparkdock shell enhancements disabled from ${ZSHRC_FILE}"
@@ -131,9 +158,9 @@ shell-info:
     echo ""
     echo "🎨 Configuration Status:"
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_SOURCE_LINE="if [ -d /opt/sparkdock ]; then source /opt/sparkdock/config/shell/sparkdock.zshrc; fi"
+    SPARKDOCK_CHECK_LINE="if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
 
-    if [[ -f "${ZSHRC_FILE}" ]] && grep -qF "${SPARKDOCK_SOURCE_LINE}" "${ZSHRC_FILE}"; then
+    if [[ -f "${ZSHRC_FILE}" ]] && grep -qF "${SPARKDOCK_CHECK_LINE}" "${ZSHRC_FILE}"; then
         echo "  ✅ Enabled in ${ZSHRC_FILE}"
     else
         echo "  ❌ Not enabled - Run 'sjust shell-enable' to enable"
@@ -175,6 +202,16 @@ shell-info:
         fi
     else
         echo "  ❌ atuin (not installed)"
+    fi
+
+    if command -v fzf &> /dev/null; then
+        if [[ -n "${SPARKDOCK_ENABLE_FZF:-}" ]]; then
+            echo "  ✅ fzf (ENABLED)"
+        else
+            echo "  ⚙️  fzf (available, set SPARKDOCK_ENABLE_FZF=1 to enable)"
+        fi
+    else
+        echo "  ❌ fzf (not installed)"
     fi
 
     echo ""
@@ -238,13 +275,16 @@ shell-info:
     echo "  h, c            - history, clear"
     echo ""
     echo "💡 Commands:"
-    echo "  sjust shell-enable     - Enable shell enhancements"
-    echo "  sjust shell-omz-setup         - Install oh-my-zsh and plugins"
+    echo "  sjust shell-enable             - Enable shell enhancements"
+    echo "  sjust shell-omz-setup          - Install oh-my-zsh and plugins"
     echo "  sjust shell-omz-update-plugins - Update oh-my-zsh plugins"
+    echo "  sjust shell-starship-setup     - Setup default Starship config"
+    echo "  sjust shell-eza-setup          - Setup default eza theme"
     echo ""
     echo "🔧 Optional Features (add to ~/.zshrc before sourcing):"
-    echo "  export SPARKDOCK_ENABLE_STARSHIP=1  - Enable starship"
-    echo "  export SPARKDOCK_ENABLE_ATUIN=1     - Enable atuin"
+    echo "  export SPARKDOCK_ENABLE_STARSHIP=1  - Enable starship prompt"
+    echo "  export SPARKDOCK_ENABLE_FZF=1       - Enable fzf fuzzy finder"
+    echo "  export SPARKDOCK_ENABLE_ATUIN=1     - Enable atuin history sync"
     echo ""
     echo "📚 Configuration:"
     echo "  /opt/sparkdock/config/shell/sparkdock.zshrc"
@@ -451,3 +491,55 @@ shell-omz-update-plugins:
     echo ""
     echo "✅ All plugins updated!"
     echo "💡 Restart your shell or run 'source ~/.zshrc' to apply updates"
+
+# Setup Starship prompt configuration.
+[group('shell')]
+shell-starship-setup:
+    #!/usr/bin/env bash
+
+    # Source shared utilities
+    source /opt/sparkdock/sjust/libs/libshell.sh
+
+    STARSHIP_CONFIG="${HOME}/.config/starship.toml"
+    SPARKDOCK_STARSHIP_CONFIG="/opt/sparkdock/config/shell/config/starship/starship.toml"
+
+    # Check current status
+    check_sparkdock_symlink "${STARSHIP_CONFIG}" "${SPARKDOCK_STARSHIP_CONFIG}"
+    status=$?
+
+    if [[ ${status} -ne 2 ]]; then
+        print_config_status "starship" "${status}" "${STARSHIP_CONFIG}" "${SPARKDOCK_STARSHIP_CONFIG}" "config at ~/.config/starship.toml"
+        exit 0
+    fi
+
+    echo "📦 Setting up default Starship configuration..."
+    mkdir -p "${HOME}/.config"
+    ln -sf "${SPARKDOCK_STARSHIP_CONFIG}" "${STARSHIP_CONFIG}"
+    echo "✅ Default Starship config symlinked to ${STARSHIP_CONFIG}"
+    print_setup_complete "${STARSHIP_CONFIG}" "${SPARKDOCK_STARSHIP_CONFIG}" "See https://starship.rs/config/ for configuration options"
+
+# Setup eza theme configuration.
+[group('shell')]
+shell-eza-setup:
+    #!/usr/bin/env bash
+
+    # Source shared utilities
+    source /opt/sparkdock/sjust/libs/libshell.sh
+
+    EZA_THEME="${HOME}/.config/eza/theme.yml"
+    SPARKDOCK_EZA_THEME="/opt/sparkdock/config/shell/config/eza/theme.yml"
+
+    # Check current status
+    check_sparkdock_symlink "${EZA_THEME}" "${SPARKDOCK_EZA_THEME}"
+
+    status=$?
+    if [[ ${status} -ne 2 ]]; then
+        print_config_status "eza" "${status}" "${EZA_THEME}" "${SPARKDOCK_EZA_THEME}" "theme on ~/.config/eza/theme.yml"
+        exit 0
+    fi
+
+    echo "📦 Setting up default eza theme..."
+    mkdir -p "${HOME}/.config/eza"
+    ln -sf "${SPARKDOCK_EZA_THEME}" "${EZA_THEME}"
+    echo "✅ Default eza theme symlinked to ${EZA_THEME}"
+    print_setup_complete "${EZA_THEME}" "${SPARKDOCK_EZA_THEME}" "Based on Catppuccin color scheme"

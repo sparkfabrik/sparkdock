@@ -104,7 +104,7 @@ check_xcode_issues() {
     # Run brew doctor and capture output
     local brew_doctor_output
     brew_doctor_output=$(brew doctor 2>&1 || true)
-    
+
     # Check for the specific Swift compilation issue mentioned in the GitHub issue
     if echo "${brew_doctor_output}" | grep -q "No Cask quarantine support available.*Swift compilation failed"; then
         print_error "Xcode command line tools issue detected!"
@@ -122,7 +122,7 @@ check_xcode_issues() {
         print_info "Alternatively, manually download them from:"
         echo "  https://developer.apple.com/download/all/"
         echo ""
-        
+
         # Ask user if they want to continue
         echo -n "Do you want to continue with the provisioning anyway? (y/N): "
         read -r response
@@ -133,7 +133,7 @@ check_xcode_issues() {
         echo ""
         return 1
     fi
-    
+
     # Check for other Command Line Tools related issues in brew doctor output
     if echo "${brew_doctor_output}" | grep -qi "command line tools\|xcode-select"; then
         print_warning "Potential Xcode command line tools issue detected in brew doctor output:"
@@ -144,7 +144,7 @@ check_xcode_issues() {
         echo ""
         return 1
     fi
-    
+
     print_success "No Xcode command line tools issues detected."
     return 0
 }
@@ -153,7 +153,7 @@ check_xcode_issues() {
 ensure_python3() {
     if [[ ! -f /opt/homebrew/bin/python3 ]]; then
         print_info "Python3 symlink not found at /opt/homebrew/bin/python3"
-        
+
         # Check if python@3 is installed but not linked
         if brew list python@3 &> /dev/null; then
             print_info "Python is installed but not linked, fixing symlinks..."
@@ -163,7 +163,7 @@ ensure_python3() {
             print_info "Installing Python3..."
             brew install python3
         fi
-        
+
         # Verify python3 symlink is now available
         if [[ ! -f /opt/homebrew/bin/python3 ]]; then
             print_error "Failed to create python3 symlink. Please run: brew link python@3"
@@ -171,6 +171,16 @@ ensure_python3() {
         fi
         print_info "Python3 is now available at /opt/homebrew/bin/python3"
     fi
+}
+
+# Check if we're running in a CI environment
+is_ci_environment() {
+    [[ -n "${CI:-}" ]] || \
+    [[ -n "${GITHUB_ACTIONS:-}" ]] || \
+    [[ -n "${RUNNER_OS:-}" ]] || \
+    [[ -n "${CIRRUS_CI:-}" ]] || \
+    [[ "${HOME}" == "/var/root" ]] || \
+    [[ -n "${ANSIBLE_SUDO_PASSWORD:-}" ]]
 }
 
 # Keep old function name for backward compatibility

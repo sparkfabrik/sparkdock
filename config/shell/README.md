@@ -16,7 +16,7 @@ sjust shell-info                # View status, features, and aliases
 Sparkdock shell configuration is designed to **respect your existing setup**:
 
 - ✅ **Non-intrusive**: Won't override your existing oh-my-zsh configuration
-- ✅ **Prompt-agnostic**: Starship and atuin are opt-in, disabled by default
+- ✅ **Configurable**: Control starship, fzf, and atuin via environment variables
 - ✅ **Plugin-safe**: Won't override your oh-my-zsh plugins array if already configured
 - ✅ **Detection-first**: Checks what's already loaded before initializing
 
@@ -25,40 +25,46 @@ Sparkdock shell configuration is designed to **respect your existing setup**:
 When you source `sparkdock.zshrc`, it intelligently detects your existing configuration:
 
 1. **oh-my-zsh**: Only loads if `$ZSH` is not already set (meaning you haven't loaded it in your `.zshrc`)
-2. **starship**: Disabled by default. Enable by setting `SPARKDOCK_ENABLE_STARSHIP=1` before sourcing sparkdock
-3. **atuin**: Disabled by default. Enable by setting `SPARKDOCK_ENABLE_ATUIN=1` before sourcing sparkdock
-4. **Plugins**: Only sets default plugins if `$plugins` array is empty
+2. **starship**: Enabled by default. Disable by setting `SPARKDOCK_ENABLE_STARSHIP=0` or remove the variable
+3. **fzf**: Enabled by default. Disable by setting `SPARKDOCK_ENABLE_FZF=0` or remove the variable
+4. **atuin**: Disabled by default. Enable by setting `SPARKDOCK_ENABLE_ATUIN=1`
+5. **Plugins**: Only sets default plugins if `$plugins` array is empty
 
-### Enabling Optional Features
+### Controlling Optional Features
 
-Advanced tools like starship and atuin are opt-in. Add these to your `.zshrc` **before** sourcing sparkdock:
+The default configuration (`sjust shell-enable`) enables starship and fzf by default, while atuin is disabled. You can customize this in your `.zshrc` **before** sourcing sparkdock:
 
 ```bash
-# Enable starship prompt (modern, fast, cross-shell prompt)
-export SPARKDOCK_ENABLE_STARSHIP=1
+# Starship prompt (modern, fast, cross-shell prompt) - ENABLED BY DEFAULT
+export SPARKDOCK_ENABLE_STARSHIP=1  # Set to 0 to disable
 
-# Enable atuin history sync (encrypted cloud sync, advanced search, statistics)
-export SPARKDOCK_ENABLE_ATUIN=1
+# fzf fuzzy finder (file search, history, etc.) - ENABLED BY DEFAULT
+export SPARKDOCK_ENABLE_FZF=1        # Set to 0 to disable
+
+# Atuin history sync (encrypted cloud sync, advanced search) - DISABLED BY DEFAULT
+export SPARKDOCK_ENABLE_ATUIN=1      # Set to 1 to enable
 
 source /opt/sparkdock/config/shell/sparkdock.zshrc
 ```
 
-**Why Opt-In?**
+**Default States Explained:**
 
-- **Starship**: You may prefer your existing prompt (powerlevel10k, pure, default zsh, etc.)
-- **Atuin**: Requires account setup, encryption keys, and cloud sync configuration - more complex than basic fzf history search
+- **Starship**: Enabled by default - provides a modern, fast prompt that works well for most users
+- **fzf**: Enabled by default - essential for fuzzy file finding and history search
+- **Atuin**: Disabled by default - requires account setup, encryption keys, and cloud sync configuration
 
 ## Files
 
 - **`sparkdock.zshrc`** - Main entry point (source this from your .zshrc)
 - **`omz-init.zsh`** - Oh-my-zsh configuration (only loaded if needed)
 - **`aliases.zsh`** - Modern command aliases
-- **`init.zsh`** - Tool initializations (zoxide, fzf, starship, atuin)
+- **`init.zsh`** - Tool initializations (zoxide, starship, fzf, atuin)
 
 ## Features
 
-**Core Tools (auto-enabled):** eza, fd, ripgrep, bat, fzf, zoxide
-**Optional Tools (opt-in):** starship, atuin
+**Core Tools (always enabled):** eza, fd, ripgrep, bat, zoxide
+**Enabled by Default:** starship, fzf
+**Disabled by Default:** atuin
 **Oh-My-Zsh Plugins:** zsh-autosuggestions, zsh-syntax-highlighting, zsh-completions, ssh-agent
 
 **View all information:** `sjust shell-info`
@@ -75,9 +81,10 @@ source /opt/sparkdock/config/shell/sparkdock.zshrc
 Create `~/.config/spark/shell.zsh` for personal customizations:
 
 ```bash
-# Enable optional features (set before sourcing sparkdock in .zshrc)
-export SPARKDOCK_ENABLE_STARSHIP=1
-export SPARKDOCK_ENABLE_ATUIN=1
+# Control optional features (set before sourcing sparkdock in .zshrc)
+export SPARKDOCK_ENABLE_STARSHIP=1  # Enabled by default
+export SPARKDOCK_ENABLE_FZF=1       # Enabled by default
+export SPARKDOCK_ENABLE_ATUIN=1     # Disabled by default - set to 1 to enable
 
 # Custom aliases
 alias myproject='cd ~/projects/myproject'
@@ -103,7 +110,8 @@ See [EXAMPLES.md](EXAMPLES.md) for comprehensive usage examples.
 **Tools not working:** Run `sjust shell-info` to check installation status
 **Reload shell:** `source ~/.zshrc` or restart terminal
 **Missing packages:** Run `sparkdock` to provision all tools
-**Starship not loading:** Starship is disabled by default, set `SPARKDOCK_ENABLE_STARSHIP=1` to enable
+**Starship not loading:** Check if `SPARKDOCK_ENABLE_STARSHIP=1` is set (enabled by default with shell-enable)
+**fzf not loading:** Check if `SPARKDOCK_ENABLE_FZF=1` is set (enabled by default with shell-enable)
 **Atuin not loading:** Atuin is disabled by default, set `SPARKDOCK_ENABLE_ATUIN=1` to enable
 **oh-my-zsh conflicts:** Sparkdock uses your existing oh-my-zsh configuration by default
 
@@ -115,10 +123,10 @@ See [EXAMPLES.md](EXAMPLES.md) for comprehensive usage examples.
 2. init.zsh:
    - fpath setup
    - **oh-my-zsh** (calls compinit - must be first!)
-   - **fzf** (requires compinit to be initialized)
+   - **fzf** (requires compinit - ENABLED BY DEFAULT via SPARKDOCK_ENABLE_FZF=1)
    - **zoxide** (directory navigation)
-   - **starship** (prompt - OPTIONAL, requires SPARKDOCK_ENABLE_STARSHIP=1)
-   - **atuin** (history - OPTIONAL, requires SPARKDOCK_ENABLE_ATUIN=1)
+   - **starship** (prompt - ENABLED BY DEFAULT via SPARKDOCK_ENABLE_STARSHIP=1)
+   - **atuin** (history - DISABLED BY DEFAULT, requires SPARKDOCK_ENABLE_ATUIN=1)
 3. aliases.zsh (command aliases)
 4. ~/.config/spark/shell.zsh (user customizations)
 
@@ -132,14 +140,16 @@ See [EXAMPLES.md](EXAMPLES.md) for comprehensive usage examples.
 **Conditional Loading Logic:**
 
 - **oh-my-zsh**: Loaded only if `$ZSH` is not set (not already initialized)
-- **starship**: Loaded only if `SPARKDOCK_ENABLE_STARSHIP=1` is set
-- **atuin**: Loaded only if `SPARKDOCK_ENABLE_ATUIN=1` is set
+- **fzf**: Loaded only if `SPARKDOCK_ENABLE_FZF` is set (enabled by default in shell-enable)
+- **starship**: Loaded only if `SPARKDOCK_ENABLE_STARSHIP` is set (enabled by default in shell-enable)
+- **atuin**: Loaded only if `SPARKDOCK_ENABLE_ATUIN=1` is set (disabled by default)
 - **plugins**: Set only if `$plugins` array is empty (respects user configuration)
 
 **Environment Variables:**
 
 - `SPARKDOCK_SHELL_LOADED=1` - Prevents double-loading
-- `SPARKDOCK_ENABLE_STARSHIP=1` - Enable starship prompt (opt-in)
-- `SPARKDOCK_ENABLE_ATUIN=1` - Enable atuin history sync (opt-in)
+- `SPARKDOCK_ENABLE_STARSHIP=1` - Enable starship prompt (enabled by default)
+- `SPARKDOCK_ENABLE_FZF=1` - Enable fzf fuzzy finder (enabled by default)
+- `SPARKDOCK_ENABLE_ATUIN=1` - Enable atuin history sync (disabled by default)
 - `FZF_*` variables - Configure fzf with fd and bat integration
 - `DISABLE_LS_COLORS=true` - Avoid conflicts with eza

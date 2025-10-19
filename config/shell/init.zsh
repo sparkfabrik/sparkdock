@@ -7,6 +7,9 @@ command_exists() {
   command -v "$1" &> /dev/null
 }
 
+# Homebrew prefix on macOS
+HOMEBREW_PREFIX="/opt/homebrew"
+
 # Add local zsh functions directory to fpath.
 if [[ -d ~/.local/share/zsh/site-functions ]]; then
   fpath+=~/.local/share/zsh/site-functions
@@ -21,11 +24,8 @@ if [[ -d "$HOME/.oh-my-zsh" ]] && [[ -z "$ZSH" ]] && [[ -f "${SPARKDOCK_SHELL_DI
   source "${SPARKDOCK_SHELL_DIR}/omz-init.zsh"
 fi
 
-# Initialize fzf AFTER oh-my-zsh (which calls compinit)
-# Skip if atuin is enabled to avoid conflicts with history search
-if command_exists fzf && [[ -z "$SPARKDOCK_ENABLE_ATUIN" ]]; then
-  # Homebrew prefix on macOS
-  HOMEBREW_PREFIX="/opt/homebrew"
+# Initialize fzf.
+if [[ -n "$SPARKDOCK_ENABLE_FZF" ]] && command_exists fzf; then
 
   # Source fzf key bindings
   if [[ -f "${HOMEBREW_PREFIX}/opt/fzf/shell/key-bindings.zsh" ]]; then
