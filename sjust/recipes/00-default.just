@@ -580,30 +580,6 @@ shell-aliases-help:
     echo "=========================================="
 
 # Setup oh-my-zsh and zsh plugins.
-[group('shell')]
-shell-setup-omz:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    echo "=========================================="
-    echo "Setting up oh-my-zsh and zsh plugins"
-    echo "=========================================="
-    echo ""
-
-    # Install oh-my-zsh if not already installed
-    if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
-        echo "📦 Installing oh-my-zsh..."
-        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
-        echo "✅ oh-my-zsh installed"
-    else
-        echo "✅ oh-my-zsh already installed"
-    fi
-
-    # Create plugins directory
-    PLUGINS_DIR="${HOME}/.config/spark/zsh-plugins"
-    mkdir -p "${PLUGINS_DIR}"
-    echo ""
-
     # Install zsh-completions
     if [[ -d "${PLUGINS_DIR}/zsh-completions" ]]; then
         echo "📦 Updating zsh-completions..."
