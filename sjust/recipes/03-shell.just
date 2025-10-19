@@ -6,7 +6,7 @@ shell-enable:
     set -euo pipefail
 
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_SOURCE_LINE="source /opt/sparkdock/config/shell/sparkdock.zshrc"
+    SPARKDOCK_SOURCE_LINE="if [ -d /opt/sparkdock ]; then source /opt/sparkdock/config/shell/sparkdock.zshrc; fi"
 
     # Create zshrc if it doesn't exist
     touch "${ZSHRC_FILE}"
@@ -101,7 +101,7 @@ shell-disable:
     set -euo pipefail
 
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_SOURCE_LINE="source /opt/sparkdock/config/shell/sparkdock.zshrc"
+    SPARKDOCK_SOURCE_LINE="if [ -d /opt/sparkdock ]; then source /opt/sparkdock/config/shell/sparkdock.zshrc; fi"
 
     if ! grep -qF "${SPARKDOCK_SOURCE_LINE}" "${ZSHRC_FILE}"; then
         echo "ℹ️  Sparkdock shell enhancements are not enabled in ${ZSHRC_FILE}"
@@ -131,7 +131,7 @@ shell-info:
     echo ""
     echo "🎨 Configuration Status:"
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_SOURCE_LINE="source /opt/sparkdock/config/shell/sparkdock.zshrc"
+    SPARKDOCK_SOURCE_LINE="if [ -d /opt/sparkdock ]; then source /opt/sparkdock/config/shell/sparkdock.zshrc; fi"
 
     if [[ -f "${ZSHRC_FILE}" ]] && grep -qF "${SPARKDOCK_SOURCE_LINE}" "${ZSHRC_FILE}"; then
         echo "  ✅ Enabled in ${ZSHRC_FILE}"
