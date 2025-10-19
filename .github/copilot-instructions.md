@@ -148,19 +148,22 @@ Do this:
 
 **When updating shell aliases in `config/shell/aliases.zsh`:**
 
-- Update the `shell-aliases-help` command in `sjust/recipes/00-default.just` to reflect changes
+- Update the `shell-info` command in `sjust/recipes/03-shell.just` to reflect changes
 - Keep the alias list organized by category (File & Directory, Search & Find, Docker, Git, Kubernetes, System)
-- Include descriptions and practical usage tips
-- Test that the help output remains clear and accurate
+- Keep information concise - `shell-info` combines status, features, and aliases in one streamlined output
 
-**Categories to maintain:**
+**Shell commands structure:**
+
+- `shell-info` - Single comprehensive command showing status, tools, features, and aliases
+- `shell-enable` - Enable shell enhancements (points users to shell-info for details)
+- `shell-disable` - Disable shell enhancements
+- `shell-setup-omz` - Install oh-my-zsh and plugins
+
+**Categories to maintain in shell-info:**
+
 - 📁 File & Directory Navigation
-- 🔍 Search & Find
-- 📄 File Viewing
-- 🐳 Docker
-- 🔧 Git
-- ☸️  Kubernetes
-- 🔧 System
+- 🔍 Search & Tools
+- 🐳 Docker | 🔧 Git | ☸️ Kubernetes
 
 ## Changelog
 

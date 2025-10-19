@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 # Sparkdock Oh-My-Zsh Configuration
 # This file configures oh-my-zsh with Sparkdock defaults
-# Source this before initializing starship
+# Only sourced if oh-my-zsh is not already initialized by user's .zshrc
 
 # Configure oh-my-zsh paths
 export ZSH="$HOME/.oh-my-zsh"
@@ -17,19 +17,14 @@ export ZSH_AUTOSUGGEST_USE_ASYNC=1
 # Configure completion styles
 zstyle ':completion:*:*:make:*' tag-order 'targets'
 
-# Enable plugins
-plugins=(zsh-syntax-highlighting zsh-autosuggestions ssh-agent)
+# Only set plugins if they haven't been configured by the user already
+# This respects user's existing plugin configuration
+if [[ -z "$plugins" ]]; then
+  plugins=(zsh-syntax-highlighting zsh-autosuggestions ssh-agent)
+fi
 
 # Source oh-my-zsh
 if [[ -f "$ZSH/oh-my-zsh.sh" ]]; then
   source "$ZSH/oh-my-zsh.sh"
 fi
 
-# Initialize completion system
-autoload -Uz compinit
-compinit
-
-# Add local zsh functions directory to fpath
-if [[ -d ~/.local/share/zsh/site-functions ]]; then
-  fpath+=~/.local/share/zsh/site-functions
-fi

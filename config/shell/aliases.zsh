@@ -7,6 +7,24 @@ command_exists() {
   command -v "$1" &> /dev/null
 }
 
+# Initialize thefuck (command correction)
+if command_exists thefuck; then
+  eval "$(thefuck --alias)"
+fi
+
+# check if fzf is installed for fuzzy finding.
+if command_exists fzf; then
+  alias f='fzf'
+  alias fs='fzf --preview "bat --style=numbers --color=always {}"'
+fi
+
+# Replace cd with zd if zoxide is installed for smarter directory navigation.
+if command_exists zd; then
+  alias cd='zd'
+  # keep original cd available as ccd
+  alias ccd='zd'
+fi
+
 # Modern replacements for classic commands
 # eza - modern replacement for ls with colors and icons
 if command_exists eza; then
@@ -36,6 +54,7 @@ fi
 # ripgrep - modern replacement for grep
 if command_exists rg; then
   alias grep='rg'
+  alias ggrep='grep'
 fi
 
 # bat - modern replacement for cat with syntax highlighting
