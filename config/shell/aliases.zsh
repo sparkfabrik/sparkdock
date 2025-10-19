@@ -38,20 +38,17 @@ fi
 # eza - modern replacement for ls with colors and icons
 if command_exists eza; then
   # bug on macos: https://github.com/eza-community/eza/issues/1224
-  export EZA_CONFIG_DIR="${HOME}/.config/eza"
+  export EZA_CONFIG_DIR=$HOME/.config/eza
   ls() {
-    # Remove -lt and -ltr flags from args (we handle them specially)
-    local filtered_args=("${@//-ltr/}")
+    local filtered_args=("${@[@]//-ltr/}")
     filtered_args=("${filtered_args[@]//-lt/}")
 
     case "$*" in
       *ltr*)
-        # -ltr = oldest first (reversed/ascending)
-        eza -la --icons=auto --sort=modified --reverse "${filtered_args[@]}"
+        eza -la --icons=auto --sort=modified ${filtered_args[@]}
         ;;
       *lt*)
-        # -lt = newest first (descending, eza default)
-        eza -la --icons=auto --sort=modified "${filtered_args[@]}"
+        eza -la --icons=auto --sort=modified --reverse ${filtered_args[@]}
         ;;
       *)
         eza -lh --group-directories-first --icons=auto "$@"
