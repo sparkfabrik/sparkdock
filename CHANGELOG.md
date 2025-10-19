@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed sjust zsh completion file ownership issue where `_sjust` file could be owned by root, causing Ansible task failures
 
 ### Added
+- Add claude code action
 - Added `ensure-python3` command mode to `sparkdock.macos` for checking and fixing Python3 symlink issues (callable via `sparkdock ensure-python3`)
 - Added GitHub Copilot CLI (`@github/copilot`) as a default npm package installation
 
