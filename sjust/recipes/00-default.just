@@ -243,16 +243,28 @@ docker-ps:
 docker-prune:
     @docker system prune -f
 
+# List all sparkdock-managed packages with their categories and descriptions.
+[group('sparkdock')]
+sparkdock-packages package_filter="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bash {{ sparkdock_path }}/sjust/libs/list-packages.sh "{{package_filter}}"
+
+# Alias for sparkdock-packages (short form).
+[group('sparkdock')]
+packages package_filter="":
+    @just sparkdock-packages "{{package_filter}}"
+
 # Install sparkdock ansible tag.
 [group('sparkdock')]
 sparkdock-install-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
     cd {{ sparkdock_path }}
-    
+
     # Ensure Python3 is installed and available at the expected location
     sparkdock ensure-python3
-    
+
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
 
 # Fetch latest Sparkdock updates from git repository without running system configuration. Useful for getting the newest sjust recipes and commands without triggering a full system update.

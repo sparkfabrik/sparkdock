@@ -3,68 +3,241 @@ taps:
 
 # Cloud Tools, Applications, and Fonts
 cask_packages:
-  - docker-desktop
-  - google-cloud-sdk
-  - applite
-  - font-droid-sans-mono-nerd-font
-  - font-inconsolata-nerd-font
-  - font-fira-code-nerd-font
-  - google-chrome
-  - ghostty
-  - git-credential-manager
-  - iterm2
-  - maccy
-  - cameracontroller
-  - visual-studio-code
-  - slack
-  - zoom
-  - monitorcontrol
+  - name: docker-desktop
+    category: Container Tools
+    description: Docker Desktop - Container development platform
+    url: https://www.docker.com/products/docker-desktop/
+  - name: google-cloud-sdk
+    category: Cloud Tools
+    description: Google Cloud SDK - Command-line tools for Google Cloud Platform
+    url: https://cloud.google.com/sdk
+  - name: applite
+    category: System Utilities
+    description: ApplitE - Third-party app installer for macOS
+    url: https://github.com/milanvarady/Applite
+  - name: font-droid-sans-mono-nerd-font
+    category: Fonts
+    description: Droid Sans Mono Nerd Font - Developer font with icons
+    url: https://github.com/ryanoasis/nerd-fonts
+  - name: font-inconsolata-nerd-font
+    category: Fonts
+    description: Inconsolata Nerd Font - Monospace font with icons
+    url: https://github.com/ryanoasis/nerd-fonts
+  - name: font-fira-code-nerd-font
+    category: Fonts
+    description: Fira Code Nerd Font - Monospace font with ligatures
+    url: https://github.com/ryanoasis/nerd-fonts
+  - name: google-chrome
+    category: Browsers
+    description: Google Chrome - Web browser
+    url: https://www.google.com/chrome/
+  - name: ghostty
+    category: Terminal Emulators
+    description: Ghostty - Fast, native terminal emulator
+    url: https://github.com/ghostty-org/ghostty
+  - name: git-credential-manager
+    category: Development Tools
+    description: Git Credential Manager - Secure Git credential storage
+    url: https://github.com/git-ecosystem/git-credential-manager
+  - name: iterm2
+    category: Terminal Emulators
+    description: iTerm2 - Advanced terminal emulator for macOS
+    url: https://iterm2.com/
+  - name: maccy
+    category: Productivity
+    description: Maccy - Clipboard manager
+    url: https://github.com/p0deje/Maccy
+  - name: cameracontroller
+    category: System Utilities
+    description: Camera Controller - Control external camera settings
+    url: https://github.com/Itaybre/CameraController
+  - name: visual-studio-code
+    category: Code Editors
+    description: Visual Studio Code - Code editor with extensions
+    url: https://github.com/microsoft/vscode
+  - name: slack
+    category: Communication
+    description: Slack - Team communication platform
+    url: https://slack.com/
+  - name: zoom
+    category: Communication
+    description: Zoom - Video conferencing application
+    url: https://zoom.us/
+  - name: monitorcontrol
+    category: System Utilities
+    description: MonitorControl - Control external monitor brightness and volume
+    url: https://github.com/MonitorControl/MonitorControl
 
 homebrew_packages:
-  # Cloud Tools
-  - awscli
-  - eza
-  - docker-credential-helper-ecr
-  - kubernetes-cli
-  - k9s
-  - kind
-  - kubectx
-  - skaffold
-  - stern
-  - lima
-  - atuin
-  - bc
-  - btop
-  - fastfetch
-  - gnupg
-  - jless
-  - just
-  - pinentry-mac
-  - mactop
-  - mergiraf
-  - mkcert
-  - nss
-  - thefuck
-  - fzf
-  - navi
-  - jq
-  - yadm
-  - tmate
-  - tmux
-  - watch
-  - openssl@3
-  - koekeishiya/formulae/skhd
-  - imagemagick
-  - mas
-  - gh
-  - glab
-  - "node"
-  - "php@8.2"
-  - golang
-  - gitleaks
-  - uv
-  - yarn
-  - yarn-completion
+  - name: awscli
+    category: Cloud Tools
+    description: AWS CLI - Amazon Web Services command line interface
+    url: https://github.com/aws/aws-cli
+  - name: eza
+    category: Shell Utilities
+    description: eza - Modern replacement for ls with colors and icons
+    url: https://github.com/eza-community/eza
+  - name: docker-credential-helper-ecr
+    category: Cloud Tools
+    description: Docker Credential Helper ECR - AWS ECR authentication
+    url: https://github.com/awslabs/amazon-ecr-credential-helper
+  - name: kubernetes-cli
+    category: Container Tools
+    description: kubectl - Kubernetes command line tool
+    url: https://github.com/kubernetes/kubernetes
+  - name: k9s
+    category: Container Tools
+    description: k9s - Terminal UI for Kubernetes cluster management
+    url: https://github.com/derailed/k9s
+  - name: kind
+    category: Container Tools
+    description: kind - Kubernetes in Docker for local clusters
+    url: https://github.com/kubernetes-sigs/kind
+  - name: kubectx
+    category: Container Tools
+    description: kubectx - Fast way to switch Kubernetes contexts
+    url: https://github.com/ahmetb/kubectx
+  - name: skaffold
+    category: Container Tools
+    description: Skaffold - Local Kubernetes development tool
+    url: https://github.com/GoogleContainerTools/skaffold
+  - name: stern
+    category: Container Tools
+    description: Stern - Multi-pod log tailing for Kubernetes
+    url: https://github.com/stern/stern
+  - name: lima
+    category: Container Tools
+    description: Lima - Linux virtual machines for macOS
+    url: https://github.com/lima-vm/lima
+  - name: atuin
+    category: Shell Utilities
+    description: Atuin - Shell history sync and search
+    url: https://github.com/atuinsh/atuin
+  - name: bc
+    category: System Utilities
+    description: bc - Arbitrary precision calculator
+  - name: btop
+    category: System Monitoring
+    description: btop - Resource monitor with terminal UI
+    url: https://github.com/aristocratos/btop
+  - name: fastfetch
+    category: System Monitoring
+    description: fastfetch - System information tool
+    url: https://github.com/fastfetch-cli/fastfetch
+  - name: gnupg
+    category: Security
+    description: GnuPG - GNU Privacy Guard for encryption
+    url: https://www.gnupg.org/
+  - name: jless
+    category: Text Processing
+    description: jless - JSON viewer for terminal
+    url: https://github.com/PaulJuliusMartinez/jless
+  - name: just
+    category: Development Tools
+    description: just - Command runner similar to make
+    url: https://github.com/casey/just
+  - name: pinentry-mac
+    category: Security
+    description: pinentry-mac - PIN entry dialog for macOS
+    url: https://github.com/GPGTools/pinentry
+  - name: mactop
+    category: System Monitoring
+    description: mactop - Apple Silicon performance monitor
+    url: https://github.com/context-labs/mactop
+  - name: mergiraf
+    category: Development Tools
+    description: mergiraf - Smart Git merge conflict resolver
+    url: https://github.com/mergiraf/mergiraf
+  - name: mkcert
+    category: Development Tools
+    description: mkcert - Local SSL certificate generator
+    url: https://github.com/FiloSottile/mkcert
+  - name: nss
+    category: Security
+    description: NSS - Network Security Services libraries
+    url: https://firefox-source-docs.mozilla.org/security/nss/
+  - name: thefuck
+    category: Shell Utilities
+    description: thefuck - Corrects errors in previous console commands
+    url: https://github.com/nvbn/thefuck
+  - name: fzf
+    category: Shell Utilities
+    description: fzf - Fuzzy finder for command line
+    url: https://github.com/junegunn/fzf
+  - name: navi
+    category: Shell Utilities
+    description: navi - Interactive cheatsheet tool
+    url: https://github.com/denisidoro/navi
+  - name: jq
+    category: Text Processing
+    description: jq - JSON processor for command line
+    url: https://github.com/jqlang/jq
+  - name: yadm
+    category: Development Tools
+    description: yadm - Yet Another Dotfiles Manager
+    url: https://github.com/TheLocehiliosan/yadm
+  - name: tmate
+    category: Terminal Utilities
+    description: tmate - Instant terminal sharing
+    url: https://github.com/tmate-io/tmate
+  - name: tmux
+    category: Terminal Utilities
+    description: tmux - Terminal multiplexer
+    url: https://github.com/tmux/tmux
+  - name: watch
+    category: System Utilities
+    description: watch - Execute program periodically
+  - name: openssl@3
+    category: Security
+    description: OpenSSL 3 - Cryptography and SSL/TLS toolkit
+    url: https://www.openssl.org/
+  - name: koekeishiya/formulae/skhd
+    category: Keyboard Tools
+    description: skhd - Simple hotkey daemon for macOS
+    url: https://github.com/koekeishiya/skhd
+  - name: imagemagick
+    category: Image Processing
+    description: ImageMagick - Image manipulation tools
+    url: https://github.com/ImageMagick/ImageMagick
+  - name: mas
+    category: System Utilities
+    description: mas - Mac App Store command line interface
+    url: https://github.com/mas-cli/mas
+  - name: gh
+    category: Development Tools
+    description: gh - GitHub command line tool
+    url: https://github.com/cli/cli
+  - name: glab
+    category: Development Tools
+    description: glab - GitLab command line tool
+    url: https://github.com/profclems/glab
+  - name: node
+    category: Programming Languages
+    description: Node.js - JavaScript runtime
+    url: https://github.com/nodejs/node
+  - name: php@8.2
+    category: Programming Languages
+    description: PHP 8.2 - Server-side scripting language
+    url: https://www.php.net/
+  - name: golang
+    category: Programming Languages
+    description: Go - Programming language by Google
+    url: https://github.com/golang/go
+  - name: gitleaks
+    category: Security
+    description: Gitleaks - Scan git repos for secrets
+    url: https://github.com/gitleaks/gitleaks
+  - name: uv
+    category: Programming Languages
+    description: uv - Fast Python package installer
+    url: https://github.com/astral-sh/uv
+  - name: yarn
+    category: Package Managers
+    description: Yarn - JavaScript package manager
+    url: https://github.com/yarnpkg/yarn
+  - name: yarn-completion
+    category: Shell Utilities
+    description: Yarn completion - Shell completion for Yarn
 
 linked_packages: []
 

@@ -118,11 +118,33 @@ This workflow:
 View and run available development tasks:
 
 ```bash
-sjust                    # Show available commands
-sjust --list             # List all tasks
-sjust docker-ps          # Show running containers
-sjust system-upgrade     # Update system packages
+sjust                       # Show available commands
+sjust --list                # List all tasks
+sjust packages              # List all Sparkdock-managed packages
+sjust packages docker       # Filter packages by name
+sjust docker-ps             # Show running containers
+sjust system-upgrade        # Update system packages
 sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gcloud-auth-plugin
+```
+
+### Package Management
+
+View all packages managed by Sparkdock with their categories, descriptions, and URLs:
+
+```bash
+sjust packages                    # List all packages
+sjust packages kubernetes         # Filter by name (e.g., kubernetes)
+```
+
+Example output:
+
+```
+Package                             | Category                  | Description                                   | URL
+------------------------------------+---------------------------+-----------------------------------------------+---------------------------------------------------
+kubernetes-cli                      | Container Tools           | kubectl - Kubernetes command line tool        | https://github.com/kubernetes/kubernetes
+docker-desktop                      | Container Tools           | Docker Desktop - Container development pla... | https://www.docker.com/products/docker-desktop/
+awscli                              | Cloud Tools               | AWS CLI - Amazon Web Services command line... | https://github.com/aws/aws-cli
+...
 ```
 
 ### Google Cloud SDK Configuration
