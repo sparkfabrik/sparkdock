@@ -54,14 +54,6 @@ if command_exists eza; then
   alias lta='lt -a'
 fi
 
-# ripgrep - modern replacement for grep
-# Note: We don't override grep by default to avoid breaking scripts
-# Use 'rg' directly for ripgrep, or uncomment below to make grep use ripgrep
-if command_exists rg; then
-  # alias grep='rg'  # Uncomment to override grep
-  alias ggrep='/usr/bin/grep'  # Keep original grep available
-fi
-
 # bat - modern replacement for cat with syntax highlighting
 if command_exists bat; then
   alias cat='bat --style=auto'
