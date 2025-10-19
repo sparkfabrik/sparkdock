@@ -17,13 +17,11 @@ if [[ -f "${SPARKDOCK_SHELL_DIR}/init.zsh" ]]; then
   source "${SPARKDOCK_SHELL_DIR}/init.zsh"
 fi
 
-# Initialize completion system
-autoload -Uz compinit
-compinit
-
-# Add local zsh functions directory to fpath
-if [[ -d ~/.local/share/zsh/site-functions ]]; then
-  fpath+=~/.local/share/zsh/site-functions
+# Initialize completion system only if not already initialized
+# (oh-my-zsh calls compinit, so we guard against double initialization)
+if ! whence -w _complete >/dev/null 2>&1; then
+  autoload -Uz compinit
+  compinit
 fi
 
 # Source shell aliases

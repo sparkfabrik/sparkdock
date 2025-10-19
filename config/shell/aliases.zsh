@@ -18,11 +18,11 @@ if command_exists fzf; then
   alias fs='fzf --preview "bat --style=numbers --color=always {}"'
 fi
 
-# Replace cd with zd if zoxide is installed for smarter directory navigation.
-if command_exists zd; then
-  alias cd='zd'
-  # keep original cd available as ccd
-  alias ccd='zd'
+# zoxide integration is handled in init.zsh via 'eval "$(zoxide init zsh)"'
+# This provides the 'z' command for smart directory jumping
+# We keep the builtin 'cd' available as 'ccd' if needed
+if command_exists zoxide; then
+  alias ccd='builtin cd'
 fi
 
 # Modern replacements for classic commands
@@ -31,15 +31,18 @@ if command_exists eza; then
   # bug on macos: https://github.com/eza-community/eza/issues/1224
   export EZA_CONFIG_DIR="${HOME}/.config/eza"
   ls() {
-    local filtered_args=("${@[@]//-ltr/}")
+    # Remove -lt and -ltr flags from args (we handle them specially)
+    local filtered_args=("${@//-ltr/}")
     filtered_args=("${filtered_args[@]//-lt/}")
 
     case "$*" in
       *ltr*)
-        eza -la --icons=auto --sort=modified "${filtered_args[@]}"
+        # -ltr = oldest first (reversed/ascending)
+        eza -la --icons=auto --sort=modified --reverse "${filtered_args[@]}"
         ;;
       *lt*)
-        eza -la --icons=auto --sort=modified --reverse "${filtered_args[@]}"
+        # -lt = newest first (descending, eza default)
+        eza -la --icons=auto --sort=modified "${filtered_args[@]}"
         ;;
       *)
         eza -lh --group-directories-first --icons=auto "$@"
@@ -52,9 +55,11 @@ if command_exists eza; then
 fi
 
 # ripgrep - modern replacement for grep
+# Note: We don't override grep by default to avoid breaking scripts
+# Use 'rg' directly for ripgrep, or uncomment below to make grep use ripgrep
 if command_exists rg; then
-  alias grep='rg'
-  alias ggrep='grep'
+  # alias grep='rg'  # Uncomment to override grep
+  alias ggrep='/usr/bin/grep'  # Keep original grep available
 fi
 
 # bat - modern replacement for cat with syntax highlighting

@@ -214,6 +214,90 @@ shell-info:
     echo "  ~/.config/spark/shell.zsh (your customizations)"
     echo "=========================================="
 
+# Display all configured shell aliases by category.
+[group('shell')]
+shell-aliases-help:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    cat << 'EOF'
+==========================================
+Sparkdock Shell Aliases Reference
+==========================================
+
+📁 FILE & DIRECTORY LISTING
+  ls              - Modern listing with eza (auto-detects -lt/-ltr flags)
+  ls -lt          - List by time, newest first
+  ls -ltr         - List by time, oldest first (reversed)
+  lsa             - List all files including hidden
+  lt              - Tree view (2 levels deep)
+  lta             - Tree view including hidden files
+
+🚀 DIRECTORY NAVIGATION
+  ..              - Go up one directory (cd ..)
+  ...             - Go up two directories (cd ../..)
+  ....            - Go up three directories (cd ../../..)
+  z <partial>     - Smart jump to frequently used directory (zoxide)
+  ccd             - Original 'cd' command (when zoxide active)
+
+🔍 SEARCH & FIND
+  rg <pattern>    - Fast content search with ripgrep
+  grep            - Original grep (use 'rg' for ripgrep)
+  ggrep           - Force original GNU grep
+  f               - Launch fzf fuzzy finder
+  fs              - fzf with bat preview
+  ff              - Fuzzy file finder with preview (function in sparkdock.zshrc)
+  Ctrl+R          - Fuzzy history search (fzf)
+  Ctrl+T          - Fuzzy file search (fzf)
+
+📄 FILE VIEWING
+  cat <file>      - View file with syntax highlighting (bat)
+  ccat <file>     - Original 'cat' command
+
+🐳 DOCKER
+  dc              - docker-compose
+  dps             - docker ps
+  dpsa            - docker ps -a (all containers)
+  di              - docker images
+
+🔧 GIT
+  gs              - git status
+  gp              - git pull
+  gpush           - git push
+  gc              - git commit
+  gco             - git checkout
+  ga              - git add
+  gd              - git diff
+  gl              - git log --oneline --graph --decorate
+
+☸️  KUBERNETES
+  k               - kubectl
+  kgp             - kubectl get pods
+  kgs             - kubectl get services
+  kgd             - kubectl get deployments
+  kga             - kubectl get all
+  kdp             - kubectl describe pod
+  kds             - kubectl describe service
+  kdd             - kubectl describe deployment
+  kl              - kubectl logs
+  kx              - kubectx (switch context)
+  kn              - kubens (switch namespace)
+
+⚙️  SYSTEM
+  reload          - Reload zsh configuration (exec zsh)
+  path            - Display PATH variable (one per line)
+  h               - history
+  c               - clear
+
+💡 TIPS
+  - All aliases check if the underlying command exists before activating
+  - Original commands preserved with 'c' prefix (ccat, ccd) or 'g' prefix (ggrep)
+  - Use 'sjust shell-info' to see which tools are installed
+  - Customize via ~/.config/spark/shell.zsh
+
+==========================================
+EOF
+
 # Setup oh-my-zsh and zsh plugins.
 [group('shell')]
 shell-setup-omz:
@@ -245,7 +329,23 @@ shell-setup-omz:
             echo ""
         fi
         echo "📦 Installing oh-my-zsh..."
-        sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" "" --unattended
+
+        # Download installer with integrity verification
+        OMZ_INSTALL_SCRIPT="/tmp/omz-install-$$.sh"
+        echo "📥 Downloading oh-my-zsh installer..."
+        curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -o "${OMZ_INSTALL_SCRIPT}"
+
+        # Show checksum for verification
+        echo "🔐 Installer SHA256 checksum:"
+        shasum -a 256 "${OMZ_INSTALL_SCRIPT}"
+        echo ""
+        echo "💡 You can verify this checksum at: https://github.com/ohmyzsh/ohmyzsh"
+        echo ""
+
+        # Execute the installer
+        sh "${OMZ_INSTALL_SCRIPT}" --unattended
+        rm -f "${OMZ_INSTALL_SCRIPT}"
+
         echo "✅ oh-my-zsh installed"
     else
         echo "✅ oh-my-zsh already installed"
