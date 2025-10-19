@@ -96,6 +96,55 @@ When modifying shell configurations, consider these scenarios:
 - User who wants to disable specific features
 - Double-sourcing protection
 
+## Just Recipe Parameters for Shell Commands
+
+When creating or modifying shell recipes in `sjust/recipes/03-shell.just`, follow these Just-specific patterns:
+
+### Parameter Syntax
+
+Just recipes accept **positional arguments only**, not `parameter=value` syntax:
+
+```bash
+# ✅ Correct
+sjust shell-enable force
+
+# ❌ Wrong - This passes "force=true" as the literal string value
+sjust shell-enable force=true
+```
+
+### Exporting Parameters in Shebang Recipes
+
+For bash shebang recipes (`#!/usr/bin/env bash`), prefix parameters with `$` to export them as environment variables:
+
+```just
+shell-enable $force="false":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    # $force is available as environment variable (no interpolation needed)
+    if [[ "${force}" == "force" ]]; then
+        echo "Force enabled"
+    fi
+```
+
+**Key Points:**
+
+- `$param` prefix exports the parameter as an environment variable
+- No need for `{{param}}` interpolation in shebang recipes
+- Parameters are passed positionally: `sjust recipe-name value1 value2`
+- Default values in quotes: `$param="default"`
+
+### Alternative: Interpolation Without Export
+
+Without the `$` prefix, use `{{param}}` interpolation (but this only works in recipe command lines, not in bash conditionals within shebang recipes):
+
+```just
+simple-recipe param="default":
+    echo "Value is {{param}}"  # Works in recipe lines
+```
+
+For shebang recipes with bash conditionals, **always use `$` prefix** to export as environment variables.
+
 ## Related Files
 
 - `config/shell/sparkdock.zshrc` - Main entry point with guard

@@ -202,4 +202,9 @@ if [[ "$NON_INTERACTIVE" != "true" ]]; then
   echo ""
 fi
 
+## Configure shell.
+if [[ "$NON_INTERACTIVE" != "true" ]]; then
+    sjust shell-enable
+fi
+
 print "Thanks for installing sparkdock, enjoy a dockerized world!"

@@ -73,6 +73,31 @@ sjust --list
 make install-sjust
 ```
 
+**Important: Just Recipe Parameters**
+
+Just recipes use **positional arguments**, not `parameter=value` syntax:
+
+```bash
+# ✅ Correct: positional arguments
+sjust shell-enable force
+
+# ❌ Wrong: parameter=value syntax doesn't work
+sjust shell-enable force=true
+```
+
+**Exporting Parameters as Environment Variables:**
+
+Prefix parameters with `$` to export them as environment variables in shebang recipes:
+
+```just
+my-recipe $param="default":
+    #!/usr/bin/env bash
+    # $param is now available as environment variable
+    echo "Value: ${param}"
+```
+
+Without the `$` prefix, parameters require `{{param}}` interpolation in recipe lines.
+
 ### HTTP Proxy Management
 ```bash
 spark-http-proxy start           # Start proxy services

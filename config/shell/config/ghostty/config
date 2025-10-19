@@ -1,0 +1,25 @@
+### DO NOT TOUCH THIS FILE, IT IS MANAGED BY SPARKDOCK.
+## TO MAKE CHANGES, JUST REMOVE THE SYMLINK AND CREATE YOUR OWN FILES.
+## BE AWARE THAT ONCE YOU REMOVE THE SYMLINK, SPARKDOCK WILL NOT MANAGE THIS FILE ANYMORE.
+
+# Appearance
+theme = catppuccin-mocha
+background-opacity = 0.98
+window-padding-balance = true
+app-notifications = no-clipboard-copy
+
+# Fonts
+font-thicken = true
+font-size = 16
+
+# Usage
+quit-after-last-window-closed = true
+copy-on-select = clipboard
+confirm-close-surface = false
+mouse-scroll-multiplier = 2
+
+# Keybindings
+keybind = ctrl+shift+n=new_window
+keybind = cmd+c=copy_to_clipboard
+keybind = cmd+v=paste_from_clipboard
+keybind = shift+enter=text:\n
