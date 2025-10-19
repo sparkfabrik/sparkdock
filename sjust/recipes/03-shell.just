@@ -296,8 +296,8 @@ shell-omz-setup:
         echo "💡 You can verify this checksum at: https://github.com/ohmyzsh/ohmyzsh"
         echo ""
 
-        # Execute the installer
-        sh "${OMZ_INSTALL_SCRIPT}" --unattended
+        # Execute the installer with KEEP_ZSHRC to preserve user's .zshrc
+        KEEP_ZSHRC=yes sh "${OMZ_INSTALL_SCRIPT}" --unattended
         rm -f "${OMZ_INSTALL_SCRIPT}"
 
         echo "✅ oh-my-zsh installed"
