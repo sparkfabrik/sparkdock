@@ -424,50 +424,6 @@ sparkdock-menubar-stop:
     echo "✅ Sparkdock menu bar app stopped successfully"
 
 # Enable Sparkdock shell enhancements in your zshrc.
-[group('shell')]
-shell-enable:
-    #!/usr/bin/env bash
-    set -euo pipefail
-
-    ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_SOURCE_LINE="source /opt/sparkdock/config/shell/sparkdock.zshrc"
-
-    # Create zshrc if it doesn't exist
-    touch "${ZSHRC_FILE}"
-
-    # Check if already enabled
-    if grep -qF "${SPARKDOCK_SOURCE_LINE}" "${ZSHRC_FILE}"; then
-        echo "ℹ️  Sparkdock shell enhancements are already enabled in ${ZSHRC_FILE}"
-        exit 0
-    fi
-
-    echo ""
-    echo "This will add the following line to ${ZSHRC_FILE}:"
-    echo "  ${SPARKDOCK_SOURCE_LINE}"
-    echo ""
-    echo "This enables modern shell tools and aliases including:"
-    echo "  - eza (modern ls with icons)"
-    echo "  - fd (modern find)"
-    echo "  - ripgrep (modern grep)"
-    echo "  - bat (modern cat with syntax highlighting)"
-    echo "  - fzf (fuzzy finder with Ctrl+R history search)"
-    echo "  - zoxide (smarter cd)"
-    echo ""
-
-    read -p "Do you want to enable Sparkdock shell enhancements? (y/n) " -n 1 -r
-    echo
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        {
-            echo ""
-            echo "# Sparkdock shell enhancements"
-            echo "${SPARKDOCK_SOURCE_LINE}"
-        } >> "${ZSHRC_FILE}"
-        echo "✅ Sparkdock shell enhancements enabled in ${ZSHRC_FILE}"
-        echo "💡 Run 'source ~/.zshrc' or restart your terminal to activate"
-    else
-        echo "❌ Shell enhancement setup cancelled"
-    fi
-
 # Disable Sparkdock shell enhancements from your zshrc.
 [group('shell')]
 shell-disable:
