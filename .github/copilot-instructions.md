@@ -161,7 +161,8 @@ Do this:
 - `shell-info` - Single comprehensive command showing status, tools, features, and aliases
 - `shell-enable` - Enable shell enhancements (points users to shell-info for details)
 - `shell-disable` - Disable shell enhancements
-- `shell-setup-omz` - Install oh-my-zsh and plugins
+- `shell-omz-setup` - Install oh-my-zsh and plugins
+- `shell-omz-update-plugins` - Update oh-my-zsh plugins
 
 **Categories to maintain in shell-info:**
 

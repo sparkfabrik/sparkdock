@@ -142,7 +142,7 @@ shell-info:
     if [[ -d "$HOME/.oh-my-zsh" ]]; then
         echo "  ✅ oh-my-zsh installed"
     else
-        echo "  ❌ oh-my-zsh not installed - Run 'sjust shell-setup-omz'"
+        echo "  ❌ oh-my-zsh not installed - Run 'sjust shell-omz-setup'"
     fi
 
     echo ""
@@ -239,7 +239,8 @@ shell-info:
     echo ""
     echo "💡 Commands:"
     echo "  sjust shell-enable     - Enable shell enhancements"
-    echo "  sjust shell-setup-omz  - Install oh-my-zsh and plugins"
+    echo "  sjust shell-omz-setup         - Install oh-my-zsh and plugins"
+    echo "  sjust shell-omz-update-plugins - Update oh-my-zsh plugins"
     echo ""
     echo "🔧 Optional Features (add to ~/.zshrc before sourcing):"
     echo "  export SPARKDOCK_ENABLE_STARSHIP=1  - Enable starship"
@@ -253,7 +254,7 @@ shell-info:
 
 # Setup oh-my-zsh and zsh plugins.
 [group('shell')]
-shell-setup-omz:
+shell-omz-setup:
     #!/usr/bin/env bash
     set -euo pipefail
 
@@ -391,3 +392,62 @@ shell-setup-omz:
         echo "Plugins are automatically enabled when you source sparkdock.zshrc"
         echo "Configuration is in: /opt/sparkdock/config/shell/omz-init.zsh"
     fi
+
+# Update oh-my-zsh plugins.
+[group('shell')]
+shell-omz-update-plugins:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    PLUGINS_DIR="${HOME}/.config/spark/zsh-plugins"
+
+    if [[ ! -d "${PLUGINS_DIR}" ]]; then
+        echo "❌ Plugins directory not found: ${PLUGINS_DIR}"
+        echo "💡 Run 'sjust shell-omz-setup' first to install plugins"
+        exit 1
+    fi
+
+    echo "=========================================="
+    echo "Updating oh-my-zsh plugins"
+    echo "=========================================="
+    echo ""
+
+    # Update zsh-completions
+    if [[ -d "${PLUGINS_DIR}/zsh-completions" ]]; then
+        echo "📦 Updating zsh-completions..."
+        git -C "${PLUGINS_DIR}/zsh-completions" pull --quiet
+        echo "✅ zsh-completions updated"
+    else
+        echo "⚠️  zsh-completions not found, installing..."
+        git clone --quiet https://github.com/zsh-users/zsh-completions "${PLUGINS_DIR}/zsh-completions"
+        ln -sf "${PLUGINS_DIR}/zsh-completions" "$HOME/.oh-my-zsh/custom/plugins/zsh-completions"
+        echo "✅ zsh-completions installed"
+    fi
+
+    # Update zsh-autosuggestions
+    if [[ -d "${PLUGINS_DIR}/zsh-autosuggestions" ]]; then
+        echo "📦 Updating zsh-autosuggestions..."
+        git -C "${PLUGINS_DIR}/zsh-autosuggestions" pull --quiet
+        echo "✅ zsh-autosuggestions updated"
+    else
+        echo "⚠️  zsh-autosuggestions not found, installing..."
+        git clone --quiet https://github.com/zsh-users/zsh-autosuggestions "${PLUGINS_DIR}/zsh-autosuggestions"
+        ln -sf "${PLUGINS_DIR}/zsh-autosuggestions" "$HOME/.oh-my-zsh/custom/plugins/zsh-autosuggestions"
+        echo "✅ zsh-autosuggestions installed"
+    fi
+
+    # Update zsh-syntax-highlighting
+    if [[ -d "${PLUGINS_DIR}/zsh-syntax-highlighting" ]]; then
+        echo "📦 Updating zsh-syntax-highlighting..."
+        git -C "${PLUGINS_DIR}/zsh-syntax-highlighting" pull --quiet
+        echo "✅ zsh-syntax-highlighting updated"
+    else
+        echo "⚠️  zsh-syntax-highlighting not found, installing..."
+        git clone --quiet https://github.com/zsh-users/zsh-syntax-highlighting "${PLUGINS_DIR}/zsh-syntax-highlighting"
+        ln -sf "${PLUGINS_DIR}/zsh-syntax-highlighting" "$HOME/.oh-my-zsh/custom/plugins/zsh-syntax-highlighting"
+        echo "✅ zsh-syntax-highlighting installed"
+    fi
+
+    echo ""
+    echo "✅ All plugins updated!"
+    echo "💡 Restart your shell or run 'source ~/.zshrc' to apply updates"

@@ -155,8 +155,9 @@ Sparkdock provides a modern shell experience with oh-my-zsh, starship prompt, an
 **Setup:**
 
 ```bash
-sjust shell-setup-omz    # Install oh-my-zsh and zsh plugins
-sjust shell-enable       # Add Sparkdock config to your ~/.zshrc
+sjust shell-omz-setup           # Install oh-my-zsh and zsh plugins
+sjust shell-omz-update-plugins  # Update oh-my-zsh plugins
+sjust shell-enable              # Add Sparkdock config to your ~/.zshrc
 ```
 
 **Discover Available Tools & Aliases:**

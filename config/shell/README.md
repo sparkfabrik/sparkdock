@@ -5,9 +5,10 @@ This directory contains Sparkdock's modern shell enhancements for zsh with oh-my
 ## Quick Start
 
 ```bash
-sjust shell-setup-omz    # Install oh-my-zsh and plugins
-sjust shell-enable       # Enable shell enhancements
-sjust shell-info         # View status, features, and aliases
+sjust shell-omz-setup           # Install oh-my-zsh and plugins
+sjust shell-omz-update-plugins  # Update oh-my-zsh plugins
+sjust shell-enable              # Enable shell enhancements
+sjust shell-info                # View status, features, and aliases
 ```
 
 ## Seamless Integration Philosophy
