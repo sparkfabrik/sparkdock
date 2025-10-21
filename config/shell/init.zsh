@@ -25,7 +25,7 @@ if [[ -d "$HOME/.oh-my-zsh" ]] && [[ -z "$ZSH" ]] && [[ -f "${SPARKDOCK_SHELL_DI
 fi
 
 # Initialize fzf.
-if [[ -n "$SPARKDOCK_ENABLE_FZF" ]] && command_exists fzf; then
+if [[ "$SPARKDOCK_ENABLE_FZF" == "1" ]] && command_exists fzf; then
 
   # Source fzf key bindings
   if [[ -f "${HOMEBREW_PREFIX}/opt/fzf/shell/key-bindings.zsh" ]]; then
