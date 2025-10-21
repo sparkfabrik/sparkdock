@@ -68,16 +68,9 @@ shell-enable $force="false":
     echo "✅ Sparkdock shell enhancements enabled in ${ZSHRC_FILE}"
     echo ""
 
-    # Setup configurations for tools if they will be enabled
-    if command -v starship &> /dev/null && sparkdock_has_starship "${ZSHRC_FILE}"; then
-        just --justfile "{{justfile()}}" shell-starship-setup 2>/dev/null || true
-    fi
-
-    if command -v eza &> /dev/null; then
-        just --justfile "{{justfile()}}" shell-eza-setup 2>/dev/null || true
-    fi
-
-    # Setup terminal configurations
+    # Setup configurations for tools
+    just --justfile "{{justfile()}}" shell-starship-setup 2>/dev/null || true
+    just --justfile "{{justfile()}}" shell-eza-setup 2>/dev/null || true
     just --justfile "{{justfile()}}" shell-ghostty-setup 2>/dev/null || true
 
     echo "💡 Run 'source ~/.zshrc' or restart your terminal to activate"

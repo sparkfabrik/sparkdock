@@ -207,4 +207,4 @@ if [[ "$NON_INTERACTIVE" != "true" ]]; then
     sjust shell-enable
 fi
 
-print "Thanks for installing sparkdock, enjoy a dockerized world!"
+print "Thanks for installing Sparkdock! Your development environment is ready."
