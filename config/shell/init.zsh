@@ -10,6 +10,11 @@ command_exists() {
 # Homebrew prefix on macOS
 HOMEBREW_PREFIX="/opt/homebrew"
 
+# Default values for optional features (can be overridden before sourcing sparkdock.zshrc)
+: "${SPARKDOCK_ENABLE_STARSHIP:=1}"  # Enabled by default
+: "${SPARKDOCK_ENABLE_FZF:=1}"       # Enabled by default
+: "${SPARKDOCK_ENABLE_ATUIN:=0}"     # Disabled by default
+
 # Add local zsh functions directory to fpath.
 if [[ -d ~/.local/share/zsh/site-functions ]]; then
   fpath+=~/.local/share/zsh/site-functions
@@ -24,7 +29,7 @@ if [[ -d "$HOME/.oh-my-zsh" ]] && [[ -z "$ZSH" ]] && [[ -f "${SPARKDOCK_SHELL_DI
   source "${SPARKDOCK_SHELL_DIR}/omz-init.zsh"
 fi
 
-# Initialize fzf.
+# Initialize fzf (enabled by default, opt-out with SPARKDOCK_ENABLE_FZF=0).
 if [[ "$SPARKDOCK_ENABLE_FZF" == "1" ]] && command_exists fzf; then
 
   # Source fzf key bindings
@@ -55,12 +60,12 @@ if command_exists zoxide; then
   eval "$(zoxide init zsh)"
 fi
 
-# Starship prompt (opt-in via SPARKDOCK_ENABLE_STARSHIP)
+# Starship prompt (enabled by default, opt-out with SPARKDOCK_ENABLE_STARSHIP=0)
 if [[ "$SPARKDOCK_ENABLE_STARSHIP" == "1" ]] && command_exists starship; then
   eval "$(starship init zsh)"
 fi
 
-# Atuin history sync (opt-in via SPARKDOCK_ENABLE_ATUIN)
+# Atuin history sync (disabled by default, opt-in with SPARKDOCK_ENABLE_ATUIN=1)
 if [[ "$SPARKDOCK_ENABLE_ATUIN" == "1" ]] && command_exists atuin; then
   eval "$(atuin init zsh --disable-up-arrow)"
 fi

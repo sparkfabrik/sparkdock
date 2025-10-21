@@ -177,7 +177,6 @@ sparkdock_write_shell_config() {
         printf '    export SPARKDOCK_ENABLE_FZF=%s\n' "${DEFAULT_FZF}"
         printf '    export SPARKDOCK_ENABLE_ATUIN=%s\n' "${DEFAULT_ATUIN}"
         echo "    source /opt/sparkdock/config/shell/sparkdock.zshrc;"
-        echo "    # Set SPARKDOCK_ENABLE_* above this block to change defaults"
         echo "fi"
     } >> "${zshrc_file}"
 }

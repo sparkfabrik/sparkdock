@@ -73,6 +73,7 @@ get_version_info() {
 }
 
 print_banner() {
+
 cat <<"EOF"
 
 
@@ -83,6 +84,17 @@ cat <<"EOF"
      |_|
 
 EOF
+
+    # check if chafa is installed for fancy ASCII art.
+    if command -v chafa &> /dev/null; then
+        # check if terminal supports colors and columns >= 40
+        if [[ $(tput colors) -ge 8 && $(tput cols) -ge 40 ]]; then
+            if [[ -f "$(dirname "$0")/artifacts/sf_logo.png" ]]; then
+                chafa --symbols=block --colors=8 --size=40x20 "$(dirname "$0")/artifacts/sf_logo.png"
+            fi
+        fi
+    fi
+
     print_section "System Information"
     get_version_info
     echo ""

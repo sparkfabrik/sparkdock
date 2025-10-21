@@ -60,7 +60,7 @@ shell-enable $force="false":
     if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
         echo ""
         echo "📦 Installing oh-my-zsh..."
-        sjust shell-omz-setup
+        just --justfile "{{justfile()}}" shell-omz-setup
         echo ""
     fi
 
@@ -70,16 +70,16 @@ shell-enable $force="false":
 
     # Setup configurations for tools if they will be enabled
     if command -v starship &> /dev/null && sparkdock_has_starship "${ZSHRC_FILE}"; then
-        sjust shell-starship-setup 2>/dev/null || true
+        just --justfile "{{justfile()}}" shell-starship-setup 2>/dev/null || true
     fi
 
     if command -v eza &> /dev/null; then
-        sjust shell-eza-setup 2>/dev/null || true
+        just --justfile "{{justfile()}}" shell-eza-setup 2>/dev/null || true
     fi
 
     # Setup terminal configurations
-    sjust shell-alacritty-setup 2>/dev/null || true
-    sjust shell-ghostty-setup 2>/dev/null || true
+    just --justfile "{{justfile()}}" shell-alacritty-setup 2>/dev/null || true
+    just --justfile "{{justfile()}}" shell-ghostty-setup 2>/dev/null || true
 
     echo "💡 Run 'source ~/.zshrc' or restart your terminal to activate"
 
@@ -88,6 +88,7 @@ shell-enable $force="false":
 shell-disable:
     #!/usr/bin/env bash
     set -euo pipefail
+    source "{{justfile_directory()}}/../libs/libshell.sh"
 
     ZSHRC_FILE="${HOME}/.zshrc"
     SPARKDOCK_CHECK_LINE="if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
