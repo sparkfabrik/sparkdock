@@ -3,7 +3,7 @@
 ## BE AWARE THAT ONCE YOU REMOVE THE SYMLINK, SPARKDOCK WILL NOT MANAGE THIS FILE ANYMORE.
 
 # Appearance
-theme = catppuccin-mocha
+theme = Catppuccin Mocha
 background-opacity = 0.98
 window-padding-balance = true
 app-notifications = no-clipboard-copy

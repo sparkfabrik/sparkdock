@@ -5,7 +5,7 @@
 shell-enable $force="false":
     #!/usr/bin/env bash
     set -euo pipefail
-    source "{{justfile_directory()}}/../libs/libshell.sh"
+    source "{{source_directory()}}/../libs/libshell.sh"
 
     ZSHRC_FILE="${HOME}/.zshrc"
     SPARKDOCK_CHECK_LINE="if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
@@ -87,7 +87,7 @@ shell-enable $force="false":
 shell-disable:
     #!/usr/bin/env bash
     set -euo pipefail
-    source "{{justfile_directory()}}/../libs/libshell.sh"
+    source "{{source_directory()}}/../libs/libshell.sh"
 
     ZSHRC_FILE="${HOME}/.zshrc"
     SPARKDOCK_CHECK_LINE="if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
@@ -115,7 +115,7 @@ shell-disable:
 shell-info:
     #!/usr/bin/env bash
     set -euo pipefail
-    source "{{justfile_directory()}}/../libs/libshell.sh"
+    source "{{source_directory()}}/../libs/libshell.sh"
     sparkdock_print_shell_overview "${HOME}/.zshrc" "no"
 
 # Setup oh-my-zsh and zsh plugins.
@@ -233,10 +233,10 @@ shell-eza-setup:
         "theme at ~/.config/eza/theme.yml" \
         "Based on Catppuccin color scheme"
 
-# Generic configuration setup helper (internal use).
+# Generic configuration setup helper.
 _shell-config-setup tool_name config_path sparkdock_path config_description setup_info:
     #!/usr/bin/env bash
-    source "{{justfile_directory()}}/../libs/libshell.sh"
+    source "{{source_directory()}}/../libs/libshell.sh"
 
     USER_CONFIG="{{config_path}}"
     SPARKDOCK_CONFIG="{{sparkdock_path}}"
