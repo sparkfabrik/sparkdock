@@ -77,7 +77,7 @@ print_banner() {
     BANNER_PRINTED=0
     if command -v chafa &> /dev/null; then
         local image_path
-        image_path="$(dirname "$0")/../static/sf_logo.png"
+        image_path="/opt/sparkdock/static/sf_logo.png"
 
         if [[ -f "${image_path}" ]]; then
             if [[ "${TERM_PROGRAM}" == "iTerm.app" ]]; then
