@@ -64,146 +64,110 @@ print_setup_complete() {
     fi
 }
 
-# Print comprehensive shell information
-print_shell_info() {
-    echo "=========================================="
-    echo "Sparkdock Shell Enhancements"
-    echo "=========================================="
-    echo ""
-    echo "🎨 Configuration Status:"
-    local zshrc_file="${HOME}/.zshrc"
-    local sparkdock_check_line="if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
+# Print shared shell enable overview and compute defaults.
+# Arguments:
+#   $1 - Path to user's zshrc
+#   $2 - (optional) Print next steps prompt ("yes" | "no"), defaults to "yes"
+sparkdock_print_shell_overview() {
+    local zshrc_file="$1"
+    local show_next_steps="${2:-yes}"
 
-    if [[ -f "${zshrc_file}" ]] && grep -qF "${sparkdock_check_line}" "${zshrc_file}"; then
-        echo "  ✅ Enabled in ${zshrc_file}"
-    else
-        echo "  ❌ Not enabled - Run 'sjust shell-enable' to enable"
-    fi
+    HAS_OMZ=false
+    HAS_STARSHIP=false
+    HAS_ATUIN=false
+    HAS_FZF=false
 
-    if [[ -d "${HOME}/.oh-my-zsh" ]]; then
-        echo "  ✅ oh-my-zsh installed"
-    else
-        echo "  ❌ oh-my-zsh not installed - Run 'sjust shell-omz-setup'"
-    fi
-
-    echo ""
-    echo "🚀 Modern Tools Status:"
-    for tool in eza fd rg bat fzf zoxide; do
-        if command -v "${tool}" &> /dev/null; then
-            echo "  ✅ ${tool}"
-        else
-            echo "  ❌ ${tool}"
+    if [[ -f "${zshrc_file}" ]]; then
+        if grep -qE "(source.*oh-my-zsh\.sh|ZSH=)" "${zshrc_file}"; then
+            HAS_OMZ=true
         fi
-    done
-
-    echo ""
-    echo "🔧 Optional Tools (require manual enable):"
-    if command -v starship &> /dev/null; then
-        if [[ -n "${SPARKDOCK_ENABLE_STARSHIP:-}" ]]; then
-            echo "  ✅ starship (ENABLED)"
-        else
-            echo "  ⚙️  starship (available, set SPARKDOCK_ENABLE_STARSHIP=1 to enable)"
+        if grep -qE "starship init (zsh|bash)" "${zshrc_file}"; then
+            HAS_STARSHIP=true
         fi
-    else
-        echo "  ❌ starship (not installed)"
+        if grep -qE "atuin init (zsh|bash)" "${zshrc_file}"; then
+            HAS_ATUIN=true
+        fi
+        if grep -qE "(\[ -f.*fzf\.zsh \]|source.*fzf)" "${zshrc_file}"; then
+            HAS_FZF=true
+        fi
     fi
 
-    if command -v atuin &> /dev/null; then
-        if [[ -n "${SPARKDOCK_ENABLE_ATUIN:-}" ]]; then
-            echo "  ✅ atuin (ENABLED)"
-        else
-            echo "  ⚙️  atuin (available, set SPARKDOCK_ENABLE_ATUIN=1 to enable)"
-        fi
-    else
-        echo "  ❌ atuin (not installed)"
-    fi
-
-    if command -v fzf &> /dev/null; then
-        if [[ -n "${SPARKDOCK_ENABLE_FZF:-}" ]]; then
-            echo "  ✅ fzf (ENABLED)"
-        else
-            echo "  ⚙️  fzf (available, set SPARKDOCK_ENABLE_FZF=1 to enable)"
-        fi
-    else
-        echo "  ❌ fzf (not installed)"
-    fi
+    DEFAULT_STARSHIP="1"
+    DEFAULT_FZF="1"
+    DEFAULT_ATUIN="0"
 
     echo ""
-    echo "✨ Key Features:"
-    echo "  • ls/cat → eza/bat (modern replacements)"
-    echo "  • cd → smart zoxide integration with fallback"
-    echo "  • ff → fuzzy file finder | Ctrl+R → history search"
-    echo "  • z <dir> → smart directory jump | .., ..., .... shortcuts"
-    echo "  • Docker, Git, Kubernetes aliases (dc, gs, k, etc.)"
-    echo "  • oh-my-zsh plugins (autosuggestions, syntax highlighting)"
+    echo "╔═══════════════════════════════════════════╗"
+    echo "║  ✨ Sparkdock Shell Enhancement Installer ║"
+    echo "╚═══════════════════════════════════════════╝"
     echo ""
-    echo "=========================================="
-    echo "Available Aliases & Commands"
-    echo "=========================================="
+
+    echo "Included capabilities:"
+    echo "  • Modern aliases: ls→eza, cat→bat, cd→zoxide"
+    echo "  • Toolchain on PATH: fd, ripgrep, oh-my-zsh"
+    echo "  • Optional modules (managed via SPARKDOCK_ENABLE_*):"
+    echo "    - starship prompt — https://starship.rs"
+    echo "    - fzf fuzzy finder — https://github.com/junegunn/fzf"
+    echo "    - atuin history sync — https://atuin.sh"
+    echo "    (override defaults by exporting SPARKDOCK_ENABLE_* before sourcing Sparkdock)"
+    echo "  • Profiles Sparkdock keeps in sync (only if not already present):"
+    echo "    - ~/.config/alacritty/alacritty.toml"
+    echo "    - ~/.config/ghostty/config"
+    echo "    - ~/.config/eza/theme.yml"
+    echo "    - ~/.config/starship.toml (when starship is enabled)"
     echo ""
-    echo "📁 FILE & DIRECTORY:"
-    echo "  ls              - Modern eza listing (detects -lt/-ltr flags)"
-    echo "  ls -lt          - List by time, newest first"
-    echo "  ls -ltr         - List by time, oldest first"
-    echo "  lsa             - List all including hidden"
-    echo "  lt              - Tree view (2 levels)"
-    echo "  lta             - Tree with hidden files"
+
+    echo "Detected shell configuration (${zshrc_file}):"
+    if [[ "${HAS_OMZ}" == "true" ]]; then
+        echo "  • oh-my-zsh: detected — Sparkdock retains your plugin setup"
+    else
+        echo "  • oh-my-zsh: not detected — Sparkdock can initialize it if installed"
+    fi
+
+    if [[ "${HAS_STARSHIP}" == "true" ]]; then
+        DEFAULT_STARSHIP="0"
+        echo "  • starship: detected — Sparkdock skips its prompt initialization"
+    else
+        echo "  • starship: not detected — default SPARKDOCK_ENABLE_STARSHIP=1"
+    fi
+
+    if [[ "${HAS_ATUIN}" == "true" ]]; then
+        DEFAULT_ATUIN="0"
+        DEFAULT_FZF="0"
+        echo "  • atuin: detected — default SPARKDOCK_ENABLE_ATUIN=0"
+        echo "  • fzf: managed by atuin — default SPARKDOCK_ENABLE_FZF=0"
+    else
+        echo "  • atuin: not detected — default SPARKDOCK_ENABLE_ATUIN=0 (set to 1 to enable)"
+    fi
+
+    if [[ "${HAS_FZF}" == "true" ]]; then
+        DEFAULT_FZF="0"
+        echo "  • fzf: detected — existing setup is left untouched"
+    elif [[ "${HAS_ATUIN}" != "true" ]]; then
+        echo "  • fzf: not detected — default SPARKDOCK_ENABLE_FZF=1"
+    fi
+
     echo ""
-    echo "🚀 NAVIGATION:"
-    echo "  cd <path>       - Smart cd (uses zoxide for partial matches)"
-    echo "  ..              - Up one directory"
-    echo "  ...             - Up two directories"
-    echo "  ....            - Up three directories"
-    echo "  z <partial>     - Jump to frequently used directory"
+    echo "Block to be appended to ${zshrc_file}:"
     echo ""
-    echo "🔍 SEARCH:"
-    echo "  ff              - Fuzzy file finder with preview"
-    echo "  rg <pattern>    - Fast ripgrep search"
-    echo "  Ctrl+R          - Fuzzy history search"
-    echo "  Ctrl+T          - Fuzzy file search"
+    echo "if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
+    echo "    export SPARKDOCK_ENABLE_STARSHIP=${DEFAULT_STARSHIP}"
+    echo "    export SPARKDOCK_ENABLE_FZF=${DEFAULT_FZF}"
+    echo "    export SPARKDOCK_ENABLE_ATUIN=${DEFAULT_ATUIN}"
+    echo "    source /opt/sparkdock/config/shell/sparkdock.zshrc;"
+    echo "    # Set SPARKDOCK_ENABLE_* above this block to change defaults"
+    echo "fi"
     echo ""
-    echo "📄 VIEWING:"
-    echo "  cat <file>      - Syntax highlighted view (bat)"
-    echo "  ccat <file>     - Original cat"
+    echo "📚 Reference files:"
+    echo "   • Primary config: /opt/sparkdock/config/shell/sparkdock.zshrc"
+    echo "   • Documentation:  /opt/sparkdock/config/shell/README.md"
     echo ""
-    echo "🐳 DOCKER:"
-    echo "  dc              - docker-compose"
-    echo "  dps, dpsa       - docker ps (all)"
-    echo "  di              - docker images"
+    echo "✏️ Personal overrides (auto-sourced after Sparkdock):"
+    echo "   ~/.config/spark/shell.zsh  — keep custom aliases and exports here"
     echo ""
-    echo "🔧 GIT:"
-    echo "  gs, gp, gpush   - status, pull, push"
-    echo "  gc, gco, ga     - commit, checkout, add"
-    echo "  gd, gl          - diff, log (graph)"
-    echo ""
-    echo "☸️  KUBERNETES:"
-    echo "  k               - kubectl"
-    echo "  kgp, kgs, kgd   - get pods/services/deployments"
-    echo "  kdp, kds, kdd   - describe pod/service/deployment"
-    echo "  kl              - logs"
-    echo "  kx, kn          - kubectx, kubens"
-    echo ""
-    echo "⚙️  SYSTEM:"
-    echo "  reload          - Reload zsh"
-    echo "  path            - Show PATH"
-    echo "  h, c            - history, clear"
-    echo ""
-    echo "💡 Commands:"
-    echo "  sjust shell-enable             - Enable shell enhancements"
-    echo "  sjust shell-omz-setup          - Install oh-my-zsh and plugins"
-    echo "  sjust shell-starship-setup     - Setup default Starship config"
-    echo "  sjust shell-eza-setup          - Setup default eza theme"
-    echo "  sjust shell-alacritty-setup    - Setup default Alacritty config"
-    echo "  sjust shell-ghostty-setup      - Setup default Ghostty config"
-    echo ""
-    echo "🔧 Optional Features (add to ~/.zshrc before sourcing):"
-    echo "  export SPARKDOCK_ENABLE_STARSHIP=1  - Enable starship prompt"
-    echo "  export SPARKDOCK_ENABLE_FZF=1       - Enable fzf fuzzy finder"
-    echo "  export SPARKDOCK_ENABLE_ATUIN=1     - Enable atuin history sync"
-    echo ""
-    echo "📚 Configuration:"
-    echo "  /opt/sparkdock/config/shell/sparkdock.zshrc"
-    echo "  /opt/sparkdock/config/shell/README.md"
-    echo "  ~/.config/spark/shell.zsh (customizations)"
-    echo "=========================================="
+    if [[ "${show_next_steps}" == "yes" ]]; then
+        echo "Proceed with installation by pressing “y”, or cancel with “n”."
+        echo "To revisit this summary at any time, run: sjust shell-info"
+        echo ""
+    fi
 }
