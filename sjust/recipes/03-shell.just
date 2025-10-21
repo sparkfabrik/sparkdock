@@ -78,7 +78,6 @@ shell-enable $force="false":
     fi
 
     # Setup terminal configurations
-    just --justfile "{{justfile()}}" shell-alacritty-setup 2>/dev/null || true
     just --justfile "{{justfile()}}" shell-ghostty-setup 2>/dev/null || true
 
     echo "💡 Run 'source ~/.zshrc' or restart your terminal to activate"
@@ -256,16 +255,6 @@ _shell-config-setup tool_name config_path sparkdock_path config_description setu
     ln -sf "${SPARKDOCK_CONFIG}" "${USER_CONFIG}"
     echo "✅ Default {{tool_name}} config symlinked to ${USER_CONFIG}"
     print_setup_complete "${USER_CONFIG}" "${SPARKDOCK_CONFIG}" "{{setup_info}}"
-
-# Setup Alacritty configuration.
-[group('shell')]
-shell-alacritty-setup:
-    @just _shell-config-setup \
-        "alacritty" \
-        "${HOME}/.config/alacritty/alacritty.toml" \
-        "/opt/sparkdock/config/shell/config/alacritty/alacritty.toml" \
-        "config at ~/.config/alacritty/alacritty.toml" \
-        "Based on Catppuccin Mocha theme with JetBrains Mono font"
 
 # Setup Ghostty configuration.
 [group('shell')]

@@ -73,7 +73,24 @@ get_version_info() {
 }
 
 print_banner() {
+    # Display logo only in iTerm2 or Ghostty with pixel-perfect rendering
+    BANNER_PRINTED=0
+    if command -v chafa &> /dev/null; then
+        local image_path
+        image_path="$(dirname "$0")/artifacts/sf_logo.png"
 
+        if [[ -f "${image_path}" ]]; then
+            if [[ "${TERM_PROGRAM}" == "iTerm.app" ]]; then
+                chafa --format=iterm "${image_path}" 2>/dev/null
+                BANNER_PRINTED=1
+            # Ghostty (supports kitty graphics protocol)
+            elif [[ "${TERM_PROGRAM}" == "ghostty" ]] || [[ "${TERM}" == "xterm-kitty" ]] || [[ -n "${KITTY_WINDOW_ID}" ]]; then
+                chafa --format=kitty "${image_path}" 2>/dev/null
+                BANNER_PRINTED=1
+            fi
+        fi
+    fi
+    if [[ "${BANNER_PRINTED}" -eq 0 ]]; then
 cat <<"EOF"
 
 
@@ -84,15 +101,6 @@ cat <<"EOF"
      |_|
 
 EOF
-
-    # check if chafa is installed for fancy ASCII art.
-    if command -v chafa &> /dev/null; then
-        # check if terminal supports colors and columns >= 40
-        if [[ $(tput colors) -ge 8 && $(tput cols) -ge 40 ]]; then
-            if [[ -f "$(dirname "$0")/artifacts/sf_logo.png" ]]; then
-                chafa --symbols=block --colors=8 --size=40x20 "$(dirname "$0")/artifacts/sf_logo.png"
-            fi
-        fi
     fi
 
     print_section "System Information"

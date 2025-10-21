@@ -208,7 +208,6 @@ sparkdock_print_shell_overview() {
     echo "    - atuin history sync — https://atuin.sh"
     echo "    (defaults: starship=ON, fzf=ON, atuin=OFF — override by exporting SPARKDOCK_ENABLE_* before sourcing)"
     echo "  • Profiles Sparkdock keeps in sync (only if not already present):"
-    echo "    - ~/.config/alacritty/alacritty.toml"
     echo "    - ~/.config/ghostty/config"
     echo "    - ~/.config/eza/theme.yml"
     echo "    - ~/.config/starship.toml (when starship is enabled)"

@@ -9,6 +9,7 @@ cask_packages:
   - font-droid-sans-mono-nerd-font
   - font-inconsolata-nerd-font
   - font-fira-code-nerd-font
+  - font-jetbrains-mono-nerd-font
   - google-chrome
   - ghostty
   - git-credential-manager

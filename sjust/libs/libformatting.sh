@@ -43,7 +43,7 @@ function Urllink (){
           "$TERM_PROGRAM" == "vscode" || \
           "$TERM_PROGRAM" == "Hyper" || \
           "$TERM_PROGRAM" == "WezTerm" || \
-          "$TERM_PROGRAM" == "alacritty" || \
+
           "$TERM_PROGRAM" == "kitty" ]]; then
         printf "\033]8;;%s\033\\%s\033]8;;\033\\" "$URL" "$TEXT${n}"
     else

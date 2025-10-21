@@ -645,20 +645,19 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func executeTerminalCommand(_ command: String) {
         let process = Process()
-        // Use osascript to run AppleScript more securely
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        // Create AppleScript to open Terminal and run command
-        let appleScript = """
-        tell application "Terminal"
-            activate
-            if (count of windows) > 0 then
-                do script "\(command.replacingOccurrences(of: "\"", with: "\\\""))" in front window
-            else
-                do script "\(command.replacingOccurrences(of: "\"", with: "\\\""))"
-            end if
-        end tell
-        """
-        process.arguments = ["-e", appleScript]
+        // Use the ghostty CLI to open a new window with the command
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        // Use 'open -n' to force a new instance
+        // Set window size (in terminal grid cells - columns x rows)
+        // Wrap the command in a login shell to ensure PATH is loaded
+        process.arguments = [
+            "-n",
+            "-a", "Ghostty",
+            "--args",
+            "--window-width=200",
+            "--window-height=40",
+            "-e", "/bin/zsh", "-l", "-c", command
+        ]
         do {
             try process.run()
             AppConstants.logger.info("Executed terminal command: \(command)")
