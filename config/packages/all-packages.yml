@@ -24,6 +24,7 @@ cask_packages:
 homebrew_packages:
   # Cloud Tools
   - awscli
+  - chafa
   - eza
   - docker-credential-helper-ecr
   - kubernetes-cli
