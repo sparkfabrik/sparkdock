@@ -165,19 +165,19 @@ sjust shell-enable              # Add Sparkdock config to your ~/.zshrc
 Sparkdock includes modern replacements for traditional Unix tools (like `eza`, `fd`, `ripgrep`, `bat`, `fzf`, `zoxide`) along with helpful aliases and shell enhancements. To see what's available:
 
 ```bash
-sjust shell-info         # View configuration status, installed tools, and all available aliases
+sjust shell-info         # View detected shell configuration and the exact zshrc snippet
 ```
 
 **Commands:**
 
 ```bash
-sjust shell-info         # View status, features, and complete alias reference
+sjust shell-info         # Summarize current shell settings and Sparkdock defaults
 sjust shell-disable      # Remove from ~/.zshrc
 ```
 
 **Customization:**
 
-Create `~/.config/spark/shell.zsh` for personal customizations (automatically sourced).
+Create `~/.config/spark/shell.zsh` for personal customizations — Sparkdock sources it after its own defaults so it’s the safe place for aliases, exports, and tweaks.
 
 ### HTTP Proxy
 

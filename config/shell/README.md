@@ -8,7 +8,7 @@ This directory contains Sparkdock's modern shell enhancements for zsh with oh-my
 sjust shell-omz-setup           # Install oh-my-zsh and plugins
 sjust shell-omz-update-plugins  # Update oh-my-zsh plugins
 sjust shell-enable              # Enable shell enhancements
-sjust shell-info                # View status, features, and aliases
+sjust shell-info                # Inspect detected configuration and the zshrc snippet Sparkdock adds
 ```
 
 ## Seamless Integration Philosophy
@@ -19,6 +19,7 @@ Sparkdock shell configuration is designed to **respect your existing setup**:
 - ✅ **Configurable**: Control starship, fzf, and atuin via environment variables
 - ✅ **Plugin-safe**: Won't override your oh-my-zsh plugins array if already configured
 - ✅ **Detection-first**: Checks what's already loaded before initializing
+- ✅ **Profile-aware**: Only symlinks terminal profiles when no existing file is present
 
 ### How It Works
 
@@ -67,7 +68,7 @@ source /opt/sparkdock/config/shell/sparkdock.zshrc
 **Disabled by Default:** atuin
 **Oh-My-Zsh Plugins:** zsh-autosuggestions, zsh-syntax-highlighting, zsh-completions, ssh-agent
 
-**View all information:** `sjust shell-info`
+**Inspect your setup:** `sjust shell-info` (shows detected state and the exact block added to `~/.zshrc`)
 
 **Key Bindings:**
 
@@ -78,7 +79,7 @@ source /opt/sparkdock/config/shell/sparkdock.zshrc
 
 ## Customization
 
-Create `~/.config/spark/shell.zsh` for personal customizations:
+Create `~/.config/spark/shell.zsh` for personal customizations (Sparkdock sources this file after its own defaults):
 
 ```bash
 # Control optional features (set before sourcing sparkdock in .zshrc)
@@ -99,7 +100,7 @@ unalias ls  # Use traditional ls
 zstyle :omz:plugins:ssh-agent lifetime 4h
 ```
 
-This file is automatically sourced by sparkdock.zshrc.
+Sparkdock sources this file after its own defaults, so keep personal aliases, exports, and overrides here.
 
 ## Usage Examples
 
