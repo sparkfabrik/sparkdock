@@ -109,7 +109,7 @@ sparkdock_print_shell_overview() {
     echo "    - starship prompt — https://starship.rs"
     echo "    - fzf fuzzy finder — https://github.com/junegunn/fzf"
     echo "    - atuin history sync — https://atuin.sh"
-    echo "    (override defaults by exporting SPARKDOCK_ENABLE_* before sourcing Sparkdock)"
+    echo "    (defaults: starship=ON, fzf=ON, atuin=OFF — override by exporting SPARKDOCK_ENABLE_* before sourcing)"
     echo "  • Profiles Sparkdock keeps in sync (only if not already present):"
     echo "    - ~/.config/alacritty/alacritty.toml"
     echo "    - ~/.config/ghostty/config"
@@ -121,30 +121,30 @@ sparkdock_print_shell_overview() {
     if [[ "${HAS_OMZ}" == "true" ]]; then
         echo "  • oh-my-zsh: detected — Sparkdock retains your plugin setup"
     else
-        echo "  • oh-my-zsh: not detected — Sparkdock can initialize it if installed"
+        echo "  • oh-my-zsh: not detected — run 'sjust shell-omz-setup' to install (Sparkdock keeps defaults otherwise)"
     fi
 
     if [[ "${HAS_STARSHIP}" == "true" ]]; then
         DEFAULT_STARSHIP="0"
-        echo "  • starship: detected — Sparkdock skips its prompt initialization"
+        echo "  • starship: detected — Sparkdock skips its prompt initialization (toggle remains at your value)"
     else
-        echo "  • starship: not detected — default SPARKDOCK_ENABLE_STARSHIP=1"
+        echo "  • starship: not detected — default SPARKDOCK_ENABLE_STARSHIP=1 (prompt turns ON unless you set it to 0)"
     fi
 
     if [[ "${HAS_ATUIN}" == "true" ]]; then
         DEFAULT_ATUIN="0"
         DEFAULT_FZF="0"
-        echo "  • atuin: detected — default SPARKDOCK_ENABLE_ATUIN=0"
-        echo "  • fzf: managed by atuin — default SPARKDOCK_ENABLE_FZF=0"
+        echo "  • atuin: detected — Sparkdock leaves SPARKDOCK_ENABLE_ATUIN=0 (history stays opt-in)"
+        echo "  • fzf: managed by atuin — Sparkdock sets SPARKDOCK_ENABLE_FZF=0 to avoid conflicts"
     else
-        echo "  • atuin: not detected — default SPARKDOCK_ENABLE_ATUIN=0 (set to 1 to enable)"
+        echo "  • atuin: not detected — default SPARKDOCK_ENABLE_ATUIN=0 (set to 1 before sourcing to enable history sync)"
     fi
 
     if [[ "${HAS_FZF}" == "true" ]]; then
         DEFAULT_FZF="0"
-        echo "  • fzf: detected — existing setup is left untouched"
+        echo "  • fzf: detected — existing setup is left untouched (Sparkdock leaves SPARKDOCK_ENABLE_FZF=0)"
     elif [[ "${HAS_ATUIN}" != "true" ]]; then
-        echo "  • fzf: not detected — default SPARKDOCK_ENABLE_FZF=1"
+        echo "  • fzf: not detected — default SPARKDOCK_ENABLE_FZF=1 (fuzzy finder turns ON unless you set it to 0)"
     fi
 
     echo ""
@@ -161,6 +161,7 @@ sparkdock_print_shell_overview() {
     echo "📚 Reference files:"
     echo "   • Primary config: /opt/sparkdock/config/shell/sparkdock.zshrc"
     echo "   • Documentation:  /opt/sparkdock/config/shell/README.md"
+    echo "   • Alias catalog:  /opt/sparkdock/config/shell/aliases.zsh"
     echo ""
     echo "✏️ Personal overrides (auto-sourced after Sparkdock):"
     echo "   ~/.config/spark/shell.zsh  — keep custom aliases and exports here"

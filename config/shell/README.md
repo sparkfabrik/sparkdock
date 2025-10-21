@@ -48,6 +48,8 @@ export SPARKDOCK_ENABLE_ATUIN=1      # Set to 1 to enable
 source /opt/sparkdock/config/shell/sparkdock.zshrc
 ```
 
+> `sjust shell-enable` adds the exports above with their default values. Set each `SPARKDOCK_ENABLE_*` before the `source` line (or in `~/.config/spark/shell.zsh`) if you want different behavior.
+
 **Default States Explained:**
 
 - **Starship**: Enabled by default - provides a modern, fast prompt that works well for most users
@@ -79,7 +81,7 @@ source /opt/sparkdock/config/shell/sparkdock.zshrc
 
 ## Customization
 
-Create `~/.config/spark/shell.zsh` for personal customizations (Sparkdock sources this file after its own defaults):
+Create `~/.config/spark/shell.zsh` for personal customizations (Sparkdock sources this file after its own defaults, so it’s safe to override aliases and exports here):
 
 ```bash
 # Control optional features (set before sourcing sparkdock in .zshrc)

@@ -175,6 +175,14 @@ sjust shell-info         # Summarize current shell settings and Sparkdock defaul
 sjust shell-disable      # Remove from ~/.zshrc
 ```
 
+**Defaults applied by `sjust shell-enable`:**
+
+- `SPARKDOCK_ENABLE_STARSHIP=1` (Starship prompt ON)
+- `SPARKDOCK_ENABLE_FZF=1` (fzf fuzzy finder ON)
+- `SPARKDOCK_ENABLE_ATUIN=0` (Atuin history sync OFF)
+
+Set these variables before sourcing Sparkdock if you prefer different defaults.
+
 **Customization:**
 
 Create `~/.config/spark/shell.zsh` for personal customizations — Sparkdock sources it after its own defaults so it’s the safe place for aliases, exports, and tweaks.
