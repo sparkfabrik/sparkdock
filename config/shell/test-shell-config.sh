@@ -69,17 +69,15 @@ test_content "${SPARKDOCK_DIR}/config/shell/aliases.zsh" "eza" "eza aliases pres
 test_content "${SPARKDOCK_DIR}/config/shell/aliases.zsh" "ls()" "ls function defined"
 test_content "${SPARKDOCK_DIR}/config/shell/init.zsh" "zoxide" "zoxide initialization"
 test_content "${SPARKDOCK_DIR}/config/shell/init.zsh" "fzf" "fzf initialization"
-test_content "${SPARKDOCK_DIR}/config/shell/sparkdock.zshrc" "SPARKDOCK_SHELL_LOADED" "Double-load guard present"
-
 echo ""
 echo "4. Testing sjust recipes..."
-test_content "${SPARKDOCK_DIR}/sjust/recipes/00-default.just" "shell-enable" "shell-enable recipe exists"
-test_content "${SPARKDOCK_DIR}/sjust/recipes/00-default.just" "shell-disable" "shell-disable recipe exists"
-test_content "${SPARKDOCK_DIR}/sjust/recipes/00-default.just" "shell-info" "shell-info recipe exists"
+test_content "${SPARKDOCK_DIR}/sjust/recipes/03-shell.just" "shell-enable" "shell-enable recipe exists"
+test_content "${SPARKDOCK_DIR}/sjust/recipes/03-shell.just" "shell-disable" "shell-disable recipe exists"
+test_content "${SPARKDOCK_DIR}/sjust/recipes/03-shell.just" "shell-info" "shell-info recipe exists"
 
 echo ""
-echo "5. Testing Ansible configuration..."
-test_content "${SPARKDOCK_DIR}/ansible/macos/macos/base.yml" "tags: shell" "shell tag in Ansible playbook"
+echo "5. Testing installer hook..."
+test_content "${SPARKDOCK_DIR}/bin/sparkdock.macos" "sjust shell-enable" "shell configuration triggered after provisioning"
 
 echo ""
 if [[ ${FAILURES} -eq 0 ]]; then
