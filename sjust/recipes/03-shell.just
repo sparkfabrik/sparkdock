@@ -98,7 +98,7 @@ shell-disable:
     fi
 
     # Create a backup
-    BACKUP_FILE=$(sparkdock_backup_file "${ZSHRC_FILE}" | tail -n 1)
+    BACKUP_FILE=$(sparkdock_backup_file "${ZSHRC_FILE}" | grep '^/' | head -n 1)
 
     # Remove the entire Sparkdock configuration block from zshrc
     # This removes the comment line and the entire if block
