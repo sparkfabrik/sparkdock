@@ -42,13 +42,18 @@ shell-enable $force="false":
 
     read -p "Do you want to enable Sparkdock shell enhancements? (y/n) " -n 1 -r
     echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
         echo "❌ Shell enhancement setup cancelled"
         echo ""
         mkdir -p "${HOME}/.config/spark"
         touch "${DECLINED_FILE}"
         echo "💡 If you change your mind later, run: sjust shell-enable force"
         exit 0
+    fi
+
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+        echo "❌ Invalid response. Please run the command again and answer 'y' or 'n'"
+        exit 1
     fi
 
     # Install oh-my-zsh if not already installed
@@ -59,26 +64,12 @@ shell-enable $force="false":
         echo ""
     fi
 
-    BACKUP_FILE="${ZSHRC_FILE}.backup.$(date +%Y%m%d%H%M%S)"
-    cp "${ZSHRC_FILE}" "${BACKUP_FILE}"
-    echo "✅ Backup created: ${BACKUP_FILE}"
-    echo ""
-    {
-        echo ""
-        echo "# Sparkdock shell enhancements"
-        echo "if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
-        printf '    export SPARKDOCK_ENABLE_STARSHIP=%s\n' "${DEFAULT_STARSHIP}"
-        printf '    export SPARKDOCK_ENABLE_FZF=%s\n' "${DEFAULT_FZF}"
-        printf '    export SPARKDOCK_ENABLE_ATUIN=%s\n' "${DEFAULT_ATUIN}"
-        echo "    source /opt/sparkdock/config/shell/sparkdock.zshrc;"
-        echo "    # Set SPARKDOCK_ENABLE_* above this block to change defaults"
-        echo "fi"
-    } >> "${ZSHRC_FILE}"
+    sparkdock_write_shell_config "${ZSHRC_FILE}"
     echo "✅ Sparkdock shell enhancements enabled in ${ZSHRC_FILE}"
     echo ""
 
     # Setup configurations for tools if they will be enabled
-    if command -v starship &> /dev/null && [[ "${HAS_STARSHIP}" == "false" ]]; then
+    if command -v starship &> /dev/null && sparkdock_has_starship "${ZSHRC_FILE}"; then
         sjust shell-starship-setup 2>/dev/null || true
     fi
 
@@ -107,9 +98,7 @@ shell-disable:
     fi
 
     # Create a backup
-    BACKUP_FILE="${ZSHRC_FILE}.backup.$(date +%Y%m%d%H%M%S)"
-    cp "${ZSHRC_FILE}" "${BACKUP_FILE}"
-    echo "✅ Backup created: ${BACKUP_FILE}"
+    BACKUP_FILE=$(sparkdock_backup_file "${ZSHRC_FILE}" | tail -n 1)
 
     # Remove the entire Sparkdock configuration block from zshrc
     # This removes the comment line and the entire if block
