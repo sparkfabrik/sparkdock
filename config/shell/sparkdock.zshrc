@@ -3,8 +3,13 @@
 # Add this line to your ~/.zshrc to enable Sparkdock shell enhancements:
 #   source /opt/sparkdock/config/shell/sparkdock.zshrc
 
-# Determine the directory where this script is located
-SPARKDOCK_SHELL_DIR="${0:A:h}"
+# Determine the directory where this script is located (works when sourced)
+if [[ -n "${(%):-%N}" && "${(%):-%N}" != "zsh" ]]; then
+  SPARKDOCK_SHELL_SOURCE="${(%):-%N}"
+else
+  SPARKDOCK_SHELL_SOURCE="${0}"
+fi
+SPARKDOCK_SHELL_DIR="${SPARKDOCK_SHELL_SOURCE:A:h}"
 
 # Source shell tool initializations
 if [[ -f "${SPARKDOCK_SHELL_DIR}/init.zsh" ]]; then
