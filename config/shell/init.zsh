@@ -56,7 +56,7 @@ if command_exists zoxide; then
 fi
 
 # Starship prompt (opt-in via SPARKDOCK_ENABLE_STARSHIP)
-if [[ -n "$SPARKDOCK_ENABLE_STARSHIP" ]] && command_exists starship; then
+if [[ "$SPARKDOCK_ENABLE_STARSHIP" == "1" ]] && command_exists starship; then
   eval "$(starship init zsh)"
 fi
 
