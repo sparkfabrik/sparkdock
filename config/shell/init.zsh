@@ -61,6 +61,6 @@ if [[ -n "$SPARKDOCK_ENABLE_STARSHIP" ]] && command_exists starship; then
 fi
 
 # Atuin history sync (opt-in via SPARKDOCK_ENABLE_ATUIN)
-if [[ -n "$SPARKDOCK_ENABLE_ATUIN" ]] && command_exists atuin; then
+if [[ "$SPARKDOCK_ENABLE_ATUIN" == "1" ]] && command_exists atuin; then
   eval "$(atuin init zsh --disable-up-arrow)"
 fi
