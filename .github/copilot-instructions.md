@@ -50,6 +50,14 @@ removed_cask_packages: [] # Track for clean uninstalls
 - `01-lima.just`: Lima container environment tasks
 - `~/.config/sjust/100-custom.just`: User customizations (optional import)
 
+**Just Recipe Conventions:**
+
+- Keep recipe files clean and focused on task orchestration
+- Extract complex logic into reusable functions in `sjust/libs/libshell.sh`
+- Use `source "{{source_directory()}}/../libs/libshell.sh"` to load shared utilities
+- Recipes should primarily call library functions, not implement full logic inline
+- Library functions enable code reuse and easier testing/maintenance
+
 ## Swift Menu Bar App Patterns
 
 **Modern Concurrency**: Uses structured concurrency with `withTaskCancellationHandler` for process timeout
@@ -147,6 +155,28 @@ Do this:
 **Update Safety**: Automatic stashing of local changes during updates
 **Lock File**: `/tmp/sparkdock.lock` prevents concurrent updates
 **Rollback**: Built-in rollback on failed updates using stored commit hashes
+
+## Shell Aliases Maintenance
+
+**When updating shell aliases in `config/shell/aliases.zsh`:**
+
+- Update the `shell-info` command in `sjust/recipes/03-shell.just` to reflect changes
+- Keep the alias list organized by category (File & Directory, Search & Find, Docker, Git, Kubernetes, System)
+- Keep information concise - `shell-info` combines status, features, and aliases in one streamlined output
+
+**Shell commands structure:**
+
+- `shell-info` - Single comprehensive command showing status, tools, features, and aliases
+- `shell-enable` - Enable shell enhancements (points users to shell-info for details)
+- `shell-disable` - Disable shell enhancements
+- `shell-omz-setup` - Install oh-my-zsh and plugins
+- `shell-omz-update-plugins` - Update oh-my-zsh plugins
+
+**Categories to maintain in shell-info:**
+
+- 📁 File & Directory Navigation
+- 🔍 Search & Tools
+- 🐳 Docker | 🔧 Git | ☸️ Kubernetes
 
 ## Changelog
 

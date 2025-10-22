@@ -60,6 +60,7 @@ tart-ssh: tart-create-vm
     echo "Sparkdock source will be mounted at /Volumes/sparkdock"
     tart run --dir=sparkdock:$PWD sparkdock-test &
     echo "Waiting for VM to boot..."
+    sleep 30
     VM_IP=$(tart ip sparkdock-test 2>/dev/null || echo "")
     if [ -n "$VM_IP" ]; then
         echo "Connecting to VM at $VM_IP..."

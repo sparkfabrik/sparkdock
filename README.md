@@ -24,6 +24,7 @@ Sparkdock is an automated macOS development environment provisioner built with A
 
 **System Utilities:**
 
+- **Modern Shell Tools**: eza (ls), fd (find), ripgrep (grep), bat (cat), zoxide (cd)
 - **Shell Enhancement**: Atuin (shell history), fzf (fuzzy finder), thefuck (command correction)
 - **Terminal Tools**: tmux, tmate, watch, jq, jless
 - **System Info**: fastfetch, mactop
@@ -146,6 +147,45 @@ After configuration, you can verify the plugin is working:
 ```bash
 gke-gcloud-auth-plugin --version
 ```
+
+### Shell Enhancements
+
+Sparkdock provides a modern shell experience with oh-my-zsh, starship prompt, and a curated set of modern Unix tools with convenient aliases.
+
+**Setup:**
+
+```bash
+sjust shell-omz-setup           # Install oh-my-zsh and zsh plugins
+sjust shell-omz-update-plugins  # Update oh-my-zsh plugins
+sjust shell-enable              # Add Sparkdock config to your ~/.zshrc
+```
+
+**Discover Available Tools & Aliases:**
+
+Sparkdock includes modern replacements for traditional Unix tools (like `eza`, `fd`, `ripgrep`, `bat`, `fzf`, `zoxide`) along with helpful aliases and shell enhancements. To see what's available:
+
+```bash
+sjust shell-info         # View detected shell configuration and the exact zshrc snippet
+```
+
+**Commands:**
+
+```bash
+sjust shell-info         # Summarize current shell settings and Sparkdock defaults
+sjust shell-disable      # Remove from ~/.zshrc
+```
+
+**Defaults applied by `sjust shell-enable`:**
+
+- `SPARKDOCK_ENABLE_STARSHIP=1` (Starship prompt ON)
+- `SPARKDOCK_ENABLE_FZF=1` (fzf fuzzy finder ON)
+- `SPARKDOCK_ENABLE_ATUIN=0` (Atuin history sync OFF)
+
+Set these variables before sourcing Sparkdock if you prefer different defaults.
+
+**Customization:**
+
+Create `~/.config/spark/shell.zsh` for personal customizations — Sparkdock sources it after its own defaults so it’s the safe place for aliases, exports, and tweaks.
 
 ### HTTP Proxy
 

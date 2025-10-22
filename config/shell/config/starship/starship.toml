@@ -1,0 +1,97 @@
+### DO NOT TOUCH THIS FILE, IT IS MANAGED BY SPARKDOCK.
+## TO MAKE CHANGES, JUST REMOVE THE SYMLINK AND CREATE YOUR OWN FILES.
+## BE AWARE THAT ONCE YOU REMOVE THE SYMLINK, SPARKDOCK WILL NOT MANAGE THIS FILE ANYMORE.
+
+# Get editor completions based on the config schema
+"$schema" = 'https://starship.rs/config-schema.json'
+
+add_newline = true
+command_timeout = 200
+format = "$os[$directory$git_branch$git_status]($style)$kubernetes$character"
+
+[os]
+disabled = false
+
+[os.symbols]
+Alpaquita = " "
+Alpine = " "
+AlmaLinux = " "
+Amazon = " "
+Android = " "
+Arch = " "
+Artix = " "
+CachyOS = " "
+CentOS = " "
+Debian = " "
+DragonFly = " "
+Emscripten = " "
+EndeavourOS = " "
+Fedora = " "
+FreeBSD = " "
+Garuda = "󰛓 "
+Gentoo = " "
+HardenedBSD = "󰞌 "
+Illumos = "󰈸 "
+Kali = " "
+Linux = " "
+Mabox = " "
+Macos = " "
+Manjaro = " "
+Mariner = " "
+MidnightBSD = " "
+Mint = " "
+NetBSD = " "
+NixOS = " "
+Nobara = " "
+OpenBSD = "󰈺 "
+openSUSE = " "
+OracleLinux = "󰌷 "
+Pop = " "
+Raspbian = " "
+Redhat = " "
+RedHatEnterprise = " "
+RockyLinux = " "
+Redox = "󰀘 "
+Solus = "󰠳 "
+SUSE = " "
+Ubuntu = " "
+Unknown = " "
+Void = " "
+Windows = "󰍲 "
+
+[kubernetes]
+disabled = true
+
+[gcloud]
+format = 'on [$symbol$account(@$domain)(\($project\))]($style) '
+symbol = '️🇬️ '
+
+[character]
+error_symbol = "[✗](bold #ed8796)"
+success_symbol = "[❯](bold #a6da95)"
+
+[directory]
+style = "bold #8aadf4"
+truncation_length = 2
+truncation_symbol = "…/"
+repo_root_style = "bold #8aadf4"
+repo_root_format = "[$repo_root]($repo_root_style)[$path]($style)[$read_only]($read_only_style) "
+
+[git_branch]
+format = "[$branch]($style) "
+style = "italic #ee99a0"
+
+[git_status]
+format = '[$all_status]($style)'
+style = "#8aadf4"
+ahead = "⇡${count} "
+diverged = "⇕⇡${ahead_count}⇣${behind_count} "
+behind = "⇣${count} "
+conflicted = " "
+up_to_date = " "
+untracked = "? "
+modified = " "
+stashed = ""
+staged = ""
+renamed = ""
+deleted = ""

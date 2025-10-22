@@ -81,7 +81,7 @@
           - --force
           - "{{ item }}"
       loop: "{{ all_removed_taps }}"
-      when: 
+      when:
         - all_removed_taps | length > 0
         - item in installed_taps.stdout
       become: false

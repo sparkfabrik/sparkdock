@@ -6,9 +6,11 @@ cask_packages:
   - docker-desktop
   - google-cloud-sdk
   - applite
+  - font-caskaydia-mono-nerd-font
   - font-droid-sans-mono-nerd-font
   - font-inconsolata-nerd-font
   - font-fira-code-nerd-font
+  - font-jetbrains-mono-nerd-font
   - google-chrome
   - ghostty
   - git-credential-manager
@@ -23,6 +25,7 @@ cask_packages:
 homebrew_packages:
   # Cloud Tools
   - awscli
+  - chafa
   - eza
   - docker-credential-helper-ecr
   - kubernetes-cli
@@ -33,9 +36,11 @@ homebrew_packages:
   - stern
   - lima
   - atuin
+  - bat
   - bc
   - btop
   - fastfetch
+  - fd
   - gnupg
   - jless
   - just
@@ -44,6 +49,7 @@ homebrew_packages:
   - mergiraf
   - mkcert
   - nss
+  - ripgrep
   - thefuck
   - fzf
   - navi
@@ -52,6 +58,8 @@ homebrew_packages:
   - tmate
   - tmux
   - watch
+  - zoxide
+  - starship
   - openssl@3
   - koekeishiya/formulae/skhd
   - imagemagick

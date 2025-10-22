@@ -2,6 +2,51 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Context Sources
+
+When working with this codebase, Claude agents have access to multiple instruction sources that provide context and guidelines:
+
+### Primary Context Files
+
+1. **CLAUDE.md** (this file) - High-level repository overview, architecture, and common workflows
+2. **.github/copilot-instructions.md** - Detailed development conventions, patterns, and project-specific standards
+3. **.github/instructions/** - Specialized instruction files for specific file types or domains
+
+### File-Specific Instructions with applyTo Pattern
+
+Instruction files in `.github/instructions/` can use the `applyTo` frontmatter to target specific file patterns. This ensures that domain-specific guidance is automatically provided when working with matching files.
+
+**Syntax:**
+```markdown
+---
+applyTo: "**/*.zsh,**/sparkdock.zshrc"
+---
+
+# Your instructions here
+```
+
+**How it works:**
+- The `applyTo` field accepts glob patterns to match file paths
+- Multiple patterns can be comma-separated
+- The agent will receive these instructions as additional context when editing matching files
+- This allows specialized guidance (e.g., shell configuration patterns) without cluttering the main context
+
+**Example:**
+```markdown
+---
+applyTo: "**/*.swift,**/Makefile"
+---
+
+# Swift Development Guidelines
+- Use structured concurrency with async/await
+- Implement proper timeout handling
+```
+
+When editing files matching `**/*.swift` or `**/Makefile`, the agent automatically receives these specific guidelines in addition to the general repository instructions.
+
+**Available Specialized Instructions:**
+- `.github/instructions/shell-config.instructions.md` - Shell configuration patterns (applies to `**/*.zsh,**/sparkdock.zshrc`)
+
 ## Overview
 
 Sparkdock is an automated macOS development environment provisioner built with Ansible. It provides containerized workflows and modern tooling with an integrated HTTP proxy system for local development.
@@ -27,6 +72,31 @@ sjust --list
 # Install just the sjust tool (for manual migrations)
 make install-sjust
 ```
+
+**Important: Just Recipe Parameters**
+
+Just recipes use **positional arguments**, not `parameter=value` syntax:
+
+```bash
+# ✅ Correct: positional arguments
+sjust shell-enable force
+
+# ❌ Wrong: parameter=value syntax doesn't work
+sjust shell-enable force=true
+```
+
+**Exporting Parameters as Environment Variables:**
+
+Prefix parameters with `$` to export them as environment variables in shebang recipes:
+
+```just
+my-recipe $param="default":
+    #!/usr/bin/env bash
+    # $param is now available as environment variable
+    echo "Value: ${param}"
+```
+
+Without the `$` prefix, parameters require `{{param}}` interpolation in recipe lines.
 
 ### HTTP Proxy Management
 ```bash
