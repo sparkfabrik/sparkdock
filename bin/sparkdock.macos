@@ -231,7 +231,6 @@ if [[ $? -ne 0 ]]; then
     print_error "Ansible playbook failed. Exiting..."
     exit 1
 fi
-print_success "Installation completed successfully"
 
 # Configure shell.
 if ! is_ci_environment; then
@@ -239,5 +238,7 @@ if ! is_ci_environment; then
     print_section "Shell Configuration"
     sjust shell-enable
 fi
+
+print_success "Installation completed successfully"
 
 exit 0
