@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-#### Shell Configuration System
+#### Shell Configuration System ([#248](https://github.com/sparkfabrik/sparkdock/pull/248))
 - Added Sparkdock shell configuration system with modern CLI tools (eza, bat, ripgrep, fd, zoxide, fzf, starship, thefuck, chafa)
 - Added new sjust commands for shell management:
   - `sjust shell-enable` - Enable Sparkdock shell configuration in ~/.zshrc
