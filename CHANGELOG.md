@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - See `config/shell/README.md` for complete documentation and architecture details
 
 #### Other Additions
+
+- Added font-caskaydia-mono-nerd-font (Cascadia Code Nerd Font) to the list of installed fonts
+- Added Ghostty config-file directive support for easier user customization (replaces symlink approach)
 - Added Claude Code GitHub workflow for AI-assisted code reviews and issue handling
 - Added `ensure-python3` command mode to `sparkdock.macos` for checking and fixing Python3 symlink issues (callable via `sparkdock ensure-python3`)
 - Added GitHub Copilot CLI (`@github/copilot`) as a default npm package installation
@@ -36,11 +39,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Lima version display to `lima-quick-setup` task output
 
 ### Changed
+
 - Updated system requirements documentation to clarify Apple Silicon-only support (removed Intel Mac references)
 - Renamed `sparkdock-update-repository` command to `sparkdock-fetch-updates` with improved description and updated output messages
 - Lima quick setup now uses dynamic CPU and memory defaults like Docker Desktop: all available processors and 50% of host memory
 - Default terminal for menu bar app changed from Terminal.app to Ghostty
 
 ### Fixed
+
 - Fixed `lima-destroy` command to handle VMs that are already stopped, preventing fatal error when VM is not running
 - Fixed `docker-desktop-install-version-4412` task to automatically remove incompatible docker-mcp plugin that blocks Docker Desktop 4.41.2 from starting

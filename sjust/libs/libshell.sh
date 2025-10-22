@@ -265,3 +265,70 @@ sparkdock_print_shell_overview() {
         echo ""
     fi
 }
+
+# Setup Ghostty configuration using config-file directive
+# This creates a user config that loads Sparkdock's base config
+# Arguments: None (uses standard paths)
+sparkdock_setup_ghostty_config() {
+    local USER_CONFIG="${HOME}/.config/ghostty/config"
+    local SPARKDOCK_CONFIG="/opt/sparkdock/config/shell/config/ghostty/config"
+
+    # Check if user config already exists and is not empty
+    if [[ -f "${USER_CONFIG}" && -s "${USER_CONFIG}" ]]; then
+        # Check if it's a symlink
+        if [[ -L "${USER_CONFIG}" ]]; then
+            echo "⚠️  Ghostty config is a symlink, removing to create config-file based setup..."
+            rm "${USER_CONFIG}"
+        else
+            # Check if it already has the config-file directive
+            if grep -q "config-file = ${SPARKDOCK_CONFIG}" "${USER_CONFIG}" 2>/dev/null; then
+                echo "✅ Ghostty config already properly configured with config-file directive"
+                echo "📄 User config: ${USER_CONFIG}"
+                echo "📄 Sparkdock config: ${SPARKDOCK_CONFIG}"
+                echo ""
+                echo "ℹ️  You can customize your Ghostty configuration by editing:"
+                echo "   ${USER_CONFIG}"
+                echo ""
+                echo "   Any settings you add will override Sparkdock defaults."
+                echo "   The config-file directive loads Sparkdock's base configuration."
+                return 0
+            else
+                echo "✅ Ghostty config already exists (user-managed)"
+                echo "📄 Config location: ${USER_CONFIG}"
+                echo ""
+                echo "ℹ️  To use Sparkdock's Ghostty configuration as a base, add this line:"
+                echo "   config-file = ${SPARKDOCK_CONFIG}"
+                echo ""
+                echo "   This allows you to keep your customizations while loading Sparkdock defaults."
+                return 0
+            fi
+        fi
+    fi
+
+    # Create new config with config-file directive
+    echo "📦 Setting up Ghostty configuration with config-file directive..."
+    mkdir -p "$(dirname "${USER_CONFIG}")"
+
+    cat > "${USER_CONFIG}" << 'EOF'
+# Ghostty Configuration
+# This file loads Sparkdock's base configuration and allows you to override settings.
+# Documentation: https://ghostty.org/docs/config
+
+# Load Sparkdock base configuration
+config-file = /opt/sparkdock/config/shell/config/ghostty/config
+
+# Add your custom overrides below this line:
+# Example:
+# font-size = 16
+# theme = Nord
+EOF
+
+    echo "✅ Ghostty config created at ${USER_CONFIG}"
+    echo "📄 Sparkdock config: ${SPARKDOCK_CONFIG}"
+    echo ""
+    echo "ℹ️  Configuration uses config-file directive for easy customization:"
+    echo "   - Base settings loaded from: ${SPARKDOCK_CONFIG}"
+    echo "   - Customize by editing: ${USER_CONFIG}"
+    echo "   - Your settings override Sparkdock defaults"
+    echo "   - Changes reload automatically in Ghostty"
+}

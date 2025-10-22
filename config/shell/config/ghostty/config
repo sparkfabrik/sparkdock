@@ -1,6 +1,7 @@
-### DO NOT TOUCH THIS FILE, IT IS MANAGED BY SPARKDOCK.
-## TO MAKE CHANGES, JUST REMOVE THE SYMLINK AND CREATE YOUR OWN FILES.
-## BE AWARE THAT ONCE YOU REMOVE THE SYMLINK, SPARKDOCK WILL NOT MANAGE THIS FILE ANYMORE.
+# Sparkdock Base Ghostty Configuration
+# This file provides sensible defaults loaded via config-file directive.
+# Customize by editing ~/.config/ghostty/config (your overrides take precedence)
+# Documentation: https://ghostty.org/docs/config
 
 # Appearance
 theme = Catppuccin Mocha
@@ -9,14 +10,17 @@ window-padding-balance = true
 app-notifications = no-clipboard-copy
 
 # Fonts
-font-thicken = true
-font-size = 16
+font-size = 18
 
 # Usage
 quit-after-last-window-closed = true
 copy-on-select = clipboard
 confirm-close-surface = false
 mouse-scroll-multiplier = 2
+
+# MacOS Specific
+macos-non-native-fullscreen = true
+font-thicken = false
 
 # Keybindings
 keybind = ctrl+shift+n=new_window

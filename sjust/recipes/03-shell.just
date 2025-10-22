@@ -249,12 +249,9 @@ _shell-config-setup tool_name config_path sparkdock_path config_description setu
     echo "✅ Default {{tool_name}} config symlinked to ${USER_CONFIG}"
     print_setup_complete "${USER_CONFIG}" "${SPARKDOCK_CONFIG}" "{{setup_info}}"
 
-# Setup Ghostty configuration.
+# Setup Ghostty configuration using config-file directive.
 [group('shell')]
 shell-ghostty-setup:
-    @just _shell-config-setup \
-        "ghostty" \
-        "${HOME}/.config/ghostty/config" \
-        "/opt/sparkdock/config/shell/config/ghostty/config" \
-        "config at ~/.config/ghostty/config" \
-        "Based on Catppuccin Mocha theme"
+    #!/usr/bin/env bash
+    source "{{source_directory()}}/../libs/libshell.sh"
+    sparkdock_setup_ghostty_config

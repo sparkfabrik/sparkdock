@@ -6,6 +6,7 @@ cask_packages:
   - docker-desktop
   - google-cloud-sdk
   - applite
+  - font-caskaydia-mono-nerd-font
   - font-droid-sans-mono-nerd-font
   - font-inconsolata-nerd-font
   - font-fira-code-nerd-font

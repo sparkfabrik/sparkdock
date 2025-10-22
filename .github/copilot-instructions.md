@@ -50,6 +50,14 @@ removed_cask_packages: [] # Track for clean uninstalls
 - `01-lima.just`: Lima container environment tasks
 - `~/.config/sjust/100-custom.just`: User customizations (optional import)
 
+**Just Recipe Conventions:**
+
+- Keep recipe files clean and focused on task orchestration
+- Extract complex logic into reusable functions in `sjust/libs/libshell.sh`
+- Use `source "{{source_directory()}}/../libs/libshell.sh"` to load shared utilities
+- Recipes should primarily call library functions, not implement full logic inline
+- Library functions enable code reuse and easier testing/maintenance
+
 ## Swift Menu Bar App Patterns
 
 **Modern Concurrency**: Uses structured concurrency with `withTaskCancellationHandler` for process timeout
