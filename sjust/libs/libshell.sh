@@ -200,7 +200,7 @@ sparkdock_print_shell_overview() {
 
     echo "Included capabilities:"
     echo ""
-    echo "  • Modern aliases: ls→eza, cat→bat, cd→zoxide"
+    echo "  • Modern aliases: ls→eza, cat→bat, cd→zoxide, img2terminal (chafa)"
     echo "  • Toolchain on PATH: fd, ripgrep, oh-my-zsh"
     echo "  • Optional modules (managed via SPARKDOCK_ENABLE_*):"
     echo "    - starship prompt — https://starship.rs"

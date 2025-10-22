@@ -80,11 +80,10 @@ print_banner() {
         image_path="/opt/sparkdock/static/sf_logo.png"
 
         if [[ -f "${image_path}" ]]; then
-            if [[ "${TERM_PROGRAM}" == "iTerm.app" ]]; then
-                chafa --format=iterm "${image_path}" 2>/dev/null
-                BANNER_PRINTED=1
-            # Ghostty (supports kitty graphics protocol)
-            elif [[ "${TERM_PROGRAM}" == "ghostty" ]] || [[ "${TERM}" == "xterm-kitty" ]] || [[ -n "${KITTY_WINDOW_ID}" ]]; then
+            if  [[ "${TERM_PROGRAM}" == "iTerm.app" ]] \
+                || [[ "${TERM_PROGRAM}" == "ghostty" ]] \
+                || [[ "${TERM}" == "xterm-kitty" ]] \
+                || [[ -n "${KITTY_WINDOW_ID}" ]]; then
                 chafa --format=kitty "${image_path}" 2>/dev/null
                 BANNER_PRINTED=1
             fi

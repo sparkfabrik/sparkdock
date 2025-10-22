@@ -15,6 +15,20 @@ if command_exists thefuck; then
   fi
 fi
 
+# Alias to open images from terminal with chafa.
+if command_exists chafa; then
+  img2terminal() {
+    format="ansi"
+    if  [[ "${TERM_PROGRAM}" == "iTerm.app" ]] \
+        || [[ "${TERM_PROGRAM}" == "ghostty" ]] \
+        || [[ "${TERM}" == "xterm-kitty" ]] \
+        || [[ -n "${KITTY_WINDOW_ID}" ]]; then
+        format="kitty"
+    fi
+    chafa --format=$format "${1}"
+  }
+fi
+
 # check if fzf is installed for fuzzy finding.
 if command_exists fzf; then
   alias ff="fzf --preview 'bat --style=numbers --color=always {}'"

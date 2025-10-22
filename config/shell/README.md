@@ -65,7 +65,7 @@ source /opt/sparkdock/config/shell/sparkdock.zshrc
 
 ## Features
 
-**Core Tools (always enabled):** eza, fd, ripgrep, bat, zoxide
+**Core Tools (always enabled):** eza, fd, ripgrep, bat, zoxide, chafa
 **Enabled by Default:** starship, fzf
 **Disabled by Default:** atuin
 **Oh-My-Zsh Plugins:** zsh-autosuggestions, zsh-syntax-highlighting, zsh-completions, ssh-agent
@@ -78,6 +78,10 @@ source /opt/sparkdock/config/shell/sparkdock.zshrc
 - `Alt+C` - Change directory with fuzzy finder
 - `Ctrl+T` - Insert file path from fuzzy finder
 - `ff` - Fuzzy file finder with preview
+
+**Image Utilities:**
+
+- `img2terminal <image>` - Display images in terminal (uses chafa with auto-detection for iTerm2/Ghostty/Kitty)
 
 ## Customization
 
