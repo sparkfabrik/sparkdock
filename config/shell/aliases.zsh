@@ -25,7 +25,7 @@ if command_exists chafa; then
         || [[ -n "${KITTY_WINDOW_ID}" ]]; then
         format="kitty"
     fi
-    chafa --format=$format "${1}"
+    chafa --format=$format "$@"
   }
 fi
 
