@@ -27,8 +27,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Other Additions
 
-- Added font-caskaydia-mono-nerd-font (Cascadia Code Nerd Font) to the list of installed fonts
-- Added Ghostty config-file directive support for easier user customization (replaces symlink approach)
+- Added font-caskaydia-mono-nerd-font (Cascadia Code Nerd Font)
+- Added Ghostty config-file directive setup for easier customization (user config loads Sparkdock base via config-file directive)
+- Added Context7 MCP server configuration for Just documentation lookup
+- Added custom instructions file for Just recipes (`.github/instructions/just.instructions.md`)
 - Added Claude Code GitHub workflow for AI-assisted code reviews and issue handling
 - Added `ensure-python3` command mode to `sparkdock.macos` for checking and fixing Python3 symlink issues (callable via `sparkdock ensure-python3`)
 - Added GitHub Copilot CLI (`@github/copilot`) as a default npm package installation
