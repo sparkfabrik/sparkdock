@@ -14,38 +14,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 #### Shell Configuration System
-- Added comprehensive Sparkdock shell configuration system with modern CLI tools:
-  - **Modern Unix replacements**: eza (ls), bat (cat), ripgrep (grep), fd (find), zoxide (cd), fzf (fuzzy finder), starship (prompt), thefuck (command corrector)
-  - **chafa**: Terminal graphics/image viewer
-  - **Ghostty terminal**: Added as preferred terminal emulator
-- Added oh-my-zsh integration with automatic setup via `sjust shell-omz-setup`:
-  - Installs oh-my-zsh if not present (with `KEEP_ZSHRC=yes` to preserve existing configuration)
-  - Downloads and symlinks zsh plugins: zsh-completions, zsh-autosuggestions, zsh-syntax-highlighting
-  - Auto-enables ssh-agent plugin for SSH key management
-  - `sjust shell-omz-update-plugins` to update plugins
-- Added shell management commands:
-  - `sjust shell-enable` - Add Sparkdock config to ~/.zshrc (with optional force mode)
-  - `sjust shell-disable` - Remove Sparkdock config from ~/.zshrc with backup
-  - `sjust shell-info` - Display comprehensive shell status, features, and aliases
-  - `sjust shell-omz-setup` - Install oh-my-zsh and plugins
-  - `sjust shell-omz-update-plugins` - Update oh-my-zsh plugins
-- Added smart shell aliases with command existence checks:
-  - `ff` - fzf with bat preview
-  - `zd` (aliased to `cd`) - Smart directory navigation with zoxide fallback
-  - Smart `ls` function with `-lt`/`-ltr` flag handling for sorting by modification time
-  - Docker, Git, Kubernetes aliases (only if tools exist)
-  - `reload` - Reload shell by unsetting `SPARKDOCK_SHELL_LOADED`
-- Added seamless integration with conditional loading:
-  - Detects existing oh-my-zsh and starship installations
-  - Respects user's existing configurations
-  - Double-load protection via `SPARKDOCK_SHELL_LOADED` variable
-  - Optional features via environment variables:
-    - `SPARKDOCK_ENABLE_STARSHIP=1` (enabled by default in shell-enable)
-    - `SPARKDOCK_ENABLE_FZF=1` (enabled by default in shell-enable)
-    - `SPARKDOCK_ENABLE_ATUIN=1` (disabled by default)
-- Added user customization support via `~/.config/spark/shell.zsh`
-- Added local zsh functions directory support (`~/.local/share/zsh/site-functions`)
-- Added shell configuration documentation and examples in `config/shell/` directory
+- Added Sparkdock shell configuration system with modern CLI tools (eza, bat, ripgrep, fd, zoxide, fzf, starship, thefuck, chafa)
+- Added new sjust commands for shell management:
+  - `sjust shell-enable` - Enable Sparkdock shell configuration in ~/.zshrc
+  - `sjust shell-disable` - Disable and remove Sparkdock shell configuration
+  - `sjust shell-info` - Display shell status, features, and all configured aliases
+  - `sjust shell-omz-setup` - Install oh-my-zsh with plugins (zsh-completions, zsh-autosuggestions, zsh-syntax-highlighting, ssh-agent)
+  - `sjust shell-omz-update-plugins` - Update oh-my-zsh plugins to latest versions
+- Added smart aliases with conditional loading (ff, zd/cd with zoxide, ls with sorting, docker, git, kubernetes)
+- Added seamless integration with existing oh-my-zsh/starship installations and user customization via `~/.config/spark/shell.zsh`
+- See `config/shell/README.md` for complete documentation and architecture details
 
 #### Other Additions
 - Added Claude Code GitHub workflow for AI-assisted code reviews and issue handling
