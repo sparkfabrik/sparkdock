@@ -173,7 +173,7 @@ main_loop() {
       continue
     fi
 
-    gum_style "Question: $question" 212
+    gum_style "Question: $question" 225
 
     local formatted_answer=""
     if ! run_backend "$question"; then

@@ -53,3 +53,7 @@ Sparkdock’s own source.
 - Turn on trace logging (`SPARKDOCK_AI_LOG_LEVEL=TRACE`) if you want to inspect the exact
   decisions the engine makes (classifier output, selected files, etc.).
 - For repeatable debugging, export `SPARKDOCK_AI_DEBUG=1` to show raw model outputs in the UI.
+
+## Need Support?
+- Post in Slack `#sparkdock-support` with a short description and any relevant logs (for example `~/.config/spark/sparkdock/ai.log`).
+- If it looks like a product issue, open an issue in the Sparkdock repository so the team can follow up.

@@ -253,6 +253,10 @@ The app is automatically installed as a LaunchAgent (`com.sparkfabrik.sparkdock.
 
 For detailed troubleshooting information, see our [troubleshooting guide](TROUBLESHOOTING.md) or visit the [company playbook](http://playbook.sparkfabrik.com/guides/local-development-environment-configuration).
 
+If you are still blocked after trying the steps above:
+- Reach out on Slack in `#sparkdock-support` with a short summary plus any relevant logs (for example `~/.config/spark/sparkdock/ai.log`).
+- Or open an issue on the Sparkdock repository so the team can track the fix.
+
 ### Common Issues
 
 - **Permission Errors**: Ensure administrator privileges
