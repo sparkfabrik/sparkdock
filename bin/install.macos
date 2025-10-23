@@ -1,5 +1,7 @@
 #!/usr/bin/env -S zsh
 
+set -e
+
 BASE_DIR="$(dirname "$(readlink -f "$0")")"
 
 # When we install this script with this: bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.macos)
@@ -109,16 +111,39 @@ print 'Checking out Sparkdock repo...'
 
 # Only remove existing installation if not preserving it
 if [[ "$PRESERVE_EXISTING" != "true" ]]; then
-    sudo rm -rf /opt/sparkdock && \
-    sudo mkdir -p /opt/sparkdock && \
-    sudo chown $(id -u):$(id -g) /opt/sparkdock
+    # Check if /opt/sparkdock exists and is a git repository
+    if [[ -d /opt/sparkdock/.git ]]; then
+        print "Sparkdock installation found at /opt/sparkdock, updating..."
+        cd /opt/sparkdock
+        git fetch origin master
+        git reset --hard origin/master
+    elif [[ -d /opt/sparkdock ]]; then
+        # Directory exists but is not a git repository, remove and clone
+        print "Removing non-git directory at /opt/sparkdock..."
+        sudo rm -rf /opt/sparkdock
+        sudo mkdir -p /opt/sparkdock
+        sudo chown $(id -u):$(id -g) /opt/sparkdock
 
-    # In CI, we have the repo already checked out, so copy it instead of cloning
-    if [[ "$NON_INTERACTIVE" == "true" ]]; then
-      # we are in a CI environment, so we assume the repo is already checked out and we are at the root of the repo.
-      rsync -azh --exclude='.git' . /opt/sparkdock
+        # In CI, we have the repo already checked out, so copy it instead of cloning
+        if [[ "$NON_INTERACTIVE" == "true" ]]; then
+            # we are in a CI environment, so we assume the repo is already checked out and we are at the root of the repo.
+            rsync -azh --exclude='.git' . /opt/sparkdock
+        else
+            git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
+        fi
     else
-      git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
+        # Directory does not exist, create and clone
+        print "Installing Sparkdock to /opt/sparkdock..."
+        sudo mkdir -p /opt/sparkdock
+        sudo chown $(id -u):$(id -g) /opt/sparkdock
+
+        # In CI, we have the repo already checked out, so copy it instead of cloning
+        if [[ "$NON_INTERACTIVE" == "true" ]]; then
+            # we are in a CI environment, so we assume the repo is already checked out and we are at the root of the repo.
+            rsync -azh --exclude='.git' . /opt/sparkdock
+        else
+            git clone https://github.com/sparkfabrik/sparkdock.git /opt/sparkdock
+        fi
     fi
 else
     print "Preserving existing /opt/sparkdock installation"
