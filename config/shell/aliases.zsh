@@ -85,7 +85,7 @@ fi
 # Docker shortcuts
 if command_exists docker; then
   alias d='docker'
-  alias dc='docker-compose'
+  alias dc='docker compose'
   alias dps='docker ps'
   alias dpsa='docker ps -a'
   alias di='docker images'
