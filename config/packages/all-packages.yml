@@ -1,5 +1,6 @@
 taps:
   - koekeishiya/formulae
+  - charmbracelet/tap
 
 # Cloud Tools, Applications, and Fonts
 cask_packages:
@@ -38,6 +39,7 @@ homebrew_packages:
   - atuin
   - bat
   - bc
+  - charmbracelet/tap/gum
   - btop
   - fastfetch
   - fd
@@ -71,6 +73,7 @@ homebrew_packages:
   - golang
   - gitleaks
   - uv
+  - llm
   - yarn
   - yarn-completion
 

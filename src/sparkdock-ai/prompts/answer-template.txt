@@ -1,0 +1,7 @@
+Question:
+{{QUESTION}}
+
+Repository context:
+{{CONTEXT}}
+
+Provide a concise answer, referencing filenames with parentheses when applicable.

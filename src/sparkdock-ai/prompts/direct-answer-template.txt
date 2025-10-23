@@ -1,0 +1,4 @@
+Question:
+{{QUESTION}}
+
+Provide a concise Markdown answer suitable for a terminal.

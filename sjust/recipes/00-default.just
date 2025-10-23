@@ -243,16 +243,38 @@ docker-ps:
 docker-prune:
     @docker system prune -f
 
-# Install sparkdock ansible tag.
+# Run the experimental sparkdock-ai command.
+[group('sparkdock')]
+sparkdock-ai:
+    @"{{source_directory()}}/../../bin/sparkdock-ai"
+
+# Install the required llm GitHub Copilot plugin.
+[group('sparkdock')]
+sparkdock-configure-llm:
+    #!/usr/bin/env bash
+    set -e
+    if llm plugins 2>/dev/null | grep -Fq 'llm-github-copilot'; then
+        echo 'llm-github-copilot already installed.'
+    else
+        echo 'Installing llm-github-copilot plugin...'
+        llm install llm-github-copilot
+    fi
+    echo 'Checking GitHub Copilot authentication status...'
+    if llm github_copilot auth status 2>&1 | grep -Fq 'Not authenticated'; then
+        echo '⚠️  Run `llm github_copilot auth login` to authenticate.'
+    else
+        echo '✅ GitHub Copilot appears authenticated.'
+    fi
+
 [group('sparkdock')]
 sparkdock-install-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
     cd {{ sparkdock_path }}
-    
+
     # Ensure Python3 is installed and available at the expected location
     sparkdock ensure-python3
-    
+
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
 
 # Fetch latest Sparkdock updates from git repository without running system configuration. Useful for getting the newest sjust recipes and commands without triggering a full system update.

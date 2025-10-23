@@ -1,0 +1,276 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+PYTHON_BIN="${SPARKDOCK_AI_PYTHON:-python3}"
+if [[ -x "${ROOT_DIR}/.venv/bin/python3" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/.venv/bin/python3"
+fi
+
+COMMON_QUESTIONS=(
+  "How do I install Sparkdock on a new Mac?"
+  "How do I upgrade Sparkdock?"
+  "Which packages does Sparkdock install?"
+  "What tasks are available in sjust?"
+  "How do I enable the Sparkdock shell?"
+)
+
+HELP_DOC="${ROOT_DIR}/src/sparkdock-ai/help.md"
+LOGO_FILE="${ROOT_DIR}/src/sparkdock-ai/assets/logo.txt"
+
+GUM_SPINNERS=(line dot minidot jump pulse points globe moon monkey meter hamburger)
+
+ensure_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    printf '[sparkdock-ai] Missing dependency: %s\n' "$1" >&2
+    brew search "$1" >/dev/null 2>&1 && printf '[sparkdock-ai] You can install it with: brew install %s\n' "$1" >&2
+    exit 1
+  fi
+}
+
+gum_style() {
+  local text=$1
+  local border=${2:-99}
+  gum style --border normal --padding "1 2" --margin "1 0" --border-foreground "$border" "$text"
+}
+
+display_markdown() {
+  local content=$1
+  if [[ -z "${content// }" ]]; then
+    return
+  fi
+
+  printf '%s\n' "$content" | gum format --type markdown | gum pager
+}
+
+show_banner() {
+  header=""
+  cols=$(tput cols)
+  if [[ "$cols" -gt 110 ]]; then
+    cols=110
+    header="$(<"$LOGO_FILE")"
+  else
+    cols=$((cols - 20))
+    if [[ "$cols" -lt 0 ]]; then
+      cols=$(tput cols)
+    fi
+  fi
+    message=$(printf '%s %s %s' "$header" \
+      "$(gum format --type template '{{ Underline "Welcome to Sparkdock AI!" }} {{ Color "3" "0" "(experimental)\n\n" }}')" \
+      "$(gum format --type markdown 'Ask me anything about **Sparkdock** and its features.')")
+    gum style \
+      --foreground 212 \
+      --border-foreground 200 \
+      --border double \
+      --align center \
+      --width "$cols" \
+      --margin "1 2" \
+      --padding "2 4" \
+      --bold \
+      --trim "$message"
+}
+
+choose_question() {
+  local options=("About Sparkdock AI" "${COMMON_QUESTIONS[@]}" "Ask something else…" "Quit")
+  local choice=""
+
+  if ! choice=$(gum choose --cursor "👉" --header "How can I help you?" "${options[@]}"); then
+    return 1
+  fi
+
+  case "$choice" in
+    "Quit")
+      printf '__quit__'
+      ;;
+    "About Sparkdock AI")
+      printf '__help__'
+      ;;
+    "Ask something else…")
+      local custom=""
+      if ! custom=$(gum input --placeholder "Ask me anything about Sparkdock"); then
+        printf '__empty__'
+      elif [[ -z "$custom" ]]; then
+        printf '__empty__'
+      else
+        printf '%s' "$custom"
+      fi
+      ;;
+    "")
+      printf '__empty__'
+      ;;
+    *)
+      printf '%s' "$choice"
+      ;;
+  esac
+}
+
+show_help() {
+  if [[ -f "$HELP_DOC" ]]; then
+    display_markdown "$(<"$HELP_DOC")"
+  else
+    gum_style "Help document not found at $HELP_DOC" 203
+  fi
+}
+
+has_copilot_plugin() {
+  llm plugins 2>/dev/null | grep -Fq 'llm-github-copilot'
+}
+
+ensure_copilot_plugin() {
+  if has_copilot_plugin; then
+    return
+  fi
+
+  gum_style "The 'llm-github-copilot' plugin is required." 203
+  if gum confirm "Install 'llm-github-copilot' now?"; then
+    if ! gum spin --title "Installing llm-github-copilot..." -- llm install llm-github-copilot; then
+      gum_style "Failed to install llm-github-copilot. Please install it manually with 'llm install llm-github-copilot'." 203
+      exit 1
+    fi
+  else
+    printf '[sparkdock-ai] The llm-github-copilot plugin is required to continue.\n' >&2
+    exit 1
+  fi
+
+  if ! has_copilot_plugin; then
+    gum_style "llm-github-copilot plugin still missing after install attempt." 203
+    exit 1
+  fi
+}
+
+copilot_authenticated() {
+  local status
+  status=$(llm github_copilot auth status 2>&1 || true)
+  [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]] && gum_style "Copilot auth status:\n$status" 244
+  if [[ "$status" == *"Not authenticated"* ]]; then
+    return 1
+  fi
+  if [[ "$status" == *"Authenticated"* ]]; then
+    return 0
+  fi
+  return 1
+}
+
+check_copilot_auth() {
+  if copilot_authenticated; then
+    return 0
+  fi
+
+  gum_style "GitHub Copilot authentication is required." 203
+  if gum confirm "Run 'llm github_copilot auth login' now?"; then
+    llm github_copilot auth login
+  else
+    printf '[sparkdock-ai] Authentication is required to continue.\n' >&2
+    exit 1
+  fi
+
+  if ! copilot_authenticated; then
+    printf '[sparkdock-ai] Authentication still failing after login attempt.\n' >&2
+    exit 1
+  fi
+}
+
+run_backend() {
+  local question=$1
+  local tmp_out tmp_err
+  tmp_out=$(mktemp)
+  tmp_err=$(mktemp)
+  local cmd=( "$PYTHON_BIN" "${ROOT_DIR}/src/sparkdock-ai/engine.py" --question "$question" )
+
+  [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]] && printf '[sparkdock-ai] DEBUG running backend: %q\n' "${cmd[@]}"
+
+  local status=0
+  spinning_message="Thinking..."
+  local spinner="${GUM_SPINNERS[RANDOM % ${#GUM_SPINNERS[@]}]}"
+  if ! gum spin --spinner "$spinner" --title "$spinning_message" -- bash -c '
+out_file=$1
+err_file=$2
+shift 2
+"$@" >"$out_file" 2>"$err_file"
+' _ "$tmp_out" "$tmp_err" "${cmd[@]}"; then
+    status=$?
+  fi
+
+  BACKEND_OUTPUT=$(<"$tmp_out")
+  BACKEND_ERRORS=$(<"$tmp_err")
+  rm -f "$tmp_out" "$tmp_err"
+
+  if [[ $status -ne 0 ]]; then
+    [[ -n "$BACKEND_ERRORS" ]] && gum_style "$BACKEND_ERRORS" 203
+    return 1
+  fi
+  return 0
+}
+
+show_error() {
+  local message=$1
+  gum_style "$message" 203
+}
+
+main_loop() {
+  while true; do
+    local question
+    question=$(choose_question) || exit 1
+
+    if [[ "$question" == "__quit__" ]]; then
+      exit 0
+    fi
+
+    if [[ "$question" == "__help__" ]]; then
+      show_help
+      continue
+    fi
+
+    if [[ "$question" == "__empty__" || -z "$question" ]]; then
+      continue
+    fi
+
+    gum_style "Question: $question" 225
+
+    local formatted_answer=""
+    if ! run_backend "$question"; then
+      show_error "Assistant failed to answer. Review the message above and try again."
+      continue
+    fi
+    formatted_answer="$BACKEND_OUTPUT"
+
+    if [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]]; then
+      gum_style "Raw assistant output:\n$formatted_answer" 244
+      if [[ -n "$BACKEND_ERRORS" ]]; then
+        gum_style "Backend stderr:\n$BACKEND_ERRORS" 203
+      fi
+    fi
+
+    if [[ -z "${formatted_answer// }" ]]; then
+      show_error "Assistant returned an empty response."
+      continue
+    fi
+
+    display_markdown "$formatted_answer"
+
+    local next
+    if ! next=$(gum choose --cursor "👉" --header "Next action?" "Ask another question" "Exit"); then
+      exit 0
+    fi
+
+    if [[ "$next" != "Ask another question" ]]; then
+      exit 0
+    fi
+  done
+}
+
+main() {
+  cd "$ROOT_DIR"
+  ensure_command gum
+  ensure_command llm
+  ensure_command "$PYTHON_BIN"
+  ensure_copilot_plugin
+
+  check_copilot_auth
+  show_banner
+  main_loop
+}
+
+main "$@"
