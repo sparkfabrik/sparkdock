@@ -8,8 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Added `set -e` to `install.macos` to fail fast on errors
 - Fixed Python interpreter not found error by implementing `ensure_python3()` function that checks for missing python3 symlink and automatically relinks Python packages before running Ansible playbook
 - Fixed sjust zsh completion file ownership issue where `_sjust` file could be owned by root, causing Ansible task failures
+- Fixed Ghostty configuration overrides being ignored by implementing two-file setup (main config + user overrides file) to ensure proper load order per Ghostty's config-file directive documentation
 
 ### Added
 

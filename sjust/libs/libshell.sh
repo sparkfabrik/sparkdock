@@ -267,10 +267,15 @@ sparkdock_print_shell_overview() {
 }
 
 # Setup Ghostty configuration using config-file directive
-# This creates a user config that loads Sparkdock's base config
+# This creates a two-file setup: main config + user overrides file.
+# This ensures proper load order per Ghostty's documentation:
+# 1. Main config is parsed (including config-file directives)
+# 2. Sparkdock base config is loaded (first config-file)
+# 3. User overrides are loaded (second config-file = user)
 # Arguments: None (uses standard paths)
 sparkdock_setup_ghostty_config() {
     local USER_CONFIG="${HOME}/.config/ghostty/config"
+    local USER_OVERRIDES="${HOME}/.config/ghostty/user"
     local SPARKDOCK_CONFIG="/opt/sparkdock/config/shell/config/ghostty/config"
 
     # Check if user config already exists and is not empty
@@ -280,33 +285,34 @@ sparkdock_setup_ghostty_config() {
             echo "⚠️  Ghostty config is a symlink, removing to create config-file based setup..."
             rm "${USER_CONFIG}"
         else
-            # Check if it already has the config-file directive
-            if grep -q "config-file = ${SPARKDOCK_CONFIG}" "${USER_CONFIG}" 2>/dev/null; then
-                echo "✅ Ghostty config already properly configured with config-file directive"
-                echo "📄 User config: ${USER_CONFIG}"
+            # Check if it already has the proper two-file setup
+            if grep -q "config-file = user" "${USER_CONFIG}" 2>/dev/null; then
+                echo "✅ Ghostty config already properly configured with two-file setup"
+                echo "📄 Main config: ${USER_CONFIG}"
+                echo "📄 User overrides: ${USER_OVERRIDES}"
                 echo "📄 Sparkdock config: ${SPARKDOCK_CONFIG}"
                 echo ""
                 echo "ℹ️  You can customize your Ghostty configuration by editing:"
-                echo "   ${USER_CONFIG}"
+                echo "   ${USER_OVERRIDES}"
                 echo ""
                 echo "   Any settings you add will override Sparkdock defaults."
-                echo "   The config-file directive loads Sparkdock's base configuration."
                 return 0
             else
                 echo "✅ Ghostty config already exists (user-managed)"
                 echo "📄 Config location: ${USER_CONFIG}"
                 echo ""
-                echo "ℹ️  To use Sparkdock's Ghostty configuration as a base, add this line:"
+                echo "ℹ️  To use Sparkdock's Ghostty configuration with proper overrides, replace with:"
                 echo "   config-file = ${SPARKDOCK_CONFIG}"
+                echo "   config-file = user"
                 echo ""
-                echo "   This allows you to keep your customizations while loading Sparkdock defaults."
+                echo "   Then create ${USER_OVERRIDES} with your customizations."
                 return 0
             fi
         fi
     fi
 
-    # Create new config with config-file directive
-    echo "📦 Setting up Ghostty configuration with config-file directive..."
+    # Create new config with two config-file directives
+    echo "📦 Setting up Ghostty configuration with two-file setup..."
     mkdir -p "$(dirname "${USER_CONFIG}")"
 
     cat > "${USER_CONFIG}" << 'EOF'
@@ -317,18 +323,29 @@ sparkdock_setup_ghostty_config() {
 # Load Sparkdock base configuration
 config-file = /opt/sparkdock/config/shell/config/ghostty/config
 
-# Add your custom overrides below this line:
+# Load user configuration/overrides
+config-file = user
+EOF
+
+    # Create user overrides file
+    cat > "${USER_OVERRIDES}" << 'EOF'
+# Ghostty User Overrides
+# Add your custom overrides below this line.
+# These settings will override Sparkdock defaults.
+# Documentation: https://ghostty.org/docs/config
+#
 # Example:
 # font-size = 16
 # theme = Nord
 EOF
 
     echo "✅ Ghostty config created at ${USER_CONFIG}"
+    echo "✅ User overrides file created at ${USER_OVERRIDES}"
     echo "📄 Sparkdock config: ${SPARKDOCK_CONFIG}"
     echo ""
-    echo "ℹ️  Configuration uses config-file directive for easy customization:"
+    echo "ℹ️  Configuration uses two-file setup for proper override support:"
     echo "   - Base settings loaded from: ${SPARKDOCK_CONFIG}"
-    echo "   - Customize by editing: ${USER_CONFIG}"
-    echo "   - Your settings override Sparkdock defaults"
+    echo "   - Customize by editing: ${USER_OVERRIDES}"
+    echo "   - Your settings in 'user' file override Sparkdock defaults"
     echo "   - Changes reload automatically in Ghostty"
 }

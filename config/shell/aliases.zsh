@@ -53,7 +53,9 @@ fi
 if command_exists eza; then
   # bug on macos: https://github.com/eza-community/eza/issues/1224
   export EZA_CONFIG_DIR=$HOME/.config/eza
-  ls() {
+  unalias ls 2>/dev/null || true
+
+  function ls() {
     local filtered_args=("${@[@]//-ltr/}")
     filtered_args=("${filtered_args[@]//-lt/}")
 
@@ -83,7 +85,7 @@ fi
 # Docker shortcuts
 if command_exists docker; then
   alias d='docker'
-  alias dc='docker-compose'
+  alias dc='docker compose'
   alias dps='docker ps'
   alias dpsa='docker ps -a'
   alias di='docker images'

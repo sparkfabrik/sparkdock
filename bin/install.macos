@@ -1,5 +1,7 @@
 #!/usr/bin/env -S zsh
 
+set -e
+
 BASE_DIR="$(dirname "$(readlink -f "$0")")"
 
 # When we install this script with this: bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.macos)
