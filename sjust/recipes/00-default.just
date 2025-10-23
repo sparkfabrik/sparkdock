@@ -243,7 +243,7 @@ docker-ps:
 docker-prune:
     @docker system prune -f
 
-# Install sparkdock ansible tag.
+# Run the experimental sparkdock-ai command.
 [group('sparkdock')]
 sparkdock-ai:
     @"{{source_directory()}}/../../bin/sparkdock-ai"

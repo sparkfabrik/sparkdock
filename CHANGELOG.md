@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Other Additions
 
+- Added an experimental Sparkdock AI helper (and `sjust sparkdock-ai`) that routes questions via a classifier, verifies Copilot plugins/auth, renders a Gum UI with logo/help, and logs activity as “living documentation”
 - Added font-caskaydia-mono-nerd-font (Cascadia Code Nerd Font)
 - Added Ghostty config-file directive setup for easier customization (user config loads Sparkdock base via config-file directive)
 - Added Context7 MCP server configuration for Just documentation lookup
