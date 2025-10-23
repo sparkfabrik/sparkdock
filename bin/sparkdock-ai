@@ -1,0 +1,232 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
+
+PYTHON_BIN="${SPARKDOCK_AI_PYTHON:-python3}"
+if [[ -x "${ROOT_DIR}/.venv/bin/python3" ]]; then
+  PYTHON_BIN="${ROOT_DIR}/.venv/bin/python3"
+fi
+
+COMMON_QUESTIONS=(
+  "What packages are installed?"
+  "What aliases are defined?"
+  "What is sjust?"
+  "How do I enable the Sparkdock shell enhancements?"
+  "How do I update Sparkdock?"
+)
+
+ensure_command() {
+  if ! command -v "$1" >/dev/null 2>&1; then
+    printf '[sparkdock-ai] Missing dependency: %s\n' "$1" >&2
+    exit 1
+  fi
+}
+
+gum_style() {
+  local text=$1
+  local border=${2:-99}
+  if command -v gum >/dev/null 2>&1; then
+    gum style --border normal --padding "1 2" --margin "1 0" --border-foreground "$border" "$text"
+  else
+    printf '\n%s\n\n' "$text"
+  fi
+}
+
+choose_question() {
+  local options=("${COMMON_QUESTIONS[@]}" "Custom question…" "Quit")
+  local choice=""
+
+  if command -v gum >/dev/null 2>&1; then
+    if ! choice=$(gum choose --cursor "👉" --header "How can Sparkdock help you?" "${options[@]}"); then
+      return 1
+    fi
+  else
+    printf '\nHow can Sparkdock help you?\n'
+    local idx=1
+    for option in "${options[@]}"; do
+      printf '  %d) %s\n' "$idx" "$option"
+      ((idx++))
+    done
+    read -r -p "Select option: " choice
+    if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#options[@]})); then
+      choice=${options[((choice-1))]}
+    fi
+  fi
+
+  case "$choice" in
+    "Quit")
+      printf '__quit__'
+      ;;
+    "Custom question…")
+      local custom=""
+      if command -v gum >/dev/null 2>&1; then
+        custom=$(gum input --placeholder "Ask me anything about Sparkdock")
+      else
+        read -r -p "Ask me anything about Sparkdock: " custom
+      fi
+      if [[ -z "$custom" ]]; then
+        printf '__empty__'
+      else
+        printf '%s' "$custom"
+      fi
+      ;;
+    "")
+      printf '__empty__'
+      ;;
+    *)
+      printf '%s' "$choice"
+      ;;
+  esac
+}
+
+check_copilot_auth() {
+  if llm github_copilot auth status >/dev/null 2>&1; then
+    return 0
+  fi
+
+  gum_style "GitHub Copilot authentication is required." 203
+  if command -v gum >/dev/null 2>&1; then
+    if gum confirm "Run 'llm github_copilot auth login' now?"; then
+      llm github_copilot auth login
+    else
+      printf '[sparkdock-ai] Authentication is required to continue.\n' >&2
+      exit 1
+    fi
+  else
+    read -r -p "Run 'llm github_copilot auth login' now? [y/N]: " reply
+    if [[ ! "$reply" =~ ^[Yy]$ ]]; then
+      printf '[sparkdock-ai] Authentication is required to continue.\n' >&2
+      exit 1
+    fi
+    llm github_copilot auth login
+  fi
+
+  if ! llm github_copilot auth status >/dev/null 2>&1; then
+    printf '[sparkdock-ai] Authentication still failing after login attempt.\n' >&2
+    exit 1
+  fi
+}
+
+run_backend() {
+  local question=$1
+  local tmp_out tmp_err
+  tmp_out=$(mktemp)
+  tmp_err=$(mktemp)
+  local cmd=( "$PYTHON_BIN" "${ROOT_DIR}/src/sparkdock-ai/cli.py" --question "$question" --format text )
+
+  [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]] && printf '[sparkdock-ai] DEBUG running backend: %q\n' "${cmd[@]}"
+
+  local status=0
+  spinning_message="Thinking..."
+  if command -v gum >/dev/null 2>&1; then
+    if ! gum spin --title "$spinning_message" -- bash -c '
+out_file=$1
+err_file=$2
+shift 2
+"$@" >"$out_file" 2>"$err_file"
+' _ "$tmp_out" "$tmp_err" "${cmd[@]}"; then
+      status=$?
+    fi
+  else
+    printf '%s\n' "$spinning_message"
+    if ! "${cmd[@]}" >"$tmp_out" 2>"$tmp_err"; then
+      status=$?
+    fi
+  fi
+
+  BACKEND_OUTPUT=$(<"$tmp_out")
+  BACKEND_ERRORS=$(<"$tmp_err")
+  rm -f "$tmp_out" "$tmp_err"
+
+  if [[ $status -ne 0 ]]; then
+    [[ -n "$BACKEND_ERRORS" ]] && gum_style "$BACKEND_ERRORS" 203
+    return 1
+  fi
+  return 0
+}
+
+show_error() {
+  local message=$1
+  gum_style "$message" 203
+}
+
+main_loop() {
+  while true; do
+    local question
+    question=$(choose_question) || exit 1
+
+    if [[ "$question" == "__quit__" ]]; then
+      exit 0
+    fi
+
+    if [[ "$question" == "__empty__" || -z "$question" ]]; then
+      continue
+    fi
+
+    gum_style "Question: $question" 212
+
+    local formatted_answer=""
+    if ! run_backend "$question"; then
+      show_error "Assistant failed to answer. Review the message above and try again."
+      continue
+    fi
+    formatted_answer="$BACKEND_OUTPUT"
+
+    if [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]]; then
+      gum_style "Raw assistant output:\n$formatted_answer" 244
+      if [[ -n "$BACKEND_ERRORS" ]]; then
+        gum_style "Backend stderr:\n$BACKEND_ERRORS" 203
+      fi
+    fi
+
+    if [[ -z "${formatted_answer// }" ]]; then
+      show_error "Assistant returned an empty response."
+      continue
+    fi
+
+    local answer_text="$formatted_answer"
+    local sources_block=""
+    if [[ "$formatted_answer" == *$'\nSources:\n'* ]]; then
+      answer_text="${formatted_answer%%$'\nSources:\n'*}"
+      sources_block="${formatted_answer#*$'\nSources:\n'}"
+    fi
+
+    gum_style "$answer_text" 35
+
+    if [[ -n "${sources_block// }" ]]; then
+      gum_style "Sources:\n$sources_block" 244
+    fi
+
+    local next
+    if command -v gum >/dev/null 2>&1; then
+      if ! next=$(gum choose --cursor "👉" --header "Next action?" "Ask another question" "Exit"); then
+        exit 0
+      fi
+    else
+      read -r -p "Ask another question? [Y/n]: " next
+      if [[ "$next" =~ ^[Nn]$ ]]; then
+        exit 0
+      else
+        next="Ask another question"
+      fi
+    fi
+
+    if [[ "$next" != "Ask another question" ]]; then
+      exit 0
+    fi
+  done
+}
+
+main() {
+  cd "$ROOT_DIR"
+  ensure_command gum
+  ensure_command llm
+  ensure_command "$PYTHON_BIN"
+
+  check_copilot_auth
+  main_loop
+}
+
+main "$@"

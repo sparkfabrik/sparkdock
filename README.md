@@ -148,6 +148,20 @@ After configuration, you can verify the plugin is working:
 gke-gcloud-auth-plugin --version
 ```
 
+### Sparkdock AI Assistant (Preview)
+
+Sparkdock includes an experimental `sparkdock-ai` helper built with [llm](https://github.com/simonw/llm), the [GitHub Copilot plugin](https://github.com/jmdaly/llm-github-copilot), and [gum](https://github.com/charmbracelet/gum). It lets you ask interactive questions about your local Sparkdock checkout (for example: “What packages are installed?” or “What aliases are defined?”).
+
+Run it from the repository root or `/opt/sparkdock`:
+
+```bash
+bin/sparkdock-ai
+```
+
+On first launch, the script checks GitHub Copilot authentication. If credentials are missing it offers to run `llm github_copilot auth login` and walks you through the login flow. Answers cite the relevant files so you can follow up directly in the repo.
+
+By default the assistant calls the fast OpenAI `gpt-4o-mini` model. Set `SPARKDOCK_AI_MODEL` if you prefer a different alias (for example `github_copilot/gpt-5-mini`). During long-running calls the CLI shows a `gum spin` progress indicator, and it falls back to plain text messaging if gum is unavailable.
+
 ### Shell Enhancements
 
 Sparkdock provides a modern shell experience with oh-my-zsh, starship prompt, and a curated set of modern Unix tools with convenient aliases.

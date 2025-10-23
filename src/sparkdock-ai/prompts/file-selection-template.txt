@@ -1,0 +1,7 @@
+Question:
+{{QUESTION}}
+
+Repository files you may select from:
+{{FILES}}
+
+Return a JSON array of relative file paths (strings) that should be read to answer the question. Limit the list to the most relevant 10 items or fewer. If none are required, return an empty array.

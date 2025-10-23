@@ -197,6 +197,24 @@
       when: all_linked_packages | length > 0
       become: false
 
+    - name: List installed llm plugins
+      command: "{{ homebrew_brew_bin_path }}/llm plugins"
+      register: llm_plugins
+      changed_when: false
+      environment:
+        PATH: "{{ homebrew_brew_bin_path }}:{{ ansible_env.PATH }}"
+      when: "'llm' in all_homebrew_packages"
+      become: false
+
+    - name: Install llm-github-copilot plugin
+      command: "{{ homebrew_brew_bin_path }}/llm install llm-github-copilot"
+      environment:
+        PATH: "{{ homebrew_brew_bin_path }}:{{ ansible_env.PATH }}"
+      when:
+        - "'llm' in all_homebrew_packages"
+        - "'llm-github-copilot' not in (llm_plugins.stdout | default(''))"
+      become: false
+
     - name: Run brew doctor
       command: brew doctor
       register: brew_doctor_result
