@@ -34,6 +34,21 @@ gum_style() {
   fi
 }
 
+display_markdown() {
+  local content=$1
+  if [[ -z "${content// }" ]]; then
+    return
+  fi
+
+  if command -v gum >/dev/null 2>&1; then
+    if ! printf '%s\n' "$content" | gum format --type=markdown | gum pager; then
+      printf '\n%s\n\n' "$content"
+    fi
+  else
+    printf '\n%s\n\n' "$content"
+  fi
+}
+
 choose_question() {
   local options=("${COMMON_QUESTIONS[@]}" "Custom question…" "Quit")
   local choice=""
@@ -186,18 +201,7 @@ main_loop() {
       continue
     fi
 
-    local answer_text="$formatted_answer"
-    local sources_block=""
-    if [[ "$formatted_answer" == *$'\nSources:\n'* ]]; then
-      answer_text="${formatted_answer%%$'\nSources:\n'*}"
-      sources_block="${formatted_answer#*$'\nSources:\n'}"
-    fi
-
-    gum_style "$answer_text" 35
-
-    if [[ -n "${sources_block// }" ]]; then
-      gum_style "Sources:\n$sources_block" 244
-    fi
+    display_markdown "$formatted_answer"
 
     local next
     if command -v gum >/dev/null 2>&1; then

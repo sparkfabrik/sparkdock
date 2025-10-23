@@ -7,11 +7,9 @@ import re
 import shutil
 import subprocess
 import sys
-import textwrap
+import tempfile
 from pathlib import Path
 from typing import Iterable, List, Optional
-
-TEXT_WIDTH = int(os.getenv("SPARKDOCK_AI_TEXT_WIDTH", "88"))
 
 MODEL = os.getenv("SPARKDOCK_AI_MODEL", "github_copilot/gpt-4o-mini")
 MAX_FILE_CHARS = int(os.getenv("SPARKDOCK_AI_MAX_FILE_CHARS", "8000"))
@@ -109,11 +107,12 @@ def select_files(
         ["llm", "prompt", "--no-log", "--no-stream", "-m", MODEL, "-s", system_prompt, prompt_body]
     )
 
-    Path("/tmp/sparkdock-ai-file-selection.raw").write_text(
+    tmp_dir = Path(tempfile.gettempdir())
+    tmp_dir.joinpath("sparkdock-ai-file-selection.raw").write_text(
         result.stdout.strip(), encoding="utf-8"
     )
     if result.returncode != 0:
-        Path("/tmp/sparkdock-ai-file-selection.err").write_text(
+        tmp_dir.joinpath("sparkdock-ai-file-selection.err").write_text(
             result.stderr, encoding="utf-8"
         )
         raise SparkdockAIError(
@@ -244,20 +243,6 @@ def build_context(root: Path, selected: List[str]) -> str:
     return "\n".join(parts)
 
 
-def format_plain_text(value: str) -> str:
-    lines: List[str] = []
-    for raw_line in value.splitlines():
-        stripped = raw_line.strip()
-        if not stripped:
-            lines.append("")
-            continue
-        lines.extend(textwrap.wrap(stripped, width=TEXT_WIDTH))
-    # If there was no newline at all, wrap the whole string once
-    if not lines:
-        lines = textwrap.wrap(value.strip(), width=TEXT_WIDTH)
-    return "\n".join(lines)
-
-
 def generate_answer(question: str, root: Path) -> dict:
     ensure_dependency("llm")
 
@@ -318,11 +303,11 @@ def main() -> int:
     if args.format == "json":
         print(json.dumps(result))
     else:
-        answer = format_plain_text(result["answer"].strip())
+        answer = result["answer"].strip()
         if answer:
             print(answer)
         if result["selected_files"]:
-            print("\nSources:")
+            print("\n## Sources\n")
             for item in result["selected_files"]:
                 print(f"- {item}")
     return 0
