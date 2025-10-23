@@ -1,5 +1,8 @@
 Question:
 {{QUESTION}}
 
+Repository files (relative paths):
+{{FILES}}
+
 Does this question require information from Sparkdock’s repository files to answer accurately?
 Reply with only YES or NO.

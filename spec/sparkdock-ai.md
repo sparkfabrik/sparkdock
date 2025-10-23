@@ -56,10 +56,10 @@
 
 ## Implementation Plan
 1. **Binary**: Keep `bin/sparkdock-ai` as a Bash orchestrator that handles terminal UX via gum and delegates heavy lifting to Python utilities in `src/sparkdock-ai/`.
-2. **Python Module**: Implement the core logic (question triage, file discovery, prompt building, LLM calls) in `src/sparkdock-ai/engine.py`, exposing a simple `--format text` output that includes the answer and cited sources so the Bash layer never needs to parse JSON.
-3. **Question Classifier**: Before any repo work, ask a lightweight model (`github_copilot/gpt-3.5-turbo`) whether the user’s question needs repository context. The classifier must respond with `YES` or `NO`. If the answer is `NO`, skip file selection entirely and answer the question with a general-purpose Copilot model (`github_copilot/gpt-4.1`).
+2. **Python Module**: Implement the core logic (question triage, file discovery, prompt building, LLM calls) in `src/sparkdock-ai/engine.py`, emitting Markdown answers plus a sources list so the Bash layer never needs to parse JSON.
+3. **Question Classifier**: Before any repo work, ask a lightweight model (`github_copilot/gpt-3.5-turbo`) whether the user’s question needs repository context. Provide it with the candidate file paths (no contents) and require a `YES` or `NO` response. If the answer is `NO`, skip file selection entirely and answer the question with a general-purpose Copilot model (`github_copilot/gpt-4.1`).
 4. **Contextual Answers**: Only when the classifier returns `YES` do we run the existing contextual pipeline (file selection + contextual answer) backed by `github_copilot/gpt-4o-mini`.
-5. **Dependency Checks**: Bash handles gum/llm presence and Copilot auth prompts; Python validates that `llm` is available before executing.
+5. **Dependency Checks**: Bash handles gum/llm presence, ensures the `llm-github-copilot` plugin is installed (prompting to install if missing), and manages Copilot auth prompts; Python validates that `llm` is available before executing.
 6. **Provisioning**: Extend Ansible roles to install `gum`, ensure `llm` is available (via Homebrew), and run `llm install llm-github-copilot` during setup.
 7. **File Discovery**: Use `git ls-files` when repo accessible; fallback to curated globs if `.git` missing. Always include `README.md` (if present) in the candidate list and append its content to the final answer context even when not selected, so the assistant retains awareness of Sparkdock’s overview.
 8. **Prompts**: Keep template strings under `src/sparkdock-ai/prompts/` so they stay scoped to the assistant feature. Add dedicated prompts for the classifier (`needs-files-*.txt`) and direct-answer flow.

@@ -153,7 +153,7 @@ Run it from the repository root or `/opt/sparkdock`:
 bin/sparkdock-ai
 ```
 
-On first launch, the script checks GitHub Copilot authentication. If credentials are missing it offers to run `llm github_copilot auth login` and walks you through the login flow. Answers cite the relevant files so you can follow up directly in the repo.
+On first launch, the script verifies the `llm-github-copilot` plugin is installed and offers to install it if missing, then checks GitHub Copilot authentication. If credentials are missing it offers to run `llm github_copilot auth login` and walks you through the login flow. Answers cite the relevant files so you can follow up directly in the repo.
 
 The assistant calls the fast OpenAI `gpt-4o-mini` model. During long-running calls the CLI shows a `gum spin` progress indicator, and it falls back to plain text messaging if gum is unavailable.
 

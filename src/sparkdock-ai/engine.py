@@ -17,6 +17,7 @@ CONTEXT_MODEL = "github_copilot/gpt-4o-mini"
 DIRECT_MODEL = "github_copilot/gpt-4.1"
 MAX_FILE_CHARS = int(os.getenv("SPARKDOCK_AI_MAX_FILE_CHARS", "30000"))
 MAX_CANDIDATES = int(os.getenv("SPARKDOCK_AI_MAX_CANDIDATES", "50"))
+MAX_TOKENS = int(os.getenv("SPARKDOCK_AI_MAX_TOKENS", "2048"))
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 LOG_PATH = Path(
     os.getenv("SPARKDOCK_AI_LOG_FILE", "~/.config/spark/sparkdock/ai.log")
@@ -140,6 +141,32 @@ def load_prompt(name: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def invoke_llm(
+    *,
+    model: str,
+    system_prompt: str,
+    prompt_body: str,
+    max_tokens: int = MAX_TOKENS,
+) -> subprocess.CompletedProcess:
+    LOGGER.trace("Invoking LLM model=%s", model)
+    return run_subprocess(
+        [
+            "llm",
+            "prompt",
+            "--no-log",
+            "--no-stream",
+            "-o",
+            "max_tokens",
+            str(max_tokens),
+            "-m",
+            model,
+            "-s",
+            system_prompt,
+            prompt_body,
+        ]
+    )
+
+
 def gather_candidate_files(root: Path) -> List[str]:
     LOGGER.trace("Gathering candidate files from %s", root)
     candidates: List[str] = []
@@ -179,18 +206,10 @@ def select_files(
         prompt_template.replace("{{QUESTION}}", question).replace("{{FILES}}", block)
     )
     LOGGER.trace("Selecting files for question: %s", question)
-    result = run_subprocess(
-        [
-            "llm",
-            "prompt",
-            "--no-log",
-            "--no-stream",
-            "-m",
-            CONTEXT_MODEL,
-            "-s",
-            system_prompt,
-            prompt_body,
-        ]
+    result = invoke_llm(
+        model=CONTEXT_MODEL,
+        system_prompt=system_prompt,
+        prompt_body=prompt_body,
     )
 
     tmp_dir = Path(tempfile.gettempdir())
@@ -226,18 +245,10 @@ def ask_with_context(
     prompt_body = (
         prompt_template.replace("{{QUESTION}}", question).replace("{{CONTEXT}}", context)
     )
-    result = run_subprocess(
-        [
-            "llm",
-            "prompt",
-            "--no-log",
-            "--no-stream",
-            "-m",
-            CONTEXT_MODEL,
-            "-s",
-            system_prompt,
-            prompt_body,
-        ]
+    result = invoke_llm(
+        model=CONTEXT_MODEL,
+        system_prompt=system_prompt,
+        prompt_body=prompt_body,
     )
     if result.returncode != 0:
         raise SparkdockAIError(result.stderr or "Unable to obtain answer from llm.")
@@ -249,18 +260,10 @@ def ask_without_context(*, question: str, system_prompt: str, prompt_template: s
     LOGGER.info("Answering without repository context using %s", DIRECT_MODEL)
     LOGGER.trace("Direct question: %s", question)
     prompt_body = prompt_template.replace("{{QUESTION}}", question)
-    result = run_subprocess(
-        [
-            "llm",
-            "prompt",
-            "--no-log",
-            "--no-stream",
-            "-m",
-            DIRECT_MODEL,
-            "-s",
-            system_prompt,
-            prompt_body,
-        ]
+    result = invoke_llm(
+        model=DIRECT_MODEL,
+        system_prompt=system_prompt,
+        prompt_body=prompt_body,
     )
     if result.returncode != 0:
         raise SparkdockAIError(result.stderr or "Unable to obtain answer from llm.")
@@ -268,41 +271,33 @@ def ask_without_context(*, question: str, system_prompt: str, prompt_template: s
     return result.stdout.strip()
 
 
-def question_needs_repo(question: str) -> bool:
+def question_needs_repo(question: str, candidate_files: List[str]) -> bool:
     LOGGER.info("Classifying question for repository context")
     LOGGER.trace("Classification question: %s", question)
+    LOGGER.trace("Classifier candidate file count: %d", len(candidate_files))
     system_prompt = load_prompt("needs-files-system.txt")
     prompt_template = load_prompt("needs-files-template.txt")
-    prompt_body = prompt_template.replace("{{QUESTION}}", question)
-    result = run_subprocess(
-        [
-            "llm",
-            "prompt",
-            "--no-log",
-            "--no-stream",
-            "-m",
-            CLASSIFIER_MODEL,
-            "-s",
-            system_prompt,
-            prompt_body,
-        ]
+    block = render_candidate_block(candidate_files)
+    if not block.strip():
+        block = "- (no repository files detected)"
+    prompt_body = (
+        prompt_template.replace("{{QUESTION}}", question).replace("{{FILES}}", block)
     )
 
-    tmp_dir = Path(tempfile.gettempdir())
-    raw_path = tmp_dir.joinpath("sparkdock-ai-needs-files.raw")
-    raw_path.write_text(result.stdout.strip(), encoding="utf-8")
-    LOGGER.trace("Classifier raw output stored at %s", raw_path)
+    result = invoke_llm(
+        model=CLASSIFIER_MODEL,
+        system_prompt=system_prompt,
+        prompt_body=prompt_body,
+    )
 
     if result.returncode != 0:
-        err_path = tmp_dir.joinpath("sparkdock-ai-needs-files.err")
-        err_path.write_text(result.stderr, encoding="utf-8")
         LOGGER.error(
-            "Question classification failed (exit=%s). See %s for details.",
+            "Question classification failed (exit=%s): %s",
             result.returncode,
-            err_path,
+            result.stderr.strip() or "<no stderr>",
         )
         raise SparkdockAIError(
-            f"Unable to classify question. See {err_path!s} for details."
+            "Unable to classify question. Check log output for details."
         )
 
     decision = result.stdout.strip().lower()
@@ -431,10 +426,11 @@ def build_context(root: Path, selected: List[str]) -> str:
 
 
 def generate_answer(question: str, root: Path) -> dict:
-    ensure_dependency("llm")
     LOGGER.trace("Generating answer for question: %s", question)
 
-    needs_repo = question_needs_repo(question)
+    candidates = gather_candidate_files(root)
+
+    needs_repo = question_needs_repo(question, candidates)
 
     if not needs_repo:
         LOGGER.info("Routing question to direct-answer model %s", DIRECT_MODEL)
@@ -456,8 +452,6 @@ def generate_answer(question: str, root: Path) -> dict:
     file_selection_template = load_prompt("file-selection-template.txt")
     answer_system = load_prompt("answer-system.txt")
     answer_template = load_prompt("answer-template.txt")
-
-    candidates = gather_candidate_files(root)
 
     selected_files = select_files(
         question=question,
@@ -487,12 +481,6 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Sparkdock AI assistant backend")
     parser.add_argument("--question", required=True, help="Question to ask the assistant")
     parser.add_argument(
-        "--format",
-        choices=("json", "text"),
-        default="json",
-        help="Output format (default: json)",
-    )
-    parser.add_argument(
         "--root",
         default=None,
         help="Root directory of the Sparkdock repository (defaults to auto-detect)",
@@ -502,21 +490,19 @@ def main() -> int:
     try:
         root = determine_root(args.root)
         os.chdir(root)
+        ensure_dependency("llm")
         result = generate_answer(args.question, root)
     except SparkdockAIError as err:
         print(err, file=sys.stderr)
         return 1
 
-    if args.format == "json":
-        print(json.dumps(result))
-    else:
-        answer = result["answer"].strip()
-        if answer:
-            print(answer)
-        if result["selected_files"]:
-            print("\n## Sources\n")
-            for item in result["selected_files"]:
-                print(f"- {item}")
+    answer = result["answer"].strip()
+    if answer:
+        print(answer)
+    if result["selected_files"]:
+        print("\n## Sources\n")
+        for item in result["selected_files"]:
+            print(f"- {item}")
     return 0
 
 

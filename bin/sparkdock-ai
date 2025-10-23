@@ -10,20 +10,22 @@ if [[ -x "${ROOT_DIR}/.venv/bin/python3" ]]; then
 fi
 
 COMMON_QUESTIONS=(
-  "What packages are installed?"
-  "What aliases are defined?"
-  "What is sjust?"
-  "How do I enable the Sparkdock shell enhancements?"
-  "How do I update Sparkdock?"
+  "How do I install Sparkdock on a new Mac?"
+  "How do I upgrade Sparkdock?"
+  "Which packages does Sparkdock install?"
+  "What tasks are available in sjust?"
+  "How do I enable the Sparkdock shell?"
 )
 
 HELP_DOC="${ROOT_DIR}/src/sparkdock-ai/help.md"
+LOGO_FILE="${ROOT_DIR}/src/sparkdock-ai/assets/logo.txt"
 
 GUM_SPINNERS=(line dot minidot jump pulse points globe moon monkey meter hamburger)
 
 ensure_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     printf '[sparkdock-ai] Missing dependency: %s\n' "$1" >&2
+    brew search "$1" >/dev/null 2>&1 && printf '[sparkdock-ai] You can install it with: brew install %s\n' "$1" >&2
     exit 1
   fi
 }
@@ -44,21 +46,34 @@ display_markdown() {
 }
 
 show_banner() {
-  printf '**Welcome to Sparkdock AI (experimental)**\n\nI am here to help with any question you have about Sparkdock.\n' |
-    gum format --type markdown |
+  header=""
+  cols=$(tput cols)
+  if [[ "$cols" -gt 110 ]]; then
+    cols=110
+    header="$(<"$LOGO_FILE")"
+  else
+    cols=$((cols - 20))
+    if [[ "$cols" -lt 0 ]]; then
+      cols=$(tput cols)
+    fi
+  fi
+    message=$(printf '%s %s %s' "$header" \
+      "$(gum format --type template '{{ Underline "Welcome to Sparkdock AI!" }} {{ Color "3" "0" "(experimental)\n\n" }}')" \
+      "$(gum format --type markdown 'Ask me anything about **Sparkdock** and its features.')")
     gum style \
-      --foreground 213 \
-      --border-foreground 219 \
+      --foreground 212 \
+      --border-foreground 200 \
       --border double \
       --align center \
-      --width 80 \
+      --width "$cols" \
       --margin "1 2" \
       --padding "2 4" \
-      --bold
+      --bold \
+      --trim "$message"
 }
 
 choose_question() {
-  local options=("About Sparkdock AI" "${COMMON_QUESTIONS[@]}" "Custom question…" "Quit")
+  local options=("About Sparkdock AI" "${COMMON_QUESTIONS[@]}" "Ask something else…" "Quit")
   local choice=""
 
   if ! choice=$(gum choose --cursor "👉" --header "How can I help you?" "${options[@]}"); then
@@ -72,7 +87,7 @@ choose_question() {
     "About Sparkdock AI")
       printf '__help__'
       ;;
-    "Custom question…")
+    "Ask something else…")
       local custom=""
       if ! custom=$(gum input --placeholder "Ask me anything about Sparkdock"); then
         printf '__empty__'
@@ -99,8 +114,47 @@ show_help() {
   fi
 }
 
+has_copilot_plugin() {
+  llm plugins 2>/dev/null | grep -Fq 'llm-github-copilot'
+}
+
+ensure_copilot_plugin() {
+  if has_copilot_plugin; then
+    return
+  fi
+
+  gum_style "The 'llm-github-copilot' plugin is required." 203
+  if gum confirm "Install 'llm-github-copilot' now?"; then
+    if ! gum spin --title "Installing llm-github-copilot..." -- llm install llm-github-copilot; then
+      gum_style "Failed to install llm-github-copilot. Please install it manually with 'llm install llm-github-copilot'." 203
+      exit 1
+    fi
+  else
+    printf '[sparkdock-ai] The llm-github-copilot plugin is required to continue.\n' >&2
+    exit 1
+  fi
+
+  if ! has_copilot_plugin; then
+    gum_style "llm-github-copilot plugin still missing after install attempt." 203
+    exit 1
+  fi
+}
+
+copilot_authenticated() {
+  local status
+  status=$(llm github_copilot auth status 2>&1 || true)
+  [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]] && gum_style "Copilot auth status:\n$status" 244
+  if [[ "$status" == *"Not authenticated"* ]]; then
+    return 1
+  fi
+  if [[ "$status" == *"Authenticated"* ]]; then
+    return 0
+  fi
+  return 1
+}
+
 check_copilot_auth() {
-  if llm github_copilot auth status >/dev/null 2>&1; then
+  if copilot_authenticated; then
     return 0
   fi
 
@@ -112,7 +166,7 @@ check_copilot_auth() {
     exit 1
   fi
 
-  if ! llm github_copilot auth status >/dev/null 2>&1; then
+  if ! copilot_authenticated; then
     printf '[sparkdock-ai] Authentication still failing after login attempt.\n' >&2
     exit 1
   fi
@@ -123,7 +177,7 @@ run_backend() {
   local tmp_out tmp_err
   tmp_out=$(mktemp)
   tmp_err=$(mktemp)
-  local cmd=( "$PYTHON_BIN" "${ROOT_DIR}/src/sparkdock-ai/engine.py" --question "$question" --format text )
+  local cmd=( "$PYTHON_BIN" "${ROOT_DIR}/src/sparkdock-ai/engine.py" --question "$question" )
 
   [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]] && printf '[sparkdock-ai] DEBUG running backend: %q\n' "${cmd[@]}"
 
@@ -212,6 +266,7 @@ main() {
   ensure_command gum
   ensure_command llm
   ensure_command "$PYTHON_BIN"
+  ensure_copilot_plugin
 
   check_copilot_auth
   show_banner
