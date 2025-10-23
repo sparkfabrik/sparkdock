@@ -157,6 +157,8 @@ On first launch, the script checks GitHub Copilot authentication. If credentials
 
 The assistant calls the fast OpenAI `gpt-4o-mini` model. During long-running calls the CLI shows a `gum spin` progress indicator, and it falls back to plain text messaging if gum is unavailable.
 
+Pick “Help” in the menu at any time to read a quick overview of how the assistant works, including the classifier/direct-answer flow diagram.
+
 Logs live at `~/.config/spark/sparkdock/ai.log`. Set `SPARKDOCK_AI_LOG_LEVEL=TRACE` for verbose tracing or `SPARKDOCK_AI_LOG_FILE` to override the destination.
 
 ### Shell Enhancements

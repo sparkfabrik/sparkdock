@@ -17,6 +17,8 @@ COMMON_QUESTIONS=(
   "How do I update Sparkdock?"
 )
 
+HELP_DOC="${ROOT_DIR}/src/sparkdock-ai/help.md"
+
 GUM_SPINNERS=(line dot minidot jump pulse points globe moon monkey meter hamburger)
 
 ensure_command() {
@@ -42,7 +44,7 @@ display_markdown() {
 }
 
 show_banner() {
-  printf '**Welcome to Sparkdock AI**\n\nI am here to help with any question you have about Sparkdock.\n' |
+  printf '**Welcome to Sparkdock AI (experimental)**\n\nI am here to help with any question you have about Sparkdock.\n' |
     gum format --type markdown |
     gum style \
       --foreground 213 \
@@ -56,16 +58,19 @@ show_banner() {
 }
 
 choose_question() {
-  local options=("${COMMON_QUESTIONS[@]}" "Custom question…" "Quit")
+  local options=("About Sparkdock AI" "${COMMON_QUESTIONS[@]}" "Custom question…" "Quit")
   local choice=""
 
-  if ! choice=$(gum choose --cursor "👉" --header "How can Sparkdock help you?" "${options[@]}"); then
+  if ! choice=$(gum choose --cursor "👉" --header "How can I help you?" "${options[@]}"); then
     return 1
   fi
 
   case "$choice" in
     "Quit")
       printf '__quit__'
+      ;;
+    "About Sparkdock AI")
+      printf '__help__'
       ;;
     "Custom question…")
       local custom=""
@@ -84,6 +89,14 @@ choose_question() {
       printf '%s' "$choice"
       ;;
   esac
+}
+
+show_help() {
+  if [[ -f "$HELP_DOC" ]]; then
+    display_markdown "$(<"$HELP_DOC")"
+  else
+    gum_style "Help document not found at $HELP_DOC" 203
+  fi
 }
 
 check_copilot_auth() {
@@ -149,6 +162,11 @@ main_loop() {
 
     if [[ "$question" == "__quit__" ]]; then
       exit 0
+    fi
+
+    if [[ "$question" == "__help__" ]]; then
+      show_help
+      continue
     fi
 
     if [[ "$question" == "__empty__" || -z "$question" ]]; then

@@ -67,6 +67,7 @@
 10. **Tests / Validation**: Provide manual test instructions (since tool integrates with live LLM).
 11. **Docs**: Update `.github/README` or main `README.md` with usage instructions and auth notes, including the fact that authentication is handled interactively at runtime (`bin/sparkdock-ai` checks and guides the user through `llm github_copilot auth login` as needed). Document the new “quick answer” path.
 12. **Logging**: Record key engine events to `~/.config/spark/sparkdock/ai.log` (configurable via `SPARKDOCK_AI_LOG_FILE`) with INFO vs TRACE levels controlled by `SPARKDOCK_AI_LOG_LEVEL`.
+13. **Help UX**: Ship a static Markdown help sheet (`src/sparkdock-ai/help.md`) detailing the architecture diagram and usage tips; expose it via a “Help” option in the gum front-end.
 
 ## Open Questions
 - Should we cache LLM-selected files per question to speed re-asks? (Nice-to-have; optional.)
