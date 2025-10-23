@@ -157,6 +157,8 @@ On first launch, the script checks GitHub Copilot authentication. If credentials
 
 The assistant calls the fast OpenAI `gpt-4o-mini` model. During long-running calls the CLI shows a `gum spin` progress indicator, and it falls back to plain text messaging if gum is unavailable.
 
+Logs live at `~/.config/spark/sparkdock/ai.log`. Set `SPARKDOCK_AI_LOG_LEVEL=TRACE` for verbose tracing or `SPARKDOCK_AI_LOG_FILE` to override the destination.
+
 ### Shell Enhancements
 
 Sparkdock provides a modern shell experience with oh-my-zsh, starship prompt, and a curated set of modern Unix tools with convenient aliases.

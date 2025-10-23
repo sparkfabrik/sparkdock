@@ -56,16 +56,19 @@
 
 ## Implementation Plan
 1. **Binary**: Keep `bin/sparkdock-ai` as a Bash orchestrator that handles terminal UX via gum and delegates heavy lifting to Python utilities in `src/sparkdock-ai/`.
-2. **Python Module**: Implement the core logic (file discovery, prompt building, LLM calls) in `src/sparkdock-ai/cli.py`, exposing a simple `--format text` output that includes the answer and cited sources so the Bash layer never needs to parse JSON. Default the model to `github_copilot/gpt-4o-mini`—it is the fastest Copilot variant available to us—and only allow overrides within the `github_copilot/` namespace so we stay on the Copilot subscription.
-3. **Dependency Checks**: Bash handles gum/llm presence and Copilot auth prompts; Python validates that `llm` is available before executing.
-4. **Provisioning**: Extend Ansible roles to install `gum`, ensure `llm` is available (via Homebrew), and run `llm install llm-github-copilot` during setup.
-5. **File Discovery**: Use `git ls-files` when repo accessible; fallback to curated globs if `.git` missing. Always include `README.md` (if present) in the candidate list and append its content to the final answer context even when not selected, so the assistant retains awareness of Sparkdock’s overview.
-6. **Prompts**: Keep template strings under `src/sparkdock-ai/prompts/` so they stay scoped to the assistant feature.
-7. **Answer Formatting**: Instruct the model to answer in Markdown suitable for `gum format`, render responses through `gum pager`, and gracefully degrade to plain stdout if gum is missing.
-8. **Tests / Validation**: Provide manual test instructions (since tool integrates with live LLM).
-9. **Docs**: Update `.github/README` or main `README.md` with usage instructions and auth notes, including the fact that authentication is handled interactively at runtime (`bin/sparkdock-ai` checks and guides the user through `llm github_copilot auth login` as needed).
+2. **Python Module**: Implement the core logic (question triage, file discovery, prompt building, LLM calls) in `src/sparkdock-ai/engine.py`, exposing a simple `--format text` output that includes the answer and cited sources so the Bash layer never needs to parse JSON.
+3. **Question Classifier**: Before any repo work, ask a lightweight model (`github_copilot/gpt-3.5-turbo`) whether the user’s question needs repository context. The classifier must respond with `YES` or `NO`. If the answer is `NO`, skip file selection entirely and answer the question with a general-purpose Copilot model (`github_copilot/gpt-4.1`).
+4. **Contextual Answers**: Only when the classifier returns `YES` do we run the existing contextual pipeline (file selection + contextual answer) backed by `github_copilot/gpt-4o-mini`.
+5. **Dependency Checks**: Bash handles gum/llm presence and Copilot auth prompts; Python validates that `llm` is available before executing.
+6. **Provisioning**: Extend Ansible roles to install `gum`, ensure `llm` is available (via Homebrew), and run `llm install llm-github-copilot` during setup.
+7. **File Discovery**: Use `git ls-files` when repo accessible; fallback to curated globs if `.git` missing. Always include `README.md` (if present) in the candidate list and append its content to the final answer context even when not selected, so the assistant retains awareness of Sparkdock’s overview.
+8. **Prompts**: Keep template strings under `src/sparkdock-ai/prompts/` so they stay scoped to the assistant feature. Add dedicated prompts for the classifier (`needs-files-*.txt`) and direct-answer flow.
+9. **Answer Formatting**: Instruct the models to answer in Markdown suitable for `gum format`, render responses through `gum pager`, and gracefully degrade to plain stdout if gum is missing.
+10. **Tests / Validation**: Provide manual test instructions (since tool integrates with live LLM).
+11. **Docs**: Update `.github/README` or main `README.md` with usage instructions and auth notes, including the fact that authentication is handled interactively at runtime (`bin/sparkdock-ai` checks and guides the user through `llm github_copilot auth login` as needed). Document the new “quick answer” path.
+12. **Logging**: Record key engine events to `~/.config/spark/sparkdock/ai.log` (configurable via `SPARKDOCK_AI_LOG_FILE`) with INFO vs TRACE levels controlled by `SPARKDOCK_AI_LOG_LEVEL`.
 
 ## Open Questions
 - Should we cache LLM-selected files per question to speed re-asks? (Nice-to-have; optional.)
 - Do we log interactions locally for auditing? Default to `--no-log` to avoid storing content; mention privacy trade-offs.
-- Model selection stays fixed to `github_copilot/gpt-4o-mini`; no environment override.
+- Model choices are fixed per stage: classifier (`github_copilot/gpt-3.5-turbo`), contextual reasoning (`github_copilot/gpt-4o-mini`), and quick answers (`github_copilot/gpt-4.1`). No environment overrides for now.

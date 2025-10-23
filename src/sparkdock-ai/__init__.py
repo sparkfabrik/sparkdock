@@ -1,1 +1,1 @@
-# Intentionally empty; CLI lives in cli.py.
+# Intentionally empty; engine lives in engine.py.

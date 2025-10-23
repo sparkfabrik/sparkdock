@@ -245,14 +245,18 @@ docker-prune:
 
 # Install sparkdock ansible tag.
 [group('sparkdock')]
+sparkdock-ai:
+    @"{{source_directory()}}/../../bin/sparkdock-ai"
+
+[group('sparkdock')]
 sparkdock-install-tags tags:
     #!/usr/bin/env bash
     echo "Running ansible with following tags: {{tags}}"
     cd {{ sparkdock_path }}
-    
+
     # Ensure Python3 is installed and available at the expected location
     sparkdock ensure-python3
-    
+
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
 
 # Fetch latest Sparkdock updates from git repository without running system configuration. Useful for getting the newest sjust recipes and commands without triggering a full system update.

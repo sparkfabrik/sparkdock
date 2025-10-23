@@ -110,7 +110,7 @@ run_backend() {
   local tmp_out tmp_err
   tmp_out=$(mktemp)
   tmp_err=$(mktemp)
-  local cmd=( "$PYTHON_BIN" "${ROOT_DIR}/src/sparkdock-ai/cli.py" --question "$question" --format text )
+  local cmd=( "$PYTHON_BIN" "${ROOT_DIR}/src/sparkdock-ai/engine.py" --question "$question" --format text )
 
   [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]] && printf '[sparkdock-ai] DEBUG running backend: %q\n' "${cmd[@]}"
 
@@ -191,10 +191,7 @@ main_loop() {
 
 main() {
   cd "$ROOT_DIR"
-  if ! command -v gum >/dev/null 2>&1; then
-    printf '[sparkdock-ai] Gum is required. Install it via `brew install gum` or re-run sparkdock provisioning.\n' >&2
-    exit 1
-  fi
+  ensure_command gum
   ensure_command llm
   ensure_command "$PYTHON_BIN"
 
