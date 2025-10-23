@@ -248,6 +248,24 @@ docker-prune:
 sparkdock-ai:
     @"{{source_directory()}}/../../bin/sparkdock-ai"
 
+# Install the required llm GitHub Copilot plugin.
+[group('sparkdock')]
+sparkdock-configure-llm:
+    #!/usr/bin/env bash
+    set -e
+    if llm plugins 2>/dev/null | grep -Fq 'llm-github-copilot'; then
+        echo 'llm-github-copilot already installed.'
+    else
+        echo 'Installing llm-github-copilot plugin...'
+        llm install llm-github-copilot
+    fi
+    echo 'Checking GitHub Copilot authentication status...'
+    if llm github_copilot auth status 2>&1 | grep -Fq 'Not authenticated'; then
+        echo '⚠️  Run `llm github_copilot auth login` to authenticate.'
+    else
+        echo '✅ GitHub Copilot appears authenticated.'
+    fi
+
 [group('sparkdock')]
 sparkdock-install-tags tags:
     #!/usr/bin/env bash
