@@ -29,11 +29,7 @@ ensure_command() {
 gum_style() {
   local text=$1
   local border=${2:-99}
-  if command -v gum >/dev/null 2>&1; then
-    gum style --border normal --padding "1 2" --margin "1 0" --border-foreground "$border" "$text"
-  else
-    printf '\n%s\n\n' "$text"
-  fi
+  gum style --border normal --padding "1 2" --margin "1 0" --border-foreground "$border" "$text"
 }
 
 display_markdown() {
@@ -42,34 +38,29 @@ display_markdown() {
     return
   fi
 
-  if command -v gum >/dev/null 2>&1; then
-    if ! printf '%s\n' "$content" | gum format --type=markdown | gum pager; then
-      printf '\n%s\n\n' "$content"
-    fi
-  else
-    printf '\n%s\n\n' "$content"
-  fi
+  printf '%s\n' "$content" | gum format --type markdown | gum pager
+}
+
+show_banner() {
+  printf '**Welcome to Sparkdock AI**\n\nI am here to help with any question you have about Sparkdock.\n' |
+    gum format --type markdown |
+    gum style \
+      --foreground 213 \
+      --border-foreground 219 \
+      --border double \
+      --align center \
+      --width 80 \
+      --margin "1 2" \
+      --padding "2 4" \
+      --bold
 }
 
 choose_question() {
   local options=("${COMMON_QUESTIONS[@]}" "Custom question…" "Quit")
   local choice=""
 
-  if command -v gum >/dev/null 2>&1; then
-    if ! choice=$(gum choose --cursor "👉" --header "How can Sparkdock help you?" "${options[@]}"); then
-      return 1
-    fi
-  else
-    printf '\nHow can Sparkdock help you?\n'
-    local idx=1
-    for option in "${options[@]}"; do
-      printf '  %d) %s\n' "$idx" "$option"
-      ((idx++))
-    done
-    read -r -p "Select option: " choice
-    if [[ "$choice" =~ ^[0-9]+$ ]] && ((choice >= 1 && choice <= ${#options[@]})); then
-      choice=${options[((choice-1))]}
-    fi
+  if ! choice=$(gum choose --cursor "👉" --header "How can Sparkdock help you?" "${options[@]}"); then
+    return 1
   fi
 
   case "$choice" in
@@ -78,12 +69,9 @@ choose_question() {
       ;;
     "Custom question…")
       local custom=""
-      if command -v gum >/dev/null 2>&1; then
-        custom=$(gum input --placeholder "Ask me anything about Sparkdock")
-      else
-        read -r -p "Ask me anything about Sparkdock: " custom
-      fi
-      if [[ -z "$custom" ]]; then
+      if ! custom=$(gum input --placeholder "Ask me anything about Sparkdock"); then
+        printf '__empty__'
+      elif [[ -z "$custom" ]]; then
         printf '__empty__'
       else
         printf '%s' "$custom"
@@ -104,20 +92,11 @@ check_copilot_auth() {
   fi
 
   gum_style "GitHub Copilot authentication is required." 203
-  if command -v gum >/dev/null 2>&1; then
-    if gum confirm "Run 'llm github_copilot auth login' now?"; then
-      llm github_copilot auth login
-    else
-      printf '[sparkdock-ai] Authentication is required to continue.\n' >&2
-      exit 1
-    fi
-  else
-    read -r -p "Run 'llm github_copilot auth login' now? [y/N]: " reply
-    if [[ ! "$reply" =~ ^[Yy]$ ]]; then
-      printf '[sparkdock-ai] Authentication is required to continue.\n' >&2
-      exit 1
-    fi
+  if gum confirm "Run 'llm github_copilot auth login' now?"; then
     llm github_copilot auth login
+  else
+    printf '[sparkdock-ai] Authentication is required to continue.\n' >&2
+    exit 1
   fi
 
   if ! llm github_copilot auth status >/dev/null 2>&1; then
@@ -137,21 +116,14 @@ run_backend() {
 
   local status=0
   spinning_message="Thinking..."
-  if command -v gum >/dev/null 2>&1; then
-    local spinner="${GUM_SPINNERS[RANDOM % ${#GUM_SPINNERS[@]}]}"
-    if ! gum spin --spinner "$spinner" --title "$spinning_message" -- bash -c '
+  local spinner="${GUM_SPINNERS[RANDOM % ${#GUM_SPINNERS[@]}]}"
+  if ! gum spin --spinner "$spinner" --title "$spinning_message" -- bash -c '
 out_file=$1
 err_file=$2
 shift 2
 "$@" >"$out_file" 2>"$err_file"
 ' _ "$tmp_out" "$tmp_err" "${cmd[@]}"; then
-      status=$?
-    fi
-  else
-    printf '%s\n' "$spinning_message"
-    if ! "${cmd[@]}" >"$tmp_out" 2>"$tmp_err"; then
-      status=$?
-    fi
+    status=$?
   fi
 
   BACKEND_OUTPUT=$(<"$tmp_out")
@@ -207,17 +179,8 @@ main_loop() {
     display_markdown "$formatted_answer"
 
     local next
-    if command -v gum >/dev/null 2>&1; then
-      if ! next=$(gum choose --cursor "👉" --header "Next action?" "Ask another question" "Exit"); then
-        exit 0
-      fi
-    else
-      read -r -p "Ask another question? [Y/n]: " next
-      if [[ "$next" =~ ^[Nn]$ ]]; then
-        exit 0
-      else
-        next="Ask another question"
-      fi
+    if ! next=$(gum choose --cursor "👉" --header "Next action?" "Ask another question" "Exit"); then
+      exit 0
     fi
 
     if [[ "$next" != "Ask another question" ]]; then
@@ -228,11 +191,15 @@ main_loop() {
 
 main() {
   cd "$ROOT_DIR"
-  ensure_command gum
+  if ! command -v gum >/dev/null 2>&1; then
+    printf '[sparkdock-ai] Gum is required. Install it via `brew install gum` or re-run sparkdock provisioning.\n' >&2
+    exit 1
+  fi
   ensure_command llm
   ensure_command "$PYTHON_BIN"
 
   check_copilot_auth
+  show_banner
   main_loop
 }
 

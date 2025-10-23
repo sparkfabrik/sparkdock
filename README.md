@@ -96,23 +96,18 @@ Run the provisioner to configure your system:
 sparkdock
 ```
 
-### Manual Migration for Existing Users
+### Upgrade Sparkdock
 
-If you have an existing Sparkdock installation and want to update to the new HTTP proxy system without running the full provisioner:
+To update an existing Sparkdock installation, either re-run the full provisioner or use the dedicated SparkJust task:
 
 ```bash
+sparkdock
+# or
 cd /opt/sparkdock
-git switch master
-git fetch && git reset --hard origin/master
-make install-sjust
-sjust http-proxy-install-update
+sjust sparkdock-upgrade
 ```
 
-This workflow:
-
-1. Updates your Sparkdock repository to the latest version
-2. Installs the `sjust` task runner
-3. Runs a targeted Ansible update to install the new HTTP proxy system
+`sjust sparkdock-upgrade` refreshes the repository, ensures SparkJust is installed, and applies the latest configuration updates (including the HTTP proxy system).
 
 ### SparkJust Task Runner
 
@@ -160,7 +155,7 @@ bin/sparkdock-ai
 
 On first launch, the script checks GitHub Copilot authentication. If credentials are missing it offers to run `llm github_copilot auth login` and walks you through the login flow. Answers cite the relevant files so you can follow up directly in the repo.
 
-By default the assistant calls the fast OpenAI `gpt-4o-mini` model. Set `SPARKDOCK_AI_MODEL` if you prefer a different alias (for example `github_copilot/gpt-5-mini`). During long-running calls the CLI shows a `gum spin` progress indicator, and it falls back to plain text messaging if gum is unavailable.
+The assistant calls the fast OpenAI `gpt-4o-mini` model. During long-running calls the CLI shows a `gum spin` progress indicator, and it falls back to plain text messaging if gum is unavailable.
 
 ### Shell Enhancements
 

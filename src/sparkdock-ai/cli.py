@@ -11,9 +11,9 @@ import tempfile
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-MODEL = os.getenv("SPARKDOCK_AI_MODEL", "github_copilot/gpt-4o-mini")
-MAX_FILE_CHARS = int(os.getenv("SPARKDOCK_AI_MAX_FILE_CHARS", "8000"))
-MAX_CANDIDATES = int(os.getenv("SPARKDOCK_AI_MAX_CANDIDATES", "400"))
+MODEL = "github_copilot/gpt-4o-mini"
+MAX_FILE_CHARS = int(os.getenv("SPARKDOCK_AI_MAX_FILE_CHARS", "30000"))
+MAX_CANDIDATES = int(os.getenv("SPARKDOCK_AI_MAX_CANDIDATES", "50"))
 PROMPTS_DIR = Path(__file__).resolve().parent / "prompts"
 
 CURATED_FALLBACK = [

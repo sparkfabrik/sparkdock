@@ -61,11 +61,11 @@
 4. **Provisioning**: Extend Ansible roles to install `gum`, ensure `llm` is available (via Homebrew), and run `llm install llm-github-copilot` during setup.
 5. **File Discovery**: Use `git ls-files` when repo accessible; fallback to curated globs if `.git` missing. Always include `README.md` (if present) in the candidate list and append its content to the final answer context even when not selected, so the assistant retains awareness of Sparkdock’s overview.
 6. **Prompts**: Keep template strings under `src/sparkdock-ai/prompts/` so they stay scoped to the assistant feature.
-7. **Answer Formatting**: Instruct the model to answer in plain text with one sentence per line (no Markdown), and use gum for borders/styling plus `gum spin` during backend work; gracefully degrade to plain stdout if gum is missing.
+7. **Answer Formatting**: Instruct the model to answer in Markdown suitable for `gum format`, render responses through `gum pager`, and gracefully degrade to plain stdout if gum is missing.
 8. **Tests / Validation**: Provide manual test instructions (since tool integrates with live LLM).
 9. **Docs**: Update `.github/README` or main `README.md` with usage instructions and auth notes, including the fact that authentication is handled interactively at runtime (`bin/sparkdock-ai` checks and guides the user through `llm github_copilot auth login` as needed).
 
 ## Open Questions
 - Should we cache LLM-selected files per question to speed re-asks? (Nice-to-have; optional.)
 - Do we log interactions locally for auditing? Default to `--no-log` to avoid storing content; mention privacy trade-offs.
-- Should we parameterize model via env (`SPARKDOCK_AI_MODEL`)? Default to `github_copilot/gpt-5-mini`; optional override later.
+- Model selection stays fixed to `github_copilot/gpt-4o-mini`; no environment override.
