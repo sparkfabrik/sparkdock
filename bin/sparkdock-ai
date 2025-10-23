@@ -17,6 +17,8 @@ COMMON_QUESTIONS=(
   "How do I update Sparkdock?"
 )
 
+GUM_SPINNERS=(line dot minidot jump pulse points globe moon monkey meter hamburger)
+
 ensure_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
     printf '[sparkdock-ai] Missing dependency: %s\n' "$1" >&2
@@ -136,7 +138,8 @@ run_backend() {
   local status=0
   spinning_message="Thinking..."
   if command -v gum >/dev/null 2>&1; then
-    if ! gum spin --title "$spinning_message" -- bash -c '
+    local spinner="${GUM_SPINNERS[RANDOM % ${#GUM_SPINNERS[@]}]}"
+    if ! gum spin --spinner "$spinner" --title "$spinning_message" -- bash -c '
 out_file=$1
 err_file=$2
 shift 2
