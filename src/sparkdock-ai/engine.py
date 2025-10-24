@@ -12,9 +12,9 @@ import tempfile
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-CLASSIFIER_MODEL = "github_copilot/gpt-3.5-turbo"
-CONTEXT_MODEL = "github_copilot/gpt-4o-mini"
-DIRECT_MODEL = "github_copilot/gpt-4.1"
+CLASSIFIER_MODEL = "gpt-3.5-turbo"
+CONTEXT_MODEL = "gpt-4.1-nano"
+DIRECT_MODEL = "gpt-4.1-nano"
 MAX_FILE_CHARS = int(os.getenv("SPARKDOCK_AI_MAX_FILE_CHARS", "30000"))
 MAX_CANDIDATES = int(os.getenv("SPARKDOCK_AI_MAX_CANDIDATES", "50"))
 MAX_TOKENS = int(os.getenv("SPARKDOCK_AI_MAX_TOKENS", "2048"))
@@ -141,6 +141,13 @@ def load_prompt(name: str) -> str:
     return path.read_text(encoding="utf-8")
 
 
+def _token_option_for_model(model: str) -> Optional[str]:
+    """Return the appropriate llm option name for controlling completion size."""
+    if re.match(r"^gpt-5", model):
+        return None
+    return "max_tokens"
+
+
 def invoke_llm(
     *,
     model: str,
@@ -149,22 +156,15 @@ def invoke_llm(
     max_tokens: int = MAX_TOKENS,
 ) -> subprocess.CompletedProcess:
     LOGGER.trace("Invoking LLM model=%s", model)
-    return run_subprocess(
-        [
-            "llm",
-            "prompt",
-            "--no-log",
-            "--no-stream",
-            "-o",
-            "max_tokens",
-            str(max_tokens),
-            "-m",
-            model,
-            "-s",
-            system_prompt,
-            prompt_body,
-        ]
-    )
+    token_option = _token_option_for_model(model)
+    cmd = ["llm", "prompt", "--no-log", "--no-stream"]
+    if token_option:
+        LOGGER.trace("Using token option %s=%d", token_option, max_tokens)
+        cmd.extend(["-o", token_option, str(max_tokens)])
+    else:
+        LOGGER.trace("Skipping token option for model=%s", model)
+    cmd.extend(["-m", model, "-s", system_prompt, prompt_body])
+    return run_subprocess(cmd)
 
 
 def gather_candidate_files(root: Path) -> List[str]:
