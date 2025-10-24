@@ -41,15 +41,6 @@ body:
     validations:
       required: true
 
-  - type: textarea
-    id: actual
-    attributes:
-      label: Actual Behavior
-      description: What actually happened?
-      placeholder: Tell us what actually happened
-    validations:
-      required: true
-
   - type: dropdown
     id: macos-version
     attributes:
