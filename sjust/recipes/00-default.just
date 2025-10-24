@@ -176,6 +176,11 @@ system-gcloud-reconfigure:
         exit 1
     fi
 
+    # Disable gcloud survey prompts
+    echo "Disabling gcloud survey prompts..."
+    gcloud config set survey/disable_prompts true
+    echo "✅ gcloud survey prompts disabled"
+
     # Add Google Cloud SDK paths to zshrc if not already present
     ZSHRC_FILE="${HOME}/.zshrc"
     echo "Updating ${ZSHRC_FILE} with Google Cloud SDK configuration..."
