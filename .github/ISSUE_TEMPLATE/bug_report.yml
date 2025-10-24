@@ -80,7 +80,7 @@ body:
       description: Run `cd /opt/sparkdock && git describe --tags` or check the latest commit in `/opt/sparkdock`
       placeholder: e.g., v1.2.3 or commit hash
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: logs

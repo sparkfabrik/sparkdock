@@ -70,7 +70,7 @@ body:
         - "I can provide feedback/review"
         - "No, just suggesting the idea"
     validations:
-      required: false
+      required: true
 
   - type: textarea
     id: context
