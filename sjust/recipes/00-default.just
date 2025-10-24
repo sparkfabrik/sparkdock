@@ -253,6 +253,7 @@ sparkdock-ai:
 sparkdock-configure-llm:
     #!/usr/bin/env bash
     set -e
+    source "{{source_directory()}}/../libs/libshell.sh"
     if llm plugins 2>/dev/null | grep -Fq 'llm-github-copilot'; then
         echo 'Removing llm-github-copilot plugin...'
         llm uninstall llm-github-copilot
@@ -265,21 +266,7 @@ sparkdock-configure-llm:
         rm -f "${keys_path}"
     fi
     if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-        cat <<'EOF'
-⚠️  OPENAI_API_KEY is not set.
-
-Define it before using sparkdock-ai, for example by adding this helper to ${HOME}/.config/spark/shell.zsh:
-
-```shell
-function export_openai_key() {
-  export OPENAI_API_KEY=$(gcloud secrets versions access "latest" --secret secret --project gcp-project)
-}
-```
-
-Run `export_openai_key` in your shell and re-run this command.
-
-If you need the secret name or encounter issues retrieving it, reach out to Sparkdock internal support (e.g. #support-tech on Slack).
-EOF
+        sparkdock_print_openai_key_instructions
         exit 1
     fi
     echo '✅ OPENAI_API_KEY detected.'

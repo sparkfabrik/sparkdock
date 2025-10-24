@@ -112,6 +112,22 @@ sparkdock_has_fzf() {
     fi
 }
 
+sparkdock_print_openai_key_instructions() {
+    cat <<'EOF'
+WARNING: OPENAI_API_KEY is not set.
+
+Define it before using sparkdock-ai, for example by adding this helper to ${HOME}/.config/spark/shell.zsh:
+
+function export_openai_key() {
+  export OPENAI_API_KEY=$(gcloud secrets versions access "latest" --secret secret --project gcp-project)
+}
+
+Run `export_openai_key` in your shell and re-run this command.
+
+If you need the secret name or encounter issues retrieving it, reach out to Sparkdock internal support (e.g. #support-tech on Slack).
+EOF
+}
+
 # Compute default values for shell enhancements based on existing configuration
 # Arguments:
 #   $1 - Path to user's zshrc

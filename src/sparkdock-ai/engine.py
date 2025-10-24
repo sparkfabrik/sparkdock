@@ -14,7 +14,7 @@ from typing import Iterable, List, Optional
 
 CLASSIFIER_MODEL = "gpt-3.5-turbo"
 CONTEXT_MODEL = "gpt-4.1-nano"
-DIRECT_MODEL = "gpt-5-nano"
+DIRECT_MODEL = "gpt-4.1-nano"
 MAX_FILE_CHARS = int(os.getenv("SPARKDOCK_AI_MAX_FILE_CHARS", "30000"))
 MAX_CANDIDATES = int(os.getenv("SPARKDOCK_AI_MAX_CANDIDATES", "50"))
 MAX_TOKENS = int(os.getenv("SPARKDOCK_AI_MAX_TOKENS", "2048"))
