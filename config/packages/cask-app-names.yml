@@ -1,0 +1,17 @@
+# Mapping of Homebrew cask package names to their Application bundle names
+# This file is used by the preflight-check to detect manually installed applications
+# Format: cask_package_name: "Application Name.app"
+#
+# Only include casks that:
+# 1. Are commonly installed manually by users
+# 2. Cause installation conflicts when already present
+# 3. Have standard installation paths in /Applications
+
+cask_to_app_mapping:
+  google-chrome: "Google Chrome.app"
+  docker-desktop: "Docker.app"
+  visual-studio-code: "Visual Studio Code.app"
+  slack: "Slack.app"
+  zoom: "zoom.us.app"
+  iterm2: "iTerm.app"
+  ghostty: "Ghostty.app"

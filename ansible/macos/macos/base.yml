@@ -23,6 +23,12 @@
         name: all_packages
       tags: always
 
+    - name: Load cask to app name mappings
+      include_vars:
+        file: "{{ dev_env_dir }}/config/packages/cask-app-names.yml"
+        name: cask_mappings
+      tags: always
+
     - name: Collect all package lists
       tags: brew_packages
       set_fact:
@@ -104,31 +110,65 @@
       when: all_removed_homebrew | length > 0
       become: false
 
-    - name: Docker and container runtime installation
-      tags: [docker]
+    - name: Preflight check for cask packages
+      tags: cask
       block:
-        - name: Check if Docker Desktop is already installed
-          shell: brew list --cask docker-desktop >/dev/null 2>&1 && echo yes || echo no
-          register: docker_desktop_installed
+        - name: Check which cask packages are already installed via Homebrew
+          shell: |
+            for pkg in {{ all_cask_packages | map('quote') | join(' ') }}; do
+              if brew list --cask "$pkg" >/dev/null 2>&1; then
+                echo "$pkg:brew"
+              fi
+            done
+          register: homebrew_cask_check
           changed_when: false
+          become: false
 
-        - name: Remove Docker Desktop from install list if already installed
-          set_fact:
-            all_cask_packages: "{{ all_cask_packages | difference(['docker-desktop']) }}"
-          when: "'docker-desktop' in all_cask_packages and docker_desktop_installed.stdout == 'yes'"
-
-    - name: Google Chrome installation
-      tags: [chrome]
-      block:
-        - name: Check if Google Chrome is already installed
-          shell: brew list --cask google-chrome >/dev/null 2>&1 && echo yes || echo no
-          register: google_chrome_installed
+        - name: Check which cask packages are manually installed
+          shell: |
+            {% for cask in all_cask_packages %}
+            {% if cask in cask_mappings.cask_to_app_mapping %}
+            if [ -d "/Applications/{{ cask_mappings.cask_to_app_mapping[cask] }}" ]; then
+              if ! brew list --cask {{ cask }} >/dev/null 2>&1; then
+                echo "{{ cask }}:manual"
+              fi
+            fi
+            {% endif %}
+            {% endfor %}
+          register: manual_cask_check
           changed_when: false
+          become: false
 
-        - name: Remove Google Chrome from install list if already installed
+        - name: Parse installation status
           set_fact:
-            all_cask_packages: "{{ all_cask_packages | difference(['google-chrome']) }}"
-          when: "'google-chrome' in all_cask_packages and google_chrome_installed.stdout == 'yes'"
+            homebrew_installed_casks: "{{ homebrew_cask_check.stdout_lines | map('regex_replace', ':brew$', '') | list }}"
+            manually_installed_casks: "{{ manual_cask_check.stdout_lines | map('regex_replace', ':manual$', '') | list }}"
+
+        - name: Display warning for manually installed applications
+          debug:
+            msg:
+              - "⚠️  WARNING: The following applications are installed manually (not via Homebrew):"
+              - "{{ manually_installed_casks | join(', ') }}"
+              - ""
+              - "These will be SKIPPED during installation to avoid conflicts."
+              - ""
+              - "📋 Recommendation: For better package management, consider:"
+              - "   1. Uninstalling the manually installed applications"
+              - "   2. Re-running sparkdock to install them via Homebrew"
+              - ""
+              - "This ensures all applications are managed consistently through Homebrew."
+          when: manually_installed_casks | length > 0
+
+        - name: Remove already-installed casks from installation list
+          set_fact:
+            all_cask_packages: "{{ all_cask_packages | difference(homebrew_installed_casks) | difference(manually_installed_casks) }}"
+
+        - name: Display casks to be installed
+          debug:
+            msg:
+              - "📦 Cask packages to be installed: {{ all_cask_packages | length }}"
+              - "{{ all_cask_packages | join(', ') if all_cask_packages | length > 0 else 'None (all already installed)' }}"
+          when: ansible_verbosity >= 0
 
     - name: Install cask packages
       tags: cask
