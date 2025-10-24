@@ -1,0 +1,102 @@
+name: Bug Report
+description: Report a bug or issue with Sparkdock
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug! Please fill out the information below to help us diagnose and fix the issue.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug Description
+      description: A clear and concise description of what the bug is.
+      placeholder: Tell us what you see!
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Steps to reproduce the behavior
+      placeholder: |
+        1. Run command '...'
+        2. See error
+      value: |
+        1. 
+        2. 
+        3. 
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What did you expect to happen?
+      placeholder: Tell us what you expected to happen
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happened?
+      placeholder: Tell us what actually happened
+    validations:
+      required: true
+
+  - type: dropdown
+    id: macos-version
+    attributes:
+      label: macOS Version
+      description: Which version of macOS are you running?
+      options:
+        - macOS Sequoia (15.x)
+        - macOS Tahoe (26.x)
+        - Other (please specify in additional context)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: chip
+    attributes:
+      label: Chip Type
+      description: What type of chip does your Mac have?
+      options:
+        - Apple Silicon (M1/M2/M3/M4)
+        - Intel (not officially supported)
+    validations:
+      required: true
+
+  - type: input
+    id: sparkdock-version
+    attributes:
+      label: Sparkdock Version
+      description: Run `cd /opt/sparkdock && git describe --tags` or check the latest commit in `/opt/sparkdock`
+      placeholder: e.g., v1.2.3 or commit hash
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Error Logs
+      description: If applicable, add relevant error logs or output
+      placeholder: Paste any error messages or relevant log output here
+      render: shell
+    validations:
+      required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Add any other context about the problem here (screenshots, environment details, etc.)
+      placeholder: Any additional information that might be helpful
+    validations:
+      required: false
