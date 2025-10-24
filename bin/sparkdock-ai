@@ -33,7 +33,27 @@ ensure_command() {
 gum_style() {
   local text=$1
   local border=${2:-99}
-  gum style --border normal --padding "1 2" --margin "1 0" --border-foreground "$border" "$text"
+  local cols width formatted
+  cols=$(tput cols)
+  if (( cols <= 50 )); then
+    printf '\033[1;31mERROR:\033[0m %s\n' "$text" >&2
+    return
+  fi
+  if (( cols > 120 )); then
+    width=110
+  else
+    width=$((cols - 20))
+  fi
+  formatted=$(printf '\033[1;31mERROR:\033[0m %s\n' "$text")
+  gum style \
+    --border normal \
+    --padding "1 2" \
+    --margin "1 2" \
+    --border-foreground "$border" \
+    --align left \
+    --width "$width" \
+    --trim \
+    "$formatted"
 }
 
 display_markdown() {
