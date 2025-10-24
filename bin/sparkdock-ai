@@ -114,62 +114,47 @@ show_help() {
   fi
 }
 
-has_copilot_plugin() {
-  llm plugins 2>/dev/null | grep -Fq 'llm-github-copilot'
+cleanup_copilot_artifacts() {
+  if llm plugins 2>/dev/null | grep -Fq 'llm-github-copilot'; then
+    if ! gum spin --title "Removing llm-github-copilot..." -- llm uninstall llm-github-copilot; then
+      gum_style "Failed to uninstall llm-github-copilot. Run 'llm uninstall llm-github-copilot' manually and re-launch sparkdock-ai." 203
+      exit 1
+    fi
+    [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]] && gum_style "Removed llm-github-copilot plugin." 244
+  fi
+
+  local keys_path
+  keys_path=$(llm keys path 2>/dev/null || true)
+  if [[ -n "$keys_path" && -f "$keys_path" ]]; then
+    rm -f "$keys_path"
+    [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]] && gum_style "Deleted llm key store at $keys_path." 244
+  fi
 }
 
-ensure_copilot_plugin() {
-  if has_copilot_plugin; then
+ensure_openai_api_key() {
+  if [[ -n "${OPENAI_API_KEY:-}" ]]; then
     return
   fi
 
-  gum_style "The 'llm-github-copilot' plugin is required." 203
-  if gum confirm "Install 'llm-github-copilot' now?"; then
-    if ! gum spin --title "Installing llm-github-copilot..." -- llm install llm-github-copilot; then
-      gum_style "Failed to install llm-github-copilot. Please install it manually with 'llm install llm-github-copilot'." 203
-      exit 1
-    fi
-  else
-    printf '[sparkdock-ai] The llm-github-copilot plugin is required to continue.\n' >&2
-    exit 1
-  fi
+  local guidance
+  read -r -d '' guidance <<'EOF' || true
+OPENAI_API_KEY is not set.
 
-  if ! has_copilot_plugin; then
-    gum_style "llm-github-copilot plugin still missing after install attempt." 203
-    exit 1
-  fi
+Define it before running sparkdock-ai, for example by adding this helper to ${HOME}/.config/spark/shell.zsh:
+
+```shell
+function export_openai_key() {
+  export OPENAI_API_KEY=$(gcloud secrets versions access "latest" --secret secret --project gcp-project)
 }
+```
 
-copilot_authenticated() {
-  local status
-  status=$(llm github_copilot auth status 2>&1 || true)
-  [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]] && gum_style "Copilot auth status:\n$status" 244
-  if [[ "$status" == *"Not authenticated"* ]]; then
-    return 1
-  fi
-  if [[ "$status" == *"Authenticated"* ]]; then
-    return 0
-  fi
-  return 1
-}
+Then run `export_openai_key` in your shell and restart sparkdock-ai.
 
-check_copilot_auth() {
-  if copilot_authenticated; then
-    return 0
-  fi
+If you need access details or run into issues retrieving the key, contact Sparkdock internal support (for example via the #support-tech Slack channel).
+EOF
 
-  gum_style "GitHub Copilot authentication is required." 203
-  if gum confirm "Run 'llm github_copilot auth login' now?"; then
-    llm github_copilot auth login
-  else
-    printf '[sparkdock-ai] Authentication is required to continue.\n' >&2
-    exit 1
-  fi
-
-  if ! copilot_authenticated; then
-    printf '[sparkdock-ai] Authentication still failing after login attempt.\n' >&2
-    exit 1
-  fi
+  gum_style "$guidance" 203
+  exit 1
 }
 
 run_backend() {
@@ -266,9 +251,8 @@ main() {
   ensure_command gum
   ensure_command llm
   ensure_command "$PYTHON_BIN"
-  ensure_copilot_plugin
-
-  check_copilot_auth
+  cleanup_copilot_artifacts
+  ensure_openai_api_key
   show_banner
   main_loop
 }

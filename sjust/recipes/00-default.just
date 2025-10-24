@@ -248,23 +248,44 @@ docker-prune:
 sparkdock-ai:
     @"{{source_directory()}}/../../bin/sparkdock-ai"
 
-# Install the required llm GitHub Copilot plugin.
+# Configure llm for Sparkdock AI (OpenAI-backed).
 [group('sparkdock')]
 sparkdock-configure-llm:
     #!/usr/bin/env bash
     set -e
     if llm plugins 2>/dev/null | grep -Fq 'llm-github-copilot'; then
-        echo 'llm-github-copilot already installed.'
+        echo 'Removing llm-github-copilot plugin...'
+        llm uninstall llm-github-copilot
     else
-        echo 'Installing llm-github-copilot plugin...'
-        llm install llm-github-copilot
+        echo 'llm-github-copilot plugin not present; nothing to uninstall.'
     fi
-    echo 'Checking GitHub Copilot authentication status...'
-    if llm github_copilot auth status 2>&1 | grep -Fq 'Not authenticated'; then
-        echo '⚠️  Run `llm github_copilot auth login` to authenticate.'
-    else
-        echo '✅ GitHub Copilot appears authenticated.'
+    keys_path=$(llm keys path 2>/dev/null || true)
+    if [[ -n "${keys_path}" && -f "${keys_path}" ]]; then
+        echo "Deleting llm key store at ${keys_path}..."
+        rm -f "${keys_path}"
     fi
+    if [[ -z "${OPENAI_API_KEY:-}" ]]; then
+        cat <<'EOF'
+⚠️  OPENAI_API_KEY is not set.
+
+Define it before using sparkdock-ai, for example by adding this helper to ${HOME}/.config/spark/shell.zsh:
+
+```shell
+function export_openai_key() {
+  export OPENAI_API_KEY=$(gcloud secrets versions access "latest" --secret secret --project gcp-project)
+}
+```
+
+Run `export_openai_key` in your shell and re-run this command.
+
+If you need the secret name or encounter issues retrieving it, reach out to Sparkdock internal support (e.g. #support-tech on Slack).
+EOF
+        exit 1
+    fi
+    echo '✅ OPENAI_API_KEY detected.'
+    echo 'Setting default llm model to gpt-4.1-nano...'
+    llm models default gpt-4.1-nano
+    echo '✅ llm default model set to gpt-4.1-nano.'
 
 [group('sparkdock')]
 sparkdock-install-tags tags:
