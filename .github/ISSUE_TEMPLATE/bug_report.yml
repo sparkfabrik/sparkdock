@@ -26,9 +26,9 @@ body:
         1. Run command '...'
         2. See error
       value: |
-        1. 
-        2. 
-        3. 
+        1.
+        2.
+        3.
     validations:
       required: true
 
