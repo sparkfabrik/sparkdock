@@ -6,6 +6,9 @@
 # 1. Are commonly installed manually by users
 # 2. Cause installation conflicts when already present
 # 3. Have standard installation paths in /Applications
+# 
+# Do NOT include casks that are rarely installed manually or have no known conflict issues.
+# Example: Do not include utility casks that are typically installed as dependencies and do not conflict with manual installations.
 
 cask_to_app_mapping:
   google-chrome: "Google Chrome.app"
