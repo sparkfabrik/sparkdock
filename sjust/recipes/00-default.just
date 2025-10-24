@@ -270,14 +270,11 @@ sparkdock-configure-llm:
         echo "Deleting llm key store at ${keys_path}..."
         rm -f "${keys_path}"
     fi
-    if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-        sparkdock_print_openai_key_instructions
-        exit 1
-    fi
-    echo '✅ OPENAI_API_KEY detected.'
     echo 'Setting default llm model to gpt-4.1-nano...'
     llm models default gpt-4.1-nano
     echo '✅ llm default model set to gpt-4.1-nano.'
+    echo ""
+    sparkdock_print_openai_key_instructions
 
 [group('sparkdock')]
 sparkdock-install-tags tags:
