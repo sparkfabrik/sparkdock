@@ -48,7 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated system requirements documentation to clarify Apple Silicon-only support (removed Intel Mac references)
 - Renamed `sparkdock-update-repository` command to `sparkdock-fetch-updates` with improved description and updated output messages
 - Lima quick setup now uses dynamic CPU and memory defaults like Docker Desktop: all available processors and 50% of host memory
-- Updated `sparkdock-configure-llm` command to set `github_copilot/gpt-4o-mini` as the default LLM model for CLI usage
+- Updated `sparkdock-configure-llm` command to set `gpt-4o-mini` (OpenAI) as the default LLM model for CLI usage with instructions to set OPENAI_API_KEY
 - Default terminal for menu bar app changed from Terminal.app to Ghostty
 
 ### Fixed

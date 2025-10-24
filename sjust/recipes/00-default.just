@@ -265,9 +265,13 @@ sparkdock-configure-llm:
     else
         echo '✅ GitHub Copilot appears authenticated.'
     fi
-    echo 'Setting default model to github_copilot/gpt-4o-mini...'
-    llm models default github_copilot/gpt-4o-mini
+    echo 'Setting default model to gpt-4o-mini...'
+    llm models default gpt-4o-mini
     echo '✅ Default model set successfully.'
+    echo ''
+    echo '⚠️  Note: To use the LLM CLI with OpenAI models, you need to set your OPENAI_API_KEY:'
+    echo '   export OPENAI_API_KEY=your_key_here'
+    echo '   Contact internal support to obtain an API key.'
 
 [group('sparkdock')]
 sparkdock-install-tags tags:
