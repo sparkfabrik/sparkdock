@@ -160,6 +160,13 @@
       when: "'google-cloud-sdk' in all_cask_packages"
       become: false
 
+    - name: Disable gcloud survey prompts
+      shell: source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc && gcloud config set survey/disable_prompts true
+      args:
+        executable: /bin/zsh
+      when: "'google-cloud-sdk' in all_cask_packages"
+      become: false
+
     - name: Install homebrew packages
       tags: brew_packages
       community.general.homebrew:
