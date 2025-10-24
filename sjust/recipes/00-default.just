@@ -265,6 +265,9 @@ sparkdock-configure-llm:
     else
         echo '✅ GitHub Copilot appears authenticated.'
     fi
+    echo 'Setting default model to github_copilot/gpt-4o-mini...'
+    llm models default github_copilot/gpt-4o-mini
+    echo '✅ Default model set successfully.'
 
 [group('sparkdock')]
 sparkdock-install-tags tags:
