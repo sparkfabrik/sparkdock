@@ -113,11 +113,20 @@
     - name: Preflight check for cask packages
       tags: cask
       block:
+        - name: Get all installed casks from Homebrew (single call optimization)
+          shell: brew list --cask 2>/dev/null || true
+          register: all_installed_casks
+          changed_when: false
+          become: false
+
         - name: Check which cask packages are already installed via Homebrew
           shell: |
+            # Use cached list of installed casks
+            installed_casks="{{ all_installed_casks.stdout }}"
+
             for pkg in {{ all_cask_packages | map('quote') | join(' ') }}; do
-              if brew list --cask "$pkg" >/dev/null 2>&1; then
-                echo "$pkg:brew"
+              if echo "$installed_casks" | grep -qx "$pkg"; then
+                echo "$pkg"
               fi
             done
           register: homebrew_cask_check
@@ -126,11 +135,14 @@
 
         - name: Check which cask packages are manually installed
           shell: |
+            # Use cached list of installed casks
+            installed_casks="{{ all_installed_casks.stdout }}"
+
             {% for cask in all_cask_packages %}
             {% if cask in cask_mappings.cask_to_app_mapping %}
             if [ -d "/Applications/{{ cask_mappings.cask_to_app_mapping[cask] }}" ]; then
-              if ! brew list --cask {{ cask }} >/dev/null 2>&1; then
-                echo "{{ cask }}:manual"
+              if ! echo "$installed_casks" | grep -qx "{{ cask }}"; then
+                echo "{{ cask }}"
               fi
             fi
             {% endif %}
@@ -141,8 +153,8 @@
 
         - name: Parse installation status
           set_fact:
-            homebrew_installed_casks: "{{ homebrew_cask_check.stdout_lines | map('regex_replace', ':brew$', '') | list }}"
-            manually_installed_casks: "{{ manual_cask_check.stdout_lines | map('regex_replace', ':manual$', '') | list }}"
+            homebrew_installed_casks: "{{ homebrew_cask_check.stdout_lines }}"
+            manually_installed_casks: "{{ manual_cask_check.stdout_lines }}"
 
         - name: Display warning for manually installed applications
           debug:
