@@ -114,62 +114,15 @@ show_help() {
   fi
 }
 
-has_copilot_plugin() {
-  llm plugins 2>/dev/null | grep -Fq 'llm-github-copilot'
-}
-
-ensure_copilot_plugin() {
-  if has_copilot_plugin; then
-    return
-  fi
-
-  gum_style "The 'llm-github-copilot' plugin is required." 203
-  if gum confirm "Install 'llm-github-copilot' now?"; then
-    if ! gum spin --title "Installing llm-github-copilot..." -- llm install llm-github-copilot; then
-      gum_style "Failed to install llm-github-copilot. Please install it manually with 'llm install llm-github-copilot'." 203
-      exit 1
-    fi
-  else
-    printf '[sparkdock-ai] The llm-github-copilot plugin is required to continue.\n' >&2
-    exit 1
-  fi
-
-  if ! has_copilot_plugin; then
-    gum_style "llm-github-copilot plugin still missing after install attempt." 203
-    exit 1
-  fi
-}
-
-copilot_authenticated() {
-  local status
-  status=$(llm github_copilot auth status 2>&1 || true)
-  [[ -n "${SPARKDOCK_AI_DEBUG:-}" ]] && gum_style "Copilot auth status:\n$status" 244
-  if [[ "$status" == *"Not authenticated"* ]]; then
-    return 1
-  fi
-  if [[ "$status" == *"Authenticated"* ]]; then
-    return 0
-  fi
-  return 1
-}
-
-check_copilot_auth() {
-  if copilot_authenticated; then
+check_openai_key() {
+  if [[ -n "${OPENAI_API_KEY:-}" ]]; then
     return 0
   fi
 
-  gum_style "GitHub Copilot authentication is required." 203
-  if gum confirm "Run 'llm github_copilot auth login' now?"; then
-    llm github_copilot auth login
-  else
-    printf '[sparkdock-ai] Authentication is required to continue.\n' >&2
-    exit 1
-  fi
-
-  if ! copilot_authenticated; then
-    printf '[sparkdock-ai] Authentication still failing after login attempt.\n' >&2
-    exit 1
-  fi
+  gum_style "OPENAI_API_KEY environment variable is required." 203
+  gum_style "Please set your OpenAI API key:\n  export OPENAI_API_KEY=your_key_here\n\nContact internal support to obtain an API key." 203
+  printf '[sparkdock-ai] OPENAI_API_KEY is required to continue.\n' >&2
+  exit 1
 }
 
 run_backend() {
@@ -266,9 +219,8 @@ main() {
   ensure_command gum
   ensure_command llm
   ensure_command "$PYTHON_BIN"
-  ensure_copilot_plugin
 
-  check_copilot_auth
+  check_openai_key
   show_banner
   main_loop
 }

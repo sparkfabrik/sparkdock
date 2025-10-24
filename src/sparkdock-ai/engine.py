@@ -12,9 +12,9 @@ import tempfile
 from pathlib import Path
 from typing import Iterable, List, Optional
 
-CLASSIFIER_MODEL = "github_copilot/gpt-3.5-turbo"
-CONTEXT_MODEL = "github_copilot/gpt-4o-mini"
-DIRECT_MODEL = "github_copilot/gpt-4.1"
+CLASSIFIER_MODEL = "gpt-3.5-turbo"
+CONTEXT_MODEL = "gpt-4o-mini"
+DIRECT_MODEL = "gpt-4o"
 MAX_FILE_CHARS = int(os.getenv("SPARKDOCK_AI_MAX_FILE_CHARS", "30000"))
 MAX_CANDIDATES = int(os.getenv("SPARKDOCK_AI_MAX_CANDIDATES", "50"))
 MAX_TOKENS = int(os.getenv("SPARKDOCK_AI_MAX_TOKENS", "2048"))
