@@ -68,8 +68,8 @@ body:
     id: sparkdock-version
     attributes:
       label: Sparkdock Version
-      description: Run `cd /opt/sparkdock && git describe --tags` or check the latest commit in `/opt/sparkdock`
-      placeholder: e.g., v1.2.3 or commit hash
+      description: Run `cd /opt/sparkdock && git rev-parse --short HEAD` to get the latest commit hash
+      placeholder: e.g., abc1234 (commit hash)
     validations:
       required: true
 

@@ -6,6 +6,9 @@ contact_links:
   - name: 🔧 Troubleshooting Guide
     url: https://github.com/sparkfabrik/sparkdock/blob/master/TROUBLESHOOTING.md
     about: Common issues and solutions for Sparkdock
+  - name: 🤖 Sparkdock AI Assistant
+    url: https://github.com/sparkfabrik/sparkdock/blob/master/README.md#sparkdock-ai-assistant-preview
+    about: Use sparkdock-ai command for interactive help and troubleshooting
   - name: 📖 SparkFabrik Playbook
     url: http://playbook.sparkfabrik.com/guides/local-development-environment-configuration
     about: Company playbook with additional guides and best practices
