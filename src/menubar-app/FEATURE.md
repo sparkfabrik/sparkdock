@@ -68,7 +68,7 @@ The implementation uses Chrome's built-in `--app` flag:
 open https://playbook.sparkfabrik.com/
 
 # New behavior (opens as Chrome web app)
-open -a "Google Chrome" --args --app=https://playbook.sparkfabrik.com/
+/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --app=https://playbook.sparkfabrik.com/
 ```
 
 ## Example URLs Affected
@@ -93,7 +93,7 @@ This implementation follows the pattern from Basecamp's [omarchy-launch-webapp](
 
 ## Technical Details
 
-- **Command**: `open -a "Google Chrome" --args --app=<URL>`
+- **Command**: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --app=<URL>`
 - **Requirement**: Google Chrome (pre-installed by Sparkdock)
 - **Fallback**: Default browser if Chrome unavailable
 - **Window Type**: Chrome app window (borderless, no browser UI)

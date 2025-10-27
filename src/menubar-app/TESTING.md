@@ -102,7 +102,7 @@ If web apps don't open correctly:
 1. Check if Chrome is installed: `test -d "/Applications/Google Chrome.app" && echo "Chrome is installed" || echo "Chrome not found"`
 2. Check Console.app for error messages from sparkdock-manager
 3. Verify the menu.json file has correct URL entries
-4. Try the exact command used by the app: `open -a "Google Chrome" --args --app=https://playbook.sparkfabrik.com/`
+4. Try the exact command used by the app: `/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome --app=https://playbook.sparkfabrik.com/`
 
 ## Reference
 

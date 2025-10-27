@@ -320,13 +320,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func openUrlAsChromeWebApp(_ urlString: String) {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        process.executableURL = URL(fileURLWithPath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
         
         // Use Google Chrome with --app flag to open as a web app
-        // The --args flag passes the --app argument to Chrome
         process.arguments = [
-            "-a", "Google Chrome",
-            "--args",
             "--app=\(urlString)"
         ]
         
