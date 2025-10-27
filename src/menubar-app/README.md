@@ -11,6 +11,7 @@ A simple macOS menu bar application that provides visual indicators for Sparkdoc
   - Check for Updates (manual check)
   - Update Now (runs `sparkdock` in Terminal)
   - Configurable menu items from JSON (Tools, Company links)
+  - URL links open as Chrome web apps (using `--app` flag)
   - Start at Login (enable/disable auto-start)
   - Quit
 - **Smart Updates**: Event-driven checking (system wake + network changes)
@@ -52,6 +53,24 @@ To use your SparkFabrik logo:
 2. Rebuild the app: `swift build`
 
 The app will automatically use your custom logo, falling back to a system gear icon if not found.
+
+## Web App Integration
+
+URL menu items (configured in `menu.json`) are opened as Chrome web apps using the `--app` flag. This provides a standalone window experience without browser UI elements.
+
+- URLs are launched via Google Chrome (pre-installed by Sparkdock)
+- Falls back to the default browser if Chrome is unavailable
+- No additional configuration required
+
+Example from `menu.json`:
+```json
+{
+  "title": "Company Playbook",
+  "type": "url",
+  "url": "https://playbook.sparkfabrik.com/"
+}
+```
+
 
 ## CLI Usage
 
