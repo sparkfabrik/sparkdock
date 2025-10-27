@@ -56,8 +56,8 @@ struct MenuItem { let title: String; let type: MenuItemType; let command/url: St
 ### Menu Interaction Flow
 1. User clicks menu item → Target-action invokes handler
 2. Dynamic items route through `handleDynamicMenuItem(_:)`
-3. Commands executed via AppleScript in Terminal.app
-4. URLs opened in default browser via NSWorkspace
+3. Command items: Executed via AppleScript in Terminal.app
+4. URL items: Launched as Chrome web apps via direct binary execution (`/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --app=<URL>`), fallback to default browser if Chrome unavailable
 
 ## Update Detection
 
@@ -94,7 +94,14 @@ let finished = await withTaskCancellationHandler(
 **Dynamic Items:**
 Loaded from `menu.json` with configurable sections. Each item supports:
 - `"type": "command"` - Executes terminal command via AppleScript
-- `"type": "url"` - Opens URL in default browser
+- `"type": "url"` - Opens URL as Chrome web app (standalone window without browser UI)
+
+**Chrome Web App Integration:**
+URL menu items launch as standalone Chrome windows using the `--app` flag, providing a cleaner, app-like experience:
+- URLs open in dedicated Chrome windows without browser chrome (no tabs, address bar, or bookmarks)
+- Fallback to default browser if Chrome unavailable
+- Command: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --app=<URL>`
+- Implementation: `openUrlAsChromeWebApp()` function in main.swift
 
 **Example menu.json structure:**
 ```json
@@ -105,6 +112,10 @@ Loaded from `menu.json` with configurable sections. Each item supports:
       {
         "name": "Tools",
         "items": [{"title": "Open sjust", "type": "command", "command": "sjust"}]
+      },
+      {
+        "name": "Company",
+        "items": [{"title": "Company Playbook", "type": "url", "url": "https://playbook.sparkfabrik.com/"}]
       }
     ]
   }
@@ -270,6 +281,7 @@ swift test                  # Alternative test command
 
 **Menu Event Handlers:**
 - `handleDynamicMenuItem(_:)` - Routes dynamic menu items to command/URL handlers
+- `openUrlAsChromeWebApp(_:)` - Launches URLs as Chrome web apps with fallback
 - `toggleLoginItem()` - Modern SMAppService login item registration
 - `updateNow()` - Triggers sparkdock update command
 - `executeTerminalCommand(_:)` - AppleScript-based Terminal command execution

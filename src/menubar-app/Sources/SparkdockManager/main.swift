@@ -312,8 +312,39 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 executeTerminalCommand(command)
             }
         case .url:
-            if let urlString = menuItem.url, let url = URL(string: urlString) {
+            if let urlString = menuItem.url {
+                openUrlAsChromeWebApp(urlString)
+            }
+        }
+    }
+
+    private func openUrlAsChromeWebApp(_ urlString: String) {
+        let chromePath = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+        if FileManager.default.fileExists(atPath: chromePath) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: chromePath)
+            
+            // Use Google Chrome with --app flag to open as a web app
+            process.arguments = [
+                "--app=\(urlString)"
+            ]
+            
+            do {
+                try process.run()
+                AppConstants.logger.info("Opened URL as Chrome web app: \(urlString)")
+            } catch {
+                AppConstants.logger.error("Failed to open URL as Chrome web app '\(urlString)': \(error.localizedDescription)")
+                // Fallback to default browser if Chrome launch fails
+                if let url = URL(string: urlString) {
+                    NSWorkspace.shared.open(url)
+                    AppConstants.logger.info("Fell back to default browser for URL: \(urlString)")
+                }
+            }
+        } else {
+            AppConstants.logger.error("Google Chrome not found at path '\(chromePath)'. Falling back to default browser for URL: \(urlString)")
+            if let url = URL(string: urlString) {
                 NSWorkspace.shared.open(url)
+                AppConstants.logger.info("Fell back to default browser for URL: \(urlString)")
             }
         }
     }
