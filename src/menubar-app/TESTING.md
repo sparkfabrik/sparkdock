@@ -38,18 +38,23 @@ This guide describes how to test the Chrome web app integration feature on macOS
 
 ### Test 3: Fallback to Default Browser
 
+**Note:** This test is optional and more safely tested in a VM or test environment.
+
 **Steps:**
 1. Quit Google Chrome completely
-2. Rename or temporarily move the Chrome application
+2. In a test environment, temporarily rename Chrome: `sudo mv "/Applications/Google Chrome.app" "/Applications/Google Chrome.app.backup"`
 3. Click on the Sparkdock menu bar icon
 4. Click on "Company Playbook"
 
 **Expected Result:**
-- The URL opens in the default browser
+- The URL opens in the default browser (Safari, Firefox, etc.)
 - Check Console.app for log message: "Fell back to default browser for URL: https://playbook.sparkfabrik.com/"
 
 **Cleanup:**
-1. Restore Chrome to its original location
+1. Restore Chrome: `sudo mv "/Applications/Google Chrome.app.backup" "/Applications/Google Chrome.app"`
+
+**Alternative Test (Safer):**
+- Test fallback behavior by checking the error handling code path in Console.app logs when Chrome is unavailable
 
 ### Test 4: Command Type Menu Items Still Work
 
@@ -94,10 +99,10 @@ This guide describes how to test the Chrome web app integration feature on macOS
 
 If web apps don't open correctly:
 
-1. Check if Chrome is installed: `open -a "Google Chrome" --version`
+1. Check if Chrome is installed: `test -d "/Applications/Google Chrome.app" && echo "Chrome is installed" || echo "Chrome not found"`
 2. Check Console.app for error messages from sparkdock-manager
 3. Verify the menu.json file has correct URL entries
-4. Try manually: `open -a "Google Chrome" --args --app=https://playbook.sparkfabrik.com/`
+4. Try the exact command used by the app: `open -a "Google Chrome" --args --app=https://playbook.sparkfabrik.com/`
 
 ## Reference
 
