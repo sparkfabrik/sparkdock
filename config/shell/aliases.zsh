@@ -61,13 +61,13 @@ if command_exists eza; then
 
     case "$*" in
       *ltr*)
-        eza -la --icons=auto --sort=modified ${filtered_args[@]}
+        eza -lag --icons=auto --sort=modified ${filtered_args[@]}
         ;;
       *lt*)
-        eza -la --icons=auto --sort=modified --reverse ${filtered_args[@]}
+        eza -lag --icons=auto --sort=modified --reverse ${filtered_args[@]}
         ;;
       *)
-        eza -lh --group-directories-first --icons=auto "$@"
+        eza -lhg --group-directories-first --icons=auto "$@"
         ;;
     esac
   }
