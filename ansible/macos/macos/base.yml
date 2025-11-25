@@ -400,8 +400,8 @@
     - name: Restart http-proxy service
       tags: http-proxy
       block:
-        - name: Check if Docker is available
-          command: docker --version
+        - name: Check if Docker daemon is running
+          command: docker info
           register: docker_check
           changed_when: false
           failed_when: false
@@ -410,13 +410,13 @@
           command: docker rm -vf http-proxy
           register: docker_cleanup
           failed_when: false
-          changed_when: docker_cleanup.rc == 0
+          changed_when: docker_cleanup.rc == 0 and 'http-proxy' in docker_cleanup.stdout
           when: docker_check.rc == 0
 
         - name: Start http-proxy service
           command: spark-http-proxy start
           register: http_proxy_start
-          changed_when: http_proxy_start.rc == 0
+          changed_when: true
           when: docker_check.rc == 0
 
         - name: Display http-proxy service status
