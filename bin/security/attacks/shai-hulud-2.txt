@@ -1,0 +1,16 @@
+# Shai-Hulud 2.0 Attack - Compromised NPM Packages
+# Date: November 21-23, 2025
+# Source: https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack
+# Format: ["package-name"]="version"
+
+["02-echo"]="0.0.7"
+["@accordproject/concerto-analysis"]="3.24.1"
+["@accordproject/concerto-linter"]="3.24.1"
+["@accordproject/concerto-linter-default-ruleset"]="3.24.1"
+["@accordproject/concerto-metamodel"]="3.12.5"
+["@accordproject/concerto-types"]="3.24.1"
+["@accordproject/markdown-it-cicero"]="0.16.26"
+["posthog-node"]="4.3.0"
+["@postman/tunnel-agent"]="0.7.0"
+["@ensdomains/ensjs"]="4.0.2"
+["@zapier/secret-scrubber"]="1.1.2"

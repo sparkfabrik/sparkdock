@@ -1,0 +1,11 @@
+# September 2025 qix- Account Hijacking
+# Date: September 8-15, 2025
+# Account hijacking affecting chalk, ansi-styles, color, debug
+# Format: ["package-name"]="version"
+
+["chalk"]="5.3.0"
+["ansi-styles"]="6.2.1"
+["color"]="4.2.3"
+["debug"]="4.3.7"
+["@qix/color-convert"]="3.0.0"
+["@qix/supports-color"]="9.4.0"

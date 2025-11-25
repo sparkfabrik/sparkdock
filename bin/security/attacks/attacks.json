@@ -1,0 +1,54 @@
+[
+  {
+    "id": "september-2025-qix",
+    "name": "September 2025 qix- Account Hijacking",
+    "file": "september-2025-qix.txt",
+    "date": "2025-09-08",
+    "packages": 70,
+    "description": "Account hijacking affecting chalk, ansi-styles, color, debug and other popular packages",
+    "signatures": [
+      "qix-",
+      "malicious-qix-payload"
+    ],
+    "payloadFiles": [
+      "qix-payload.js",
+      "malicious-setup.js"
+    ],
+    "workflowPaths": []
+  },
+  {
+    "id": "shai-hulud-2",
+    "name": "Shai-Hulud 2.0 Supply Chain Attack",
+    "file": "shai-hulud-2.txt",
+    "date": "2025-11-21",
+    "packages": 700,
+    "description": "Mass supply chain attack affecting major packages like posthog-node, @postman/tunnel-agent, @ensdomains/*, and @zapier/*",
+    "signatures": [
+      "setup_bun.js",
+      "bun_environment.js",
+      "cloud.json",
+      "contents.json",
+      "environment.json",
+      "truffleSecrets.json",
+      "discussion.yaml",
+      "SHA1HULUD",
+      "shai-hulud",
+      "Shai-Hulud",
+      "actionsSecrets.json",
+      "formatter_123456789.yml"
+    ],
+    "payloadFiles": [
+      "setup_bun.js",
+      "bun_environment.js",
+      "cloud.json",
+      "contents.json",
+      "environment.json",
+      "truffleSecrets.json",
+      "actionsSecrets.json",
+      "formatter_123456789.yml"
+    ],
+    "workflowPaths": [
+      ".github/workflows/discussion.yaml"
+    ]
+  }
+]

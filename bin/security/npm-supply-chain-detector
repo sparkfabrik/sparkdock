@@ -1,0 +1,788 @@
+#!/usr/bin/env bash
+
+# NPM Compromise Checker - Multiple Supply Chain Attacks Detection
+# Detects compromised packages from various NPM supply chain attacks
+#
+# Supported attacks:
+# - september-2025-qix: qix- account hijacking (Sept 2025, ~70 packages)
+# - shai-hulud-2: Shai-Hulud 2.0 campaign (Nov 2025, ~700 packages)
+# - all: Check for all known attacks (default)
+
+set -euo pipefail
+
+# Check for bash version 4+ for associative arrays
+if [ "${BASH_VERSION%%.*}" -lt 4 ]; then
+    echo "Error: This script requires bash 4.0 or higher for associative arrays"
+    echo "Current bash version: ${BASH_VERSION}"
+    echo "Try running with: bash $0"
+    exit 1
+fi
+
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
+# Get the directory where the script is located
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ATTACKS_DIR="${SCRIPT_DIR}/attacks"
+NODE_LIST_DEPS="${SCRIPT_DIR}/scripts/list-deps.js"
+
+# Declare associative arrays
+declare -A COMPROMISED_VERSIONS
+declare -a MALICIOUS_SIGNATURES
+declare -a MALICIOUS_FILE_NAMES
+declare -a MALICIOUS_RELATIVE_PATHS
+
+declare -A ATTACK_WORKFLOW_PATHS=(
+    ["shai-hulud-2"]=".github/workflows/discussion.yaml"
+)
+
+# Selected attack (default: all)
+SELECTED_ATTACK="all"
+
+NODE_AVAILABLE=0
+NODE_WARNING_EMITTED=0
+if command -v node >/dev/null 2>&1; then
+    NODE_AVAILABLE=1
+fi
+
+# Artifact breadcrumb arrays are populated per attack via attacks.json
+MALICIOUS_FILE_NAMES=()
+MALICIOUS_RELATIVE_PATHS=()
+
+# Load attack metadata from attacks.json
+load_attack_metadata() {
+    local attacks_json="${ATTACKS_DIR}/attacks.json"
+    if [[ ! -f "${attacks_json}" ]]; then
+        log "ERROR" "Attack metadata file not found: ${attacks_json}"
+        exit 1
+    fi
+
+    # Simple parsing of attacks.json (basic extraction without jq dependency)
+    # This could be improved with jq if available
+    log "INFO" "Available attacks:"
+    while IFS= read -r line; do
+        if [[ "${line}" =~ \"id\":[[:space:]]*\"([^\"]+)\" ]]; then
+            echo "  - ${BASH_REMATCH[1]}"
+        fi
+    done < "${attacks_json}"
+}
+
+# Load compromised packages from attack file
+load_attack_file() {
+    local attack_file="$1"
+    local attack_name="$2"
+
+    if [[ ! -f "${attack_file}" ]]; then
+        log "ERROR" "Attack file not found: ${attack_file}"
+        return 1
+    fi
+
+    log "INFO" "Loading packages from ${attack_name}..."
+
+    local loaded_count=0
+    while IFS= read -r line; do
+        # Skip comments and empty lines
+        if [[ "${line}" =~ ^#.*$ ]] || [[ -z "${line}" ]]; then
+            continue
+        fi
+
+        # Parse line in format ["package"]="version"
+        if [[ "${line}" =~ ^\[\"([^\"]+)\"\]=\"([^\"]+)\"$ ]]; then
+            local package="${BASH_REMATCH[1]}"
+            local version="${BASH_REMATCH[2]}"
+            COMPROMISED_VERSIONS["${package}"]="${version}"
+            loaded_count=$((loaded_count + 1))
+        fi
+    done < "${attack_file}"
+
+    log "SUCCESS" "Loaded ${loaded_count} compromised packages from ${attack_name}"
+}
+
+# Load malicious signatures for selected attacks
+load_signatures() {
+    local attacks_json="${ATTACKS_DIR}/attacks.json"
+
+    MALICIOUS_SIGNATURES=()
+    MALICIOUS_FILE_NAMES=()
+
+    local in_attack=false
+    local section=""
+    local current_id=""
+
+    while IFS= read -r line; do
+        if [[ "${line}" =~ \"id\":[[:space:]]*\"([^\"]+)\" ]]; then
+            current_id="${BASH_REMATCH[1]}"
+            if [[ "${SELECTED_ATTACK}" == "all" ]] || [[ "${SELECTED_ATTACK}" == "${current_id}" ]]; then
+                in_attack=true
+            else
+                in_attack=false
+            fi
+        fi
+
+        if [[ "${in_attack}" != true ]]; then
+            continue
+        fi
+
+        if [[ "${line}" =~ \"signatures\" ]]; then
+            section="signatures"
+            continue
+        elif [[ "${line}" =~ \"payloadFiles\" ]]; then
+            section="payload"
+            continue
+        elif [[ "${line}" =~ \"workflowPaths\" ]]; then
+            section="workflows"
+            continue
+        fi
+
+        if [[ -n "${section}" ]]; then
+            if [[ "${line}" =~ \"([^\"]+)\" ]]; then
+                local value="${BASH_REMATCH[1]}"
+                case "${section}" in
+                    "signatures")
+                        MALICIOUS_SIGNATURES+=("${value}")
+                        ;;
+                    "payload")
+                        MALICIOUS_FILE_NAMES+=("${value}")
+                        ;;
+                esac
+            fi
+
+            if [[ "${line}" =~ \] ]]; then
+                section=""
+            fi
+        fi
+    done < "${attacks_json}"
+}
+
+load_workflow_paths() {
+    MALICIOUS_RELATIVE_PATHS=()
+
+    if [[ "${SELECTED_ATTACK}" == "all" ]]; then
+        for attack_id in "${!ATTACK_WORKFLOW_PATHS[@]}"; do
+            local path="${ATTACK_WORKFLOW_PATHS[${attack_id}]}"
+            if [[ -n "${path}" ]]; then
+                MALICIOUS_RELATIVE_PATHS+=("${path}")
+            fi
+        done
+    else
+        local path="${ATTACK_WORKFLOW_PATHS[${SELECTED_ATTACK}]:-}"
+        if [[ -n "${path}" ]]; then
+            MALICIOUS_RELATIVE_PATHS+=("${path}")
+        fi
+    fi
+}
+
+# Load compromised packages based on attack selection
+load_compromised_packages() {
+    case "${SELECTED_ATTACK}" in
+        "september-2025-qix")
+            load_attack_file "${ATTACKS_DIR}/september-2025-qix.txt" "September 2025 qix- Attack"
+            ;;
+        "shai-hulud-2")
+            load_attack_file "${ATTACKS_DIR}/shai-hulud-2.txt" "Shai-Hulud 2.0 Attack"
+            ;;
+        "all")
+            log "INFO" "Loading all known attacks..."
+            load_attack_file "${ATTACKS_DIR}/september-2025-qix.txt" "September 2025 qix- Attack"
+            load_attack_file "${ATTACKS_DIR}/shai-hulud-2.txt" "Shai-Hulud 2.0 Attack"
+            ;;
+        *)
+            log "ERROR" "Unknown attack: ${SELECTED_ATTACK}"
+            echo ""
+            log "INFO" "Available attacks:"
+            load_attack_metadata
+            exit 1
+            ;;
+    esac
+
+    load_signatures
+    load_workflow_paths
+}
+
+# Function to show help
+show_help() {
+    echo "Usage: $0 [OPTIONS] [directory]"
+    echo ""
+    echo "NPM Compromise Checker - Multi-Attack Detection"
+    echo "Checks for compromised packages from various NPM supply chain attacks"
+    echo ""
+    echo "Options:"
+    echo "  -a, --attack ATTACK    Select specific attack to check (default: all)"
+    echo "  -h, --help             Show this help message"
+    echo "  --list-attacks         List all available attacks"
+    echo "  --list-versions        Show all compromised versions and exit"
+    echo "  directory              Directory to scan (default: current directory)"
+    echo ""
+    echo "Available Attacks:"
+    echo "  september-2025-qix     September 2025 qix- account hijacking (~70 packages)"
+    echo "  shai-hulud-2           Shai-Hulud 2.0 supply chain attack (~700 packages)"
+    echo "  all                    Check for all known attacks (default)"
+    echo ""
+    echo "Examples:"
+    echo "  $0                                    # Scan current dir for all attacks"
+    echo "  $0 /path/to/project                   # Scan specific dir for all attacks"
+    echo "  $0 -a shai-hulud-2                    # Check only Shai-Hulud 2.0"
+    echo "  $0 -a september-2025-qix .            # Check only Sept 2025 attack"
+    echo "  $0 --list-attacks                     # List all available attacks"
+    echo ""
+}
+
+# Check for help/list flags before parsing
+for arg in "$@"; do
+    case "${arg}" in
+        -h|--help)
+            show_help
+            exit 0
+            ;;
+        --list-attacks)
+            echo "Available attacks:"
+            echo ""
+            echo -e "  ${GREEN}september-2025-qix${NC}"
+            echo "    Name: September 2025 qix- Account Hijacking"
+            echo "    Date: September 8-15, 2025"
+            echo "    Packages: ~70"
+            echo "    Description: Account hijacking affecting chalk, ansi-styles, color, debug"
+            echo ""
+            echo -e "  ${GREEN}shai-hulud-2${NC}"
+            echo "    Name: Shai-Hulud 2.0 Supply Chain Attack"
+            echo "    Date: November 21-23, 2025"
+            echo "    Packages: ~700"
+            echo "    Description: Mass attack affecting posthog-node, @postman/*, @ensdomains/*, @zapier/*"
+            echo ""
+            echo -e "  ${GREEN}all${NC}"
+            echo "    Check for all known attacks (default)"
+            echo ""
+            echo "Use -a or --attack to select a specific attack, or omit to check all."
+            exit 0
+            ;;
+    esac
+done
+
+# Parse command line arguments
+SCAN_DIR="."
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -a|--attack)
+            SELECTED_ATTACK="$2"
+            shift 2
+            ;;
+        -h|--help)
+            # Already handled above
+            shift
+            ;;
+        --list-versions|--list-attacks)
+            # Already handled above
+            shift
+            ;;
+        *)
+            # Assume it's the directory to scan
+            SCAN_DIR="$1"
+            shift
+            ;;
+    esac
+done
+
+ISSUES_FOUND=0
+PACKAGES_CHECKED=0
+FILES_SCANNED=0
+
+# Function to log messages
+log() {
+    local level="$1"
+    local message="$2"
+    local timestamp
+    timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+
+    case "${level}" in
+        "ERROR")
+            echo -e "${RED}[ERROR] ${timestamp}: ${message}${NC}"
+            ;;
+        "WARNING")
+            echo -e "${YELLOW}[WARNING] ${timestamp}: ${message}${NC}"
+            ;;
+        "INFO")
+            echo -e "${BLUE}[INFO] ${timestamp}: ${message}${NC}"
+            ;;
+        "SUCCESS")
+            echo -e "${GREEN}[SUCCESS] ${timestamp}: ${message}${NC}"
+            ;;
+    esac
+}
+
+# Function to check if a version matches compromised version
+is_compromised_version() {
+    local package="$1"
+    local version="$2"
+
+    # Remove version prefixes like ^, ~, >=, etc.
+    local clean_version="${version}"
+    # Remove leading semver operators
+    clean_version="${clean_version#^}"
+    clean_version="${clean_version#~}"
+    clean_version="${clean_version#>=}"
+    clean_version="${clean_version#>}"
+    clean_version="${clean_version#<=}"
+    clean_version="${clean_version#<}"
+
+    if [[ -n "${COMPROMISED_VERSIONS[${package}]:-}" ]]; then
+        local compromised_versions="${COMPROMISED_VERSIONS[${package}]}"
+
+        # Handle multiple versions separated by ||
+        IFS='||' read -ra VERSION_ARRAY <<< "${compromised_versions}"
+        for comp_version in "${VERSION_ARRAY[@]}"; do
+            # Trim whitespace
+            comp_version=$(echo "${comp_version}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+
+            if [[ "${clean_version}" == "${comp_version}" ]]; then
+                echo 1  # True - version is compromised
+                return
+            fi
+        done
+
+        # Check if version range could include compromised version
+        if [[ "${version}" =~ ^\^ ]]; then
+            # Caret range (^) - could include patch/minor updates
+            local major minor
+            major=$(echo "${clean_version}" | cut -d. -f1)
+            minor=$(echo "${clean_version}" | cut -d. -f2 2>/dev/null || echo "0")
+
+            for comp_version in "${VERSION_ARRAY[@]}"; do
+                comp_version=$(echo "${comp_version}" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+                local comp_major comp_minor
+                comp_major=$(echo "${comp_version}" | cut -d. -f1)
+                comp_minor=$(echo "${comp_version}" | cut -d. -f2 2>/dev/null || echo "0")
+
+                if [[ "${major}" == "${comp_major}" ]] && [[ "${minor}" -le "${comp_minor}" ]]; then
+                    echo 2  # Potentially includes compromised version
+                    return
+                fi
+            done
+        fi
+    fi
+
+    echo 0  # False - version is not compromised
+}
+
+# Function to check package.json files
+check_package_json() {
+    local file="$1"
+    log "INFO" "Checking ${file}..."
+
+    if [[ ! -f "${file}" ]]; then
+        return
+    fi
+
+    local found_compromised=0
+
+    if [[ ${NODE_AVAILABLE} -eq 1 && -f "${NODE_LIST_DEPS}" ]]; then
+        while IFS=$'\t' read -r package version; do
+            if [[ -z "${package}" || -z "${version}" ]]; then
+                continue
+            fi
+
+            PACKAGES_CHECKED=$((PACKAGES_CHECKED + 1))
+            local compromised_check
+            compromised_check=$(is_compromised_version "${package}" "${version}")
+
+            if [[ "${compromised_check}" == 1 ]]; then
+                log "ERROR" "COMPROMISED VERSION FOUND: ${package}@${version} in ${file}"
+                echo -e "${RED}  ↳ Compromised versions tracked: ${COMPROMISED_VERSIONS[${package}]}${NC}"
+                ISSUES_FOUND=$((ISSUES_FOUND + 1))
+                found_compromised=1
+            elif [[ "${compromised_check}" == 2 ]]; then
+                log "WARNING" "VULNERABLE VERSION RANGE FOUND: ${package}@${version} in ${file}"
+                echo -e "${YELLOW}  ↳ Known bad releases include: ${COMPROMISED_VERSIONS[${package}]}${NC}"
+                ISSUES_FOUND=$((ISSUES_FOUND + 1))
+            fi
+        done < <(node "${NODE_LIST_DEPS}" "${file}")
+    else
+        if [[ ${NODE_WARNING_EMITTED} -eq 0 ]]; then
+            if [[ ${NODE_AVAILABLE} -eq 0 ]]; then
+                log "WARNING" "Node.js not found; falling back to slower text scanning for package.json files"
+            else
+                log "WARNING" "Node.js helper missing at ${NODE_LIST_DEPS}; falling back to slower text scanning for package.json files"
+            fi
+            NODE_WARNING_EMITTED=1
+        fi
+
+        for package in "${!COMPROMISED_VERSIONS[@]}"; do
+            local version
+            version=$(grep -o "\"${package}\": *\"[^\"]*\"" "${file}" 2>/dev/null | head -1 | cut -d'"' -f4)
+
+            if [[ -n "${version}" ]]; then
+                PACKAGES_CHECKED=$((PACKAGES_CHECKED + 1))
+                local compromised_check
+                compromised_check=$(is_compromised_version "${package}" "${version}")
+
+                if [[ "${compromised_check}" == 1 ]]; then
+                    log "ERROR" "COMPROMISED VERSION FOUND: ${package}@${version} in ${file}"
+                    echo -e "${RED}  ↳ Compromised versions tracked: ${COMPROMISED_VERSIONS[${package}]}${NC}"
+                    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+                    found_compromised=1
+                elif [[ "${compromised_check}" == 2 ]]; then
+                    log "WARNING" "VULNERABLE VERSION RANGE FOUND: ${package}@${version} in ${file}"
+                    echo -e "${YELLOW}  ↳ Known bad releases include: ${COMPROMISED_VERSIONS[${package}]}${NC}"
+                    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+                fi
+            fi
+        done
+    fi
+
+    if [[ ${found_compromised} -eq 0 ]]; then
+        log "SUCCESS" "No compromised versions found in ${file}"
+    fi
+}
+
+# Function to check installed packages in node_modules
+check_node_modules() {
+    local node_modules_dir="$1"
+
+    if [[ ! -d "${node_modules_dir}" ]]; then
+        log "INFO" "node_modules directory not found: ${node_modules_dir}"
+        return
+    fi
+
+    log "INFO" "Checking installed packages in ${node_modules_dir}..."
+
+    local found_compromised=0
+
+    for package in "${!COMPROMISED_VERSIONS[@]}"; do
+        local package_dir="${node_modules_dir}/${package}"
+        local package_json="${package_dir}/package.json"
+
+        if [[ -f "${package_json}" ]]; then
+            local installed_version
+            installed_version=$(grep -o '"version": *"[^"]*"' "${package_json}" 2>/dev/null | cut -d'"' -f4)
+
+            if [[ -n "${installed_version}" ]]; then
+                PACKAGES_CHECKED=$((PACKAGES_CHECKED + 1))
+
+                local verdict
+                verdict=$(is_compromised_version "${package}" "${installed_version}")
+
+                if [[ "${verdict}" == 1 ]]; then
+                    log "ERROR" "COMPROMISED PACKAGE INSTALLED: ${package}@${installed_version}"
+                    echo -e "${RED}  ↳ Location: ${package_dir}${NC}"
+                    echo -e "${RED}  ↳ Known bad releases: ${COMPROMISED_VERSIONS[${package}]}${NC}"
+                    ISSUES_FOUND=$((ISSUES_FOUND + 1))
+                    found_compromised=1
+
+                    # Check for malicious code in the package
+                    local index_file="${package_dir}/index.js"
+                    if [[ -f "${index_file}" ]]; then
+                        scan_file_for_malicious_code "${index_file}"
+                    fi
+                fi
+            fi
+        fi
+
+        # Check scoped packages
+        if [[ "${package}" == *"/"* ]]; then
+            local scope pkg_name
+            scope=$(echo "${package}" | cut -d'/' -f1)
+            pkg_name=$(echo "${package}" | cut -d'/' -f2)
+            local scoped_dir="${node_modules_dir}/${scope}/${pkg_name}"
+            local scoped_json="${scoped_dir}/package.json"
+
+            if [[ -f "${scoped_json}" ]]; then
+                local installed_version
+                installed_version=$(grep -o '"version": *"[^"]*"' "${scoped_json}" 2>/dev/null | cut -d'"' -f4)
+
+                if [[ -n "${installed_version}" ]]; then
+                    local verdict
+                    verdict=$(is_compromised_version "${package}" "${installed_version}")
+
+                    if [[ "${verdict}" == 1 ]]; then
+                        log "ERROR" "COMPROMISED SCOPED PACKAGE INSTALLED: ${package}@${installed_version}"
+                        echo -e "${RED}  ↳ Location: ${scoped_dir}${NC}"
+                        echo -e "${RED}  ↳ Known bad releases: ${COMPROMISED_VERSIONS[${package}]}${NC}"
+                        ISSUES_FOUND=$((ISSUES_FOUND + 1))
+                        found_compromised=1
+                    fi
+                fi
+            fi
+        fi
+    done
+
+    if [[ ${found_compromised} -eq 0 ]]; then
+        log "SUCCESS" "No compromised packages found in node_modules"
+    fi
+}
+
+# Function to scan file for malicious code
+scan_file_for_malicious_code() {
+    local file="$1"
+
+    if [[ ! -f "${file}" ]]; then
+        return
+    fi
+
+    # Only scan JavaScript files
+    if [[ ! "${file}" =~ \.(js|jsx|ts|tsx|mjs|cjs)$ ]]; then
+        return
+    fi
+
+    FILES_SCANNED=$((FILES_SCANNED + 1))
+
+    for signature in "${MALICIOUS_SIGNATURES[@]}"; do
+        if grep -q "${signature}" "${file}" 2>/dev/null; then
+            log "ERROR" "MALICIOUS CODE DETECTED in ${file}: ${signature}"
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+        fi
+    done
+
+    # Check for heavy obfuscation (common pattern: _0x followed by hex)
+    local obfuscation_count
+    obfuscation_count=$(grep -o "_0x[a-fA-F0-9]\{4,\}" "${file}" 2>/dev/null | wc -l)
+    if [[ ${obfuscation_count} -gt 20 ]]; then
+        log "WARNING" "HEAVILY OBFUSCATED FILE: ${file} (${obfuscation_count} obfuscated variables)"
+    fi
+}
+
+check_for_payload_files() {
+    local dir="$1"
+
+    for payload in "${MALICIOUS_FILE_NAMES[@]}"; do
+        local candidate="${dir}/${payload}"
+        if [[ -f "${candidate}" ]]; then
+            log "ERROR" "PAYLOAD ARTIFACT DETECTED: ${candidate}"
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+        fi
+    done
+}
+
+check_for_backdoor_workflows() {
+    local base_dir="$1"
+
+    for rel_path in "${MALICIOUS_RELATIVE_PATHS[@]}"; do
+        local candidate="${base_dir}/${rel_path}"
+        if [[ -f "${candidate}" ]]; then
+            log "ERROR" "BACKDOOR WORKFLOW DETECTED: ${candidate}"
+            ISSUES_FOUND=$((ISSUES_FOUND + 1))
+        fi
+    done
+}
+
+# Function to check package-lock.json
+check_package_lock() {
+    local file="$1"
+    log "INFO" "Checking ${file}..."
+
+    if [[ ! -f "${file}" ]]; then
+        return
+    fi
+
+    local found_compromised=0
+
+    for package in "${!COMPROMISED_VERSIONS[@]}"; do
+        if grep -q "\"node_modules/${package}\"" "${file}" 2>/dev/null; then
+            # Extract version for this package
+            local version_line version
+            version_line=$(grep -A 5 "\"node_modules/${package}\":" "${file}" | grep "\"version\":" | head -1)
+            version=$(echo "${version_line}" | grep -o '"[0-9][^"]*"' | tr -d '"')
+
+            if [[ "$(is_compromised_version "${package}" "${version}")" == 1 ]]; then
+                log "ERROR" "COMPROMISED VERSION IN LOCKFILE: ${package}@${version} in ${file}"
+                echo -e "${RED}  ↳ Known bad releases: ${COMPROMISED_VERSIONS[${package}]}${NC}"
+                ISSUES_FOUND=$((ISSUES_FOUND + 1))
+                found_compromised=1
+            fi
+        fi
+    done
+
+    if [[ ${found_compromised} -eq 0 ]]; then
+        log "SUCCESS" "No compromised versions found in lockfile"
+    fi
+}
+
+# Function to check yarn.lock
+check_yarn_lock() {
+    local file="$1"
+    log "INFO" "Checking ${file}..."
+
+    if [[ ! -f "${file}" ]]; then
+        return
+    fi
+
+    local found_compromised=0
+
+    for package in "${!COMPROMISED_VERSIONS[@]}"; do
+        if grep -q "${package}@" "${file}" 2>/dev/null; then
+            # Extract version for this package
+            local version_line version
+            version_line=$(grep -A 5 "${package}@" "${file}" | grep "version" | head -1)
+            version=$(echo "${version_line}" | grep -o '"[0-9][^"]*"' | tr -d '"')
+
+            if [[ "$(is_compromised_version "${package}" "${version}")" == 1 ]]; then
+                log "ERROR" "COMPROMISED VERSION IN LOCKFILE: ${package}@${version} in ${file}"
+                echo -e "${RED}  ↳ Known bad releases: ${COMPROMISED_VERSIONS[${package}]}${NC}"
+                ISSUES_FOUND=$((ISSUES_FOUND + 1))
+                found_compromised=1
+            fi
+        fi
+    done
+
+    if [[ ${found_compromised} -eq 0 ]]; then
+        log "SUCCESS" "No compromised versions found in lockfile"
+    fi
+}
+
+# Function to scan directory recursively
+scan_directory() {
+    local dir="$1"
+    local max_depth="${2:-5}"
+    local current_depth="${3:-0}"
+
+    if [[ ${current_depth} -gt ${max_depth} ]]; then
+        return
+    fi
+
+    if [[ ! -d "${dir}" ]]; then
+        return
+    fi
+
+    # Check package.json in current directory
+    if [[ -f "${dir}/package.json" ]]; then
+        check_package_json "${dir}/package.json"
+    fi
+
+    # Check package-lock.json
+    if [[ -f "${dir}/package-lock.json" ]]; then
+        check_package_lock "${dir}/package-lock.json"
+    fi
+
+    # Check yarn.lock (v1)
+    if [[ -f "${dir}/yarn.lock" ]]; then
+        check_yarn_lock "${dir}/yarn.lock"
+    fi
+
+    # Check node_modules
+    if [[ -d "${dir}/node_modules" ]]; then
+        check_node_modules "${dir}/node_modules"
+    fi
+
+    # Scan JavaScript files for malicious code
+    while IFS= read -r -d '' file; do
+        scan_file_for_malicious_code "${file}"
+    done < <(find "${dir}" -maxdepth 1 \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" -o -name "*.mjs" -o -name "*.cjs" \) -print0 2>/dev/null)
+
+    check_for_payload_files "${dir}"
+
+    # Recursively scan subdirectories (except common ones to skip)
+    while IFS= read -r -d '' subdir; do
+        if [[ "${subdir}" != "${dir}" ]]; then
+            scan_directory "${subdir}" "${max_depth}" $((current_depth + 1))
+        fi
+    done < <(find "${dir}" -maxdepth 1 -type d ! -name "." ! -name "node_modules" ! -name ".git" ! -name "dist" ! -name "build" -print0 2>/dev/null)
+}
+
+# Function to display compromised versions list
+show_compromised_versions() {
+    echo -e "${YELLOW}Specific compromised versions being checked:${NC}"
+    for package in "${!COMPROMISED_VERSIONS[@]}"; do
+        echo -e "  ${package}@${COMPROMISED_VERSIONS[${package}]}"
+    done | sort
+}
+
+# Main execution
+main() {
+    local attack_display=""
+    case "${SELECTED_ATTACK}" in
+        "september-2025-qix")
+            attack_display="September 2025 qix- Account Hijacking"
+            ;;
+        "shai-hulud-2")
+            attack_display="Shai-Hulud 2.0 Supply Chain Attack"
+            ;;
+        "all")
+            attack_display="All Known Attacks"
+            ;;
+    esac
+
+    echo -e "${BLUE}${BOLD}🔍 NPM Compromise Checker - ${attack_display}${NC}"
+    echo -e "📂 Scanning directory: ${SCAN_DIR}"
+    echo -e "🎯 Attack filter: ${SELECTED_ATTACK}"
+    echo -e "─────────────────────────────────────────────────────────────"
+
+    if [[ ! -d "${SCAN_DIR}" ]]; then
+        log "ERROR" "Directory not found: ${SCAN_DIR}"
+        exit 1
+    fi
+
+    # Load compromised packages from external file
+    load_compromised_packages
+
+    cd "${SCAN_DIR}"
+
+    local start_time end_time duration
+    start_time=$(date +%s)
+
+    # Run the scan
+    scan_directory "."
+    check_for_backdoor_workflows "."
+
+    end_time=$(date +%s)
+    duration=$((end_time - start_time))
+
+    echo -e "─────────────────────────────────────────────────────────────"
+    echo -e "✅ Scan completed in ${duration}s"
+    echo -e "📊 Packages checked: ${PACKAGES_CHECKED}"
+    echo -e "📄 Files scanned: ${FILES_SCANNED}"
+    echo -e "⚠️  Issues found: ${ISSUES_FOUND}"
+
+    if [[ ${PACKAGES_CHECKED} -eq 0 ]]; then
+        log "WARNING" "No package manifests were scanned. Make sure dependencies are installed or the correct directory was provided."
+        exit 2
+    fi
+
+    if [[ ${ISSUES_FOUND} -eq 0 ]]; then
+        echo -e ""
+        echo -e "${GREEN}${BOLD}✅ No compromised packages or malicious code detected!${NC}"
+        echo -e "${GREEN}Your project appears to be safe from known supply chain attacks.${NC}"
+    else
+        echo -e ""
+        echo -e "${RED}${BOLD}🚨 CRITICAL SECURITY ALERT: ${ISSUES_FOUND} issues found!${NC}"
+        echo -e ""
+        echo -e "${RED}${BOLD}⚠️  SUPPLY CHAIN ATTACK DETECTED ⚠️${NC}"
+        echo -e "${YELLOW}These attacks may exfiltrate credentials, secrets, and environment data!${NC}"
+        echo -e ""
+        echo -e "${YELLOW}${BOLD}🔧 IMMEDIATE ACTIONS REQUIRED:${NC}"
+        echo -e "1. ${BOLD}ISOLATE affected systems immediately${NC}"
+        echo -e "2. ${BOLD}Rotate ALL credentials:${NC}"
+        echo -e "   - GitHub tokens and SSH keys"
+        echo -e "   - AWS, GCP, Azure credentials"
+        echo -e "   - NPM tokens"
+        echo -e "   - API keys and secrets"
+        echo -e "3. ${BOLD}Search for malicious artifacts:${NC}"
+        echo -e "   - Look for repos with attack signatures"
+        echo -e "   - Check for unauthorized self-hosted runners"
+        echo -e "   - Review .github/workflows/ for backdoors"
+        echo -e "4. ${BOLD}Clear npm cache and reinstall:${NC}"
+        echo -e "   ${BOLD}npm cache clean --force${NC}"
+        echo -e "   ${BOLD}rm -rf node_modules package-lock.json && npm install${NC}"
+        echo -e "5. ${BOLD}Audit GitHub and CI/CD:${NC}"
+        echo -e "   - Check for unauthorized workflow files"
+        echo -e "   - Look for suspicious commits"
+        echo -e "   - Review npm publishes under your organization"
+        echo -e "6. ${BOLD}Check for data exfiltration:${NC}"
+        echo -e "   - Look for suspicious JSON files in your repositories"
+        echo -e "   - Review GitHub Actions logs for unauthorized access"
+        echo -e "7. ${BOLD}Enforce phishing-resistant MFA${NC}"
+        echo -e ""
+        echo -e "${YELLOW}📋 For more information on Shai-Hulud 2.0:${NC}"
+        echo -e "${BOLD}https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack${NC}"
+        echo -e ""
+        echo -e "${YELLOW}📋 For detailed audit, run:${NC}"
+        echo -e "${BOLD}npm audit --audit-level high${NC}"
+
+        exit 1
+    fi
+}
+
+# Run the main function
+main

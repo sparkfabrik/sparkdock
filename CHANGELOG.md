@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Added NPM supply-chain attack detector tool (`bin/security/npm-supply-chain-detector`) with support for multiple attack campaigns (Shai-Hulud 2.0, September 2025 qix- account hijacking)
+- Added sjust security commands: `sjust security-scan-npm`, `sjust security-scan-npm-attack`, `sjust security-list-attacks`
+
 ### Fixed
 - Added `set -e` to `install.macos` to fail fast on errors
 - Fixed Python interpreter not found error by implementing `ensure_python3()` function that checks for missing python3 symlink and automatically relinks Python packages before running Ansible playbook
