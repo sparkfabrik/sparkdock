@@ -50,10 +50,6 @@ if command -v node >/dev/null 2>&1; then
     NODE_AVAILABLE=1
 fi
 
-# Artifact breadcrumb arrays are populated per attack via attacks.json
-MALICIOUS_FILE_NAMES=()
-MALICIOUS_RELATIVE_PATHS=()
-
 # Load attack metadata from attacks.json
 load_attack_metadata() {
     local attacks_json="${ATTACKS_DIR}/attacks.json"
