@@ -397,6 +397,39 @@
               - run-http-proxy (compatibility)
               - run-dinghy-proxy (compatibility)
 
+    - name: Restart http-proxy service
+      tags: http-proxy
+      block:
+        - name: Check if Docker is available
+          command: docker --version
+          register: docker_check
+          changed_when: false
+          failed_when: false
+
+        - name: Clean up existing http-proxy container
+          command: docker rm -vf http-proxy
+          register: docker_cleanup
+          failed_when: false
+          changed_when: docker_cleanup.rc == 0
+          when: docker_check.rc == 0
+
+        - name: Start http-proxy service
+          command: spark-http-proxy start
+          register: http_proxy_start
+          changed_when: http_proxy_start.rc == 0
+          when: docker_check.rc == 0
+
+        - name: Display http-proxy service status
+          debug:
+            msg: "✅ Http-proxy service restarted successfully"
+          when: docker_check.rc == 0
+
+        - name: Docker not available notice
+          debug:
+            msg: "⚠️  Docker not available, skipping http-proxy service restart"
+          when: docker_check.rc != 0
+      become: no
+
     - name: Configure keyboard settings
       tags: keyboard
       copy:
