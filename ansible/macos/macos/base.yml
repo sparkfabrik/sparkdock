@@ -406,13 +406,6 @@
           changed_when: false
           failed_when: false
 
-        - name: Clean up existing http-proxy container
-          command: docker rm -vf http-proxy
-          register: docker_cleanup
-          failed_when: false
-          changed_when: docker_cleanup.rc == 0 and 'http-proxy' in docker_cleanup.stdout
-          when: docker_check.rc == 0
-
         - name: Start http-proxy service
           command: spark-http-proxy start
           register: http_proxy_start
