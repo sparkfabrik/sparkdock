@@ -211,7 +211,6 @@ show_help() {
     echo "  -a, --attack ATTACK    Select specific attack to check (default: all)"
     echo "  -h, --help             Show this help message"
     echo "  --list-attacks         List all available attacks"
-    echo "  --list-versions        Show all compromised versions and exit"
     echo "  directory              Directory to scan (default: current directory)"
     echo ""
     echo "Available Attacks:"
@@ -271,7 +270,7 @@ while [[ $# -gt 0 ]]; do
             # Already handled above
             shift
             ;;
-        --list-versions|--list-attacks)
+        --list-attacks)
             # Already handled above
             shift
             ;;
