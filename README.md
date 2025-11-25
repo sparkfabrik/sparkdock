@@ -121,6 +121,25 @@ sjust system-upgrade     # Update system packages
 sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gcloud-auth-plugin
 ```
 
+### Security Scanning
+
+Sparkdock includes an NPM supply-chain attack detector that scans your projects for known compromised packages:
+
+```bash
+sjust security-scan-npm                      # Scan current directory for all known attacks
+sjust security-scan-npm /path/to/project     # Scan specific directory
+sjust security-scan-npm-attack shai-hulud-2  # Check for specific attack only
+sjust security-list-attacks                  # List all available attack signatures
+```
+
+The scanner detects:
+- Compromised package versions in package.json, package-lock.json, and yarn.lock
+- Malicious code signatures in JavaScript files
+- Payload artifacts and backdoor workflows
+- Supports multiple attack campaigns (Shai-Hulud 2.0, September 2025 qix- attack, and more)
+
+See `bin/security/README.md` for detailed documentation.
+
 ### Google Cloud SDK Configuration
 
 Sparkdock automatically installs and configures Google Cloud SDK during provisioning, including the `gke-gcloud-auth-plugin` component required for GKE authentication.

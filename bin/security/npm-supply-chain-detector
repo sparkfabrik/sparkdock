@@ -538,7 +538,9 @@ scan_file_for_malicious_code() {
 
     # Check for heavy obfuscation (common pattern: _0x followed by hex)
     local obfuscation_count
-    obfuscation_count=$(grep -o "_0x[a-fA-F0-9]\{4,\}" "${file}" 2>/dev/null | wc -l)
+    obfuscation_count=$(grep -o "_0x[a-fA-F0-9]\{4,\}" "${file}" 2>/dev/null | wc -l || echo "0")
+    # Trim whitespace
+    obfuscation_count=$(echo "${obfuscation_count}" | tr -d '[:space:]')
     if [[ ${obfuscation_count} -gt 20 ]]; then
         log "WARNING" "HEAVILY OBFUSCATED FILE: ${file} (${obfuscation_count} obfuscated variables)"
     fi
