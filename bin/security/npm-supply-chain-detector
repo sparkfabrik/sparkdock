@@ -91,7 +91,12 @@ load_attack_file() {
         if [[ "${line}" =~ ^\[\"([^\"]+)\"\]=\"([^\"]+)\"$ ]]; then
             local package="${BASH_REMATCH[1]}"
             local version="${BASH_REMATCH[2]}"
-            COMPROMISED_VERSIONS["${package}"]="${version}"
+            # Append version if package already exists (handle multiple compromised versions)
+            if [[ -n "${COMPROMISED_VERSIONS[${package}]:-}" ]]; then
+                COMPROMISED_VERSIONS["${package}"]="${COMPROMISED_VERSIONS[${package}]}||${version}"
+            else
+                COMPROMISED_VERSIONS["${package}"]="${version}"
+            fi
             loaded_count=$((loaded_count + 1))
         fi
     done < "${attack_file}"
