@@ -9,7 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added NPM supply-chain attack detector tool (`bin/security/npm-supply-chain-detector`) with support for multiple attack campaigns (Shai-Hulud 2.0, September 2025 qix- account hijacking)
+- Added NPM supply-chain attack detector tool (`bin/security/npm-supply-chain-detector`)
+- Added support for Shai-Hulud 2.0 and September 2025 qix- account hijacking attacks
 - Added sjust security commands: `sjust security-scan-npm`, `sjust security-scan-npm-attack`, `sjust security-list-attacks`
 
 ### Fixed

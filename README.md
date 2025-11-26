@@ -126,10 +126,10 @@ sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gc
 Sparkdock includes an NPM supply-chain attack detector that scans your projects for known compromised packages:
 
 ```bash
-sjust security-scan-npm                      # Scan current directory for all known attacks
-sjust security-scan-npm /path/to/project     # Scan specific directory
-sjust security-scan-npm-attack shai-hulud-2  # Check for specific attack only
-sjust security-list-attacks                  # List all available attack signatures
+sjust security-scan-npm                          # Scan current directory for all known attacks
+sjust security-scan-npm /path/to/project         # Scan specific directory
+sjust security-scan-npm-attack shai-hulud-2 .    # Check for specific attack in current directory
+sjust security-list-attacks                      # List all available attack signatures
 ```
 
 The scanner detects:
