@@ -2,8 +2,6 @@
 
 # Security scanning commands for Sparkdock
 
-sparkdock_path := "/opt/sparkdock"
-
 # Scan current directory for NPM supply chain attacks
 [group('security')]
 security-scan-npm dir=".":
