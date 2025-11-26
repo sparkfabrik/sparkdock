@@ -7,7 +7,7 @@
 
   vars:
     dev_env_dir: /opt/sparkdock
-    homebrew_prefix: "{{ (ansible_machine == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
+    homebrew_prefix: "{{ (ansible_facts['machine'] == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
     homebrew_install_path: "{{ homebrew_prefix }}/Homebrew"
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
     ansible_become_pass: "{{ lookup('env', 'ANSIBLE_BECOME_PASS') }}"
@@ -15,7 +15,7 @@
   tasks:
     - name: Check if running in non-interactive environment
       set_fact:
-        is_non_interactive: "{{ ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined or ansible_env.RUNNER_OS is defined or ansible_env.HOME == '/var/root' or ansible_env.ANSIBLE_SUDO_PASSWORD is defined }}"
+        is_non_interactive: "{{ ansible_facts['env'].CI is defined or ansible_facts['env'].GITHUB_ACTIONS is defined or ansible_facts['env'].RUNNER_OS is defined or ansible_facts['env'].HOME == '/var/root' or ansible_facts['env'].ANSIBLE_SUDO_PASSWORD is defined }}"
 
     - name: Load all packages
       include_vars:
@@ -51,7 +51,7 @@
           - "All cask packages: {{ all_cask_packages }}"
           - "All homebrew packages: {{ all_homebrew_packages }}"
           - "All linked packages: {{ all_linked_packages }}"
-          - "All variables: {{ vars.keys() | list }}"
+          - "All variables: {{ lookup('varnames', '.+', wantlist=True) }}"
       when: ansible_verbosity >= 1
 
     - name: Debug homebrew paths
@@ -271,10 +271,10 @@
         - name: Fix ownership of http-proxy directory for git operations.
           file:
             path: "{{ dev_env_dir }}/http-proxy"
-            owner: "{{ ansible_user_id }}"
-            group: "{{ ansible_user_gid }}"
+            owner: "{{ ansible_facts['user_id'] }}"
+            group: "{{ ansible_facts['user_gid'] }}"
             recurse: yes
-          when: not (vars.is_non_interactive | default(false))
+          when: not (is_non_interactive | default(false))
           become: yes
           become_method: sudo
 
@@ -365,19 +365,19 @@
           block:
             - name: Check if old dinghy certs directory exists
               stat:
-                path: "{{ ansible_env.HOME }}/.dinghy/certs"
+                path: "{{ ansible_facts['env']['HOME'] }}/.dinghy/certs"
               register: old_certs_dir
 
             - name: Create new certs directory
               file:
-                path: "{{ ansible_env.HOME }}/.local/spark/http-proxy/certs"
+                path: "{{ ansible_facts['env']['HOME'] }}/.local/spark/http-proxy/certs"
                 state: directory
                 mode: "0755"
 
             - name: Copy certificates from old to new location
               copy:
-                src: "{{ ansible_env.HOME }}/.dinghy/certs/"
-                dest: "{{ ansible_env.HOME }}/.local/spark/http-proxy/certs/"
+                src: "{{ ansible_facts['env']['HOME'] }}/.dinghy/certs/"
+                dest: "{{ ansible_facts['env']['HOME'] }}/.local/spark/http-proxy/certs/"
                 remote_src: true
               when: old_certs_dir.stat.exists
 
@@ -433,8 +433,8 @@
           file:
             path: "{{ brew_prefix.stdout }}/share/zsh/site-functions"
             state: directory
-            owner: "{{ ansible_user_id }}"
-            group: "{{ ansible_user_gid }}"
+            owner: "{{ ansible_facts['user_id'] }}"
+            group: "{{ ansible_facts['user_gid'] }}"
             mode: "0755"
           become: yes
           become_method: sudo
@@ -442,8 +442,8 @@
         - name: Ensure _sjust completion file has correct ownership (if present)
           file:
             path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
-            owner: "{{ ansible_user_id }}"
-            group: "{{ ansible_user_gid }}"
+            owner: "{{ ansible_facts['user_id'] }}"
+            group: "{{ ansible_facts['user_gid'] }}"
             mode: "0644"
           become: yes
           become_method: sudo
@@ -459,8 +459,8 @@
         - name: Ensure sjust zsh completion has correct ownership and permissions
           file:
             path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
-            owner: "{{ ansible_user_id }}"
-            group: "{{ ansible_user_gid }}"
+            owner: "{{ ansible_facts['user_id'] }}"
+            group: "{{ ansible_facts['user_gid'] }}"
             mode: "0644"
           become: yes
           become_method: sudo
@@ -519,7 +519,7 @@
 
             - name: Ensure user LaunchAgents directory exists
               file:
-                path: "{{ ansible_env.HOME }}/Library/LaunchAgents"
+                path: "{{ ansible_facts['env']['HOME'] }}/Library/LaunchAgents"
                 state: directory
                 mode: "0755"
               become: no
@@ -527,15 +527,15 @@
             - name: Install menubar app launch agent
               copy:
                 src: "{{ dev_env_dir }}/src/menubar-app/com.sparkfabrik.sparkdock.menubar.plist"
-                dest: "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+                dest: "{{ ansible_facts['env']['HOME'] }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
                 mode: "0644"
               become: no
 
             - name: Load menubar app launch agent
               shell: |
                 pkill -f "sparkdock-manager" 2>/dev/null || true
-                launchctl bootout gui/$(id -u) "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist" 2>/dev/null || true
-                launchctl bootstrap gui/$(id -u) "{{ ansible_env.HOME }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
+                launchctl bootout gui/$(id -u) "{{ ansible_facts['env']['HOME'] }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist" 2>/dev/null || true
+                launchctl bootstrap gui/$(id -u) "{{ ansible_facts['env']['HOME'] }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
                 launchctl enable gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
                 launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
               become: no
