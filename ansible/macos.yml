@@ -7,4 +7,4 @@
 - name: Import playbook for macOS
   import_playbook: macos/macos/base.yml
   # Match macOS versions 15.x (Sequoia) and 26.x (Tahoe)
-  when: ansible_distribution_version | regex_search('^(15\.[0-9]+|26\.[0-9]+)') is not none
+  when: ansible_facts['distribution_version'] | regex_search('^(15\.[0-9]+|26\.[0-9]+)') is not none
