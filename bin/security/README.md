@@ -26,6 +26,7 @@ This directory hosts a Bash-based scanner that flags compromised npm packages an
 - **Payload Artifact Detection**: Identifies malicious files dropped by attacks
 - **Workflow Backdoor Detection**: Checks for malicious GitHub Actions workflows
 - **Node.js Optimization**: Uses a Node.js helper for faster dependency parsing when available
+- **Auto-Update**: Update attack databases from remote sources
 
 ## Supported Attacks
 
@@ -73,6 +74,20 @@ npm-supply-chain-detector --help
 
 # List all available attacks
 npm-supply-chain-detector --list-attacks
+```
+
+### Updating Attack Databases
+
+```bash
+# Update Shai-Hulud 2.0 database from the Wiz IOC repository
+sjust security-update-shai-hulud
+```
+
+### Running Tests
+
+```bash
+# Run scanner tests against test fixtures
+sjust security-test
 ```
 
 ## What Gets Scanned
@@ -140,6 +155,12 @@ bin/security/
 │   ├── attacks.json              # Attack metadata
 │   ├── shai-hulud-2.txt         # Shai-Hulud 2.0 package list
 │   └── september-2025-qix.txt   # September 2025 qix attack package list
+├── test/                         # Test fixtures
+│   ├── safe/                     # Safe project (should have 0 issues)
+│   ├── vulnerable/               # Vulnerable project
+│   └── compromised/              # Compromised projects by attack
+│       ├── shai-hulud-2/
+│       └── september-2025-qix/
 └── README.md                     # This file
 ```
 
@@ -180,12 +201,19 @@ This tool is integrated with Sparkdock's task runner (sjust). Use these commands
 sjust security-scan-npm
 
 # Scan specific attack
-sjust security-scan-npm-attack shai-hulud-2
+sjust security-scan-npm-attack shai-hulud-2 .
+
+# Update Shai-Hulud database from remote source
+sjust security-update-shai-hulud
+
+# Run tests
+sjust security-test
 ```
 
 ## References
 
 - [Shai-Hulud 2.0 Analysis](https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack)
+- [Wiz IOC Repository](https://github.com/wiz-sec-public/wiz-research-iocs)
 - [NPM Security Best Practices](https://docs.npmjs.com/packages-and-modules/securing-your-code)
 - [GitHub Actions Security](https://docs.github.com/en/actions/security-guides)
 
