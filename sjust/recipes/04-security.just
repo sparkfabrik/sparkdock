@@ -22,10 +22,3 @@ security-list-attacks:
     #!/usr/bin/env bash
     set -euo pipefail
     "{{sparkdock_path}}/bin/security/npm-supply-chain-detector" --list-attacks
-
-# Update the Shai-Hulud 2.0 attack database from the Wiz IOC repository
-[group('security')]
-security-update-shai-hulud:
-    #!/usr/bin/env bash
-    set -euo pipefail
-    "{{sparkdock_path}}/bin/security/scripts/update-shai-hulud.sh"

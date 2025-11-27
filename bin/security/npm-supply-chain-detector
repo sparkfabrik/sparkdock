@@ -11,6 +11,11 @@
 set -euo pipefail
 
 # Check for bash version 4+ for associative arrays
+if [[ -z "${BASH_VERSION:-}" ]] || [[ ! "${BASH_VERSION}" =~ ^[0-9] ]]; then
+    echo "Error: Unable to determine bash version"
+    exit 1
+fi
+
 if [ "${BASH_VERSION%%.*}" -lt 4 ]; then
     echo "Error: This script requires bash 4.0 or higher for associative arrays"
     echo "Current bash version: ${BASH_VERSION}"
@@ -281,11 +286,34 @@ while [[ $# -gt 0 ]]; do
             ;;
         *)
             # Assume it's the directory to scan
-            SCAN_DIR="$1"
+            # Validate and canonicalize the path to prevent directory traversal attacks
+            if [[ -d "$1" ]]; then
+                SCAN_DIR="$(cd "$1" && pwd)"
+            else
+                SCAN_DIR="$1"
+            fi
             shift
             ;;
     esac
 done
+
+# Validate SCAN_DIR to prevent command injection and directory traversal
+if [[ -n "${SCAN_DIR}" ]]; then
+    # Check for potentially dangerous characters using case statement for portability
+    case "${SCAN_DIR}" in
+        *[\;\|\&\$\`]*)
+            echo "Error: Invalid characters in directory path"
+            exit 1
+            ;;
+    esac
+    # Validate it's a real directory
+    if [[ ! -d "${SCAN_DIR}" ]]; then
+        echo "Error: Directory not found: ${SCAN_DIR}"
+        exit 1
+    fi
+    # Canonicalize the path
+    SCAN_DIR="$(cd "${SCAN_DIR}" && pwd)"
+fi
 
 ISSUES_FOUND=0
 PACKAGES_CHECKED=0
@@ -357,7 +385,8 @@ is_compromised_version() {
                 comp_major=$(echo "${comp_version}" | cut -d. -f1)
                 comp_minor=$(echo "${comp_version}" | cut -d. -f2 2>/dev/null || echo "0")
 
-                if [[ "${major}" == "${comp_major}" ]] && [[ "${minor}" -le "${comp_minor}" ]]; then
+                # Use arithmetic comparison for proper numeric handling
+                if [[ "${major}" == "${comp_major}" ]] && (( minor <= comp_minor )); then
                     echo 2  # Potentially includes compromised version
                     return
                 fi
@@ -671,7 +700,7 @@ scan_directory() {
     # Scan JavaScript files for malicious code
     while IFS= read -r -d '' file; do
         scan_file_for_malicious_code "${file}"
-    done < <(find "${dir}" -maxdepth 1 \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" -o -name "*.mjs" -o -name "*.cjs" \) -print0 2>/dev/null)
+    done < <(find "${dir}" -maxdepth 1 -type f \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" -o -name "*.mjs" -o -name "*.cjs" \) -print0 2>/dev/null)
 
     check_for_payload_files "${dir}"
 
@@ -680,7 +709,7 @@ scan_directory() {
         if [[ "${subdir}" != "${dir}" ]]; then
             scan_directory "${subdir}" "${max_depth}" $((current_depth + 1))
         fi
-    done < <(find "${dir}" -maxdepth 1 -type d ! -name "." ! -name "node_modules" ! -name ".git" ! -name "dist" ! -name "build" -print0 2>/dev/null)
+    done < <(find "${dir}" -maxdepth 1 -type d ! -name "." ! -name "node_modules" ! -name ".git" ! -name "dist" ! -name "build" ! -name ".cache" ! -name "coverage" ! -name ".next" ! -name ".nuxt" ! -name ".output" -print0 2>/dev/null)
 }
 
 # Function to display compromised versions list

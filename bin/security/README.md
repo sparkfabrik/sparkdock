@@ -26,7 +26,6 @@ This directory hosts a Bash-based scanner that flags compromised npm packages an
 - **Payload Artifact Detection**: Identifies malicious files dropped by attacks
 - **Workflow Backdoor Detection**: Checks for malicious GitHub Actions workflows
 - **Node.js Optimization**: Uses a Node.js helper for faster dependency parsing when available
-- **Auto-Update**: Update attack databases from remote sources
 
 ## Supported Attacks
 
@@ -74,13 +73,6 @@ npm-supply-chain-detector --help
 
 # List all available attacks
 npm-supply-chain-detector --list-attacks
-```
-
-### Updating Attack Databases
-
-```bash
-# Update Shai-Hulud 2.0 database from the Wiz IOC repository
-sjust security-update-shai-hulud
 ```
 
 ## What Gets Scanned
@@ -143,8 +135,7 @@ To add a new attack signature:
 bin/security/
 ├── npm-supply-chain-detector    # Main scanner script
 ├── scripts/
-│   ├── list-deps.js              # Node.js helper for dependency extraction
-│   └── update-shai-hulud.sh      # Script to update Shai-Hulud attack database
+│   └── list-deps.js              # Node.js helper for dependency extraction
 ├── attacks/
 │   ├── attacks.json              # Attack metadata
 │   ├── shai-hulud-2.txt         # Shai-Hulud 2.0 package list
@@ -191,8 +182,8 @@ sjust security-scan-npm
 # Scan specific attack
 sjust security-scan-npm-attack shai-hulud-2 .
 
-# Update Shai-Hulud database from remote source
-sjust security-update-shai-hulud
+# List all available attacks
+sjust security-list-attacks
 ```
 
 ## References

@@ -10,7 +10,14 @@ const path = require('path');
 
 function listDependencies(packageJsonPath) {
   try {
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+    const packageJsonContent = fs.readFileSync(packageJsonPath, 'utf8');
+    // Parse with reviver to protect against prototype pollution
+    const packageJson = JSON.parse(packageJsonContent, (key, value) => {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        return undefined;
+      }
+      return value;
+    });
     const deps = new Map();
 
     // Collect all types of dependencies
@@ -37,7 +44,8 @@ function listDependencies(packageJsonPath) {
       console.log(`${pkg}\t${version}`);
     });
   } catch (error) {
-    // Silent failure - bash script will fall back to grep
+    // Log to stderr so the user knows why the fast path failed
+    console.error(`Warning: Failed to parse ${packageJsonPath}: ${error.message}`);
     process.exit(0);
   }
 }
