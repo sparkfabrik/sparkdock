@@ -1,4 +1,4 @@
-FROM mcr.microsoft.com/vscode/devcontainers/base:2.0-ubuntu24.04
+FROM mcr.microsoft.com/vscode/devcontainers/base:2.1-ubuntu24.04
 
 # Features in the devcontainer.json file could potentially achieve most of this setup.
 # See the following URL for reference: https://github.com/digitalocean/ansible-collection/blob/main/.devcontainer/devcontainer.json
