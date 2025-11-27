@@ -83,13 +83,6 @@ npm-supply-chain-detector --list-attacks
 sjust security-update-shai-hulud
 ```
 
-### Running Tests
-
-```bash
-# Run scanner tests against test fixtures
-sjust security-test
-```
-
 ## What Gets Scanned
 
 1. **Package Manifests**:
@@ -150,17 +143,12 @@ To add a new attack signature:
 bin/security/
 ├── npm-supply-chain-detector    # Main scanner script
 ├── scripts/
-│   └── list-deps.js              # Node.js helper for dependency extraction
+│   ├── list-deps.js              # Node.js helper for dependency extraction
+│   └── update-shai-hulud.sh      # Script to update Shai-Hulud attack database
 ├── attacks/
 │   ├── attacks.json              # Attack metadata
 │   ├── shai-hulud-2.txt         # Shai-Hulud 2.0 package list
 │   └── september-2025-qix.txt   # September 2025 qix attack package list
-├── test/                         # Test fixtures
-│   ├── safe/                     # Safe project (should have 0 issues)
-│   ├── vulnerable/               # Vulnerable project
-│   └── compromised/              # Compromised projects by attack
-│       ├── shai-hulud-2/
-│       └── september-2025-qix/
 └── README.md                     # This file
 ```
 
@@ -205,9 +193,6 @@ sjust security-scan-npm-attack shai-hulud-2 .
 
 # Update Shai-Hulud database from remote source
 sjust security-update-shai-hulud
-
-# Run tests
-sjust security-test
 ```
 
 ## References
