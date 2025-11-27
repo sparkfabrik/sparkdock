@@ -28,41 +28,7 @@ security-list-attacks:
 security-update-shai-hulud:
     #!/usr/bin/env bash
     set -euo pipefail
-    source "{{sparkdock_path}}/sjust/libs/libshell.sh"
-
-    local_file="{{sparkdock_path}}/bin/security/attacks/shai-hulud-2.txt"
-    remote_csv="https://raw.githubusercontent.com/wiz-sec-public/wiz-research-iocs/main/reports/shai-hulud-2-packages.csv"
-
-    echo "🔄 Updating Shai-Hulud 2.0 attack database..."
-    echo "📥 Fetching from: ${remote_csv}"
-
-    # Create header
-    cat > "${local_file}" << 'HEADER'
-# Shai-Hulud 2.0 Attack - Compromised NPM Packages
-# Date: November 21-23, 2025
-# Source: https://www.wiz.io/blog/shai-hulud-2-0-ongoing-supply-chain-attack
-# Data: https://github.com/wiz-sec-public/wiz-research-iocs/blob/main/reports/shai-hulud-2-packages.csv
-# Format: ["package-name"]="version"
-
-HEADER
-
-    # Fetch and convert CSV to expected format
-    curl -sL "${remote_csv}" | tail -n +2 | awk -F',' '{
-      # Remove "= " prefix from version
-      gsub(/^= /, "", $2);
-      # Handle multiple versions separated by " || "
-      split($2, versions, " \\|\\| ");
-      for (i in versions) {
-        gsub(/^= /, "", versions[i]);
-        gsub(/^[[:space:]]+|[[:space:]]+$/, "", versions[i]);
-        if (versions[i] != "") {
-          print "[\"" $1 "\"]=\"" versions[i] "\""
-        }
-      }
-    }' >> "${local_file}"
-
-    count=$(grep -c '^\["' "${local_file}" || echo "0")
-    echo "✅ Updated shai-hulud-2.txt with ${count} package entries"
+    "{{sparkdock_path}}/bin/security/scripts/update-shai-hulud.sh"
 
 # Run security scanner tests against test fixtures
 [group('security')]
