@@ -238,7 +238,7 @@
             state: absent
           when:
             - "'node' in all_homebrew_packages"
-            - npm_copilot_check.skipped is not defined
+            - npm_copilot_check.stdout is defined
             - "'not-installed' not in npm_copilot_check.stdout"
           become: false
 
