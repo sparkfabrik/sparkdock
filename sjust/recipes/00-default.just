@@ -109,14 +109,9 @@ http-proxy-install-update:
         cd {{ sparkdock_path }}
     fi
 
-    # Run ansible installation/update
+    # Run ansible installation/update (includes service restart)
     echo "🔧 Running ansible configuration..."
     just -f /opt/sparkdock/Justfile run-ansible-playbook http-proxy
-
-    # Clean up and restart
-    echo "🔄 Restarting http-proxy services..."
-    docker rm -vf http-proxy || true
-    spark-http-proxy start
     echo "✅ Http-proxy installation/update completed!"
 
 # Update system packages via Homebrew (not sparkdock)
