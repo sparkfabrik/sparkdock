@@ -221,14 +221,26 @@
         msg: "{{ brew_doctor_result.stderr_lines }}"
       when: brew_doctor_result.stderr != ""
 
-    - name: Install GitHub Copilot CLI
+    - name: Transition GitHub Copilot CLI from npm to brew cask
       tags: copilot-cli
-      community.general.npm:
-        name: "@github/copilot"
-        global: true
-        state: present
-      when: "'node' in all_homebrew_packages"
-      become: false
+      block:
+        - name: Check if npm @github/copilot is installed globally
+          shell: npm list -g @github/copilot 2>/dev/null || echo "not-installed"
+          register: npm_copilot_check
+          changed_when: false
+          when: "'node' in all_homebrew_packages"
+          become: false
+
+        - name: Uninstall npm @github/copilot package
+          community.general.npm:
+            name: "@github/copilot"
+            global: true
+            state: absent
+          when:
+            - "'node' in all_homebrew_packages"
+            - npm_copilot_check.stdout is defined
+            - "'not-installed' not in npm_copilot_check.stdout"
+          become: false
 
     - name: Configure DNS resolver
       block:

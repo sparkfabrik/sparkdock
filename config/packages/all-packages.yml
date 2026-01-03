@@ -22,6 +22,7 @@ cask_packages:
   - slack
   - zoom
   - monitorcontrol
+  - copilot-cli
 
 homebrew_packages:
   # Cloud Tools
