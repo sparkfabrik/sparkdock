@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed eza alias to display group ownership by default using `-g` flag in all ls commands
 
 ### Added
-
+- Added Copilot CLI shell aliases for multiple AI models with one-shot mode (co/cos/coh/coc/cog/coo), interactive mode (ico/icos/icoh/icoc/icog/icoo), and session management (cocon/cores)
 - Added automatic disabling of gcloud survey prompts during Google Cloud SDK configuration (both in Ansible provisioning and `sjust system-gcloud-reconfigure`)
 - Added Chrome web app integration for menubar URL links - URL menu items now open as standalone Chrome windows without browser UI using the `--app` flag
 
