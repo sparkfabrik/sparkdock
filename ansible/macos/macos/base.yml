@@ -133,6 +133,12 @@
     - name: Transition GitHub Copilot CLI from npm to brew cask
       tags: copilot-cli
       block:
+        - name: Check if copilot-cli cask is already installed
+          shell: brew list --cask copilot-cli >/dev/null 2>&1 && echo yes || echo no
+          register: copilot_cli_installed
+          changed_when: false
+          become: false
+
         - name: Check if npm command is available
           shell: command -v npm >/dev/null 2>&1 && echo "available" || echo "not-available"
           register: npm_available
@@ -167,7 +173,9 @@
           file:
             path: "{{ homebrew_prefix }}/bin/copilot"
             state: absent
-          when: copilot_binary.stat.exists
+          when:
+            - copilot_binary.stat.exists
+            - copilot_cli_installed.stdout == "no"
           become: false
           ignore_errors: true
 
