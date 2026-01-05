@@ -124,6 +124,49 @@ if command_exists kubens; then
   alias kn='kubens'
 fi
 
+# Add some copilot aliases.
+if command_exists copilot; then
+  copilot() {
+    # temporary fix for this issue: https://github.com/github/copilot-cli/issues/869#issuecomment-3711278787
+    # we want to create a dump of the keychain to a temp file and point copilot to it.
+    # we need just to create that one time, to avoid performance issues.
+    # save it here ~/.local/spark/copilot/keychain.pem
+    if [ ! -f ~/.local/spark/copilot/keychain.pem ]; then
+      mkdir -p ~/.local/spark/copilot
+      security find-certificate -a -p /Library/Keychains/System.keychain > ~/.local/spark/copilot/keychain.pem 2>/dev/null || true
+      security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain >> ~/.local/spark/copilot/keychain.pem 2>/dev/null || true
+    fi
+    export NODE_EXTRA_CA_CERTS="$HOME/.ssl/ca-bundle.pem"
+    command copilot "${@}"
+  }
+
+  ## One-shot mode aliases (co = copilot one-shot)
+  # co/cos/coh/coc/cog/coo - Run a single prompt and exit
+  co()  { copilot --allow-all-tools --silent --model gpt-4.1 -p "${@}"; }
+  cos() { copilot --allow-all-tools --silent --model claude-sonnet-4.5 -p "${@}"; }
+  coh() { copilot --allow-all-tools --silent --model claude-haiku-4.5 -p "${@}"; }
+  coc() { copilot --allow-all-tools --silent --model gpt-5.1-codex-max -p "${@}"; }
+  cog() { copilot --allow-all-tools --silent --model gemini-3-pro -p "${@}"; }
+  coo() { copilot --allow-all-tools --silent --model claude-opus-4.5 -p "${@}"; }
+
+  ## Interactive mode aliases (ico = interactive copilot)
+  # ico/icos/icoh/icoc/icog/icoo - Start interactive session, optionally with initial prompt
+  # Usage: ico → starts full interactive session
+  #        ico "prompt" → starts session with initial prompt
+  ico()  { copilot --model gpt-4.1 --allow-all-tools ${1:+-i} "${@}"; }
+  icos() { copilot --model claude-sonnet-4.5 --allow-all-tools ${1:+-i} "${@}"; }
+  icoh() { copilot --model claude-haiku-4.5 --allow-all-tools ${1:+-i} "${@}"; }
+  icoc() { copilot --model gpt-5.1-codex-max --allow-all-tools ${1:+-i} "${@}"; }
+  icog() { copilot --model gemini-3-pro --allow-all-tools ${1:+-i} "${@}"; }
+  icoo() { copilot --model claude-opus-4.5 --allow-all-tools ${1:+-i} "${@}"; }
+
+  ## Session Management
+  # cocon - Resume the last session
+  cocon() { copilot --allow-all-tools --continue; }
+  # cores - Resume a specific session
+  cores() { copilot --allow-all-tools --resume "${@}"; }
+fi
+
 # Directory navigation
 alias ..='cd ..'
 alias ...='cd ../..'

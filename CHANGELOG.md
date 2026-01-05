@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed GitHub Copilot CLI npm to brew cask transition by reordering cleanup tasks to run before cask installation, preventing binary conflict at `/opt/homebrew/bin/copilot`
+
+### Added
+- Added Copilot CLI shell aliases for multiple AI models with one-shot mode (co/cos/coh/coc/cog), interactive mode (ico/icos/icoh/icoc/icog), and session management (cocon/cores)
+
+### Fixed
 - Aligned `sparkdock` command with `sjust http-proxy-install-update` by adding service restart to Ansible http-proxy tasks (spark-http-proxy handles container cleanup via Docker Compose)
 - Added `set -e` to `install.macos` to fail fast on errors
 - Fixed Python interpreter not found error by implementing `ensure_python3()` function that checks for missing python3 symlink and automatically relinks Python packages before running Ansible playbook
