@@ -130,6 +130,47 @@
             all_cask_packages: "{{ all_cask_packages | difference(['google-chrome']) }}"
           when: "'google-chrome' in all_cask_packages and google_chrome_installed.stdout == 'yes'"
 
+    - name: Transition GitHub Copilot CLI from npm to brew cask
+      tags: copilot-cli
+      block:
+        - name: Check if npm command is available
+          shell: command -v npm >/dev/null 2>&1 && echo "available" || echo "not-available"
+          register: npm_available
+          changed_when: false
+          become: false
+
+        - name: Check if npm @github/copilot is installed globally
+          shell: npm list -g @github/copilot 2>/dev/null || echo "not-installed"
+          register: npm_copilot_check
+          changed_when: false
+          when: npm_available.stdout == "available"
+          become: false
+
+        - name: Uninstall npm @github/copilot package
+          community.general.npm:
+            name: "@github/copilot"
+            global: true
+            state: absent
+          when:
+            - npm_available.stdout == "available"
+            - npm_copilot_check.stdout is defined
+            - "'not-installed' not in npm_copilot_check.stdout"
+          become: false
+
+        - name: Check if copilot binary exists
+          stat:
+            path: "{{ homebrew_prefix }}/bin/copilot"
+          register: copilot_binary
+          become: false
+
+        - name: Remove copilot binary if it exists (cleanup for transition)
+          file:
+            path: "{{ homebrew_prefix }}/bin/copilot"
+            state: absent
+          when: copilot_binary.stat.exists
+          become: false
+          ignore_errors: true
+
     - name: Install cask packages
       tags: cask
       community.general.homebrew_cask:
@@ -220,27 +261,6 @@
       debug:
         msg: "{{ brew_doctor_result.stderr_lines }}"
       when: brew_doctor_result.stderr != ""
-
-    - name: Transition GitHub Copilot CLI from npm to brew cask
-      tags: copilot-cli
-      block:
-        - name: Check if npm @github/copilot is installed globally
-          shell: npm list -g @github/copilot 2>/dev/null || echo "not-installed"
-          register: npm_copilot_check
-          changed_when: false
-          when: "'node' in all_homebrew_packages"
-          become: false
-
-        - name: Uninstall npm @github/copilot package
-          community.general.npm:
-            name: "@github/copilot"
-            global: true
-            state: absent
-          when:
-            - "'node' in all_homebrew_packages"
-            - npm_copilot_check.stdout is defined
-            - "'not-installed' not in npm_copilot_check.stdout"
-          become: false
 
     - name: Configure DNS resolver
       block:
