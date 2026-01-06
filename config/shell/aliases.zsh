@@ -126,19 +126,22 @@ fi
 
 # Add some copilot aliases.
 if command_exists copilot; then
-  copilot() {
-    # temporary fix for this issue: https://github.com/github/copilot-cli/issues/869#issuecomment-3711278787
-    # we want to create a dump of the keychain to a temp file and point copilot to it.
-    # we need just to create that one time, to avoid performance issues.
-    # save it here ${HOME}/.local/spark/copilot/keychain.pem
-    if [ ! -f "${HOME}/.local/spark/copilot/keychain.pem" ]; then
-      mkdir -p "${HOME}/.local/spark/copilot"
-      security find-certificate -a -p /Library/Keychains/System.keychain > "${HOME}/.local/spark/copilot/keychain.pem" 2>/dev/null || true
-      security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain >> "${HOME}/.local/spark/copilot/keychain.pem" 2>/dev/null || true
-    fi
-    export NODE_EXTRA_CA_CERTS="$HOME/.ssl/ca-bundle.pem"
-    command copilot "${@}"
-  }
+  # Override copilot function only on macOS for keychain certificate handling
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    copilot() {
+      # temporary fix for this issue: https://github.com/github/copilot-cli/issues/869#issuecomment-3711278787
+      # we want to create a dump of the keychain to a temp file and point copilot to it.
+      # we need just to create that one time, to avoid performance issues.
+      # save it here ${HOME}/.local/spark/copilot/keychain.pem
+      if [ ! -f "${HOME}/.local/spark/copilot/keychain.pem" ]; then
+        mkdir -p "${HOME}/.local/spark/copilot"
+        security find-certificate -a -p /Library/Keychains/System.keychain > "${HOME}/.local/spark/copilot/keychain.pem" 2>/dev/null || true
+        security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain >> "${HOME}/.local/spark/copilot/keychain.pem" 2>/dev/null || true
+      fi
+      export NODE_EXTRA_CA_CERTS="$HOME/.ssl/ca-bundle.pem"
+      command copilot "${@}"
+    }
+  fi
 
   ## One-shot mode aliases (co = copilot one-shot)
   # co/cos/coh/coc/cog/coo - Run a single prompt and exit
