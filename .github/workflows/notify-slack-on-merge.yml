@@ -106,10 +106,23 @@ jobs:
           # Ensure the extracted text is valid JSON with the expected fields
           if ! echo "${CLAUDE_RESPONSE}" | jq -e '.should_notify' >/dev/null 2>&1; then
             echo "Error: Claude response does not contain expected JSON structure"
-            echo "${CLAUDE_RESPONSE}"
+
+          # Verify the Claude API response has the expected structure
+          if ! echo "$RESPONSE" | jq -e '.content and .content[0].text' >/dev/null 2>&1; then
+            echo "Error: Unexpected response from Claude API"
+            echo "$RESPONSE"
             exit 1
           fi
 
+          # Extract the response text
+          CLAUDE_RESPONSE=$(echo "$RESPONSE" | jq -r '.content[0].text')
+
+          # Ensure the extracted text is valid JSON with the expected fields
+          if ! echo "$CLAUDE_RESPONSE" | jq -e '.should_notify' >/dev/null 2>&1; then
+            echo "Error: Claude response does not contain expected JSON structure"
+            echo "$CLAUDE_RESPONSE"
+            exit 1
+          fi
           # Parse the JSON response from Claude
           SHOULD_NOTIFY=$(echo "${CLAUDE_RESPONSE}" | jq -r '.should_notify')
           MESSAGE=$(echo "${CLAUDE_RESPONSE}" | jq -r '.message // ""')
