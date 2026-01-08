@@ -26,7 +26,7 @@ jobs:
           DIFF=$(git diff HEAD~1 HEAD -- CHANGELOG.md)
 
           # Check if there are any changes
-          if [ -z "$DIFF" ]; then
+          if [ -z "${DIFF}" ]; then
             echo "No changelog changes detected"
             echo "has_changes=false" >> $GITHUB_OUTPUT
             exit 0
@@ -35,10 +35,10 @@ jobs:
           echo "has_changes=true" >> $GITHUB_OUTPUT
 
           # Save the diff to a file for the next step
-          echo "$DIFF" > /tmp/changelog-diff.txt
+          echo "${DIFF}" > /tmp/changelog-diff.txt
 
           # Also save just the added lines (features)
-          echo "$DIFF" | grep "^+" | grep -v "^+++" > /tmp/changelog-added.txt || true
+          echo "${DIFF}" | grep "^+" | grep -v "^+++" > /tmp/changelog-added.txt || true
 
       - name: Analyze changelog with Claude
         id: analyze-changelog
@@ -86,25 +86,39 @@ jobs:
             "messages": [
               {
                 "role": "user",
-                "content": $(echo "$PROMPT" | jq -Rs .)
+                "content": $(echo "${PROMPT}" | jq -Rs .)
               }
             ]
           }
           EOF
           )
 
+          # Verify the Claude API response has the expected structure
+          if ! echo "${RESPONSE}" | jq -e '.content and .content[0].text' >/dev/null 2>&1; then
+            echo "Error: Unexpected response from Claude API"
+            echo "${RESPONSE}"
+            exit 1
+          fi
+
           # Extract the response text
-          CLAUDE_RESPONSE=$(echo "$RESPONSE" | jq -r '.content[0].text')
+          CLAUDE_RESPONSE=$(echo "${RESPONSE}" | jq -r '.content[0].text')
+
+          # Ensure the extracted text is valid JSON with the expected fields
+          if ! echo "${CLAUDE_RESPONSE}" | jq -e '.should_notify' >/dev/null 2>&1; then
+            echo "Error: Claude response does not contain expected JSON structure"
+            echo "${CLAUDE_RESPONSE}"
+            exit 1
+          fi
 
           # Parse the JSON response from Claude
-          SHOULD_NOTIFY=$(echo "$CLAUDE_RESPONSE" | jq -r '.should_notify')
-          MESSAGE=$(echo "$CLAUDE_RESPONSE" | jq -r '.message // ""')
+          SHOULD_NOTIFY=$(echo "${CLAUDE_RESPONSE}" | jq -r '.should_notify')
+          MESSAGE=$(echo "${CLAUDE_RESPONSE}" | jq -r '.message // ""')
 
           echo "should_notify=${SHOULD_NOTIFY}" >> $GITHUB_OUTPUT
 
           # Save message to file if we should notify
-          if [ "$SHOULD_NOTIFY" = "true" ]; then
-            echo "$MESSAGE" > /tmp/slack-message.txt
+          if [ "${SHOULD_NOTIFY}" = "true" ]; then
+            echo "${MESSAGE}" > /tmp/slack-message.txt
             echo "Generated message:"
             cat /tmp/slack-message.txt
           else
@@ -127,10 +141,10 @@ jobs:
           # Create Slack message payload with blocks for better formatting
           PAYLOAD=$(jq -n \
             --arg text "🎉 New Sparkdock features merged to master!" \
-            --arg message "$MESSAGE" \
-            --arg commit_url "$COMMIT_URL" \
-            --arg commit_sha "$COMMIT_SHA" \
-            --arg author "$AUTHOR" \
+            --arg message "${MESSAGE}" \
+            --arg commit_url "${COMMIT_URL}" \
+            --arg commit_sha "${COMMIT_SHA}" \
+            --arg author "${AUTHOR}" \
             '{
               "text": $text,
               "blocks": [
@@ -165,13 +179,13 @@ jobs:
           HTTP_STATUS=$(curl -s -o /tmp/slack-response.txt -w "%{http_code}" \
             -X POST \
             -H 'Content-Type: application/json' \
-            -d "$PAYLOAD" \
+            -d "${PAYLOAD}" \
             "${SLACK_WEBHOOK_URL}")
 
-          if [ "$HTTP_STATUS" = "200" ]; then
+          if [ "${HTTP_STATUS}" = "200" ]; then
             echo "✅ Slack notification sent successfully"
           else
-            echo "❌ Failed to send Slack notification. HTTP status: $HTTP_STATUS"
+            echo "❌ Failed to send Slack notification. HTTP status: ${HTTP_STATUS}"
             cat /tmp/slack-response.txt
             exit 1
           fi
