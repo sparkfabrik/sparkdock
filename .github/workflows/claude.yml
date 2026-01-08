@@ -35,17 +35,11 @@ jobs:
               uses: anthropics/claude-code-action@v1
               with:
                   anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-
-                  # Optional: Customize the trigger phrase (default: @claude)
-                  # trigger_phrase: "/claude"
-
-                  # Optional: Trigger when specific user is assigned to an issue
-                  # assignee_trigger: "claude-bot"
-
                   # Optional: Configure Claude's behavior with CLI arguments
                   claude_args: |
-                      --model claude-sonnet-4-5-20250929
-                      --system-prompt "Follow Sparkdock project conventions from CLAUDE.md and .github/copilot-instructions.md and .github/instructions/ directory."
+                      --max-turns 5
+                      --model claude-opus-4-5-20251101
+                      --system-prompt "Follow Sparkdock project conventions from AGENTS.md and .github/copilot-instructions.md and .github/instructions/ directory."
 
                   # Optional: Advanced settings configuration
                   # settings: |
