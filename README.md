@@ -11,7 +11,7 @@ Sparkdock is an automated macOS development environment provisioner built with A
 
 **GUI Applications:**
 
-- Docker Desktop, Google Chrome, Visual Studio Code
+- Docker Desktop, Google Chrome, Visual Studio Code, Visual Studio Code Insiders
 - iTerm2, Ghostty terminal, Slack, Zoom
 - Maccy clipboard manager, MonitorControl
 

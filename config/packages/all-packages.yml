@@ -19,6 +19,7 @@ cask_packages:
   - maccy
   - cameracontroller
   - visual-studio-code
+  - visual-studio-code@insiders
   - slack
   - zoom
   - monitorcontrol
