@@ -41,6 +41,21 @@ Tests for the SparkJust task runner.
 5. Copy the webhook URL
 6. Add it as a repository secret named `SLACK_WEBHOOK_URL`
 
+#### Testing the Notification Script
+You can test the notification logic without sending to Slack:
+
+```bash
+# Test mode (uses sample diff, doesn't send to Slack)
+export ANTHROPIC_API_KEY="your-key"
+./bin/notify-slack-on-merge.sh --test
+```
+
+This allows you to:
+- Verify Claude AI integration
+- Test message generation
+- Validate Slack payload structure
+- All without needing `SLACK_WEBHOOK_URL` or git history
+
 #### Message Format
 The workflow generates messages using Claude AI to:
 - Focus on user-facing benefits

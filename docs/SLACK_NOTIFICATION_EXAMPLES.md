@@ -139,49 +139,38 @@ The workflow skips notifications for:
 
 ## Testing Notifications
 
-To test notification generation without sending to Slack:
+To test the notification logic without sending to Slack:
 
 ```bash
-# Test structure and logic
-./bin/test-slack-workflow-structure.sh
-
-# Test with Claude API (requires ANTHROPIC_API_KEY)
+# Test with Claude API (requires ANTHROPIC_API_KEY only)
 export ANTHROPIC_API_KEY="your-key"
-./bin/test-slack-notification.sh
+./bin/notify-slack-on-merge.sh --test
 ```
 
-To send a real test notification:
+The test mode will:
+1. Use a sample changelog diff (no git required)
+2. Call Claude API to analyze the diff
+3. Generate a notification message
+4. Display the Slack payload (without sending)
 
-```bash
-# Set both required environment variables
-export ANTHROPIC_API_KEY="your-anthropic-key"
-export SLACK_WEBHOOK_URL="your-slack-webhook-url"
-
-# Run the integration test
-./bin/test-slack-notification.sh
-```
-
-The integration test will:
-1. Generate a sample changelog diff
-2. Call Claude to analyze it
-3. Create a Slack message
-4. Send it to your webhook URL
+This allows you to:
+- Test the Claude AI integration
+- Verify message generation
+- Validate Slack payload structure
+- All without needing `SLACK_WEBHOOK_URL` or git history
 
 ## Customizing Messages
 
-To adjust the notification style or content, edit the prompt in `.github/workflows/notify-slack-on-merge.yml`:
+To adjust the notification style or content, edit the prompt in `bin/notify-slack-on-merge.sh`:
 
-```yaml
-- name: Analyze changelog with Claude
-  env:
-    ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-  run: |
-    PROMPT="You are analyzing a CHANGELOG.md diff...
+```bash
+# Create a prompt for Claude to analyze the changelog
+PROMPT="You are analyzing a CHANGELOG.md diff...
 
-    # Modify these guidelines:
-    - Keep it concise (2-4 sentences maximum)
-    - Focus on user-facing benefits
-    ..."
+# Modify these guidelines:
+- Keep it concise (2-4 sentences maximum)
+- Focus on user-facing benefits
+..."
 ```
 
 ## Monitoring

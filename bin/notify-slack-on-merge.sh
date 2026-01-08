@@ -6,53 +6,100 @@
 # notifications to Slack for significant feature releases.
 #
 # Usage:
-#   notify-slack-on-merge.sh <changelog_file> <commit_sha> <commit_url> <author>
+#   Production mode:
+#     notify-slack-on-merge.sh <changelog_file> <commit_sha> <commit_url> <author>
+#
+#   Test mode (uses sample diff, doesn't send to Slack):
+#     notify-slack-on-merge.sh --test
 #
 # Environment variables required:
 #   ANTHROPIC_API_KEY - API key for Claude AI
-#   SLACK_WEBHOOK_URL - Slack webhook URL for notifications
+#   SLACK_WEBHOOK_URL - Slack webhook URL (not required in test mode)
 #
 
 set -euo pipefail
 
-# Check required arguments
-if [ $# -ne 4 ]; then
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Parse command line arguments
+TEST_MODE=false
+if [ $# -eq 1 ] && [ "$1" = "--test" ]; then
+    TEST_MODE=true
+    echo "=== Slack Notification Test Mode ==="
+    echo ""
+elif [ $# -ne 4 ]; then
     echo "Usage: $0 <changelog_file> <commit_sha> <commit_url> <author>"
+    echo "   or: $0 --test"
     exit 1
 fi
-
-CHANGELOG_FILE="$1"
-COMMIT_SHA="$2"
-COMMIT_URL="$3"
-AUTHOR="$4"
 
 # Check required environment variables
 if [ -z "${ANTHROPIC_API_KEY:-}" ]; then
-    echo "Error: ANTHROPIC_API_KEY environment variable is required"
+    echo -e "${RED}Error: ANTHROPIC_API_KEY environment variable is required${NC}"
     exit 1
 fi
 
-if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
-    echo "Error: SLACK_WEBHOOK_URL environment variable is required"
-    exit 1
+if [ "${TEST_MODE}" = "false" ]; then
+    # Production mode - check all requirements
+    CHANGELOG_FILE="$1"
+    COMMIT_SHA="$2"
+    COMMIT_URL="$3"
+    AUTHOR="$4"
+
+    if [ -z "${SLACK_WEBHOOK_URL:-}" ]; then
+        echo -e "${RED}Error: SLACK_WEBHOOK_URL environment variable is required${NC}"
+        exit 1
+    fi
+
+    # Check if changelog file exists
+    if [ ! -f "${CHANGELOG_FILE}" ]; then
+        echo -e "${RED}Error: Changelog file not found: ${CHANGELOG_FILE}${NC}"
+        exit 1
+    fi
+
+    # Get the changelog diff from the previous commit
+    DIFF=$(git diff HEAD~1 HEAD -- "${CHANGELOG_FILE}")
+
+    # Check if there are any changes
+    if [ -z "${DIFF}" ]; then
+        echo "No changelog changes detected"
+        exit 0
+    fi
+
+    echo "Changelog changes detected, analyzing with Claude AI..."
+else
+    # Test mode - use sample data
+    echo -e "${GREEN}✅ ANTHROPIC_API_KEY is set${NC}"
+    echo ""
+
+    COMMIT_SHA="abc1234"
+    COMMIT_URL="https://github.com/sparkfabrik/sparkdock/commit/abc1234567890"
+    AUTHOR="test-user"
+
+    # Sample changelog diff for testing
+    DIFF='--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -8,6 +8,7 @@
+ ## [Unreleased]
+
+ ### Added
++- Added automated Slack notifications for significant feature releases merged to master branch (using Claude AI to analyze changelog and generate user-friendly announcements for #tech channel)
+ - Added Visual Studio Code Insiders to default package list for early access to new VSCode features
+
+ ### Fixed'
+
+    echo "Sample changelog diff:"
+    echo "---"
+    echo "${DIFF}"
+    echo "---"
+    echo ""
+    echo -e "${YELLOW}Calling Claude API...${NC}"
+    echo ""
 fi
-
-# Check if changelog file exists
-if [ ! -f "${CHANGELOG_FILE}" ]; then
-    echo "Error: Changelog file not found: ${CHANGELOG_FILE}"
-    exit 1
-fi
-
-# Get the changelog diff from the previous commit
-DIFF=$(git diff HEAD~1 HEAD -- "${CHANGELOG_FILE}")
-
-# Check if there are any changes
-if [ -z "${DIFF}" ]; then
-    echo "No changelog changes detected"
-    exit 0
-fi
-
-echo "Changelog changes detected, analyzing with Claude AI..."
 
 # Create a prompt for Claude to analyze the changelog
 PROMPT="You are analyzing a CHANGELOG.md diff for a macOS development environment provisioner called Sparkdock.
@@ -120,12 +167,27 @@ SHOULD_NOTIFY=$(echo "${CLAUDE_RESPONSE}" | jq -r '.should_notify')
 MESSAGE=$(echo "${CLAUDE_RESPONSE}" | jq -r '.message // ""')
 
 if [ "${SHOULD_NOTIFY}" != "true" ]; then
-    echo "No significant features detected - skipping notification"
+    if [ "${TEST_MODE}" = "true" ]; then
+        echo -e "${YELLOW}ℹ  Claude determined no notification should be sent${NC}"
+        echo "This is expected for minor changes or bug fixes only"
+    else
+        echo "No significant features detected - skipping notification"
+    fi
     exit 0
 fi
 
-echo "Significant features detected, sending Slack notification..."
-echo "Message: ${MESSAGE}"
+if [ "${TEST_MODE}" = "true" ]; then
+    echo -e "${GREEN}✅ Claude determined this should trigger a notification${NC}"
+    echo ""
+    echo "Generated message:"
+    echo "---"
+    echo "${MESSAGE}"
+    echo "---"
+    echo ""
+else
+    echo "Significant features detected, sending Slack notification..."
+    echo "Message: ${MESSAGE}"
+fi
 
 # Create Slack message payload with blocks for better formatting
 PAYLOAD=$(jq -n \
@@ -164,17 +226,27 @@ PAYLOAD=$(jq -n \
       ]
     }')
 
-# Send to Slack
-HTTP_STATUS=$(curl -s -o /tmp/slack-response.txt -w "%{http_code}" \
-    -X POST \
-    -H 'Content-Type: application/json' \
-    -d "${PAYLOAD}" \
-    "${SLACK_WEBHOOK_URL}")
-
-if [ "${HTTP_STATUS}" = "200" ]; then
-    echo "✅ Slack notification sent successfully"
+if [ "${TEST_MODE}" = "true" ]; then
+    echo "Generated Slack payload:"
+    echo "${PAYLOAD}" | jq .
+    echo ""
+    echo -e "${YELLOW}⚠  Test mode - not sending to Slack${NC}"
+    echo "To test actual Slack integration, set SLACK_WEBHOOK_URL and run in production mode"
+    echo ""
+    echo -e "${GREEN}=== Test completed successfully ===${NC}"
 else
-    echo "❌ Failed to send Slack notification. HTTP status: ${HTTP_STATUS}"
-    cat /tmp/slack-response.txt
-    exit 1
+    # Send to Slack
+    HTTP_STATUS=$(curl -s -o /tmp/slack-response.txt -w "%{http_code}" \
+        -X POST \
+        -H 'Content-Type: application/json' \
+        -d "${PAYLOAD}" \
+        "${SLACK_WEBHOOK_URL}")
+
+    if [ "${HTTP_STATUS}" = "200" ]; then
+        echo "✅ Slack notification sent successfully"
+    else
+        echo "❌ Failed to send Slack notification. HTTP status: ${HTTP_STATUS}"
+        cat /tmp/slack-response.txt
+        exit 1
+    fi
 fi
