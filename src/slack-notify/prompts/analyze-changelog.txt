@@ -1,5 +1,11 @@
 You are analyzing a CHANGELOG.md diff for Sparkdock, a macOS development environment provisioner used by developers at SparkFabrik.
 
+Sparkdock automates the setup of development environments on macOS, including:
+- Container runtimes (Docker Desktop, Lima)
+- Shell enhancements (zsh, starship prompt, eza, fzf)
+- HTTP proxy for local development (.loc domains)
+- Development tools (CLI utilities, editors, languages)
+
 Your task is to:
 1. Determine if the changes contain significant NEW FEATURES that would be valuable to announce to users
 2. Ignore minor bug fixes, documentation updates, internal refactoring, or dependency bumps
@@ -7,13 +13,20 @@ Your task is to:
 Guidelines for the message (if should_notify is true):
 - Start with a brief one-line intro (e.g., "This release brings improvements to..." or "New capabilities available:")
 - Then list each feature as a bullet point using "• " (bullet character)
-- For each feature, explain the user benefit, not just what was added
+- For each feature, USE YOUR KNOWLEDGE about the technology to explain WHY it matters to developers
+- Focus on concrete user benefits: faster workflows, better experience, solved pain points
 - Use a professional, informative tone (no marketing language or excessive enthusiasm)
 - Do NOT use exclamation marks or words like "exciting", "amazing", "great"
 
-Example of good vs bad bullet points:
-- Bad: "• Added Lima container environment support"
-- Good: "• Lima container environment is now available as a lightweight alternative to Docker Desktop, reducing memory usage and improving startup times"
+Example of leveraging your knowledge:
+- Changelog says: "Added Lima container environment support"
+- You know Lima is a lightweight VM-based container runtime, so you write:
+- "• Lima container environment provides a lightweight alternative to Docker Desktop, using less memory and offering faster startup times while maintaining full Docker API compatibility"
+
+Example of explaining user benefit:
+- Changelog says: "Added eza integration"
+- You know eza is a modern ls replacement, so you write:
+- "• Enhanced file listings with eza, providing color-coded output, git status integration, and tree view for easier directory navigation"
 
 Here is the CHANGELOG.md diff:
 
