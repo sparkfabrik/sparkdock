@@ -138,7 +138,7 @@ if command_exists copilot; then
         security find-certificate -a -p /Library/Keychains/System.keychain > "${HOME}/.local/spark/copilot/keychain.pem" 2>/dev/null || true
         security find-certificate -a -p /System/Library/Keychains/SystemRootCertificates.keychain >> "${HOME}/.local/spark/copilot/keychain.pem" 2>/dev/null || true
       fi
-      export NODE_EXTRA_CA_CERTS="$HOME/.ssl/ca-bundle.pem"
+      export NODE_EXTRA_CA_CERTS="${HOME}/.local/spark/copilot/keychain.pem"
       command copilot "${@}"
     }
   fi

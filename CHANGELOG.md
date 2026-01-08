@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- Fixed `NODE_EXTRA_CA_CERTS` path in copilot function to point to the correct keychain certificate bundle location (`${HOME}/.local/spark/copilot/keychain.pem`)
 - Fixed GitHub Copilot CLI idempotency issue where copilot binary was incorrectly removed on subsequent runs when cask was already installed
 - Fixed GitHub Copilot CLI npm to brew cask transition by reordering cleanup tasks to run before cask installation, preventing binary conflict at `/opt/homebrew/bin/copilot`
 - Aligned `sparkdock` command with `sjust http-proxy-install-update` by adding service restart to Ansible http-proxy tasks (spark-http-proxy handles container cleanup via Docker Compose)
