@@ -30,7 +30,7 @@ jobs:
           AUTHOR="${GITHUB_ACTOR}"
 
           # Run the notification script
-          ./src/slack-notify/notify-slack-on-merge.sh \
+          python3 ./src/slack-notify/notify-slack-on-merge.py \
             "CHANGELOG.md" \
             "${COMMIT_SHA}" \
             "${COMMIT_URL}" \

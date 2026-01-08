@@ -7,8 +7,13 @@ Sparkdock automates the setup of development environments on macOS, including:
 - Development tools (CLI utilities, editors, languages)
 
 Your task is to:
-1. Determine if the changes contain significant NEW FEATURES that would be valuable to announce to users
-2. Ignore minor bug fixes, documentation updates, internal refactoring, or dependency bumps
+1. Analyze the DIFF below - lines starting with `+` are NEW additions being released NOW
+2. Determine if these NEW additions contain significant features worth announcing
+3. Ignore minor bug fixes, documentation updates, internal refactoring, or dependency bumps
+
+CRITICAL: Focus on the DIFF section. If you see multiple `+` lines with "Added" features, you should set should_notify to true.
+
+IMPORTANT: The diff shows what's being added RIGHT NOW. Lines with `+` are NEW features being released.
 
 Guidelines for the message (if should_notify is true):
 - Start with a brief one-line intro (e.g., "This release brings improvements to..." or "New capabilities available:")
@@ -18,20 +23,10 @@ Guidelines for the message (if should_notify is true):
 - Use a professional, informative tone (no marketing language or excessive enthusiasm)
 - Do NOT use exclamation marks or words like "exciting", "amazing", "great"
 
-Example of leveraging your knowledge:
-- Changelog says: "Added Lima container environment support"
-- You know Lima is a lightweight VM-based container runtime, so you write:
-- "• Lima container environment provides a lightweight alternative to Docker Desktop, using less memory and offering faster startup times while maintaining full Docker API compatibility"
-
-Example of explaining user benefit:
-- Changelog says: "Added eza integration"
-- You know eza is a modern ls replacement, so you write:
-- "• Enhanced file listings with eza, providing color-coded output, git status integration, and tree view for easier directory navigation"
-
-Here is the CHANGELOG.md diff:
+Here is the CHANGELOG.md diff to analyze (lines with `+` are NEW features being released NOW):
 
 ```diff
 {diff}
 ```
 
-Analyze the diff and respond accordingly.
+Analyze the diff and respond accordingly. Remember: `+` lines in the diff are NEW features being released.

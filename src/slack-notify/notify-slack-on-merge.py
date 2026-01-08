@@ -22,10 +22,12 @@ import urllib.request
 from pathlib import Path
 
 # Constants
+DEBUG = os.environ.get("DEBUG", "") == "1"
 CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
 CLAUDE_MODEL = "claude-haiku-4-5"
+CLAUDE_MODEL_TEMPERATURE = 0.3
 CLAUDE_MAX_TOKENS = 4096
-HTTP_TIMEOUT = 30
+HTTP_TIMEOUT = 120
 
 # Colors
 RED = "\033[0;31m"
@@ -35,6 +37,7 @@ NC = "\033[0m"
 
 # Paths
 SCRIPT_DIR = Path(__file__).parent
+REPO_ROOT = SCRIPT_DIR.parent.parent
 PROMPT_FILE = SCRIPT_DIR / "prompts" / "analyze-changelog.txt"
 
 # JSON Schema for structured output
@@ -101,19 +104,25 @@ def check_env():
         sys.exit(1)
 
 
-def call_claude(diff):
-    """Call Claude API with structured output to analyze the changelog diff."""
-    prompt = PROMPT_FILE.read_text().format(diff=diff)
+def call_claude_api(prompt, schema, max_tokens=CLAUDE_MAX_TOKENS, temperature=CLAUDE_MODEL_TEMPERATURE):
+    """Call Claude API with structured output."""
+    if DEBUG:
+        print(f"Prompt:\n---\n{prompt[:2000]}...\n---\n")
+        print(f"Temperature: {temperature}")
 
     payload = json.dumps({
         "model": CLAUDE_MODEL,
-        "max_tokens": CLAUDE_MAX_TOKENS,
+        "max_tokens": max_tokens,
+        "temperature": temperature,
         "messages": [{"role": "user", "content": prompt}],
         "output_format": {
             "type": "json_schema",
-            "schema": OUTPUT_SCHEMA
+            "schema": schema
         }
     }).encode()
+
+    if DEBUG:
+        print(f"Payload size: {len(payload)} bytes")
 
     req = urllib.request.Request(
         CLAUDE_API_URL,
@@ -133,36 +142,41 @@ def call_claude(diff):
         error_body = e.read().decode()
         raise RuntimeError(f"HTTP {e.code}: {error_body}")
 
-    # Handle the response - structured outputs returns JSON directly in text
     content = data["content"][0]
     if content["type"] == "text":
         return json.loads(content["text"])
-    else:
-        raise ValueError(f"Unexpected content type: {content['type']}")
+    raise ValueError(f"Unexpected content type: {content['type']}")
+
+
+def call_claude(diff):
+    """Analyze changelog diff."""
+    prompt = PROMPT_FILE.read_text().format(diff=diff)
+    if DEBUG:
+        print(f"Prompt length: {len(prompt)} chars")
+    return call_claude_api(prompt, OUTPUT_SCHEMA)
 
 
 def create_slack_payload(message, commit_url, commit_sha, author):
     """Create Slack message payload."""
-    return {
-        "text": "🚀 New Sparkdock Release!",
-        "blocks": [
-            {
-                "type": "header",
-                "text": {"type": "plain_text", "text": "🚀 New Sparkdock Release", "emoji": True}
-            },
-            {
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": message}
-            },
-            {
-                "type": "context",
-                "elements": [{
-                    "type": "mrkdwn",
-                    "text": f"*Commit:* <{commit_url}|{commit_sha}> by {author}"
-                }]
-            }
-        ]
-    }
+    blocks = [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "🚀 New Sparkdock Release", "emoji": True}
+        },
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": message}
+        },
+        {
+            "type": "context",
+            "elements": [{
+                "type": "mrkdwn",
+                "text": f"*Commit:* <{commit_url}|{commit_sha}> by {author}"
+            }]
+        }
+    ]
+
+    return {"text": "🚀 New Sparkdock Release!", "blocks": blocks}
 
 
 def send_slack(payload):
@@ -217,13 +231,17 @@ def run_test(test, commit_sha, commit_url, author):
     should_notify = result.get("should_notify", False)
     message = result.get("message", "")
 
-    print(f"Claude response:\n{json.dumps(result, indent=2)}\n")
+    if DEBUG:
+        print(f"Claude response:\n{json.dumps(result, indent=2)}\n")
 
     if should_notify:
-        print(f"\nGenerated message:\n---\n{message}\n---\n")
+        if DEBUG:
+            print(f"\nGenerated message:\n---\n{message}\n---\n")
         payload = create_slack_payload(message, commit_url, commit_sha, author)
-        print(f"Slack payload:\n{json.dumps(payload, indent=2)}\n")
+        if DEBUG:
+            print(f"Slack payload:\n{json.dumps(payload, indent=2)}\n")
 
+        print(f"{YELLOW}Sending Slack notification...{NC}")
         try:
             if send_slack(payload):
                 print(f"{GREEN}✅ Slack notification sent{NC}\n")
@@ -310,7 +328,7 @@ def production_mode(changelog_file, commit_sha, commit_url, author):
         sys.exit(0)
 
     message = result.get("message", "")
-    print("Significant features detected, sending Slack notification...")
+    print("Significant features detected, sending notification...")
     print(f"Message: {message}")
 
     payload = create_slack_payload(message, commit_url, commit_sha, author)
