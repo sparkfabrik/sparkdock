@@ -39,7 +39,7 @@ jobs:
                   claude_args: |
                       --max-turns 5
                       --model claude-opus-4-5-20251101
-                      --system-prompt "Follow Sparkdock project conventions from CLAUDE.md and .github/copilot-instructions.md and .github/instructions/ directory."
+                      --system-prompt "Follow Sparkdock project conventions from AGENTS.md and .github/copilot-instructions.md and .github/instructions/ directory."
 
                   # Optional: Advanced settings configuration
                   # settings: |
