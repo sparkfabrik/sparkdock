@@ -130,6 +130,19 @@
             all_cask_packages: "{{ all_cask_packages | difference(['google-chrome']) }}"
           when: "'google-chrome' in all_cask_packages and google_chrome_installed.stdout == 'yes'"
 
+    - name: Visual Studio Code Insiders installation
+      tags: [vscode]
+      block:
+        - name: Check if Visual Studio Code Insiders is already installed
+          shell: brew list --cask visual-studio-code@insiders >/dev/null 2>&1 && echo yes || echo no
+          register: vscode_insiders_installed
+          changed_when: false
+
+        - name: Remove Visual Studio Code Insiders from install list if already installed
+          set_fact:
+            all_cask_packages: "{{ all_cask_packages | difference(['visual-studio-code@insiders']) }}"
+          when: "'visual-studio-code@insiders' in all_cask_packages and vscode_insiders_installed.stdout == 'yes'"
+
     - name: Transition GitHub Copilot CLI from npm to brew cask
       tags: copilot-cli
       block:
