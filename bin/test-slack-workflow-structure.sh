@@ -80,81 +80,41 @@ echo ""
 echo "Test 6: Workflow steps structure"
 # Count steps by looking for "- name:" entries under steps
 STEP_COUNT=$(grep -c "^      - name:" "${WORKFLOW_FILE}" || echo "0")
-if [ "${STEP_COUNT}" -ge 4 ]; then
-    echo -e "${GREEN}✅ Workflow has ${STEP_COUNT} steps (expected at least 4)${NC}"
+if [ "${STEP_COUNT}" -ge 2 ]; then
+    echo -e "${GREEN}✅ Workflow has ${STEP_COUNT} steps (expected at least 2)${NC}"
 else
     echo -e "${RED}❌ Workflow has only ${STEP_COUNT} steps${NC}"
     exit 1
 fi
 
-# Test 7: Check JSON payload generation logic
+# Test 7: Check that script is called
 echo ""
-echo "Test 7: JSON payload generation"
-if grep -q "jq -n" "${WORKFLOW_FILE}"; then
-    echo -e "${GREEN}✅ JSON payload generation logic found${NC}"
+echo "Test 7: Script execution"
+if grep -q "notify-slack-on-merge.sh" "${WORKFLOW_FILE}"; then
+    echo -e "${GREEN}✅ Workflow calls notification script${NC}"
 else
-    echo -e "${RED}❌ JSON payload generation logic not found${NC}"
+    echo -e "${RED}❌ Script call not found in workflow${NC}"
     exit 1
 fi
 
-# Test 8: Test sample JSON response parsing
+# Test 8: Check that notification script exists
 echo ""
-echo "Test 8: JSON response parsing logic"
-SAMPLE_RESPONSE='{"should_notify": true, "message": "Test message"}'
-SHOULD_NOTIFY=$(echo "${SAMPLE_RESPONSE}" | jq -r '.should_notify')
-MESSAGE=$(echo "${SAMPLE_RESPONSE}" | jq -r '.message // ""')
-
-if [ "${SHOULD_NOTIFY}" = "true" ] && [ "${MESSAGE}" = "Test message" ]; then
-    echo -e "${GREEN}✅ JSON parsing logic works correctly${NC}"
+echo "Test 8: Notification script exists"
+SCRIPT_FILE="${REPO_ROOT}/bin/notify-slack-on-merge.sh"
+if [ -f "${SCRIPT_FILE}" ] && [ -x "${SCRIPT_FILE}" ]; then
+    echo -e "${GREEN}✅ Notification script exists and is executable${NC}"
 else
-    echo -e "${RED}❌ JSON parsing failed${NC}"
+    echo -e "${RED}❌ Notification script not found or not executable${NC}"
     exit 1
 fi
 
-# Test 9: Test Slack payload structure
+# Test 9: Check script contains required logic
 echo ""
-echo "Test 9: Slack payload structure"
-TEST_MESSAGE="This is a test notification"
-TEST_PAYLOAD=$(jq -n \
-  --arg text "🎉 New Sparkdock features merged to master!" \
-  --arg message "${TEST_MESSAGE}" \
-  --arg commit_url "https://example.com/commit/abc123" \
-  --arg commit_sha "abc123" \
-  --arg author "test-user" \
-  '{
-    "text": $text,
-    "blocks": [
-      {
-        "type": "header",
-        "text": {
-          "type": "plain_text",
-          "text": "🎉 New Sparkdock Features",
-          "emoji": true
-        }
-      },
-      {
-        "type": "section",
-        "text": {
-          "type": "mrkdwn",
-          "text": $message
-        }
-      },
-      {
-        "type": "context",
-        "elements": [
-          {
-            "type": "mrkdwn",
-            "text": ("*Commit:* <" + $commit_url + "|" + $commit_sha + "> by " + $author)
-          }
-        ]
-      }
-    ]
-  }')
-
-if echo "${TEST_PAYLOAD}" | jq -e '.blocks | length == 3' >/dev/null 2>&1; then
-    echo -e "${GREEN}✅ Slack payload has correct structure (3 blocks)${NC}"
+echo "Test 9: Script contains required logic"
+if grep -q "jq -n" "${SCRIPT_FILE}" && grep -q "ANTHROPIC_API_KEY" "${SCRIPT_FILE}"; then
+    echo -e "${GREEN}✅ Script contains JSON payload generation and Claude API logic${NC}"
 else
-    echo -e "${RED}❌ Slack payload structure is incorrect${NC}"
+    echo -e "${RED}❌ Script missing required logic${NC}"
     exit 1
 fi
 
