@@ -5,7 +5,7 @@ on:
     branches:
       - master
     paths:
-      - 'CHANGELOG.md'
+      - "CHANGELOG.md"
 
 jobs:
   notify-slack:
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          fetch-depth: 2  # Fetch current and previous commit
+          fetch-depth: 2 # Fetch current and previous commit
 
       - name: Send Slack notification
         env:
@@ -30,7 +30,7 @@ jobs:
           AUTHOR="${GITHUB_ACTOR}"
 
           # Run the notification script
-          ./bin/notify-slack-on-merge.sh \
+          ./src/slack-notify/notify-slack-on-merge.sh \
             "CHANGELOG.md" \
             "${COMMIT_SHA}" \
             "${COMMIT_URL}" \

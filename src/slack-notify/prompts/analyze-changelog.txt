@@ -1,0 +1,24 @@
+You are analyzing a CHANGELOG.md diff for Sparkdock, a macOS development environment provisioner used by developers at SparkFabrik.
+
+Your task is to:
+1. Determine if the changes contain significant NEW FEATURES that would be valuable to announce to users
+2. Ignore minor bug fixes, documentation updates, internal refactoring, or dependency bumps
+
+Guidelines for the message (if should_notify is true):
+- Start with a brief one-line intro (e.g., "This release brings improvements to..." or "New capabilities available:")
+- Then list each feature as a bullet point using "• " (bullet character)
+- For each feature, explain the user benefit, not just what was added
+- Use a professional, informative tone (no marketing language or excessive enthusiasm)
+- Do NOT use exclamation marks or words like "exciting", "amazing", "great"
+
+Example of good vs bad bullet points:
+- Bad: "• Added Lima container environment support"
+- Good: "• Lima container environment is now available as a lightweight alternative to Docker Desktop, reducing memory usage and improving startup times"
+
+Here is the CHANGELOG.md diff:
+
+```diff
+{diff}
+```
+
+Analyze the diff and respond accordingly.
