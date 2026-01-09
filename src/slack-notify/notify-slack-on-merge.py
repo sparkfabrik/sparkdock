@@ -201,11 +201,11 @@ def get_git_diff(changelog_file, num_commits=1):
     """Get changelog diff from the last N commits.
     
     Args:
-        changelog_file: Path to the changelog file
-        num_commits: Number of commits to look back (default: 1)
+        changelog_file (str): Path to the changelog file
+        num_commits (int): Number of commits to look back (default: 1)
     
     Returns:
-        Git diff output as string, or "No changes" message if no diff found
+        str: Git diff output as string, or "No changes" message if no diff found
     """
     try:
         result = subprocess.run(
