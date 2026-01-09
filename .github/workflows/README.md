@@ -24,64 +24,28 @@ Tests for the SparkJust task runner.
 ### Slack Notifications (`notify-slack-on-merge.yml`)
 Automated Slack notifications for significant feature releases.
 
-#### How It Works
-1. **Trigger**: Runs when changes to `CHANGELOG.md` are pushed to the `master` branch
-2. **Analysis**: Uses Claude AI to analyze the changelog diff and determine if changes contain significant new features (vs. minor bug fixes)
-3. **Notification**: If significant features are detected, sends a concise, user-friendly message to the Sparkfabrik #tech Slack channel
+Triggers when `CHANGELOG.md` changes are pushed to `master`. Uses Claude AI to analyze changes and send user-friendly announcements to the #tech Slack channel for significant features.
 
-#### Requirements
-- `ANTHROPIC_API_KEY` - Already configured in repository secrets (used by Claude workflow)
-- `SLACK_WEBHOOK_URL` - Required - Slack incoming webhook URL for the #tech channel
+**Requirements:**
+- `ANTHROPIC_API_KEY` - Already configured
+- `SLACK_WEBHOOK_URL` - Required (see setup instructions below)
 
-#### Setting Up Slack Webhook
+**Setup Slack Webhook:**
 1. Go to https://api.slack.com/apps
-2. Create or select your Slack app
-3. Enable "Incoming Webhooks"
-4. Add new webhook to workspace and select #tech channel
-5. Copy the webhook URL
-6. Add it as a repository secret named `SLACK_WEBHOOK_URL`
+2. Create/select your Slack app → Enable "Incoming Webhooks"
+3. Add webhook to #tech channel and copy the URL
+4. Add as repository secret: `SLACK_WEBHOOK_URL`
 
-#### Testing the Notification Script
-
-**Dry run validation** (no API keys required):
+**Testing:**
 ```bash
-# Validates script syntax and structure without calling APIs
+# Dry-run validation (no API keys)
 python3 src/slack-notify/notify-slack-on-merge.py --dry-run
-```
 
-**Test mode** (requires API keys, sends actual notifications):
-```bash
-# Test mode uses sample diffs and sends to Slack
-export ANTHROPIC_API_KEY="your-key"
-export SLACK_WEBHOOK_URL="your-webhook-url"
+# End-to-end test (requires API keys)
 python3 src/slack-notify/notify-slack-on-merge.py --test
 ```
 
-This allows you to:
-- Verify Claude AI integration
-- Test message generation
-- Validate end-to-end Slack notification delivery
-- Use sample diffs without needing git history
-
-#### Message Format
-The workflow generates messages using Claude AI to:
-- Focus on user-facing benefits
-- Keep messages concise (2-4 sentences)
-- Use friendly, conversational tone
-- Highlight the most impactful features
-- Include commit information and author
-
-#### Example Notification
-```
-🎉 New Sparkdock Features
-
-Sparkdock now includes a modern shell configuration system with smart aliases,
-conditional tool loading (eza, bat, fzf, starship), and seamless oh-my-zsh
-integration. New sjust commands let you enable/disable features and view
-comprehensive shell status with shell-info.
-
-Commit: a1b2c3d by sparkfabrik
-```
+📖 **Full documentation:** See [docs/SLACK_NOTIFICATION_EXAMPLES.md](../../docs/SLACK_NOTIFICATION_EXAMPLES.md) for examples, customization, and detailed testing instructions.
 
 ### Test Slack Notification Script (`test-slack-notification.yml`)
 Validates the Slack notification Python script on pull requests and pushes.
