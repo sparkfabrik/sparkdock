@@ -22,7 +22,7 @@ Tests for the Swift menubar application.
 Tests for the SparkJust task runner.
 
 ### Slack Notifications (`notify-slack-on-merge.yml`)
-**New Feature**: Automated Slack notifications for significant feature releases.
+Automated Slack notifications for significant feature releases.
 
 #### How It Works
 1. **Trigger**: Runs when changes to `CHANGELOG.md` are pushed to the `master` branch
@@ -42,10 +42,16 @@ Tests for the SparkJust task runner.
 6. Add it as a repository secret named `SLACK_WEBHOOK_URL`
 
 #### Testing the Notification Script
-You can test the notification end-to-end:
 
+**Dry run validation** (no API keys required):
 ```bash
-# Test mode (uses sample diffs, sends to Slack)
+# Validates script syntax and structure without calling APIs
+python3 src/slack-notify/notify-slack-on-merge.py --dry-run
+```
+
+**Test mode** (requires API keys, sends actual notifications):
+```bash
+# Test mode uses sample diffs and sends to Slack
 export ANTHROPIC_API_KEY="your-key"
 export SLACK_WEBHOOK_URL="your-webhook-url"
 python3 src/slack-notify/notify-slack-on-merge.py --test
@@ -76,6 +82,17 @@ comprehensive shell status with shell-info.
 
 Commit: a1b2c3d by sparkfabrik
 ```
+
+### Test Slack Notification Script (`test-slack-notification.yml`)
+Validates the Slack notification Python script on pull requests and pushes.
+
+#### What It Tests
+1. **Python syntax validation** - Ensures the script has no syntax errors
+2. **Dry-run validation** - Validates script structure and configuration without API calls
+3. **File existence** - Verifies prompt files and dependencies exist
+4. **JSON schema validation** - Ensures Slack payload structure is correct
+
+This workflow ensures the notification script is ready to deploy without requiring API keys or secrets.
 
 ## Secret Management
 

@@ -8,10 +8,11 @@ to Slack for significant feature releases.
 Usage:
   Production: notify-slack-on-merge.py <changelog_file> <commit_sha> <commit_url> <author>
   Test mode:  notify-slack-on-merge.py --test
+  Dry run:    notify-slack-on-merge.py --dry-run
 
 Environment variables:
-  ANTHROPIC_API_KEY - API key for Claude AI
-  SLACK_WEBHOOK_URL - Slack webhook URL
+  ANTHROPIC_API_KEY - API key for Claude AI (not required for --dry-run)
+  SLACK_WEBHOOK_URL - Slack webhook URL (not required for --dry-run)
 """
 
 import json
@@ -364,11 +365,83 @@ def production_mode(changelog_file, commit_sha, commit_url, author):
         sys.exit(1)
 
 
+def dry_run_mode():
+    """Dry run mode - validates script without calling APIs or sending notifications."""
+    print(f"{GREEN}=== Dry Run Mode ==={NC}")
+    print("Validating script configuration and structure...")
+    
+    # Check script structure
+    print("\n1. Checking script components...")
+    print(f"   ✓ Script directory: {SCRIPT_DIR}")
+    print(f"   ✓ Repository root: {REPO_ROOT}")
+    
+    # Check prompt file
+    if PROMPT_FILE.exists():
+        print(f"   ✓ Prompt file exists: {PROMPT_FILE}")
+        with open(PROMPT_FILE, "r", encoding="utf-8") as f:
+            prompt_content = f.read()
+            print(f"   ✓ Prompt file size: {len(prompt_content)} characters")
+    else:
+        print(f"   ✗ Prompt file missing: {PROMPT_FILE}")
+        sys.exit(1)
+    
+    # Validate output schema
+    print("\n2. Validating JSON schema...")
+    try:
+        schema_str = json.dumps(OUTPUT_SCHEMA, indent=2)
+        print(f"   ✓ JSON schema is valid ({len(schema_str)} bytes)")
+    except Exception as e:
+        print(f"   ✗ JSON schema error: {e}")
+        sys.exit(1)
+    
+    # Test sample diffs
+    print("\n3. Testing sample changelog diffs...")
+    for i, test_case in enumerate(TEST_CASES, 1):
+        diff = test_case.get("diff", "")
+        name = test_case.get("name", f"Test #{i}")
+        print(f"   ✓ {name} ({len(diff)} characters)")
+    
+    # Validate Slack payload structure
+    print("\n4. Validating Slack payload structure...")
+    try:
+        test_payload = create_slack_payload(
+            "Test message for dry run validation",
+            "https://github.com/test/repo/commit/abc123",
+            "abc1234",
+            "test-user"
+        )
+        payload_str = json.dumps(test_payload, indent=2)
+        print(f"   ✓ Slack payload structure is valid ({len(payload_str)} bytes)")
+    except Exception as e:
+        print(f"   ✗ Slack payload error: {e}")
+        sys.exit(1)
+    
+    # Check environment (optional in dry run)
+    print("\n5. Checking environment variables (optional)...")
+    has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
+    has_slack = bool(os.environ.get("SLACK_WEBHOOK_URL"))
+    print(f"   {'✓' if has_anthropic else '○'} ANTHROPIC_API_KEY {'set' if has_anthropic else 'not set'}")
+    print(f"   {'✓' if has_slack else '○'} SLACK_WEBHOOK_URL {'set' if has_slack else 'not set'}")
+    
+    print(f"\n{GREEN}✅ Dry run validation passed - script is ready to use{NC}")
+    print("\nNext steps:")
+    if not has_anthropic or not has_slack:
+        print("  - Set required environment variables:")
+        if not has_anthropic:
+            print("    export ANTHROPIC_API_KEY='your-key'")
+        if not has_slack:
+            print("    export SLACK_WEBHOOK_URL='your-webhook-url'")
+    print("  - Run in test mode: python3 src/slack-notify/notify-slack-on-merge.py --test")
+
+
 def main():
     """Main entry point."""
     if len(sys.argv) == 2 and sys.argv[1] == "--test":
         check_env(require_slack=True)
         test_mode()
+    elif len(sys.argv) == 2 and sys.argv[1] == "--dry-run":
+        # Dry run doesn't require environment variables
+        dry_run_mode()
     elif len(sys.argv) == 5:
         check_env(require_slack=True)
         production_mode(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])

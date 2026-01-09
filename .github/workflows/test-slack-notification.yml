@@ -1,0 +1,55 @@
+name: Test Slack Notification Script
+
+on:
+  pull_request:
+    paths:
+      - 'src/slack-notify/**'
+      - '.github/workflows/test-slack-notification.yml'
+  push:
+    branches:
+      - master
+    paths:
+      - 'src/slack-notify/**'
+      - '.github/workflows/test-slack-notification.yml'
+
+jobs:
+  validate-syntax:
+    name: Validate Python Syntax
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      
+      - name: Check Python syntax
+        run: |
+          python3 -m py_compile src/slack-notify/notify-slack-on-merge.py
+          echo "✅ Python syntax is valid"
+      
+      - name: Run dry-run validation
+        run: |
+          python3 src/slack-notify/notify-slack-on-merge.py --dry-run
+          echo "✅ Dry-run validation passed"
+      
+      - name: Verify script is executable
+        run: |
+          if [ -x src/slack-notify/notify-slack-on-merge.py ]; then
+            echo "✅ Script has executable permissions"
+          else
+            echo "⚠️  Script is missing executable permissions (not critical)"
+          fi
+      
+      - name: Validate prompt file exists
+        run: |
+          if [ -f src/slack-notify/prompts/analyze-changelog.txt ]; then
+            echo "✅ Prompt file exists"
+            wc -l src/slack-notify/prompts/analyze-changelog.txt
+          else
+            echo "❌ Prompt file missing"
+            exit 1
+          fi

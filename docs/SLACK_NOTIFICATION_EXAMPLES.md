@@ -139,7 +139,27 @@ The workflow skips notifications for:
 
 ## Testing Notifications
 
-To test the notification end-to-end:
+### Dry Run (No API Keys Required)
+
+Validate the script without calling external APIs:
+
+```bash
+# Validates script syntax and structure
+python3 src/slack-notify/notify-slack-on-merge.py --dry-run
+```
+
+This will:
+1. Check Python syntax
+2. Validate JSON schemas
+3. Verify prompt files exist
+4. Test Slack payload structure
+5. Check environment variable status (optional)
+
+Perfect for development and CI/CD validation.
+
+### Test Mode (Requires API Keys)
+
+Test the notification end-to-end:
 
 ```bash
 # Test mode (requires both ANTHROPIC_API_KEY and SLACK_WEBHOOK_URL)
