@@ -29,11 +29,17 @@ CLAUDE_MODEL_TEMPERATURE = 0.3
 CLAUDE_MAX_TOKENS = 4096
 HTTP_TIMEOUT = 120
 
-# Colors
-RED = "\033[0;31m"
-GREEN = "\033[0;32m"
-YELLOW = "\033[1;33m"
-NC = "\033[0m"
+# Colors (only apply if output is a TTY)
+if sys.stdout.isatty():
+    RED = "\033[0;31m"
+    GREEN = "\033[0;32m"
+    YELLOW = "\033[1;33m"
+    NC = "\033[0m"
+else:
+    RED = ""
+    GREEN = ""
+    YELLOW = ""
+    NC = ""
 
 # Paths
 SCRIPT_DIR = Path(__file__).parent
