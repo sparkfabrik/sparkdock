@@ -28,7 +28,7 @@ CLAUDE_API_URL = "https://api.anthropic.com/v1/messages"
 CLAUDE_MODEL = "claude-haiku-4-5"
 CLAUDE_MODEL_TEMPERATURE = 0.3
 CLAUDE_MAX_TOKENS = 4096
-HTTP_TIMEOUT = 120
+HTTP_TIMEOUT = 180
 
 # Colors (only apply if output is a TTY)
 if sys.stdout.isatty():
