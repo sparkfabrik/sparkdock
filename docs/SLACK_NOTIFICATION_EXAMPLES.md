@@ -139,11 +139,12 @@ The workflow skips notifications for:
 
 ## Testing Notifications
 
-To test the notification logic without sending to Slack:
+To test the notification end-to-end:
 
 ```bash
-# Test with Claude API (requires ANTHROPIC_API_KEY only)
+# Test mode (requires both ANTHROPIC_API_KEY and SLACK_WEBHOOK_URL)
 export ANTHROPIC_API_KEY="your-key"
+export SLACK_WEBHOOK_URL="your-webhook-url"
 python3 src/slack-notify/notify-slack-on-merge.py --test
 ```
 
@@ -151,13 +152,13 @@ The test mode will:
 1. Use sample changelog diffs (no git required)
 2. Call Claude API to analyze each diff
 3. Generate notification messages
-4. Display the Slack payload that would be sent (without actually sending)
+4. Send actual notifications to Slack
 
 This allows you to:
-- Test the Claude AI integration
+- Test the Claude AI integration end-to-end
 - Verify message generation
-- Validate Slack payload structure
-- All without needing `SLACK_WEBHOOK_URL` or git history
+- Validate actual Slack notification delivery
+- Use sample diffs without needing git history
 
 ## Example Notification
 

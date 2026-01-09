@@ -255,9 +255,14 @@ def run_test(test, commit_sha, commit_url, author):
             print(f"\nGenerated message:\n---\n{message}\n---\n")
         payload = create_slack_payload(message, commit_url, commit_sha, author)
         
-        print(f"{YELLOW}Test mode: Notification would be sent. Payload below for verification:{NC}")
-        print(json.dumps(payload, indent=2))
-        print()
+        print(f"{YELLOW}Test mode: Sending notification to Slack...{NC}")
+        try:
+            if send_slack(payload):
+                print(f"{GREEN}✅ Notification sent successfully{NC}")
+            else:
+                print(f"{RED}❌ Failed to send notification{NC}")
+        except Exception as e:
+            print(f"{RED}❌ Error sending notification: {e}{NC}")
 
     # Validate result
     expected = test.get("expected")
@@ -356,7 +361,7 @@ def production_mode(changelog_file, commit_sha, commit_url, author):
 def main():
     """Main entry point."""
     if len(sys.argv) == 2 and sys.argv[1] == "--test":
-        check_env(require_slack=False)
+        check_env(require_slack=True)
         test_mode()
     elif len(sys.argv) == 5:
         check_env(require_slack=True)
