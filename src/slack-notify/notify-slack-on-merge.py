@@ -207,6 +207,7 @@ def get_git_diff(changelog_file, num_commits=1):
     Returns:
         str: Git diff output as string, or "No changes" message if no diff found
     """
+    no_changes_msg = f"No changes in {changelog_file}"
     try:
         result = subprocess.run(
             ["git", "diff", f"HEAD~{num_commits}", "HEAD", "--", changelog_file],
@@ -219,8 +220,8 @@ def get_git_diff(changelog_file, num_commits=1):
             print(f"{RED}Git diff failed for {changelog_file}: {e}{NC}")
             if e.stderr:
                 print(f"{RED}stderr: {e.stderr}{NC}")
-        return f"No changes in {changelog_file}"
-    return result.stdout or f"No changes in {changelog_file}"
+        return no_changes_msg
+    return result.stdout or no_changes_msg
 
 
 def run_test(test, commit_sha, commit_url, author):
