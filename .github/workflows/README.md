@@ -31,7 +31,7 @@ Tests for the SparkJust task runner.
 
 #### Requirements
 - `ANTHROPIC_API_KEY` - Already configured in repository secrets (used by Claude workflow)
-- `SLACK_WEBHOOK_URL` - **New secret required** - Slack incoming webhook URL for the #tech channel
+- `SLACK_WEBHOOK_URL` - Required - Slack incoming webhook URL for the #tech channel
 
 #### Setting Up Slack Webhook
 1. Go to https://api.slack.com/apps
