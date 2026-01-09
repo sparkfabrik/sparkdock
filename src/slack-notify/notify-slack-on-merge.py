@@ -192,21 +192,37 @@ def send_slack(payload):
 
 def get_git_diff(changelog_file):
     """Get changelog diff from previous commit."""
-    result = subprocess.run(
-        ["git", "diff", "HEAD~1", "HEAD", "--", changelog_file],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "diff", "HEAD~1", "HEAD", "--", changelog_file],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        if DEBUG:
+            print(f"{RED}Git diff failed for {changelog_file}: {e}{NC}")
+            if e.stderr:
+                print(f"{RED}stderr: {e.stderr}{NC}")
+        return ""
     return result.stdout
 
 
 def get_real_diff():
     """Get real diff from current repository (last 5 commits)."""
-    result = subprocess.run(
-        ["git", "diff", "HEAD~5", "HEAD", "--", "CHANGELOG.md"],
-        capture_output=True,
-        text=True,
-    )
+    try:
+        result = subprocess.run(
+            ["git", "diff", "HEAD~5", "HEAD", "--", "CHANGELOG.md"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+    except subprocess.CalledProcessError as e:
+        if DEBUG:
+            print(f"{RED}Git diff failed for CHANGELOG.md: {e}{NC}")
+            if e.stderr:
+                print(f"{RED}stderr: {e.stderr}{NC}")
+        return "No changes in CHANGELOG.md"
     return result.stdout or "No changes in CHANGELOG.md"
 
 
