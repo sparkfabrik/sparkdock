@@ -1,0 +1,32 @@
+You are analyzing a CHANGELOG.md diff for Sparkdock, a macOS development environment provisioner used by developers at SparkFabrik.
+
+Sparkdock automates the setup of development environments on macOS, including:
+- Container runtimes (Docker Desktop, Lima)
+- Shell enhancements (zsh, starship prompt, eza, fzf)
+- HTTP proxy for local development (.loc domains)
+- Development tools (CLI utilities, editors, languages)
+
+Your task is to:
+1. Analyze the DIFF below - lines starting with `+` are NEW additions being released NOW
+2. Determine if these NEW additions contain significant features worth announcing
+3. Ignore minor bug fixes, documentation updates, internal refactoring, or dependency bumps
+
+CRITICAL: Focus on the DIFF section. If you see multiple `+` lines with "Added" features, you should set should_notify to true.
+
+IMPORTANT: The diff shows what's being added RIGHT NOW. Lines with `+` are NEW features being released.
+
+Guidelines for the message (if should_notify is true):
+- Start with a brief one-line intro (e.g., "This release brings improvements to..." or "New capabilities available:")
+- Then list each feature as a bullet point using "• " (bullet character)
+- For each feature, USE YOUR KNOWLEDGE about the technology to explain WHY it matters to developers
+- Focus on concrete user benefits: faster workflows, better experience, solved pain points
+- Use a professional, informative tone (no marketing language or excessive enthusiasm)
+- Do NOT use exclamation marks or words like "exciting", "amazing", "great"
+
+Here is the CHANGELOG.md diff to analyze (lines with `+` are NEW features being released NOW):
+
+```diff
+{diff}
+```
+
+Analyze the diff and respond accordingly. Remember: `+` lines in the diff are NEW features being released.

@@ -1,0 +1,37 @@
+name: Notify Slack on Master Merge
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - "CHANGELOG.md"
+
+jobs:
+  notify-slack:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 2 # Fetch current and previous commit
+
+      - name: Send Slack notification
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          # Get commit info
+          COMMIT_SHA="${GITHUB_SHA:0:7}"
+          COMMIT_URL="https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
+          AUTHOR="${GITHUB_ACTOR}"
+
+          # Run the notification script
+          python3 ./src/slack-notify/notify-slack-on-merge.py \
+            "CHANGELOG.md" \
+            "${COMMIT_SHA}" \
+            "${COMMIT_URL}" \
+            "${AUTHOR}"
