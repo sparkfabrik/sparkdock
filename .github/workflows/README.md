@@ -47,7 +47,7 @@ You can test the notification logic without sending to Slack:
 ```bash
 # Test mode (uses sample diff, doesn't send to Slack)
 export ANTHROPIC_API_KEY="your-key"
-./bin/notify-slack-on-merge.sh --test
+python3 src/slack-notify/notify-slack-on-merge.py --test
 ```
 
 This allows you to:

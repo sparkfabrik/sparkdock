@@ -144,7 +144,7 @@ To test the notification logic without sending to Slack:
 ```bash
 # Test with Claude API (requires ANTHROPIC_API_KEY only)
 export ANTHROPIC_API_KEY="your-key"
-./bin/notify-slack-on-merge.sh --test
+python3 src/slack-notify/notify-slack-on-merge.py --test
 ```
 
 The test mode will:
@@ -161,17 +161,13 @@ This allows you to:
 
 ## Customizing Messages
 
-To adjust the notification style or content, edit the prompt in `bin/notify-slack-on-merge.sh`:
+To adjust the notification style or content, edit the prompt in `src/slack-notify/prompts/analyze-changelog.txt`:
 
-```bash
-# Create a prompt for Claude to analyze the changelog
-PROMPT="You are analyzing a CHANGELOG.md diff...
-
-# Modify these guidelines:
-- Keep it concise (2-4 sentences maximum)
-- Focus on user-facing benefits
-..."
-```
+The prompt file contains guidelines for Claude AI to analyze changelog diffs and generate user-friendly messages. You can modify:
+- Message length (currently 2-4 sentences)
+- Tone and style preferences
+- Feature filtering criteria
+- Focus areas (user-facing benefits vs. technical details)
 
 ## Monitoring
 
