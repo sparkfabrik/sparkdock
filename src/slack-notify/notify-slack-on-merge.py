@@ -90,12 +90,12 @@ TEST_CASES = [
 ]
 
 
-def check_env():
+def check_env(require_slack=True):
     """Check required environment variables. Exits if missing."""
     missing = []
     if not os.environ.get("ANTHROPIC_API_KEY"):
         missing.append("ANTHROPIC_API_KEY")
-    if not os.environ.get("SLACK_WEBHOOK_URL"):
+    if require_slack and not os.environ.get("SLACK_WEBHOOK_URL"):
         missing.append("SLACK_WEBHOOK_URL")
 
     if missing:
@@ -254,17 +254,10 @@ def run_test(test, commit_sha, commit_url, author):
         if DEBUG:
             print(f"\nGenerated message:\n---\n{message}\n---\n")
         payload = create_slack_payload(message, commit_url, commit_sha, author)
-        if DEBUG:
-            print(f"Slack payload:\n{json.dumps(payload, indent=2)}\n")
-
-        print(f"{YELLOW}Sending Slack notification...{NC}")
-        try:
-            if send_slack(payload):
-                print(f"{GREEN}✅ Slack notification sent{NC}\n")
-            else:
-                print(f"{RED}✗ Failed to send Slack notification{NC}\n")
-        except Exception as e:
-            print(f"{RED}✗ Slack error: {e}{NC}\n")
+        
+        print(f"{YELLOW}Test mode: Notification would be sent. Payload below for verification:{NC}")
+        print(json.dumps(payload, indent=2))
+        print()
 
     # Validate result
     expected = test.get("expected")
@@ -362,11 +355,11 @@ def production_mode(changelog_file, commit_sha, commit_url, author):
 
 def main():
     """Main entry point."""
-    check_env()
-
     if len(sys.argv) == 2 and sys.argv[1] == "--test":
+        check_env(require_slack=False)
         test_mode()
     elif len(sys.argv) == 5:
+        check_env(require_slack=True)
         production_mode(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
     else:
         print(__doc__)

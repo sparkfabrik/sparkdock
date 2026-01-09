@@ -148,16 +148,34 @@ python3 src/slack-notify/notify-slack-on-merge.py --test
 ```
 
 The test mode will:
-1. Use a sample changelog diff (no git required)
-2. Call Claude API to analyze the diff
-3. Generate a notification message
-4. Display the Slack payload (without sending)
+1. Use sample changelog diffs (no git required)
+2. Call Claude API to analyze each diff
+3. Generate notification messages
+4. Display the Slack payload that would be sent (without actually sending)
 
 This allows you to:
 - Test the Claude AI integration
 - Verify message generation
 - Validate Slack payload structure
 - All without needing `SLACK_WEBHOOK_URL` or git history
+
+## Example Notification
+
+When significant features are detected, the notification appears in Slack like this:
+
+```
+🚀 New Sparkdock Release
+
+This release brings significant infrastructure improvements and expanded development environment options:
+
+• Automated Slack notifications for feature releases - development team announcements are now streamlined through automated notifications for significant changes merged to the master branch
+
+• Lima container environment with Docker Desktop replacement support - developers now have a lightweight alternative to Docker Desktop that reduces resource consumption while maintaining full container functionality
+
+• New shell enhancement system with eza, starship, and fzf integration - enhanced command-line productivity through modern tools including better file listings, an improved prompt, and powerful fuzzy finding capabilities
+
+Commit: abc1234 by sparkfabrik
+```
 
 ## Customizing Messages
 
