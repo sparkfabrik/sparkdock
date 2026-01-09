@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Consolidated Slack notification script git diff functions into single parameterized function with configurable commit count
 - Migrated GitHub Copilot CLI from npm package (`@github/copilot`) to Homebrew cask (`copilot-cli`) for improved installation and update management
 - Updated system requirements documentation to clarify Apple Silicon-only support (removed Intel Mac references)
 - Renamed `sparkdock-update-repository` command to `sparkdock-fetch-updates` with improved description and updated output messages

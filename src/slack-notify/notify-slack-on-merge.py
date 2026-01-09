@@ -197,11 +197,20 @@ def send_slack(payload):
         return resp.status == 200
 
 
-def get_git_diff(changelog_file):
-    """Get changelog diff from previous commit."""
+def get_git_diff(changelog_file, num_commits=1):
+    """Get changelog diff from the last N commits.
+    
+    Args:
+        changelog_file (str): Path to the changelog file
+        num_commits (int): Number of commits to look back (default: 1)
+    
+    Returns:
+        str: Git diff output as string, or "No changes" message if no diff found
+    """
+    no_changes_msg = f"No changes in {changelog_file}"
     try:
         result = subprocess.run(
-            ["git", "diff", "HEAD~1", "HEAD", "--", changelog_file],
+            ["git", "diff", f"HEAD~{num_commits}", "HEAD", "--", changelog_file],
             capture_output=True,
             text=True,
             check=True,
@@ -211,26 +220,8 @@ def get_git_diff(changelog_file):
             print(f"{RED}Git diff failed for {changelog_file}: {e}{NC}")
             if e.stderr:
                 print(f"{RED}stderr: {e.stderr}{NC}")
-        return ""
-    return result.stdout
-
-
-def get_real_diff():
-    """Get real diff from current repository (last 5 commits)."""
-    try:
-        result = subprocess.run(
-            ["git", "diff", "HEAD~5", "HEAD", "--", "CHANGELOG.md"],
-            capture_output=True,
-            text=True,
-            check=True,
-        )
-    except subprocess.CalledProcessError as e:
-        if DEBUG:
-            print(f"{RED}Git diff failed for CHANGELOG.md: {e}{NC}")
-            if e.stderr:
-                print(f"{RED}stderr: {e.stderr}{NC}")
-        return "No changes in CHANGELOG.md"
-    return result.stdout or "No changes in CHANGELOG.md"
+        return no_changes_msg
+    return result.stdout or no_changes_msg
 
 
 def run_test(test, commit_sha, commit_url, author):
@@ -304,7 +295,7 @@ def test_mode():
         results.append(run_test(test, commit_sha, commit_url, author))
 
     # Run real diff test
-    real_test = {"name": "Real: git diff HEAD~5..HEAD", "expected": None, "diff": get_real_diff()}
+    real_test = {"name": "Real: git diff HEAD~5..HEAD", "expected": None, "diff": get_git_diff("CHANGELOG.md", num_commits=5)}
     results.append(run_test(real_test, commit_sha, commit_url, author))
 
     # Summary
