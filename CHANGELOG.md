@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 #### Other Additions
 
+- Added python@3.13 and python@3.14 to base packages to fix broken Python installations for tools like google-cloud-sdk
 - Added an experimental Sparkdock AI helper (with `sjust sparkdock-ai` and `sjust sparkdock-configure-llm`) that routes questions via a classifier, verifies Copilot plugins/auth, renders a Gum UI with logo/help, and logs activity as “living documentation”
 - Added font-caskaydia-mono-nerd-font (Cascadia Code Nerd Font)
 - Added Ghostty config-file directive setup for easier customization (user config loads Sparkdock base via config-file directive)
