@@ -1,6 +1,7 @@
 taps:
   - koekeishiya/formulae
   - charmbracelet/tap
+  - anomalyco/tap
 
 # Cloud Tools, Applications, and Fonts
 cask_packages:
@@ -80,6 +81,7 @@ homebrew_packages:
   - python@3.14
   - yarn
   - yarn-completion
+  - anomalyco/tap/opencode
 
 linked_packages: []
 
