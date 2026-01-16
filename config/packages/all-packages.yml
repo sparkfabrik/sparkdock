@@ -77,11 +77,11 @@ homebrew_packages:
   - gitleaks
   - uv
   - llm
+  - anomalyco/tap/opencode
   - python@3.13
   - python@3.14
   - yarn
   - yarn-completion
-  - anomalyco/tap/opencode
 
 linked_packages: []
 
