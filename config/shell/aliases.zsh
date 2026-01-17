@@ -177,7 +177,7 @@ if command_exists opencode; then
   #        c web [args] - runs opencode web interface
   #        c serve [args] - runs opencode server
   c() {
-    case "$1" in
+    case "${1:-}" in
       web)
         shift
         opencode web "$@"
