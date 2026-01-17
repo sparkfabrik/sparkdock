@@ -13,6 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added automated Slack notifications for significant feature releases merged to master branch (using Claude AI to analyze changelog and generate user-friendly announcements for #tech channel)
 - Added Visual Studio Code Insiders to default package list for early access to new VSCode features
 
+### Changed
+- Changed `c` alias from `clear` to OpenCode main command. Use `clear` command directly or ctrl+l for clearing screen instead
+
 ### Fixed
 - Fixed `NODE_EXTRA_CA_CERTS` path in copilot function to point to the correct keychain certificate bundle location (`${HOME}/.local/spark/copilot/keychain.pem`)
 - Fixed GitHub Copilot CLI idempotency issue where copilot binary was incorrectly removed on subsequent runs when cask was already installed
