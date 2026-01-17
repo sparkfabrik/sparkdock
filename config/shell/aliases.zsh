@@ -170,6 +170,29 @@ if command_exists copilot; then
   cores() { copilot --allow-all-tools --resume "${@}"; }
 fi
 
+# Add some opencode aliases.
+if command_exists opencode; then
+  # Main command with subcommand support
+  # Usage: c [args] - runs opencode with args
+  #        c web [args] - runs opencode web interface
+  #        c serve [args] - runs opencode server
+  c() {
+    case "${1:-}" in
+      web)
+        shift
+        opencode web "$@"
+        ;;
+      serve)
+        shift
+        opencode serve "$@"
+        ;;
+      *)
+        opencode "$@"
+        ;;
+    esac
+  }
+fi
+
 # Directory navigation
 alias ..='cd ..'
 alias ...='cd ../..'
@@ -179,7 +202,8 @@ alias ....='cd ../../..'
 alias reload='exec zsh'
 alias path='echo $PATH | tr ":" "\n"'
 alias h='history'
-alias c='clear'
+# Note: 'c' alias removed - now used for OpenCode (see OpenCode aliases section above)
+# Use 'clear' command directly or ctrl+l for clearing screen
 
 # Reload Sparkdock shell configuration
 # This unsets the guard variable and re-sources the main config file
