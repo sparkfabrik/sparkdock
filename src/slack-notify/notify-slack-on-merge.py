@@ -221,7 +221,25 @@ def get_git_diff(changelog_file, num_commits=1):
             if e.stderr:
                 print(f"{RED}stderr: {e.stderr}{NC}")
         return no_changes_msg
-    return result.stdout or no_changes_msg
+    
+    diff_output = result.stdout or no_changes_msg
+    
+    # Check if the entire file is being added (shallow clone or initial commit)
+    # This happens when every line has a '+' prefix and we see the file header
+    if diff_output and diff_output != no_changes_msg:
+        lines = diff_output.split('\n')
+        # Count lines that start with + (excluding the +++ header)
+        added_lines = [l for l in lines if l.startswith('+') and not l.startswith('+++')]
+        total_content_lines = [l for l in lines if l and not l.startswith('---') and not l.startswith('+++') and not l.startswith('@@')]
+        
+        # If more than 90% of content lines are additions, the entire file is likely new
+        # This indicates a shallow clone or initial commit where we can't determine actual changes
+        if total_content_lines and len(added_lines) > len(total_content_lines) * 0.9:
+            print(f"{YELLOW}Warning: Detected entire file addition (likely shallow clone or initial commit){NC}")
+            print(f"{YELLOW}Cannot reliably determine actual changes - skipping notification{NC}")
+            return no_changes_msg
+    
+    return diff_output
 
 
 def run_test(test, commit_sha, commit_url, author):
