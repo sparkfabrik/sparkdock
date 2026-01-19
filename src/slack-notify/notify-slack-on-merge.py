@@ -94,6 +94,68 @@ TEST_CASES = [
 
  ### Fixed"""
     },
+    {
+        "name": "Static: New file (entire changelog is new - should skip)",
+        "expected": False,
+        "diff": """diff --git a/CHANGELOG.md b/CHANGELOG.md
+new file mode 100644
+index 0000000..abc1234
+--- /dev/null
++++ b/CHANGELOG.md
+@@ -0,0 +1,50 @@
++# Changelog
++
++All notable changes to this project will be documented in this file.
++
++## [Unreleased]
++
++### Added
++- Added opencode AI coding tool to default package list
++- Added Visual Studio Code Insiders to default package list
++- Added automated Slack notifications for feature releases
++
++### Fixed
++- Fixed keyboard layout installation path"""
+    },
+    {
+        "name": "Static: Large diff without context (should skip)",
+        "expected": False,
+        "diff": """--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -1,5 +1,55 @@
++# Changelog
++
++All notable changes to this project will be documented in this file.
++
++## [Unreleased]
++
++### Added
++- Added opencode AI coding tool
++- Added Visual Studio Code Insiders
++- Added Lima container environment
++- Added shell enhancement system
++- Added automated Slack notifications
++- Added Chrome web app integration
++- Added python@3.13 and python@3.14
++- Added Sparkdock AI helper
++- Added font-caskaydia-mono-nerd-font
++- Added Ghostty config-file directive
++- Added Context7 MCP server
++- Added custom instructions file
++- Added Claude Code GitHub workflow
++- Added ensure-python3 command
++- Added UDP port forwarding in Lima
++- Added docker-desktop-diagnose task
++- Added Universal Definition of Done link
++- Added Lima version display
++
++### Changed
++- Migrated Copilot CLI from npm to Homebrew
++- Updated system requirements documentation
++- Renamed sparkdock-update-repository command
++- Lima quick setup uses dynamic defaults
++- Default terminal changed to Ghostty"""
+    },
 ]
 
 
@@ -199,11 +261,11 @@ def send_slack(payload):
 
 def get_git_diff(changelog_file, num_commits=1):
     """Get changelog diff from the last N commits.
-    
+
     Args:
         changelog_file (str): Path to the changelog file
         num_commits (int): Number of commits to look back (default: 1)
-    
+
     Returns:
         str: Git diff output as string, or "No changes" message if no diff found
     """
@@ -224,8 +286,121 @@ def get_git_diff(changelog_file, num_commits=1):
     return result.stdout or no_changes_msg
 
 
-def run_test(test, commit_sha, commit_url, author):
-    """Run a single test case. Returns True if passed."""
+def is_new_file_diff(diff):
+    """Check if the diff represents a newly created file.
+
+    A new file diff contains "new file mode" or shows /dev/null as the source,
+    which means the entire file content is new (not incremental changes).
+
+    Args:
+        diff (str): Git diff output
+
+    Returns:
+        bool: True if this is a new file diff
+    """
+    if not diff:
+        return False
+
+    # Check for explicit new file indicators
+    if "new file mode" in diff:
+        return True
+
+    # Check for /dev/null as source (file didn't exist before)
+    if "--- /dev/null" in diff:
+        return True
+
+    return False
+
+
+def is_diff_too_large(diff, max_additions=20, min_context_ratio=0.1):
+    """Check if the diff is suspiciously large (likely initial commit or bulk change).
+
+    A valid incremental diff should have:
+    - A reasonable number of additions (not the entire changelog)
+    - Some context lines (unchanged lines starting with space)
+
+    Args:
+        diff (str): Git diff output
+        max_additions (int): Maximum number of added lines before considering too large
+        min_context_ratio (float): Minimum ratio of context lines to total diff lines
+
+    Returns:
+        bool: True if the diff appears too large to be a valid incremental change
+    """
+    if not diff:
+        return False
+
+    lines = diff.split("\n")
+
+    # Count line types (skip header lines)
+    additions = 0
+    context_lines = 0
+    content_started = False
+
+    for line in lines:
+        # Skip diff header lines
+        if line.startswith("diff ") or line.startswith("index ") or \
+           line.startswith("--- ") or line.startswith("+++ ") or \
+           line.startswith("@@"):
+            content_started = True
+            continue
+
+        if not content_started:
+            continue
+
+        if line.startswith("+") and not line.startswith("+++"):
+            additions += 1
+        elif line.startswith(" "):
+            context_lines += 1
+
+    # If there are too many additions, it's suspicious
+    if additions > max_additions:
+        total_content_lines = additions + context_lines
+        if total_content_lines > 0:
+            context_ratio = context_lines / total_content_lines
+            # If there's very little context, this is likely a bulk addition
+            if context_ratio < min_context_ratio:
+                if DEBUG:
+                    print(f"{YELLOW}Diff appears too large: {additions} additions, "
+                          f"{context_ratio:.2%} context ratio{NC}")
+                return True
+
+    return False
+
+
+def validate_diff(diff):
+    """Validate that the diff is suitable for analysis.
+
+    Returns a tuple of (is_valid, reason) where reason explains why it's invalid.
+
+    Args:
+        diff (str): Git diff output
+
+    Returns:
+        tuple: (bool, str) - (is_valid, reason_if_invalid)
+    """
+    if not diff or diff.startswith("No changes"):
+        return False, "No changes detected"
+
+    if is_new_file_diff(diff):
+        return False, "Diff represents a new file (entire changelog is new)"
+
+    if is_diff_too_large(diff):
+        return False, "Diff is too large (likely bulk addition, not incremental change)"
+
+    return True, ""
+
+
+def run_test(test, commit_sha, commit_url, author, skip_api=False):
+    """Run a single test case. Returns True if passed.
+
+    Args:
+        test: Test case dictionary with 'name', 'diff', and optional 'expected'
+        commit_sha: Commit SHA for Slack payload
+        commit_url: Commit URL for Slack payload
+        author: Author name for Slack payload
+        skip_api: If True, only run validation tests (no Claude API calls)
+    """
     print(f"{YELLOW}{'━' * 55}{NC}")
     print(f"{YELLOW}Test: {test['name']}{NC}")
     print(f"{YELLOW}{'━' * 55}{NC}\n")
@@ -233,26 +408,41 @@ def run_test(test, commit_sha, commit_url, author):
     if test.get("expected") is not None:
         print(f"Expected: should_notify = {test['expected']}\n")
 
-    print(f"Diff:\n---\n{test['diff']}\n---\n")
-    print(f"{YELLOW}Calling Claude API...{NC}")
+    diff = test["diff"]
+    print(f"Diff:\n---\n{diff[:500]}{'...' if len(diff) > 500 else ''}\n---\n")
 
-    try:
-        result = call_claude(test["diff"])
-    except Exception as e:
-        print(f"{RED}✗ API Error: {e}{NC}\n")
-        return False
+    # First, validate the diff
+    is_valid, reason = validate_diff(diff)
+    print(f"Diff validation: {'✓ valid' if is_valid else f'✗ invalid ({reason})'}\n")
 
-    should_notify = result.get("should_notify", False)
-    message = result.get("message", "")
+    # If diff is invalid, should_notify should be False
+    if not is_valid:
+        should_notify = False
+        message = ""
+        print(f"Skipping Claude API call due to invalid diff\n")
+    elif skip_api:
+        print(f"Skipping Claude API call (skip_api=True)\n")
+        should_notify = False
+        message = ""
+    else:
+        print(f"{YELLOW}Calling Claude API...{NC}")
+        try:
+            result = call_claude(diff)
+        except Exception as e:
+            print(f"{RED}✗ API Error: {e}{NC}\n")
+            return False
 
-    if DEBUG:
-        print(f"Claude response:\n{json.dumps(result, indent=2)}\n")
+        should_notify = result.get("should_notify", False)
+        message = result.get("message", "")
+
+        if DEBUG:
+            print(f"Claude response:\n{json.dumps(result, indent=2)}\n")
 
     if should_notify:
         if DEBUG:
             print(f"\nGenerated message:\n---\n{message}\n---\n")
         payload = create_slack_payload(message, commit_url, commit_sha, author)
-        
+
         print(f"{YELLOW}Test mode: Sending notification to Slack...{NC}")
         try:
             if send_slack(payload):
@@ -280,9 +470,9 @@ def test_mode():
     """Run all test cases."""
     print("=== Slack Notification Test Mode ===\n")
     print("Test cases:")
-    print("  1. Static changelog: no significant updates (bug fix only)")
-    print("  2. Static changelog: multiple features (list formatting)")
-    print("  3. Real changelog: git diff HEAD~5..HEAD on CHANGELOG.md")
+    for i, test in enumerate(TEST_CASES, 1):
+        print(f"  {i}. {test['name']}")
+    print(f"  {len(TEST_CASES) + 1}. Real changelog: git diff HEAD~5..HEAD on CHANGELOG.md")
     print("")
 
     commit_sha = "abc1234"
@@ -323,8 +513,11 @@ def production_mode(changelog_file, commit_sha, commit_url, author):
         sys.exit(1)
 
     diff = get_git_diff(changelog_file)
-    if not diff:
-        print("No changelog changes detected")
+
+    # Validate the diff before sending to AI
+    is_valid, reason = validate_diff(diff)
+    if not is_valid:
+        print(f"Skipping notification: {reason}")
         sys.exit(0)
 
     print("Changelog changes detected, analyzing with Claude AI...")
@@ -360,12 +553,12 @@ def dry_run_mode():
     """Dry run mode - validates script without calling APIs or sending notifications."""
     print(f"{GREEN}=== Dry Run Mode ==={NC}")
     print("Validating script configuration and structure...")
-    
+
     # Check script structure
     print("\n1. Checking script components...")
     print(f"   ✓ Script directory: {SCRIPT_DIR}")
     print(f"   ✓ Repository root: {REPO_ROOT}")
-    
+
     # Check prompt file
     if PROMPT_FILE.exists():
         print(f"   ✓ Prompt file exists: {PROMPT_FILE}")
@@ -375,7 +568,7 @@ def dry_run_mode():
     else:
         print(f"   ✗ Prompt file missing: {PROMPT_FILE}")
         sys.exit(1)
-    
+
     # Validate output schema
     print("\n2. Validating JSON schema...")
     try:
@@ -384,14 +577,14 @@ def dry_run_mode():
     except Exception as e:
         print(f"   ✗ JSON schema error: {e}")
         sys.exit(1)
-    
+
     # Test sample diffs
     print("\n3. Testing sample changelog diffs...")
     for i, test_case in enumerate(TEST_CASES, 1):
         diff = test_case.get("diff", "")
         name = test_case.get("name", f"Test #{i}")
         print(f"   ✓ {name} ({len(diff)} characters)")
-    
+
     # Validate Slack payload structure
     print("\n4. Validating Slack payload structure...")
     try:
@@ -406,14 +599,42 @@ def dry_run_mode():
     except Exception as e:
         print(f"   ✗ Slack payload error: {e}")
         sys.exit(1)
-    
+
+    # Run diff validation tests
+    print("\n5. Running diff validation tests...")
+    validation_tests = [
+        ("Empty diff", "", False),
+        ("No changes message", "No changes in CHANGELOG.md", False),
+        ("New file diff", "new file mode 100644\n--- /dev/null\n+++ b/CHANGELOG.md", False),
+        ("Valid incremental diff", """--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -10,6 +10,7 @@
+ ### Added
++- Added new feature
+ - Existing feature""", True),
+    ]
+
+    validation_passed = True
+    for name, diff, expected_valid in validation_tests:
+        is_valid, reason = validate_diff(diff)
+        if is_valid == expected_valid:
+            print(f"   ✓ {name}: {'valid' if is_valid else 'invalid'} (expected)")
+        else:
+            print(f"   ✗ {name}: got {'valid' if is_valid else 'invalid'}, "
+                  f"expected {'valid' if expected_valid else 'invalid'}")
+            validation_passed = False
+
+    if not validation_passed:
+        print(f"\n{RED}✗ Diff validation tests failed{NC}")
+        sys.exit(1)
+
     # Check environment (optional in dry run)
-    print("\n5. Checking environment variables (optional)...")
+    print("\n6. Checking environment variables (optional)...")
     has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
     has_slack = bool(os.environ.get("SLACK_WEBHOOK_URL"))
     print(f"   {'✓' if has_anthropic else '○'} ANTHROPIC_API_KEY {'set' if has_anthropic else 'not set'}")
     print(f"   {'✓' if has_slack else '○'} SLACK_WEBHOOK_URL {'set' if has_slack else 'not set'}")
-    
+
     print(f"\n{GREEN}✅ Dry run validation passed - script is ready to use{NC}")
     print("\nNext steps:")
     if not has_anthropic or not has_slack:

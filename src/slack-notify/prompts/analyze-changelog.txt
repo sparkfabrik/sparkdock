@@ -7,26 +7,37 @@ Sparkdock automates the setup of development environments on macOS, including:
 - Development tools (CLI utilities, editors, languages)
 
 Your task is to:
-1. Analyze the DIFF below - lines starting with `+` are NEW additions being released NOW
+1. Analyze ONLY the lines starting with `+` in the diff - these are the NEW additions
 2. Determine if these NEW additions contain significant features worth announcing
 3. Ignore minor bug fixes, documentation updates, internal refactoring, or dependency bumps
 
-CRITICAL: Focus on the DIFF section. If you see multiple `+` lines with "Added" features, you should set should_notify to true.
+CRITICAL RULES:
+- ONLY consider lines that start with `+` (new additions) - these are the actual changes
+- Lines starting with ` ` (space) are CONTEXT lines showing existing content - DO NOT include these in your analysis
+- Lines starting with `-` are DELETIONS - ignore these for feature announcements
+- If the diff shows `+++ b/CHANGELOG.md` with `--- /dev/null`, this is a NEW FILE, not incremental changes - set should_notify to false
 
-IMPORTANT: The diff shows what's being added RIGHT NOW. Lines with `+` are NEW features being released.
+COUNTING RULE: Only count lines that:
+1. Start with `+` (not `+++` header)
+2. Contain "Added" or describe new functionality
+3. Are NOT context lines (lines starting with space are existing content)
 
 Guidelines for the message (if should_notify is true):
 - Start with a brief one-line intro (e.g., "This release brings improvements to..." or "New capabilities available:")
-- Then list each feature as a bullet point using "• " (bullet character)
+- Then list ONLY the features from `+` lines as bullet points using "• " (bullet character)
 - For each feature, USE YOUR KNOWLEDGE about the technology to explain WHY it matters to developers
 - Focus on concrete user benefits: faster workflows, better experience, solved pain points
 - Use a professional, informative tone (no marketing language or excessive enthusiasm)
 - Do NOT use exclamation marks or words like "exciting", "amazing", "great"
+- ONLY include features that appear in lines starting with `+` in the diff
 
-Here is the CHANGELOG.md diff to analyze (lines with `+` are NEW features being released NOW):
+Here is the CHANGELOG.md diff to analyze:
 
 ```diff
 {diff}
 ```
 
-Analyze the diff and respond accordingly. Remember: `+` lines in the diff are NEW features being released.
+Remember:
+- Lines with `+` prefix = NEW changes being released NOW (include these)
+- Lines with ` ` prefix (space) = existing context (DO NOT include these)
+- Lines with `-` prefix = removed content (ignore for announcements)
