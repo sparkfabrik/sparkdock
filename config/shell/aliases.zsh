@@ -172,25 +172,7 @@ fi
 
 # Add some opencode aliases.
 if command_exists opencode; then
-  # Main command with subcommand support
-  # Usage: c [args] - runs opencode with args
-  #        c web [args] - runs opencode web interface
-  #        c serve [args] - runs opencode server
-  c() {
-    case "${1:-}" in
-      web)
-        shift
-        opencode web "$@"
-        ;;
-      serve)
-        shift
-        opencode serve "$@"
-        ;;
-      *)
-        opencode "$@"
-        ;;
-    esac
-  }
+  alias c='opencode'
 fi
 
 # Directory navigation

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added opencode AI coding tool to default package list (now officially supported by Copilot)
-- Added OpenCode shell aliases: `c` as main command, with support for `c web` (web interface) and `c serve` (headless server)
+- Added OpenCode shell alias: `c` as a simple alias to `opencode` command
 - Added automated Slack notifications for significant feature releases merged to master branch (using Claude AI to analyze changelog and generate user-friendly announcements for #tech channel)
 - Added Visual Studio Code Insiders to default package list for early access to new VSCode features
 
