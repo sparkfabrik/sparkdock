@@ -136,23 +136,6 @@ The workflow skips notifications for:
 - ❌ Documentation-only changes
 - ❌ Build/CI configuration changes
 - ❌ Dependency updates (unless they enable new features)
-- ❌ **Shallow clone or initial commit scenarios** - When the entire CHANGELOG.md file is added in a single commit (e.g., repository initialization or grafted commits), the script cannot reliably determine what changes are actually new. In these cases, the notification is automatically skipped to prevent sending the entire changelog history.
-
-### Shallow Clone Detection
-
-The script automatically detects when the entire CHANGELOG.md file is being added (rather than modified) by analyzing the git diff:
-
-- **Primary check**: Looks for `"new file mode"` indicator in the git diff output (most reliable method)
-- **Secondary check**: Detects when the diff contains added lines (`+`) but no context lines (lines starting with space)
-- This typically occurs with:
-  - Repository initialization (new file added)
-  - Grafted commits (shallow clones with no parent history)
-  - Force pushes that rewrite history
-- When detected, the script outputs one of:
-  - `"Warning: Detected entire file addition (new file mode)"`
-  - `"Warning: Detected entire file addition (no context lines in diff)"`
-  - `"Cannot reliably determine actual changes - skipping notification"`
-- This prevents false positives where the entire changelog history would be sent as a "new release"
 
 ## Testing Notifications
 
@@ -224,6 +207,24 @@ The prompt file contains guidelines for Claude AI to analyze changelog diffs and
 - Tone and style preferences
 - Feature filtering criteria
 - Focus areas (user-facing benefits vs. technical details)
+
+### How Git Diff Analysis Works
+
+The prompt explicitly instructs Claude to:
+- **Analyze ONLY lines with `+` prefix** - these are new additions in the current commit
+- **Ignore lines with ` ` (space) prefix** - these are context lines showing what was already in the file
+- **Ignore lines with `-` prefix** - these are lines being removed
+
+This prevents Claude from including previously-released features that appear as context lines in the diff. For example, if the diff shows:
+
+```diff
+ ### Added
+ - Added feature from previous release
++- Added new feature in this commit
+ - Added another old feature
+```
+
+Claude will only report on "Added new feature in this commit" (the line with `+`), ignoring the context lines that show old features.
 
 ## Monitoring
 

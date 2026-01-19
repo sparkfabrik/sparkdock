@@ -7,26 +7,32 @@ Sparkdock automates the setup of development environments on macOS, including:
 - Development tools (CLI utilities, editors, languages)
 
 Your task is to:
-1. Analyze the DIFF below - lines starting with `+` are NEW additions being released NOW
-2. Determine if these NEW additions contain significant features worth announcing
-3. Ignore minor bug fixes, documentation updates, internal refactoring, or dependency bumps
+1. Analyze ONLY the lines starting with `+` in the diff below - these are NEW additions being released NOW
+2. IGNORE all lines that do NOT start with `+` - these are context lines showing what was already in the file
+3. Determine if the NEW additions (lines with `+`) contain significant features worth announcing
+4. Ignore minor bug fixes, documentation updates, internal refactoring, or dependency bumps
 
-CRITICAL: Focus on the DIFF section. If you see multiple `+` lines with "Added" features, you should set should_notify to true.
+CRITICAL RULES FOR READING GIT DIFFS:
+- Lines starting with `+` (plus sign) = NEW content added in this commit - ANALYZE THESE
+- Lines starting with ` ` (space) = Context/existing content already in the file - IGNORE THESE COMPLETELY
+- Lines starting with `-` (minus sign) = Content removed in this commit - IGNORE THESE
+- If you see a changelog entry without a `+` prefix, it was already released previously - DO NOT include it
 
-IMPORTANT: The diff shows what's being added RIGHT NOW. Lines with `+` are NEW features being released.
+IMPORTANT: Only analyze and report on features from lines that start with `+`. Context lines (starting with space) show existing changelog entries from previous releases and must be completely ignored.
 
 Guidelines for the message (if should_notify is true):
 - Start with a brief one-line intro (e.g., "This release brings improvements to..." or "New capabilities available:")
-- Then list each feature as a bullet point using "• " (bullet character)
+- Then list ONLY the features from lines with `+` prefix as bullet points using "• " (bullet character)
 - For each feature, USE YOUR KNOWLEDGE about the technology to explain WHY it matters to developers
 - Focus on concrete user benefits: faster workflows, better experience, solved pain points
 - Use a professional, informative tone (no marketing language or excessive enthusiasm)
 - Do NOT use exclamation marks or words like "exciting", "amazing", "great"
+- DO NOT include any features from context lines (lines without `+` prefix)
 
-Here is the CHANGELOG.md diff to analyze (lines with `+` are NEW features being released NOW):
+Here is the CHANGELOG.md diff to analyze:
 
 ```diff
 {diff}
 ```
 
-Analyze the diff and respond accordingly. Remember: `+` lines in the diff are NEW features being released.
+Analyze the diff and respond accordingly. Remember: ONLY analyze lines with `+` prefix. Ignore all context lines.
