@@ -136,6 +136,19 @@ The workflow skips notifications for:
 - ❌ Documentation-only changes
 - ❌ Build/CI configuration changes
 - ❌ Dependency updates (unless they enable new features)
+- ❌ **Shallow clone or initial commit scenarios** - When the entire CHANGELOG.md file is added in a single commit (e.g., repository initialization or grafted commits), the script cannot reliably determine what changes are actually new. In these cases, the notification is automatically skipped to prevent sending the entire changelog history.
+
+### Shallow Clone Detection
+
+The script automatically detects when the entire CHANGELOG.md file is being added (rather than modified) by analyzing the git diff:
+
+- If more than 90% of the diff lines start with `+` (additions), this indicates the entire file is new
+- This typically occurs with:
+  - Repository initialization
+  - Grafted commits (shallow clones with no parent history)
+  - Force pushes that rewrite history
+- When detected, the script outputs: `"Warning: Detected entire file addition (likely shallow clone or initial commit)"` and skips notification
+- This prevents false positives where the entire changelog history would be sent as a "new release"
 
 ## Testing Notifications
 
