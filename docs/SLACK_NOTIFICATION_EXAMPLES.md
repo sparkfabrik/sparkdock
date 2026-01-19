@@ -142,12 +142,16 @@ The workflow skips notifications for:
 
 The script automatically detects when the entire CHANGELOG.md file is being added (rather than modified) by analyzing the git diff:
 
-- If more than 90% of the diff lines start with `+` (additions), this indicates the entire file is new
+- **Primary check**: Looks for `"new file mode"` indicator in the git diff output (most reliable method)
+- **Secondary check**: Detects when the diff contains added lines (`+`) but no context lines (lines starting with space)
 - This typically occurs with:
-  - Repository initialization
+  - Repository initialization (new file added)
   - Grafted commits (shallow clones with no parent history)
   - Force pushes that rewrite history
-- When detected, the script outputs: `"Warning: Detected entire file addition (likely shallow clone or initial commit)"` and skips notification
+- When detected, the script outputs one of:
+  - `"Warning: Detected entire file addition (new file mode)"`
+  - `"Warning: Detected entire file addition (no context lines in diff)"`
+  - `"Cannot reliably determine actual changes - skipping notification"`
 - This prevents false positives where the entire changelog history would be sent as a "new release"
 
 ## Testing Notifications
