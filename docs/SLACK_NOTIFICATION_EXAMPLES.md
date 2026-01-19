@@ -208,6 +208,24 @@ The prompt file contains guidelines for Claude AI to analyze changelog diffs and
 - Feature filtering criteria
 - Focus areas (user-facing benefits vs. technical details)
 
+### How Git Diff Analysis Works
+
+The prompt explicitly instructs Claude to:
+- **Analyze ONLY lines with `+` prefix** - these are new additions in the current commit
+- **Ignore lines with ` ` (space) prefix** - these are context lines showing what was already in the file
+- **Ignore lines with `-` prefix** - these are lines being removed
+
+This prevents Claude from including previously-released features that appear as context lines in the diff. For example, if the diff shows:
+
+```diff
+ ### Added
+ - Added feature from previous release
++- Added new feature in this commit
+ - Added another old feature
+```
+
+Claude will only report on "Added new feature in this commit" (the line with `+`), ignoring the context lines that show old features.
+
 ## Monitoring
 
 Check workflow runs:
