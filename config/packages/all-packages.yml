@@ -83,6 +83,10 @@ homebrew_packages:
   - yarn
   - yarn-completion
 
+# NPM Global Packages
+npm_packages:
+  - "@fission-ai/openspec"
+
 linked_packages: []
 
 # Removed packages/taps
