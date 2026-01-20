@@ -94,6 +94,20 @@ TEST_CASES = [
 
  ### Fixed"""
     },
+    {
+        "name": "Static: New npm package/tool addition",
+        "expected": True,
+        "diff": """--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -8,6 +8,8 @@
+ ## [Unreleased]
+ 
+ ### Added
++- Added OpenSpec (@fission-ai/openspec) npm package to default package list for spec-driven development with AI coding assistants
++- Added opencode AI coding tool to default package list (now officially supported by Copilot)
+ 
+ ### Fixed"""
+    },
 ]
 
 
@@ -282,7 +296,8 @@ def test_mode():
     print("Test cases:")
     print("  1. Static changelog: no significant updates (bug fix only)")
     print("  2. Static changelog: multiple features (list formatting)")
-    print("  3. Real changelog: git diff HEAD~5..HEAD on CHANGELOG.md")
+    print("  3. Static changelog: new npm package/tool addition")
+    print("  4. Real changelog: git diff HEAD~5..HEAD on CHANGELOG.md")
     print("")
 
     commit_sha = "abc1234"
