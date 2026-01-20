@@ -10,7 +10,16 @@ Your task is to:
 1. Analyze ONLY the lines starting with `+` in the diff below - these are NEW additions being released NOW
 2. IGNORE all lines that do NOT start with `+` - these are context lines showing what was already in the file
 3. Determine if the NEW additions (lines with `+`) contain significant features worth announcing
-4. Ignore minor bug fixes, documentation updates, internal refactoring, or dependency bumps
+4. Ignore ONLY minor changes:
+   - Simple bug fixes that don't add new capabilities
+   - Documentation-only updates (typos, formatting)
+   - Internal refactoring with no user-facing impact
+   - Dependency version bumps (e.g., "Updated package X from v1.0 to v1.1")
+5. DO announce new capabilities and features, including:
+   - New tools, packages, or applications added to the default installation
+   - New commands, aliases, or workflows available to users
+   - New system integrations or configurations
+   - Significant feature additions that change how users work
 
 CRITICAL RULES FOR READING GIT DIFFS:
 - Lines starting with `+` (plus sign) = NEW content added in this commit - ANALYZE THESE
