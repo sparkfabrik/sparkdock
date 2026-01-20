@@ -33,6 +33,7 @@
         all_removed_taps: "{{ all_packages.removed_taps | default([]) }}"
         all_taps: "{{ all_packages.taps | default([]) }}"
         all_removed_cask_packages: "{{ all_packages.removed_cask_packages | default([]) }}"
+        all_npm_packages: "{{ all_packages.npm_packages | default([]) }}"
 
     - name: Configure homebrew taps
       tags: brew_packages
@@ -250,6 +251,41 @@
       register: brew_check
       changed_when: false
       failed_when: brew_check.rc != 0
+      become: false
+
+    - name: Check if npm command is available
+      shell: command -v npm >/dev/null 2>&1 && echo "available" || echo "not-available"
+      register: npm_available
+      changed_when: false
+      become: false
+      tags: npm_packages
+
+    - name: Install npm global packages
+      tags: npm_packages
+      community.general.npm:
+        name: "{{ item }}"
+        global: true
+        state: present
+      loop: "{{ all_npm_packages }}"
+      when:
+        - npm_available.stdout == "available"
+        - all_npm_packages | length > 0
+      become: false
+
+    - name: Assert npm packages installed
+      tags: npm_packages
+      shell: |
+        missing=0
+        for pkg in {{ all_npm_packages | map('quote') | join(' ') }}; do
+          npm list -g "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
+        done
+        exit $missing
+      register: npm_check
+      changed_when: false
+      failed_when: npm_check.rc != 0
+      when:
+        - npm_available.stdout == "available"
+        - all_npm_packages | length > 0
       become: false
 
     - name: Link yarn with conflict resolution
