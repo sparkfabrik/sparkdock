@@ -24,7 +24,9 @@
       tags: always
 
     - name: Collect all package lists
-      tags: brew_packages
+      tags:
+        - brew_packages
+        - npm_packages
       set_fact:
         all_cask_packages: "{{ all_packages.cask_packages | default([]) }}"
         all_homebrew_packages: "{{ all_packages.homebrew_packages | default([]) }}"
@@ -52,6 +54,7 @@
           - "All cask packages: {{ all_cask_packages }}"
           - "All homebrew packages: {{ all_homebrew_packages }}"
           - "All linked packages: {{ all_linked_packages }}"
+          - "All npm packages: {{ all_npm_packages }}"
           - "All variables: {{ lookup('varnames', '.+', wantlist=True) }}"
       when: ansible_verbosity >= 1
 
