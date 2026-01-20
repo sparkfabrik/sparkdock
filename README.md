@@ -21,6 +21,7 @@ Sparkdock is an automated macOS development environment provisioner built with A
 - **Version Control**: Git with credential manager, GitHub CLI, GitLab CLI
 - **Cloud/Container**: AWS CLI, Kubernetes CLI (kubectl), k9s, Docker credential helper
 - **Container Development**: Kind, Kubectx, Skaffold, Stern
+- **AI Coding**: OpenSpec (spec-driven development for AI assistants)
 
 **System Utilities:**
 
