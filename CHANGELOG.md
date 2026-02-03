@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added OpenCode shell alias: `c` as a simple alias to `opencode` command
 - Added automated Slack notifications for significant feature releases merged to master branch (using Claude AI to analyze changelog and generate user-friendly announcements for #tech channel)
 - Added Visual Studio Code Insiders to default package list for early access to new VSCode features
+- Added global OpenCode configuration to disable OpenCode Zen free models provider for privacy compliance
 
 ### Changed
 - Changed `c` alias from `clear` to OpenCode main command. Use `clear` command directly or ctrl+l for clearing screen instead
