@@ -708,15 +708,9 @@
             mode: "0644"
           become: no
 
-        - name: Verify OpenCode configuration deployment
-          stat:
-            path: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
-          register: opencode_config_stat
-
         - name: Display OpenCode configuration status
           debug:
             msg: "✅ OpenCode configuration deployed successfully (Zen provider disabled for privacy compliance)"
-          when: opencode_config_stat.stat.exists
 
   post_tasks:
     - name: Print installation complete message
