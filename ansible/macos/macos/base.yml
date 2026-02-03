@@ -341,16 +341,31 @@
       become_method: sudo
 
     - name: Configure git safe directory for sparkdock
-      command: git config --global --add safe.directory "{{ dev_env_dir }}"
-      become: no
       tags: [always]
+      become: no
+      block:
+        - name: Check if sparkdock is already in git safe.directory
+          shell: git config --global --get-all safe.directory | grep -Fx "{{ dev_env_dir }}" || true
+          register: sparkdock_safe_dir_check
+          changed_when: false
+
+        - name: Add sparkdock to git safe.directory
+          command: git config --global --add safe.directory "{{ dev_env_dir }}"
+          when: sparkdock_safe_dir_check.stdout == ""
 
     - name: Install system scripts
       tags: http-proxy
       block:
-        - name: Configure git safe directory for http-proxy
+        - name: Check if http-proxy is already in git safe.directory
+          shell: git config --global --get-all safe.directory | grep -Fx "{{ dev_env_dir }}/http-proxy" || true
+          register: http_proxy_safe_dir_check
+          changed_when: false
+          become: no
+
+        - name: Add http-proxy to git safe.directory
           command: git config --global --add safe.directory "{{ dev_env_dir }}/http-proxy"
           become: no
+          when: http_proxy_safe_dir_check.stdout == ""
 
         - name: Ensure /usr/local/bin exists
           file: path=/usr/local/bin state=directory
