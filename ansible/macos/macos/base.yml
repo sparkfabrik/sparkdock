@@ -716,7 +716,7 @@
             mode: "0755"
           become: no
 
-        - name: Deploy OpenCode configuration to disable Zen free models
+        - name: Deploy OpenCode configuration with security permissions and OpenCode provider disabled
           copy:
             src: "{{ dev_env_dir }}/config/macos/opencode.json"
             dest: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
@@ -725,7 +725,7 @@
 
         - name: Display OpenCode configuration status
           debug:
-            msg: "✅ OpenCode configuration deployed successfully (Zen provider disabled for privacy compliance)"
+            msg: "✅ OpenCode configuration deployed successfully (OpenCode provider disabled, dangerous commands require user confirmation)"
 
   post_tasks:
     - name: Print installation complete message
