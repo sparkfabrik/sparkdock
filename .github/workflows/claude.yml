@@ -23,7 +23,7 @@ jobs:
             pull-requests: write
             issues: write
             id-token: write
-            actions: read # Required for Claude to read CI results on PRs
+            actions: read
         steps:
             - name: Checkout repository
               uses: actions/checkout@v6
@@ -35,16 +35,17 @@ jobs:
               uses: anthropics/claude-code-action@v1
               with:
                   anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-                  # Optional: Configure Claude's behavior with CLI arguments
+                  track_progress: true
                   claude_args: |
-                      --max-turns 1o
+                      --max-turns 20
                       --model claude-opus-4-6
                       --system-prompt "Follow Sparkdock project conventions from AGENTS.md and .github/copilot-instructions.md and .github/instructions/ directory."
-
-                  # Optional: Advanced settings configuration
-                  # settings: |
-                  #   {
-                  #     "env": {
-                  #       "NODE_ENV": "test"
-                  #     }
-                  #   }
+                  settings: |
+                      {
+                        "permissions": {
+                          "allow": [
+                            "WebFetch",
+                            "WebSearch"
+                          ]
+                        }
+                      }
