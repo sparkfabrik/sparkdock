@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Added secure OpenCode permissions config with glob-based deny/ask rules to block dangerous commands (rm -rf, sudo, docker prune, kubectl delete, terraform destroy, git force push, etc.) requiring user confirmation before execution
+- Added secure OpenCode permissions config with 293 glob-based deny/ask rules covering system commands, git, Docker, Kubernetes, Helm, Terraform, npm/yarn, cloud CLIs (gcloud, aws, az), BigQuery, and macOS system utilities — requiring user confirmation or hard-blocking before execution of dangerous commands
 - Added OpenSpec (@fission-ai/openspec) npm package to default package list for spec-driven development with AI coding assistants
 - Added opencode AI coding tool to default package list (now officially supported by Copilot)
 - Added OpenCode shell alias: `c` as a simple alias to `opencode` command
