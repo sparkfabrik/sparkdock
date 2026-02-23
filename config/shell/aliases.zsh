@@ -124,6 +124,13 @@ if command_exists kubens; then
   alias kn='kubens'
 fi
 
+# Google Cloud shortcuts
+if command_exists gcloud; then
+  alias gcloud-as='gcloud config set auth/impersonate_service_account'
+  alias gcloud-me='gcloud config unset auth/impersonate_service_account'
+  alias gcloud-whoami='gcloud config get auth/impersonate_service_account 2>/dev/null || echo "none"'
+fi
+
 # Add some copilot aliases.
 if command_exists copilot; then
   # Override copilot function only on macOS for keychain certificate handling
