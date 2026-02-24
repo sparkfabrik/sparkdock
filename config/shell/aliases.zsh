@@ -128,7 +128,15 @@ fi
 if command_exists gcloud; then
   alias gcloud-as='gcloud config set auth/impersonate_service_account'
   alias gcloud-me='gcloud config unset auth/impersonate_service_account'
-  alias gcloud-whoami='gcloud config get auth/impersonate_service_account 2>/dev/null || echo "none"'
+  gcloud-whoami() {
+    local impersonated
+    impersonated=$(gcloud config get auth/impersonate_service_account 2>/dev/null)
+    if [[ -n "${impersonated}" ]]; then
+      echo "${impersonated}"
+      return
+    fi
+    gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>/dev/null
+  }
 fi
 
 # Add some copilot aliases.
