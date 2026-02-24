@@ -28,8 +28,9 @@ if [[ -f "${SPARKDOCK_SHELL_DIR}/aliases.zsh" ]]; then
   source "${SPARKDOCK_SHELL_DIR}/aliases.zsh"
 fi
 
-# Source tool completions
-if [[ -f "${SPARKDOCK_SHELL_DIR}/completions.zsh" ]]; then
+# Source tool completions (optional, can be disabled via SPARKDOCK_ENABLE_COMPLETIONS)
+SPARKDOCK_ENABLE_COMPLETIONS="${SPARKDOCK_ENABLE_COMPLETIONS:=1}"
+if [[ -n "${SPARKDOCK_ENABLE_COMPLETIONS}" && -f "${SPARKDOCK_SHELL_DIR}/completions.zsh" ]]; then
   source "${SPARKDOCK_SHELL_DIR}/completions.zsh"
 fi
 

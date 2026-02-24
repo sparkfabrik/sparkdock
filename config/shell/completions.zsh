@@ -1,6 +1,6 @@
 #!/usr/bin/env zsh
-# Sparkdock Shell Aliases
-# This file contains modern command aliases and shortcuts for enhanced shell experience
+# Sparkdock Shell Completions
+# This file configures modern shell command completions for an enhanced, discoverable CLI experience
 
 # Helper function to check if a command exists
 command_exists() {
