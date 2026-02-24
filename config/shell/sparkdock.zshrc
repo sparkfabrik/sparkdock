@@ -28,6 +28,11 @@ if [[ -f "${SPARKDOCK_SHELL_DIR}/aliases.zsh" ]]; then
   source "${SPARKDOCK_SHELL_DIR}/aliases.zsh"
 fi
 
+# Source tool completions
+if [[ -f "${SPARKDOCK_SHELL_DIR}/completions.zsh" ]]; then
+  source "${SPARKDOCK_SHELL_DIR}/completions.zsh"
+fi
+
 # Optional: Source user customizations
 if [[ -f "${HOME}/.config/spark/shell.zsh" ]]; then
   source "${HOME}/.config/spark/shell.zsh"
