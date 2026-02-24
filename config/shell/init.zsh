@@ -15,9 +15,12 @@ HOMEBREW_PREFIX="/opt/homebrew"
 : "${SPARKDOCK_ENABLE_FZF:=1}"       # Enabled by default
 : "${SPARKDOCK_ENABLE_ATUIN:=0}"     # Disabled by default
 
-# Add local zsh functions directory to fpath.
+# Add local zsh functions directories to fpath.
 if [[ -d ~/.local/share/zsh/site-functions ]]; then
   fpath+=~/.local/share/zsh/site-functions
+fi
+if [[ -d ~/.local/spark/site-functions ]]; then
+  fpath+=~/.local/spark/site-functions
 fi
 
 # Load oh-my-zsh configuration FIRST (it calls compinit)

@@ -15,9 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added automated Slack notifications for significant feature releases merged to master branch (using Claude AI to analyze changelog and generate user-friendly announcements for #tech channel)
 - Added Visual Studio Code Insiders to default package list for early access to new VSCode features
 - Added global OpenCode configuration to disable OpenCode Zen free models provider for privacy compliance
+- Added `~/.local/spark/site-functions` to zsh fpath for completion discovery
 
 ### Changed
 - Changed `c` alias from `clear` to OpenCode main command. Use `clear` command directly or ctrl+l for clearing screen instead
+- Changed opencode and openspec zsh completions to use cached files in `~/.local/spark/site-functions/` instead of running process substitutions on every shell startup
 
 ### Fixed
 - Fixed Slack notification system to correctly identify new tool/package additions as significant features (improved prompt clarity to distinguish between dependency version bumps and new capabilities)
