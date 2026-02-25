@@ -268,7 +268,7 @@
       community.general.npm:
         name: "{{ item }}"
         global: true
-        state: present
+        state: latest
       loop: "{{ all_npm_packages }}"
       when:
         - npm_available.stdout == "available"

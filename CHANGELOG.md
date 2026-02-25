@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added global OpenCode configuration to disable OpenCode Zen free models provider for privacy compliance
 
 ### Changed
+- Changed npm global package installation state from `present` to `latest` to ensure packages are always updated to their latest version
 - Changed `c` alias from `clear` to OpenCode main command. Use `clear` command directly or ctrl+l for clearing screen instead
 
 ### Fixed
