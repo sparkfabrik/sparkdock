@@ -291,6 +291,36 @@
         - all_npm_packages | length > 0
       become: false
 
+    - name: Ensure zsh site-functions directory exists
+      ansible.builtin.file:
+        path: "{{ ansible_facts['env']['HOME'] }}/.local/share/zsh/site-functions"
+        state: directory
+        mode: "0755"
+      become: false
+      tags: npm_packages
+
+    - name: Generate openspec zsh completions
+      ansible.builtin.command: openspec completion generate zsh
+      register: openspec_completion_output
+      changed_when: false
+      become: false
+      tags: npm_packages
+      when:
+        - npm_available.stdout == "available"
+        - "'@fission-ai/openspec' in all_npm_packages"
+        - npm_check.rc == 0
+
+    - name: Write openspec completions to file
+      ansible.builtin.copy:
+        content: "{{ openspec_completion_output.stdout }}\n"
+        dest: "{{ ansible_facts['env']['HOME'] }}/.local/share/zsh/site-functions/_openspec"
+        mode: "0644"
+      become: false
+      tags: npm_packages
+      when:
+        - openspec_completion_output is not skipped
+        - openspec_completion_output.rc == 0
+
     - name: Link yarn with conflict resolution
       command: brew link --overwrite yarn
       when: "'yarn' in all_homebrew_packages"
@@ -726,6 +756,29 @@
         - name: Display OpenCode configuration status
           debug:
             msg: "✅ OpenCode configuration deployed successfully (Zen provider disabled for privacy compliance)"
+
+        - name: Ensure zsh site-functions directory exists
+          ansible.builtin.file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.local/share/zsh/site-functions"
+            state: directory
+            mode: "0755"
+          become: false
+
+        - name: Generate opencode zsh completions
+          ansible.builtin.command: opencode completion
+          register: opencode_completion_output
+          changed_when: false
+          become: false
+
+        - name: Write opencode completions to file
+          ansible.builtin.copy:
+            content: "{{ opencode_completion_output.stdout }}\n"
+            dest: "{{ ansible_facts['env']['HOME'] }}/.local/share/zsh/site-functions/_opencode"
+            mode: "0644"
+          become: false
+          when:
+            - opencode_completion_output is not skipped
+            - opencode_completion_output.rc == 0
 
   post_tasks:
     - name: Print installation complete message
