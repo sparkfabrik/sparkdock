@@ -291,6 +291,21 @@
         - all_npm_packages | length > 0
       become: false
 
+    - name: Generate openspec zsh completions
+      tags: npm_packages
+      shell: |
+        mkdir -p "${HOME}/.local/share/zsh/site-functions"
+        openspec completion generate zsh > "${HOME}/.local/share/zsh/site-functions/_openspec" 2>/dev/null || \
+          rm -f "${HOME}/.local/share/zsh/site-functions/_openspec"
+      args:
+        executable: /bin/zsh
+      become: false
+      changed_when: true
+      when:
+        - npm_available.stdout == "available"
+        - "'@fission-ai/openspec' in all_npm_packages"
+        - npm_check.rc == 0
+
     - name: Link yarn with conflict resolution
       command: brew link --overwrite yarn
       when: "'yarn' in all_homebrew_packages"
@@ -726,6 +741,16 @@
         - name: Display OpenCode configuration status
           debug:
             msg: "✅ OpenCode configuration deployed successfully (Zen provider disabled for privacy compliance)"
+
+        - name: Generate opencode zsh completions
+          shell: |
+            mkdir -p "${HOME}/.local/share/zsh/site-functions"
+            opencode completion > "${HOME}/.local/share/zsh/site-functions/_opencode" 2>/dev/null || \
+              rm -f "${HOME}/.local/share/zsh/site-functions/_opencode"
+          args:
+            executable: /bin/zsh
+          become: false
+          changed_when: true
 
   post_tasks:
     - name: Print installation complete message
