@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added opencode AI coding tool to default package list (now officially supported by Copilot)
 - Added OpenCode shell alias: `c` as a simple alias to `opencode` command
 - Added automated Slack notifications for significant feature releases merged to master branch (using Claude AI to analyze changelog and generate user-friendly announcements for #tech channel)
+- Regenerate opencode and openspec zsh completion files via Ansible on every install/upgrade to keep them up to date
 - Added Visual Studio Code Insiders to default package list for early access to new VSCode features
 - Added global OpenCode configuration to disable OpenCode Zen free models provider for privacy compliance
 
