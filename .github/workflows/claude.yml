@@ -54,7 +54,7 @@ jobs:
                   anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
                   track_progress: true
                   claude_args: |
-                      --max-turns 20
+                      --max-turns 30
                       --model claude-opus-4-6
                       --system-prompt "Follow Sparkdock project conventions from AGENTS.md and .github/copilot-instructions.md and .github/instructions/ directory."
                   settings: |
