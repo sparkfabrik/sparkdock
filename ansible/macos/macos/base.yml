@@ -755,7 +755,7 @@
 
         - name: Display OpenCode configuration status
           debug:
-            msg: "✅ OpenCode configuration deployed successfully (OpenCode provider disabled; dangerous commands are either blocked outright or require explicit user confirmation)"
+            msg: "✅ OpenCode configuration deployed successfully (OpenCode provider disabled; 175 permission rules — dangerous commands are blocked or require confirmation)"
 
         - name: Ensure zsh site-functions directory exists
           ansible.builtin.file:
