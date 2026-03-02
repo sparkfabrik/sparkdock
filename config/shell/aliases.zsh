@@ -103,6 +103,11 @@ if command_exists git; then
   alias gl='git log --oneline --graph --decorate'
 fi
 
+# glab (GitLab CLI) - disable telemetry
+if command_exists glab; then
+  export GLAB_SEND_TELEMETRY=false
+fi
+
 # Kubernetes shortcuts
 if command_exists kubectl; then
   alias k='kubectl'
