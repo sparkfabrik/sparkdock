@@ -725,7 +725,7 @@
 
         - name: Display OpenCode configuration status
           debug:
-            msg: "✅ OpenCode configuration deployed successfully (OpenCode provider disabled, dangerous commands require user confirmation)"
+            msg: "✅ OpenCode configuration deployed successfully (OpenCode provider disabled; dangerous commands are either blocked outright or require explicit user confirmation)"
 
   post_tasks:
     - name: Print installation complete message
