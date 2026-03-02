@@ -9,17 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added secure OpenCode permissions config with 337 glob-based deny/ask rules covering system commands, git, Docker, Kubernetes, Helm, Terraform, npm/yarn, cloud CLIs (gcloud, gsutil, aws, az), BigQuery, and macOS system utilities — with wildcard catch-all patterns for wrapped commands, requiring user confirmation or hard-blocking before execution of dangerous commands
+- Disabled glab telemetry by default via `GLAB_SEND_TELEMETRY=false` in shell configuration
+- Added gcloud shell aliases: `gcloud-as` (impersonate service account), `gcloud-me` (stop impersonating), `gcloud-whoami` (show current impersonation)
 - Added OpenSpec (@fission-ai/openspec) npm package to default package list for spec-driven development with AI coding assistants
 - Added opencode AI coding tool to default package list (now officially supported by Copilot)
 - Added OpenCode shell alias: `c` as a simple alias to `opencode` command
 - Added automated Slack notifications for significant feature releases merged to master branch (using Claude AI to analyze changelog and generate user-friendly announcements for #tech channel)
+- Regenerate opencode and openspec zsh completion files via Ansible on every install/upgrade to keep them up to date
 - Added Visual Studio Code Insiders to default package list for early access to new VSCode features
 - Added global OpenCode configuration to disable OpenCode Zen free models provider for privacy compliance
 
 ### Changed
+- Changed npm global package installation state from `present` to `latest` to ensure packages are always updated to their latest version
 - Changed `c` alias from `clear` to OpenCode main command. Use `clear` command directly or ctrl+l for clearing screen instead
 
 ### Fixed
+- Fixed `gcloud-whoami` not printing the current user when not impersonating a service account
 - Fixed Slack notification system to correctly identify new tool/package additions as significant features (improved prompt clarity to distinguish between dependency version bumps and new capabilities)
 - Fixed `NODE_EXTRA_CA_CERTS` path in copilot function to point to the correct keychain certificate bundle location (`${HOME}/.local/spark/copilot/keychain.pem`)
 - Fixed GitHub Copilot CLI idempotency issue where copilot binary was incorrectly removed on subsequent runs when cask was already installed

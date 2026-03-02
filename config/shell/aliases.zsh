@@ -103,6 +103,11 @@ if command_exists git; then
   alias gl='git log --oneline --graph --decorate'
 fi
 
+# glab (GitLab CLI) - disable telemetry
+if command_exists glab; then
+  export GLAB_SEND_TELEMETRY=false
+fi
+
 # Kubernetes shortcuts
 if command_exists kubectl; then
   alias k='kubectl'
@@ -122,6 +127,21 @@ fi
 
 if command_exists kubens; then
   alias kn='kubens'
+fi
+
+# Google Cloud shortcuts
+if command_exists gcloud; then
+  alias gcloud-as='gcloud config set auth/impersonate_service_account'
+  alias gcloud-me='gcloud config unset auth/impersonate_service_account'
+  gcloud-whoami() {
+    local impersonated
+    impersonated=$(gcloud config get auth/impersonate_service_account 2>/dev/null)
+    if [[ -n "${impersonated}" ]]; then
+      echo "${impersonated}"
+      return
+    fi
+    gcloud auth list --filter=status:ACTIVE --format="value(account)" 2>/dev/null
+  }
 fi
 
 # Add some copilot aliases.
