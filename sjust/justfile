@@ -25,5 +25,5 @@ import "/opt/sparkdock/sjust/recipes/03-shell.just"
 # this is optional and let the user to add custom tasks.
 import? "~/.config/sjust/100-custom.just"
 
-# this is a space for sparkdock external managed tasks (such as mdm).
+# This is a space for Sparkdock externally managed tasks (such as MDM).
 import? "~/.local/spark/sparkdock/sjust/000-system.just"
