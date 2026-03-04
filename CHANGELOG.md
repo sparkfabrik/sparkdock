@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added secure OpenCode permissions config with 175 glob-based deny/ask rules covering system commands, git, Docker, Kubernetes, Helm, Terraform, npm/yarn, cloud CLIs (gcloud, gsutil, aws, az), BigQuery, and macOS system utilities — with wildcard catch-all patterns (`*command*`, `vendor * delete*`) for wrapped and future commands, requiring user confirmation or hard-blocking before execution of dangerous commands- Added optional import of `~/.local/spark/sparkdock/sjust/000-system.just` to allow Sparkdock externally managed tasks (such as MDM) to be included in SparkJust
+- Added secure OpenCode permissions config with 174 glob-based deny/ask rules (116 ask + 58 deny) covering system commands, git, Docker, Kubernetes, Helm, Terraform, npm/yarn, cloud CLIs (gcloud, gsutil, aws, az), BigQuery, and macOS system utilities — with wildcard catch-all patterns (`*command*`, `vendor * delete*`) for wrapped and future commands, requiring user confirmation or hard-blocking before execution of dangerous commands- Added optional import of `~/.local/spark/sparkdock/sjust/000-system.just` to allow Sparkdock externally managed tasks (such as MDM) to be included in SparkJust
 - Disabled glab telemetry by default via `GLAB_SEND_TELEMETRY=false` in shell configuration
 - Added gcloud shell aliases: `gcloud-as` (impersonate service account), `gcloud-me` (stop impersonating), `gcloud-whoami` (show current impersonation)
 - Added OpenSpec (@fission-ai/openspec) npm package to default package list for spec-driven development with AI coding assistants
