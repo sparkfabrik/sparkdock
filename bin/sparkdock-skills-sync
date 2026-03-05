@@ -1,0 +1,291 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# sparkdock-skills-sync — Sync SparkFabrik system agent skills to ~/.agents/skills/
+# Usage: sparkdock-skills-sync [--force]
+
+SCRIPT_NAME="$(basename "$0")"
+UPSTREAM_REPO="https://github.com/sparkfabrik/sf-awesome-copilot.git"
+CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
+SKILLS_TARGET_DIR="${HOME}/.agents/skills"
+MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
+SYSTEM_SKILLS_SUBDIR="system"
+FORCE=false
+
+# Counters for summary
+SKILLS_ADDED=0
+SKILLS_UPDATED=0
+SKILLS_SKIPPED=0
+SKILLS_UNCHANGED=0
+
+# Colors and formatting
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[0;33m'
+BLUE='\033[0;34m'
+BOLD='\033[1m'
+NC='\033[0m'
+
+print_info() {
+    printf "${BOLD}${BLUE}[INFO]${NC} %s\n" "$1"
+}
+
+print_success() {
+    printf "${BOLD}${GREEN}[ OK ]${NC} %s\n" "$1"
+}
+
+print_warning() {
+    printf "${BOLD}${YELLOW}[WARN]${NC} %s\n" "$1"
+}
+
+print_error() {
+    printf "${BOLD}${RED}[FAIL]${NC} %s\n" "$1"
+}
+
+# Compute SHA256 of a file (portable across macOS/Linux)
+compute_sha256() {
+    local file_path="$1"
+    if command -v shasum &>/dev/null; then
+        shasum -a 256 "${file_path}" | cut -d' ' -f1
+    elif command -v sha256sum &>/dev/null; then
+        sha256sum "${file_path}" | cut -d' ' -f1
+    else
+        print_error "No SHA256 tool found (need shasum or sha256sum)"
+        exit 1
+    fi
+}
+
+# Read a value from the manifest JSON (minimal jq-free parser)
+manifest_get_sha() {
+    local skill_name="$1"
+    if [ ! -f "${MANIFEST_PATH}" ]; then
+        echo ""
+        return
+    fi
+    # Use python3 for reliable JSON parsing
+    python3 -c "
+import json, sys
+try:
+    with open('${MANIFEST_PATH}') as f:
+        data = json.load(f)
+    print(data.get('skills', {}).get('${skill_name}', {}).get('sha256', ''))
+except:
+    print('')
+" 2>/dev/null || echo ""
+}
+
+# Update or create manifest entry for a skill
+manifest_set() {
+    local skill_name="$1"
+    local sha256="$2"
+    local source_commit="$3"
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    python3 -c "
+import json, os
+
+manifest_path = '${MANIFEST_PATH}'
+skill_name = '${skill_name}'
+
+# Load existing or create new
+if os.path.exists(manifest_path):
+    with open(manifest_path) as f:
+        data = json.load(f)
+else:
+    data = {'version': 1, 'skills': {}}
+
+# Update entry
+data['skills'][skill_name] = {
+    'sha256': '${sha256}',
+    'installed_at': '${timestamp}',
+    'source_commit': '${source_commit}'
+}
+
+# Write back
+os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
+with open(manifest_path, 'w') as f:
+    json.dump(data, f, indent=2)
+    f.write('\n')
+"
+}
+
+# Clone or update the upstream repository
+sync_repo() {
+    if [ -d "${CACHE_DIR}/.git" ]; then
+        print_info "Updating cached skills repository..."
+        cd "${CACHE_DIR}"
+        git fetch origin -q
+        local default_branch
+        default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
+        git reset --hard "origin/${default_branch}" -q
+    else
+        print_info "Cloning skills repository..."
+        mkdir -p "$(dirname "${CACHE_DIR}")"
+        git clone "${UPSTREAM_REPO}" "${CACHE_DIR}" -q
+    fi
+}
+
+# Get the current source commit hash
+get_source_commit() {
+    cd "${CACHE_DIR}"
+    git rev-parse --short HEAD
+}
+
+# Sync a single skill from cache to target
+sync_skill() {
+    local skill_name="$1"
+    local source_dir="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}"
+    local target_dir="${SKILLS_TARGET_DIR}/${skill_name}"
+    local source_skill_md="${source_dir}/SKILL.md"
+    local target_skill_md="${target_dir}/SKILL.md"
+    local source_commit
+    source_commit="$(get_source_commit)"
+
+    # Compute SHA of the source SKILL.md
+    local source_sha
+    source_sha="$(compute_sha256 "${source_skill_md}")"
+
+    # New skill — doesn't exist in target yet
+    if [ ! -d "${target_dir}" ]; then
+        mkdir -p "${target_dir}"
+        cp -R "${source_dir}/"* "${target_dir}/"
+        manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
+        SKILLS_ADDED=$((SKILLS_ADDED + 1))
+        print_success "Added: ${skill_name}"
+        return
+    fi
+
+    # Existing skill — check for conflicts
+    if [ -f "${target_skill_md}" ]; then
+        local installed_sha
+        installed_sha="$(compute_sha256 "${target_skill_md}")"
+        local manifest_sha
+        manifest_sha="$(manifest_get_sha "${skill_name}")"
+
+        # If source matches installed, nothing to do
+        if [ "${source_sha}" = "${installed_sha}" ]; then
+            SKILLS_UNCHANGED=$((SKILLS_UNCHANGED + 1))
+            return
+        fi
+
+        # If manifest SHA matches installed SHA, safe to update (user hasn't modified)
+        if [ -n "${manifest_sha}" ] && [ "${manifest_sha}" = "${installed_sha}" ]; then
+            cp -R "${source_dir}/"* "${target_dir}/"
+            manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
+            SKILLS_UPDATED=$((SKILLS_UPDATED + 1))
+            print_success "Updated: ${skill_name}"
+            return
+        fi
+
+        # Conflict: user has modified the skill
+        if [ "${FORCE}" = true ]; then
+            cp -R "${source_dir}/"* "${target_dir}/"
+            manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
+            SKILLS_UPDATED=$((SKILLS_UPDATED + 1))
+            print_info "Force-updated: ${skill_name} (local modifications overwritten)"
+            return
+        else
+            SKILLS_SKIPPED=$((SKILLS_SKIPPED + 1))
+            print_warning "Skipped: ${skill_name} (locally modified — use --force to overwrite)"
+            return
+        fi
+    fi
+
+    # Target directory exists but no SKILL.md — treat as new
+    cp -R "${source_dir}/"* "${target_dir}/"
+    manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
+    SKILLS_ADDED=$((SKILLS_ADDED + 1))
+    print_success "Added: ${skill_name}"
+}
+
+# Print summary of actions taken
+print_summary() {
+    echo ""
+    printf '%b=== Skills Sync Summary ===%b\n' "${BOLD}" "${NC}"
+    local total=$((SKILLS_ADDED + SKILLS_UPDATED + SKILLS_SKIPPED + SKILLS_UNCHANGED))
+    echo "  Total skills processed: ${total}"
+    [ "${SKILLS_ADDED}" -gt 0 ] && printf '  %bAdded:%b     %s\n' "${GREEN}" "${NC}" "${SKILLS_ADDED}"
+    [ "${SKILLS_UPDATED}" -gt 0 ] && printf '  %bUpdated:%b   %s\n' "${GREEN}" "${NC}" "${SKILLS_UPDATED}"
+    [ "${SKILLS_SKIPPED}" -gt 0 ] && printf '  %bSkipped:%b   %s\n' "${YELLOW}" "${NC}" "${SKILLS_SKIPPED}"
+    [ "${SKILLS_UNCHANGED}" -gt 0 ] && printf '  Unchanged: %s\n' "${SKILLS_UNCHANGED}"
+    if [ "${SKILLS_SKIPPED}" -gt 0 ]; then
+        echo ""
+        print_info "Some skills were skipped due to local modifications."
+        print_info "Run '${SCRIPT_NAME} --force' to overwrite them."
+    fi
+}
+
+usage() {
+    echo "Usage: ${SCRIPT_NAME} [--force]"
+    echo ""
+    echo "Sync SparkFabrik system agent skills to ~/.agents/skills/"
+    echo ""
+    echo "Options:"
+    echo "  --force    Overwrite locally modified managed skills"
+    echo "  -h, --help Show this help message"
+}
+
+main() {
+    # Parse arguments
+    while [ $# -gt 0 ]; do
+        case "$1" in
+            --force)
+                FORCE=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option '$1'"
+                usage
+                exit 2
+                ;;
+        esac
+    done
+
+    print_info "Syncing SparkFabrik agent skills..."
+
+    # Clone or update the repo
+    sync_repo
+
+    # Check for system/ directory
+    local system_dir="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}"
+    if [ ! -d "${system_dir}" ]; then
+        print_warning "No '${SYSTEM_SKILLS_SUBDIR}/' directory found in upstream repo."
+        print_warning "Skills sync skipped. The upstream repo may need to be reorganized."
+        exit 0
+    fi
+
+    # Ensure target directory exists
+    mkdir -p "${SKILLS_TARGET_DIR}"
+
+    # Iterate over system skills
+    local found_skills=false
+    for skill_dir in "${system_dir}"/*/; do
+        # Skip if no directories match the glob
+        [ -d "${skill_dir}" ] || continue
+
+        local skill_name
+        skill_name="$(basename "${skill_dir}")"
+
+        # Only sync skills that have SKILL.md
+        if [ ! -f "${skill_dir}/SKILL.md" ]; then
+            continue
+        fi
+
+        found_skills=true
+        sync_skill "${skill_name}"
+    done
+
+    if [ "${found_skills}" = false ]; then
+        print_warning "No valid skills found in '${SYSTEM_SKILLS_SUBDIR}/' directory."
+    fi
+
+    print_summary
+}
+
+main "$@"

@@ -780,6 +780,75 @@
             - opencode_completion_output is not skipped
             - opencode_completion_output.rc == 0
 
+    - name: Sync agent skills from upstream repository
+      tags: skills
+      block:
+        - name: Ensure agent skills cache directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.cache/sparkdock"
+            state: directory
+            mode: "0755"
+          become: no
+
+        - name: Clone or update sf-awesome-copilot repository
+          git:
+            repo: https://github.com/sparkfabrik/sf-awesome-copilot.git
+            dest: "{{ ansible_facts['env']['HOME'] }}/.cache/sparkdock/agent-skills"
+            version: main
+            force: yes
+            update: yes
+          become: no
+
+        - name: Ensure agent skills target directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.agents/skills"
+            state: directory
+            mode: "0755"
+          become: no
+
+        - name: Make sparkdock-skills-sync executable
+          file:
+            path: "{{ dev_env_dir }}/bin/sparkdock-skills-sync"
+            mode: "0755"
+          become: yes
+          become_method: sudo
+
+        - name: Make sparkdock-check-updates executable
+          file:
+            path: "{{ dev_env_dir }}/bin/sparkdock-check-updates"
+            mode: "0755"
+          become: yes
+          become_method: sudo
+
+        - name: Create sparkdock-check-updates symlink
+          file:
+            src: "{{ dev_env_dir }}/bin/sparkdock-check-updates"
+            dest: /usr/local/bin/sparkdock-check-updates
+            state: link
+            force: yes
+          become: yes
+          become_method: sudo
+
+        - name: Create sparkdock-skills-sync symlink
+          file:
+            src: "{{ dev_env_dir }}/bin/sparkdock-skills-sync"
+            dest: /usr/local/bin/sparkdock-skills-sync
+            state: link
+            force: yes
+          become: yes
+          become_method: sudo
+
+        - name: Run agent skills sync
+          command: "{{ dev_env_dir }}/bin/sparkdock-skills-sync"
+          become: no
+          register: skills_sync_output
+          changed_when: "'Added:' in skills_sync_output.stdout or 'Updated:' in skills_sync_output.stdout"
+
+        - name: Show skills sync output
+          debug:
+            msg: "{{ skills_sync_output.stdout_lines }}"
+          when: skills_sync_output.stdout_lines | length > 0
+
   post_tasks:
     - name: Print installation complete message
       debug:
