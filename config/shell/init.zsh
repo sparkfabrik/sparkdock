@@ -15,8 +15,8 @@ HOMEBREW_PREFIX="/opt/homebrew"
 : "${SPARKDOCK_ENABLE_FZF:=1}"       # Enabled by default
 : "${SPARKDOCK_ENABLE_ATUIN:=0}"     # Disabled by default
 
-# Add local zsh functions directory to fpath.
-if [[ -d ~/.local/share/zsh/site-functions ]]; then
+# Add local zsh functions directory to fpath (skip if already present).
+if [[ -d ~/.local/share/zsh/site-functions ]] && (( ! ${fpath[(Ie)${HOME}/.local/share/zsh/site-functions]} )); then
   fpath+=~/.local/share/zsh/site-functions
 fi
 
