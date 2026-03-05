@@ -6,9 +6,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
-# Source shared logging library
-# shellcheck source=common/logging.sh
-source "${SCRIPT_DIR}/common/logging.sh"
+# Source shared utility library (provides logging + compute_sha256)
+# shellcheck source=common/utils.sh
+source "${SCRIPT_DIR}/common/utils.sh"
 
 SKILLS_DIR="${HOME}/.agents/skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"

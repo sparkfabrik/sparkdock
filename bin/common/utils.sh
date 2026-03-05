@@ -18,6 +18,20 @@ print_section() { log_section "$1"; }
 # Deprecate old print function but keep for compatibility
 print() { log_info "$1"; }
 
+# Compute SHA256 of a file (portable across macOS/Linux)
+# Returns: hash on stdout, exit 1 on failure
+compute_sha256() {
+    local file_path="$1"
+    if command -v shasum &>/dev/null; then
+        shasum -a 256 "${file_path}" | cut -d' ' -f1
+    elif command -v sha256sum &>/dev/null; then
+        sha256sum "${file_path}" | cut -d' ' -f1
+    else
+        log_error "No SHA256 tool found (need shasum or sha256sum)"
+        return 1
+    fi
+}
+
 checkMacosVersion() {
     if ! [[ $( sw_vers -productVersion ) =~ ^(26.[0-9]+|15.[0-9]+) ]] ; then
         print_error "Sorry, this script is supposed to be executed on macOS Sequoia (15.x) or macOS Tahoe (26.x). Please use a supported version."

@@ -79,22 +79,6 @@ log_section() {
     fi
 }
 
-# --- Utility functions ---
-
-# Compute SHA256 of a file (portable across macOS/Linux)
-# Returns: hash on stdout, exit 1 on failure
-compute_sha256() {
-    local file_path="$1"
-    if command -v shasum &>/dev/null; then
-        shasum -a 256 "${file_path}" | cut -d' ' -f1
-    elif command -v sha256sum &>/dev/null; then
-        sha256sum "${file_path}" | cut -d' ' -f1
-    else
-        log_error "No SHA256 tool found (need shasum or sha256sum)"
-        return 1
-    fi
-}
-
 # --- Higher-level helpers ---
 
 # Run a command with a gum spinner (falls back to plain log + execution)
