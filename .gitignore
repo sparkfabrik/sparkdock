@@ -3,3 +3,7 @@
 http-proxy
 .build
 .claude/settings.local.json
+
+# OpenSpec - exclude specs and changes (may contain private content)
+openspec/specs/
+openspec/changes/
