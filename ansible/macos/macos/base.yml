@@ -780,6 +780,48 @@
             - opencode_completion_output is not skipped
             - opencode_completion_output.rc == 0
 
+    - name: Sync agent skills from upstream repository
+      tags: skills
+      block:
+        - name: Ensure agent skills cache directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.cache/sparkdock"
+            state: directory
+            mode: "0755"
+          become: no
+
+        - name: Make sparkdock-skills-sync executable
+          file:
+            path: "{{ dev_env_dir }}/bin/sparkdock-skills-sync"
+            mode: "0755"
+          become: yes
+          become_method: sudo
+
+        - name: Make sparkdock-skills-status executable
+          file:
+            path: "{{ dev_env_dir }}/bin/sparkdock-skills-status"
+            mode: "0755"
+          become: yes
+          become_method: sudo
+
+        - name: Make sparkdock-check-updates executable
+          file:
+            path: "{{ dev_env_dir }}/bin/sparkdock-check-updates"
+            mode: "0755"
+          become: yes
+          become_method: sudo
+
+        - name: Run agent skills sync
+          command: "{{ dev_env_dir }}/bin/sparkdock-skills-sync"
+          become: no
+          register: skills_sync_output
+          changed_when: "'Added:' in skills_sync_output.stdout or 'Updated:' in skills_sync_output.stdout"
+
+        - name: Show skills sync output
+          debug:
+            msg: "{{ skills_sync_output.stdout_lines }}"
+          when: skills_sync_output.stdout_lines | length > 0
+
   post_tasks:
     - name: Print installation complete message
       debug:

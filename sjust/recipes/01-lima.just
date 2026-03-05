@@ -15,15 +15,15 @@ lima-quick-setup cpus=lima_default_cpus memory=lima_default_memory disk=lima_def
         echo "❌ A Lima VM named '{{ lima_default_name }}' already exists. Please remove it first with 'sjust lima-destroy'."
         exit 1
     fi
-    echo "🚀 Lima VM Quick Setup (experimental)"
-    echo "====================================="
+    source "/opt/sparkdock/bin/common/logging.sh"
+    log_section "🚀 Lima VM Quick Setup (experimental)"
     echo ""
-    
+
     # Display Lima version
     echo "🔧 Lima version:"
     echo "   • $(limactl --version)"
     echo ""
-    
+
     echo "📋 VM Configuration (auto detected):"
     echo "   • Name: {{ lima_default_name }}"
     echo "   • CPUs: {{ cpus }} (all available processors)"

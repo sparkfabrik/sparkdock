@@ -33,50 +33,14 @@ cleanup_lock() {
 # Set up trap at the start to catch all exits and interruptions
 trap cleanup_lock EXIT INT TERM
 
+# Update check functions delegate to sparkdock-check-updates script.
+# These wrappers are DEPRECATED — use sparkdock-check-updates <subsystem> directly.
 check_for_updates() {
-    cd "$SPARKDOCK_ROOT"
-    # Only check for updates if we're running from installed location
-    if [ "$SPARKDOCK_ROOT" != "/opt/sparkdock" ]; then
-        return 1
-    fi
-
-    git fetch origin ${DEFAULT_BRANCH} -q
-    LOCAL=$(git rev-parse HEAD)
-    REMOTE=$(git rev-parse origin/${DEFAULT_BRANCH})
-
-    if [ "$LOCAL" != "$REMOTE" ]; then
-        echo "Updates available:"
-        git --no-pager log --oneline HEAD..origin/${DEFAULT_BRANCH}
-        return 0
-    fi
-    return 1
+    "${BASE_DIR}/sparkdock-check-updates" sparkdock
 }
 
 check_http_proxy_updates() {
-    HTTP_PROXY_DIR="/opt/sparkdock/http-proxy"
-
-    # Check if http-proxy directory exists
-    if [ ! -d "${HTTP_PROXY_DIR}" ]; then
-        return 1
-    fi
-
-    cd "${HTTP_PROXY_DIR}"
-
-    # Ensure it's a git repository
-    if [ ! -d ".git" ]; then
-        return 1
-    fi
-
-    git fetch origin main -q
-    LOCAL=$(git rev-parse HEAD)
-    REMOTE=$(git rev-parse origin/main)
-
-    if [ "$LOCAL" != "$REMOTE" ]; then
-        echo "Http-proxy updates available:"
-        git --no-pager log --oneline HEAD..origin/main
-        return 0
-    fi
-    return 1
+    "${BASE_DIR}/sparkdock-check-updates" http-proxy
 }
 
 # Add update lock to prevent parallel updates

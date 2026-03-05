@@ -1,0 +1,167 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# sparkdock-check-updates — Dispatcher for update checks across sparkdock subsystems.
+# Usage: sparkdock-check-updates <sparkdock|http-proxy|skills>
+# Exit codes: 0 = updates available, 1 = no updates available, 2 = error/usage, 3 = not configured
+
+SCRIPT_NAME="$(basename "$0")"
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+DEFAULT_BRANCH="${DEFAULT_BRANCH:-master}"
+
+# Determine sparkdock root directory
+get_root_dir() {
+    if [[ -d "/opt/sparkdock" ]] && [[ "${SCRIPT_DIR}" == "/opt/sparkdock/"* ]]; then
+        echo "/opt/sparkdock"
+    else
+        echo "${SCRIPT_DIR}/.."
+    fi
+}
+
+SPARKDOCK_ROOT="$(get_root_dir)"
+
+# Check for sparkdock updates (compares local HEAD vs origin)
+# Uses subshell to isolate cd
+check_sparkdock_updates() (
+    set -euo pipefail
+    local sparkdock_dir="${SPARKDOCK_ROOT}"
+
+    if [[ "${sparkdock_dir}" != "/opt/sparkdock" ]]; then
+        return 1
+    fi
+
+    cd "${sparkdock_dir}"
+    git fetch origin "${DEFAULT_BRANCH}" -q
+    local local_rev remote_rev
+    local_rev=$(git rev-parse HEAD)
+    remote_rev=$(git rev-parse "origin/${DEFAULT_BRANCH}")
+
+    if [[ "${local_rev}" != "${remote_rev}" ]]; then
+        echo "Updates available:"
+        git --no-pager log --oneline "HEAD..origin/${DEFAULT_BRANCH}"
+        return 0
+    fi
+    return 1
+)
+
+# Check for http-proxy updates
+# Uses subshell to isolate cd
+check_http_proxy_updates() (
+    set -euo pipefail
+    local http_proxy_dir="/opt/sparkdock/http-proxy"
+
+    if [[ ! -d "${http_proxy_dir}" ]]; then
+        return 1
+    fi
+
+    cd "${http_proxy_dir}"
+
+    if [[ ! -d ".git" ]]; then
+        return 1
+    fi
+
+    git fetch origin main -q
+    local local_rev remote_rev
+    local_rev=$(git rev-parse HEAD)
+    remote_rev=$(git rev-parse origin/main)
+
+    if [[ "${local_rev}" != "${remote_rev}" ]]; then
+        echo "Http-proxy updates available:"
+        git --no-pager log --oneline HEAD..origin/main
+        return 0
+    fi
+    return 1
+)
+
+# Check for agent skills updates
+# Uses subshell to isolate cd
+check_skills_updates() (
+    set -euo pipefail
+    local skills_cache_dir="${HOME}/.cache/sparkdock/agent-skills"
+
+    # If cache doesn't exist, skills haven't been synced yet
+    if [[ ! -d "${skills_cache_dir}" ]]; then
+        return 3
+    fi
+
+    cd "${skills_cache_dir}"
+
+    if [[ ! -d ".git" ]]; then
+        return 3
+    fi
+
+    git fetch origin -q 2>/dev/null || return 1
+
+    local default_branch_name
+    default_branch_name=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
+
+    local local_rev remote_rev
+    local_rev=$(git rev-parse HEAD)
+    remote_rev=$(git rev-parse "origin/${default_branch_name}" 2>/dev/null || echo "")
+
+    if [[ -z "${remote_rev}" ]]; then
+        return 1
+    fi
+
+    if [[ "${local_rev}" != "${remote_rev}" ]]; then
+        echo "Agent skills updates available"
+        return 0
+    fi
+    return 1
+)
+
+# Usage message
+usage() {
+    echo "Usage: ${SCRIPT_NAME} <subsystem>"
+    echo ""
+    echo "Check for updates in a sparkdock subsystem."
+    echo ""
+    echo "Subsystems:"
+    echo "  sparkdock    Check for sparkdock core updates"
+    echo "  http-proxy   Check for http-proxy updates"
+    echo "  skills       Check for agent skills updates"
+    echo ""
+    echo "Exit codes:"
+    echo "  0  Updates available"
+    echo "  1  No updates available"
+    echo "  2  Usage error"
+    echo "  3  Not configured (subsystem not set up yet)"
+}
+
+# Main dispatcher
+main() {
+    if [[ $# -lt 1 ]]; then
+        usage
+        exit 2
+    fi
+
+    local subsystem="$1"
+    local rc=0
+
+    case "${subsystem}" in
+        sparkdock)
+            check_sparkdock_updates || rc=$?
+            ;;
+        http-proxy)
+            check_http_proxy_updates || rc=$?
+            ;;
+        skills)
+            check_skills_updates || rc=$?
+            ;;
+        -h|--help)
+            usage
+            exit 0
+            ;;
+        *)
+            echo "Error: Unknown subsystem '${subsystem}'"
+            echo ""
+            usage
+            exit 2
+            ;;
+    esac
+
+    exit "${rc}"
+}
+
+main "$@"

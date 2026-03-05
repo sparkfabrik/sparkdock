@@ -9,6 +9,7 @@ import Network
 // MARK: - Configuration Constants
 private struct AppConstants {
     static let sparkdockExecutablePath = "/opt/sparkdock/bin/sparkdock.macos"
+    static let checkUpdatesExecutablePath = "/opt/sparkdock/bin/sparkdock-check-updates"
     static let logoResourceName = "sparkfabrik-logo"
     static let menuConfigResourceName = "menu"
     static let iconSize = NSSize(width: 18, height: 18)
@@ -50,6 +51,7 @@ private enum MenuItemTag: Int {
     case loginItem = 2
     case upgradeBrew = 3
     case upgradeHttpProxy = 4
+    case upgradeSkills = 5
 }
 
 // MARK: - Brew Package Types
@@ -102,6 +104,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var menu: NSMenu?
     var hasUpdates = false
     var hasHttpProxyUpdates = false
+    var hasSkillsUpdates = false
+    var skillsLastStatus: Int32? = nil
     var outdatedBrewFormulaeCount = 0
     var outdatedBrewCasksCount = 0
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
@@ -109,9 +113,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var sparkdockStatusMenuItem: NSMenuItem?
     var brewStatusMenuItem: NSMenuItem?
     var httpProxyStatusMenuItem: NSMenuItem?
+    var skillsStatusMenuItem: NSMenuItem?
     var updateNowMenuItem: NSMenuItem?
     var upgradeBrewMenuItem: NSMenuItem?
     var upgradeHttpProxyMenuItem: NSMenuItem?
+    var upgradeSkillsMenuItem: NSMenuItem?
     private var pathMonitor: NWPathMonitor?
     fileprivate var menuConfig: MenuConfig?
     // Cache icons to avoid recreating them
@@ -168,6 +174,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
+        skillsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -240,6 +247,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(httpProxyStatusItem)
         self.httpProxyStatusMenuItem = httpProxyStatusItem
 
+        let skillsStatusItem = NSMenuItem(title: "Checking for updates (Agent Skills)...", action: #selector(checkSkillsUpdatesAction), keyEquivalent: "")
+        skillsStatusItem.target = self
+        menu.addItem(skillsStatusItem)
+        self.skillsStatusMenuItem = skillsStatusItem
+
         menu.addItem(.separator())
 
         let updateItem = NSMenuItem(title: "", action: #selector(updateNow), keyEquivalent: "")
@@ -268,6 +280,15 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         ])
         menu.addItem(upgradeHttpProxyItem)
         upgradeHttpProxyMenuItem = upgradeHttpProxyItem
+
+        let upgradeSkillsItem = NSMenuItem(title: "", action: #selector(upgradeSkills), keyEquivalent: "")
+        upgradeSkillsItem.target = self
+        upgradeSkillsItem.tag = MenuItemTag.upgradeSkills.rawValue
+        upgradeSkillsItem.attributedTitle = NSAttributedString(string: "Refresh Agent Skills", attributes: [
+            .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
+        ])
+        menu.addItem(upgradeSkillsItem)
+        upgradeSkillsMenuItem = upgradeSkillsItem
 
         menu.addItem(.separator())
 
@@ -365,6 +386,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                     self?.sparkdockStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
                     self?.brewStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
                     self?.httpProxyStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
+                    self?.skillsStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
                     self?.checkForUpdates()
                 }
             }
@@ -384,6 +406,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
+        skillsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -391,6 +414,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
+        skillsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -409,13 +433,20 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         checkForUpdates()
     }
 
+    @objc private func checkSkillsUpdatesAction() {
+        skillsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        checkForUpdates()
+    }
+
     private func checkForUpdates() {
         Task(priority: .background) {
             let hasUpdates = await runSparkdockCheck()
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
             let hasHttpProxyUpdates = await runHttpProxyCheck()
+            let hasSkillsUpdates = await runSkillsCheck()
+            let skillsConfigured = isSkillsConfigured()
             await MainActor.run {
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates)
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasSkillsUpdates: hasSkillsUpdates, skillsConfigured: skillsConfigured)
             }
         }
     }
@@ -463,46 +494,45 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.standardError = Pipe()
 
         var terminationStatus: Int32 = -1
-        do {
-            try process.run()
+        let finished: Bool = await withTaskCancellationHandler(
+            operation: {
+                do {
+                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
+                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+                            process.terminationHandler = { proc in
+                                continuation.resume(returning: proc.terminationStatus)
+                            }
 
-            let finished: Bool = await withTaskCancellationHandler(
-                operation: {
-                    do {
-                        terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                            await withCheckedContinuation { continuation in
-                                process.terminationHandler = { proc in
-                                    continuation.resume(returning: proc.terminationStatus)
-                                }
+                            do {
+                                try process.run()
+                            } catch {
+                                continuation.resume(throwing: error)
                             }
                         }
-                        return true
-                    } catch {
-                        return false
                     }
-                },
-                onCancel: {
-                    process.terminate()
+                    return true
+                } catch {
+                    return false
                 }
-            )
-
-            if !finished {
-                AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.processTimeout) seconds")
-                return 0
+            },
+            onCancel: {
+                process.terminate()
             }
+        )
 
-            if terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
-                let count = Int(output) ?? 0
-                AppConstants.logger.info("Found \(count) outdated \(type.description)")
-                return count
-            } else {
-                AppConstants.logger.warning("Brew outdated check (\(type.description)) failed with exit code \(terminationStatus)")
-                return 0
-            }
-        } catch {
-            AppConstants.logger.error("Failed to run brew outdated check (\(type.description)): \(error.localizedDescription)")
+        if !finished {
+            AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.processTimeout) seconds")
+            return 0
+        }
+
+        if terminationStatus == 0 {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
+            let count = Int(output) ?? 0
+            AppConstants.logger.info("Found \(count) outdated \(type.description)")
+            return count
+        } else {
+            AppConstants.logger.warning("Brew outdated check (\(type.description)) failed with exit code \(terminationStatus)")
             return 0
         }
     }
@@ -518,40 +548,39 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.arguments = [command]
 
         var terminationStatus: Int32 = -1
-        do {
-            try process.run()
+        // Await process termination with timeout
+        let finished: Bool = await withTaskCancellationHandler(
+            operation: {
+                do {
+                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
+                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+                            process.terminationHandler = { proc in
+                                continuation.resume(returning: proc.terminationStatus)
+                            }
 
-            // Await process termination with timeout
-            let finished: Bool = await withTaskCancellationHandler(
-                operation: {
-                    do {
-                        terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                            await withCheckedContinuation { continuation in
-                                process.terminationHandler = { proc in
-                                    continuation.resume(returning: proc.terminationStatus)
-                                }
+                            do {
+                                try process.run()
+                            } catch {
+                                continuation.resume(throwing: error)
                             }
                         }
-                        return true
-                    } catch {
-                        return false
                     }
-                },
-                onCancel: {
-                    // If cancelled, terminate the process
-                    process.terminate()
+                    return true
+                } catch {
+                    return false
                 }
-            )
-            if !finished {
-                AppConstants.logger.error("Sparkdock command '\(command)' process timed out after \(AppConstants.processTimeout) seconds")
-                return false
+            },
+            onCancel: {
+                // If cancelled, terminate the process
+                process.terminate()
             }
-
-            return terminationStatus == 0
-        } catch {
-            AppConstants.logger.error("Failed to run sparkdock command '\(command)': \(error.localizedDescription)")
+        )
+        if !finished {
+            AppConstants.logger.error("Sparkdock command '\(command)' process timed out after \(AppConstants.processTimeout) seconds")
             return false
         }
+
+        return terminationStatus == 0
     }
 
     private func runSparkdockCheck() async -> Bool {
@@ -562,14 +591,95 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return await runSparkdockCommand("http-proxy-check-updates")
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false) {
+    private func runCheckUpdatesCommand(_ subsystem: String) async -> Bool {
+        let status = await runCheckUpdatesCommandStatus(subsystem)
+        return status == 0
+    }
+
+    /// Returns the termination status of sparkdock-check-updates, or nil on error/timeout.
+    /// Exit codes: 0 = updates available, 1 = no updates, 3 = not configured
+    private func runCheckUpdatesCommandStatus(_ subsystem: String) async -> Int32? {
+        let checkUpdatesPath = AppConstants.checkUpdatesExecutablePath
+        guard FileManager.default.fileExists(atPath: checkUpdatesPath) else {
+            AppConstants.logger.warning("sparkdock-check-updates not found at \(checkUpdatesPath)")
+            return nil
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: checkUpdatesPath)
+        process.arguments = [subsystem]
+
+        var terminationStatus: Int32 = -1
+        let finished: Bool = await withTaskCancellationHandler(
+            operation: {
+                do {
+                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
+                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+                            process.terminationHandler = { proc in
+                                continuation.resume(returning: proc.terminationStatus)
+                            }
+
+                            do {
+                                try process.run()
+                            } catch {
+                                continuation.resume(throwing: error)
+                            }
+                        }
+                    }
+                    return true
+                } catch {
+                    return false
+                }
+            },
+            onCancel: {
+                process.terminate()
+            }
+        )
+        if !finished {
+            AppConstants.logger.error("sparkdock-check-updates '\(subsystem)' timed out after \(AppConstants.processTimeout) seconds")
+            return nil
+        }
+
+        return terminationStatus
+    }
+
+    private func runSkillsCheck() async -> Bool {
+        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
+            AppConstants.logger.info("sparkdock-check-updates not found, skills check skipped")
+            skillsLastStatus = nil
+            return false
+        }
+        let status = await runCheckUpdatesCommandStatus("skills")
+        skillsLastStatus = status
+        // Exit code 3 = not configured (cache not synced yet)
+        if status == 3 {
+            return false
+        }
+        return status == 0
+    }
+
+    /// Skills are considered configured when script exists AND last check returned a known good status.
+    /// Returns false for: missing script, nil (error/timeout), or exit 3 (not configured).
+    private func isSkillsConfigured() -> Bool {
+        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
+            return false
+        }
+        guard let status = skillsLastStatus else {
+            // Unknown/failed status — treat as not configured to avoid misleading green UI
+            return false
+        }
+        return status != 3
+    }
+
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasSkillsUpdates: Bool = false, skillsConfigured: Bool = true) {
         self.hasUpdates = hasUpdates
         self.hasHttpProxyUpdates = hasHttpProxyUpdates
+        self.hasSkillsUpdates = hasSkillsUpdates
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
         self.outdatedBrewCasksCount = outdatedBrewCasks
         let totalBrewCount = totalOutdatedBrewCount
 
-        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates
+        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates || hasSkillsUpdates
         statusItem?.button?.image = loadIcon(hasUpdates: hasAnyUpdates)
 
         // Create more detailed tooltip
@@ -579,6 +689,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
         if hasHttpProxyUpdates {
             tooltipParts.append("Http-proxy updates available")
+        }
+        if hasSkillsUpdates {
+            tooltipParts.append("Agent Skills updates available")
         }
         if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
             tooltipParts.append("\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks outdated")
@@ -618,6 +731,15 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Http-proxy is up to date", color: .systemGreen)
         }
 
+        // Update Agent Skills status line
+        if !skillsConfigured {
+            skillsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills: not configured", color: .systemGray)
+        } else if hasSkillsUpdates {
+            skillsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills updates available", color: .systemOrange)
+        } else {
+            skillsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills: up to date", color: .systemGreen)
+        }
+
         // Update the "Upgrade Sparkdock" menu item visibility
         if let updateItem = updateNowMenuItem {
             if hasUpdates {
@@ -653,6 +775,18 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 upgradeHttpProxyItem.isHidden = true
             }
         }
+
+        // Update the "Refresh Agent Skills" menu item visibility
+        if let upgradeSkillsItem = upgradeSkillsMenuItem {
+            if hasSkillsUpdates || !skillsConfigured {
+                // Show when updates available OR not configured (so user can bootstrap initial sync)
+                upgradeSkillsItem.title = hasSkillsUpdates ? "Refresh Agent Skills" : "Setup Agent Skills"
+                upgradeSkillsItem.isEnabled = true
+                upgradeSkillsItem.isHidden = false
+            } else {
+                upgradeSkillsItem.isHidden = true
+            }
+        }
     }
 
     @objc private func updateNow() {
@@ -673,6 +807,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         executeTerminalCommand("sjust http-proxy-install-update")
     }
 
+    @objc private func upgradeSkills() {
+        // Allow refresh when skills have updates OR are not configured (initial setup)
+        let skillsConfigured = isSkillsConfigured()
+        guard hasSkillsUpdates || !skillsConfigured else { return }
+        executeTerminalCommand("sjust sf-skills-refresh")
+    }
+
 
     private func executeTerminalCommand(_ command: String) {
         let process = Process()
@@ -687,7 +828,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             "--args",
             "--window-width=200",
             "--window-height=40",
-            "-e", "/bin/zsh", "-l", "-c", command
+            "-e", "/bin/zsh", "-l", "-c", "\(command); exec zsh"
         ]
         do {
             try process.run()

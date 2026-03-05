@@ -8,9 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Added automatic agent skills sync system that syncs curated SparkFabrik system skills from upstream repo to `~/.agents/skills/` with SHA256 manifest tracking, conflict detection, and `--force` flag for overwriting local modifications
+- Added `sparkdock-check-updates` unified update checker script with exit codes (0=updates-available, 1=up-to-date, 2=error, 3=not-configured) supporting sparkdock, http-proxy, and skills subsystems
+- Added `sparkdock-skills-sync` script for syncing skills from upstream with gum spinner and summary box UI
+- Added `sparkdock-skills-status` script to display managed skills status
+- Added skills subsystem to Sparkdock Manager menu bar app with colored dot status and upgrade button
+- Added `sjust sf-skills-refresh` and `sjust sf-skills-status` recipes
+- Added Ansible provisioning task for agent skills sync (tagged with `skills`)
+- Added shared logging library (`bin/common/logging.sh`) with optional gum integration providing `log_info`, `log_success`, `log_warn`, `log_error`, `log_section` with styled output and ANSI fallback
+- Added shared utility library (`bin/common/utils.sh`) with `run_with_spinner`, `print_summary_box`, `compute_sha256`, and backward-compatible `print_*` aliases
 - Added optional import of `~/.local/spark/sparkdock/sjust/000-system.just` to allow Sparkdock externally managed tasks (such as MDM) to be included in SparkJust
 - Disabled glab telemetry by default via `GLAB_SEND_TELEMETRY=false` in shell configuration
 - Added gcloud shell aliases: `gcloud-as` (impersonate service account), `gcloud-me` (stop impersonating), `gcloud-whoami` (show current impersonation)
+
+### Changed
+- Refactored section headers across sjust recipes (libshell.sh, 00-default.just, 01-lima.just, 03-shell.just) to use `log_section` with double-border gum style
 - Added OpenSpec (@fission-ai/openspec) npm package to default package list for spec-driven development with AI coding assistants
 - Added opencode AI coding tool to default package list (now officially supported by Copilot)
 - Added OpenCode shell alias: `c` as a simple alias to `opencode` command
@@ -24,6 +36,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `c` alias from `clear` to OpenCode main command. Use `clear` command directly or ctrl+l for clearing screen instead
 
 ### Fixed
+- Fixed menubar terminal commands (sjust, sparkdock, brew upgrade) closing immediately after completion by dropping into an interactive shell session
+- Fixed 3 Swift compiler warnings caused by unreachable catch blocks in menubar app process-launching functions
 - Fixed `gcloud-whoami` not printing the current user when not impersonating a service account
 - Fixed Slack notification system to correctly identify new tool/package additions as significant features (improved prompt clarity to distinguish between dependency version bumps and new capabilities)
 - Fixed `NODE_EXTRA_CA_CERTS` path in copilot function to point to the correct keychain certificate bundle location (`${HOME}/.local/spark/copilot/keychain.pem`)
