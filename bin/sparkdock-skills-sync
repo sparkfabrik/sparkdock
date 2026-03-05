@@ -19,6 +19,12 @@ MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
 SYSTEM_SKILLS_SUBDIR="skills/system"
 FORCE=false
 
+# Guard: python3 is required for manifest operations
+if ! command -v python3 &>/dev/null; then
+    log_error "python3 is required but not found in PATH"
+    exit 1
+fi
+
 # Counters for summary
 SKILLS_ADDED=0
 SKILLS_UPDATED=0
@@ -27,23 +33,10 @@ SKILLS_UNCHANGED=0
 
 # --- Core logic ---
 
-# Compute SHA256 of a file (portable across macOS/Linux)
-compute_sha256() {
-    local file_path="$1"
-    if command -v shasum &>/dev/null; then
-        shasum -a 256 "${file_path}" | cut -d' ' -f1
-    elif command -v sha256sum &>/dev/null; then
-        sha256sum "${file_path}" | cut -d' ' -f1
-    else
-        log_error "No SHA256 tool found (need shasum or sha256sum)"
-        exit 1
-    fi
-}
-
 # Read a value from the manifest JSON
 manifest_get_sha() {
     local skill_name="$1"
-    if [ ! -f "${MANIFEST_PATH}" ]; then
+    if [[ ! -f "${MANIFEST_PATH}" ]]; then
         echo ""
         return
     fi
@@ -53,7 +46,7 @@ try:
     with open(sys.argv[1]) as f:
         data = json.load(f)
     print(data.get('skills', {}).get(sys.argv[2], {}).get('sha256', ''))
-except:
+except Exception:
     print('')
 " "${MANIFEST_PATH}" "${skill_name}" 2>/dev/null || echo ""
 }
@@ -69,34 +62,40 @@ manifest_set() {
     python3 -c "
 import json, os, sys
 
-manifest_path = sys.argv[1]
-skill_name = sys.argv[2]
-sha256 = sys.argv[3]
-timestamp = sys.argv[4]
-source_commit = sys.argv[5]
+try:
+    manifest_path = sys.argv[1]
+    skill_name = sys.argv[2]
+    sha256 = sys.argv[3]
+    timestamp = sys.argv[4]
+    source_commit = sys.argv[5]
 
-if os.path.exists(manifest_path):
-    with open(manifest_path) as f:
-        data = json.load(f)
-else:
-    data = {'version': 1, 'skills': {}}
+    if os.path.exists(manifest_path):
+        with open(manifest_path) as f:
+            data = json.load(f)
+    else:
+        data = {'version': 1, 'skills': {}}
 
-data['skills'][skill_name] = {
-    'sha256': sha256,
-    'installed_at': timestamp,
-    'source_commit': source_commit
-}
+    data['skills'][skill_name] = {
+        'sha256': sha256,
+        'installed_at': timestamp,
+        'source_commit': source_commit
+    }
 
-os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
-with open(manifest_path, 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
+    os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
+    with open(manifest_path, 'w') as f:
+        json.dump(data, f, indent=2)
+        f.write('\n')
+except Exception as e:
+    print(f'Error updating manifest: {e}', file=sys.stderr)
+    sys.exit(1)
 " "${MANIFEST_PATH}" "${skill_name}" "${sha256}" "${timestamp}" "${source_commit}"
 }
 
 # Clone or update the upstream repository
-sync_repo() {
-    if [ -d "${CACHE_DIR}/.git" ]; then
+# Uses subshell to isolate cd
+sync_repo() (
+    set -euo pipefail
+    if [[ -d "${CACHE_DIR}/.git" ]]; then
         cd "${CACHE_DIR}"
         run_with_spinner "Updating cached skills repository..." \
             git fetch origin -q
@@ -108,13 +107,15 @@ sync_repo() {
         run_with_spinner "Cloning skills repository..." \
             git clone "${UPSTREAM_REPO}" "${CACHE_DIR}" -q
     fi
-}
+)
 
 # Get the current source commit hash
-get_source_commit() {
+# Uses subshell to isolate cd
+get_source_commit() (
+    set -euo pipefail
     cd "${CACHE_DIR}"
     git rev-parse --short HEAD
-}
+)
 
 # Sync a single skill from cache to target
 sync_skill() {
@@ -130,7 +131,7 @@ sync_skill() {
     source_sha="$(compute_sha256 "${source_skill_md}")"
 
     # New skill — doesn't exist in target yet
-    if [ ! -d "${target_dir}" ]; then
+    if [[ ! -d "${target_dir}" ]]; then
         mkdir -p "${target_dir}"
         cp -R "${source_dir}/"* "${target_dir}/"
         manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
@@ -140,20 +141,20 @@ sync_skill() {
     fi
 
     # Existing skill — check for conflicts
-    if [ -f "${target_skill_md}" ]; then
+    if [[ -f "${target_skill_md}" ]]; then
         local installed_sha
         installed_sha="$(compute_sha256 "${target_skill_md}")"
         local manifest_sha
         manifest_sha="$(manifest_get_sha "${skill_name}")"
 
         # If source matches installed, nothing to do
-        if [ "${source_sha}" = "${installed_sha}" ]; then
+        if [[ "${source_sha}" = "${installed_sha}" ]]; then
             SKILLS_UNCHANGED=$((SKILLS_UNCHANGED + 1))
             return
         fi
 
         # If manifest SHA matches installed SHA, safe to update (user hasn't modified)
-        if [ -n "${manifest_sha}" ] && [ "${manifest_sha}" = "${installed_sha}" ]; then
+        if [[ -n "${manifest_sha}" ]] && [[ "${manifest_sha}" = "${installed_sha}" ]]; then
             cp -R "${source_dir}/"* "${target_dir}/"
             manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
             SKILLS_UPDATED=$((SKILLS_UPDATED + 1))
@@ -162,7 +163,7 @@ sync_skill() {
         fi
 
         # Conflict: user has modified the skill
-        if [ "${FORCE}" = true ]; then
+        if [[ "${FORCE}" = true ]]; then
             cp -R "${source_dir}/"* "${target_dir}/"
             manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
             SKILLS_UPDATED=$((SKILLS_UPDATED + 1))
@@ -187,14 +188,14 @@ print_summary() {
     local total=$((SKILLS_ADDED + SKILLS_UPDATED + SKILLS_SKIPPED + SKILLS_UNCHANGED))
     local summary="Skills Sync Summary\n"
     summary+="Total skills processed: ${total}\n"
-    [ "${SKILLS_ADDED}" -gt 0 ] && summary+="Added:     ${SKILLS_ADDED}\n"
-    [ "${SKILLS_UPDATED}" -gt 0 ] && summary+="Updated:   ${SKILLS_UPDATED}\n"
-    [ "${SKILLS_SKIPPED}" -gt 0 ] && summary+="Skipped:   ${SKILLS_SKIPPED}\n"
-    [ "${SKILLS_UNCHANGED}" -gt 0 ] && summary+="Unchanged: ${SKILLS_UNCHANGED}\n"
+    [[ "${SKILLS_ADDED}" -gt 0 ]] && summary+="Added:     ${SKILLS_ADDED}\n"
+    [[ "${SKILLS_UPDATED}" -gt 0 ]] && summary+="Updated:   ${SKILLS_UPDATED}\n"
+    [[ "${SKILLS_SKIPPED}" -gt 0 ]] && summary+="Skipped:   ${SKILLS_SKIPPED}\n"
+    [[ "${SKILLS_UNCHANGED}" -gt 0 ]] && summary+="Unchanged: ${SKILLS_UNCHANGED}\n"
 
     print_summary_box "$(printf '%b' "${summary}")"
 
-    if [ "${SKILLS_SKIPPED}" -gt 0 ]; then
+    if [[ "${SKILLS_SKIPPED}" -gt 0 ]]; then
         echo ""
         log_info "Some skills were skipped due to local modifications."
         log_info "Run '${SCRIPT_NAME} --force' to overwrite them."
@@ -212,7 +213,7 @@ usage() {
 }
 
 main() {
-    while [ $# -gt 0 ]; do
+    while [[ $# -gt 0 ]]; do
         case "$1" in
             --force)
                 FORCE=true
@@ -237,7 +238,7 @@ main() {
 
     # Check for system skills directory
     local system_dir="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}"
-    if [ ! -d "${system_dir}" ]; then
+    if [[ ! -d "${system_dir}" ]]; then
         log_warn "No '${SYSTEM_SKILLS_SUBDIR}/' directory found in upstream repo."
         log_warn "Skills sync skipped. The upstream repo may need to be reorganized."
         exit 0
@@ -249,13 +250,13 @@ main() {
     # Iterate over system skills
     local found_skills=false
     for skill_dir in "${system_dir}"/*/; do
-        [ -d "${skill_dir}" ] || continue
+        [[ -d "${skill_dir}" ]] || continue
 
         local skill_name
         skill_name="$(basename "${skill_dir}")"
 
         # Only sync skills that have SKILL.md
-        if [ ! -f "${skill_dir}/SKILL.md" ]; then
+        if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
             continue
         fi
 
@@ -263,7 +264,7 @@ main() {
         sync_skill "${skill_name}"
     done
 
-    if [ "${found_skills}" = false ]; then
+    if [[ "${found_skills}" = false ]]; then
         log_warn "No valid skills found in '${SYSTEM_SKILLS_SUBDIR}/' directory."
     fi
 

@@ -117,9 +117,8 @@ shell-omz-setup:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    echo "=========================================="
-    echo "Setting up oh-my-zsh and zsh plugins"
-    echo "=========================================="
+    source "/opt/sparkdock/bin/common/logging.sh"
+    log_section "Setting up oh-my-zsh and zsh plugins"
     echo ""
 
     # Install oh-my-zsh if not already installed

@@ -39,43 +39,59 @@ fi
 
 log_info() {
     if [[ "${HAS_GUM}" = true ]]; then
-        gum log --level info "$1"
+        gum log --level info "$*"
     else
-        printf "${BOLD}${BLUE}[INFO]${NC} %s\n" "$1"
+        printf "${BOLD}${BLUE}[INFO]${NC} %s\n" "$*"
     fi
 }
 
 log_success() {
     if [[ "${HAS_GUM}" = true ]]; then
-        gum log --level info --prefix "  OK" "$1"
+        gum log --level info --prefix "  OK" "$*"
     else
-        printf "${BOLD}${GREEN}[ OK ]${NC} %s\n" "$1"
+        printf "${BOLD}${GREEN}[ OK ]${NC} %s\n" "$*"
     fi
 }
 
 log_warn() {
     if [[ "${HAS_GUM}" = true ]]; then
-        gum log --level warn "$1"
+        gum log --level warn "$*"
     else
-        printf "${BOLD}${YELLOW}[WARN]${NC} %s\n" "$1"
+        printf "${BOLD}${YELLOW}[WARN]${NC} %s\n" "$*"
     fi
 }
 
 log_error() {
     if [[ "${HAS_GUM}" = true ]]; then
-        gum log --level error "$1"
+        gum log --level error "$*"
     else
-        printf "${BOLD}${RED}[FAIL]${NC} %s\n" "$1"
+        printf "${BOLD}${RED}[FAIL]${NC} %s\n" "$*"
     fi
 }
 
 log_section() {
     if [[ "${HAS_GUM}" = true ]]; then
         echo ""
-        gum style --border double --border-foreground 99 --bold --padding "0 2" --margin "0 0 1 0" "$1"
+        gum style --border double --border-foreground 99 --bold --padding "0 2" --margin "0 0 1 0" "$*"
     else
         echo ""
-        printf "${BOLD}${BLUE}=== %s ===${NC}\n" "$1"
+        printf "${BOLD}${BLUE}=== %s ===${NC}\n" "$*"
+    fi
+}
+
+# --- Utility functions ---
+
+# Compute SHA256 of a file (portable across macOS/Linux)
+# Returns: hash on stdout, exit 1 on failure
+compute_sha256() {
+    local file_path="$1"
+    if command -v shasum &>/dev/null; then
+        shasum -a 256 "${file_path}" | cut -d' ' -f1
+    elif command -v sha256sum &>/dev/null; then
+        sha256sum "${file_path}" | cut -d' ' -f1
+    else
+        log_error "No SHA256 tool found (need shasum or sha256sum)"
+        return 1
     fi
 }
 
