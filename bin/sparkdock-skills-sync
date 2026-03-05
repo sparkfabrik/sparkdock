@@ -147,8 +147,11 @@ sync_skill() {
         local manifest_sha
         manifest_sha="$(manifest_get_sha "${skill_name}")"
 
-        # If source matches installed, nothing to do
+        # If source matches installed, nothing to do (but ensure manifest exists)
         if [[ "${source_sha}" = "${installed_sha}" ]]; then
+            if [[ -z "${manifest_sha}" ]]; then
+                manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
+            fi
             SKILLS_UNCHANGED=$((SKILLS_UNCHANGED + 1))
             return
         fi
