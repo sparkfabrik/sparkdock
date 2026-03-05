@@ -670,7 +670,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         // Since runSkillsCheck runs first, we rely on the skillsLastStatus to determine this.
         return skillsLastStatus != 3
     }
-    }
 
     private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasSkillsUpdates: Bool = false, skillsConfigured: Bool = true) {
         self.hasUpdates = hasUpdates
