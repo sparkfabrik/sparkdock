@@ -4,14 +4,19 @@ set -euo pipefail
 
 # sparkdock-skills-status — Show status of agent skills (managed vs user-owned).
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+
+# Source shared logging library
+# shellcheck source=common/logging.sh
+source "${SCRIPT_DIR}/common/logging.sh"
+
 SKILLS_DIR="${HOME}/.agents/skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
 
-echo "=== Agent Skills Status ==="
-echo ""
+log_section "Agent Skills Status"
 
 if [[ ! -d "${SKILLS_DIR}" ]]; then
-    echo "No skills directory found at ${SKILLS_DIR}"
+    log_warn "No skills directory found at ${SKILLS_DIR}"
     exit 0
 fi
 
@@ -75,7 +80,7 @@ done
 
 echo ""
 if [[ -f "${MANIFEST_PATH}" ]]; then
-    echo "Manifest: ${MANIFEST_PATH}"
+    log_info "Manifest: ${MANIFEST_PATH}"
 else
-    echo "No manifest found. Run 'sjust sf-skills-refresh' to sync."
+    log_warn "No manifest found. Run 'sjust sf-skills-refresh' to sync."
 fi

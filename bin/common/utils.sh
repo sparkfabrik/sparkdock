@@ -1,42 +1,22 @@
-# Colors and formatting
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-BOLD='\033[1m'
-NC='\033[0m'
+# shellcheck shell=bash
+# Source shared logging library (provides colors, log_*, gum integration)
+# shellcheck source=logging.sh
+source "$(dirname "${BASH_SOURCE[0]:-$0}")/logging.sh"
 
 # Only set zsh options if we're running in zsh
 if [[ -n "${ZSH_VERSION:-}" ]]; then
     setopt PROMPT_SUBST
 fi
 
-# Print functions for different message types
-print_info() {
-    printf "${BOLD}${BLUE}[INFO]${NC} %s\n" "$1"
-}
-
-print_success() {
-    printf "${BOLD}${GREEN}[ OK ]${NC} %s\n" "$1"
-}
-
-print_warning() {
-    printf "${BOLD}${YELLOW}[WARN]${NC} %s\n" "$1"
-}
-
-print_error() {
-    printf "${BOLD}${RED}[FAIL]${NC} %s\n" "$1"
-}
-
-print_section() {
-    echo ""
-    printf "${BOLD}${BLUE}=== %s ===${NC}\n" "$1"
-}
+# Backward-compatible aliases (delegate to shared logging functions)
+print_info() { log_info "$1"; }
+print_success() { log_success "$1"; }
+print_warning() { log_warn "$1"; }
+print_error() { log_error "$1"; }
+print_section() { log_section "$1"; }
 
 # Deprecate old print function but keep for compatibility
-print() {
-    print_info "$1"
-}
+print() { log_info "$1"; }
 
 checkMacosVersion() {
     if ! [[ $( sw_vers -productVersion ) =~ ^(26.[0-9]+|15.[0-9]+) ]] ; then

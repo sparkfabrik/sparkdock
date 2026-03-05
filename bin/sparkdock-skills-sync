@@ -5,7 +5,13 @@ set -euo pipefail
 # sparkdock-skills-sync — Sync SparkFabrik system agent skills to ~/.agents/skills/
 # Usage: sparkdock-skills-sync [--force]
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 SCRIPT_NAME="$(basename "$0")"
+
+# Source shared logging library
+# shellcheck source=common/logging.sh
+source "${SCRIPT_DIR}/common/logging.sh"
+
 UPSTREAM_REPO="https://github.com/sparkfabrik/sf-awesome-copilot.git"
 CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
 SKILLS_TARGET_DIR="${HOME}/.agents/skills"
@@ -19,29 +25,7 @@ SKILLS_UPDATED=0
 SKILLS_SKIPPED=0
 SKILLS_UNCHANGED=0
 
-# Colors and formatting
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-print_info() {
-    printf "${BOLD}${BLUE}[INFO]${NC} %s\n" "$1"
-}
-
-print_success() {
-    printf "${BOLD}${GREEN}[ OK ]${NC} %s\n" "$1"
-}
-
-print_warning() {
-    printf "${BOLD}${YELLOW}[WARN]${NC} %s\n" "$1"
-}
-
-print_error() {
-    printf "${BOLD}${RED}[FAIL]${NC} %s\n" "$1"
-}
+# --- Core logic ---
 
 # Compute SHA256 of a file (portable across macOS/Linux)
 compute_sha256() {
@@ -51,12 +35,12 @@ compute_sha256() {
     elif command -v sha256sum &>/dev/null; then
         sha256sum "${file_path}" | cut -d' ' -f1
     else
-        print_error "No SHA256 tool found (need shasum or sha256sum)"
+        log_error "No SHA256 tool found (need shasum or sha256sum)"
         exit 1
     fi
 }
 
-# Read a value from the manifest JSON (minimal jq-free parser)
+# Read a value from the manifest JSON
 manifest_get_sha() {
     local skill_name="$1"
     if [ ! -f "${MANIFEST_PATH}" ]; then
@@ -113,16 +97,16 @@ with open(manifest_path, 'w') as f:
 # Clone or update the upstream repository
 sync_repo() {
     if [ -d "${CACHE_DIR}/.git" ]; then
-        print_info "Updating cached skills repository..."
         cd "${CACHE_DIR}"
-        git fetch origin -q
+        run_with_spinner "Updating cached skills repository..." \
+            git fetch origin -q
         local default_branch
         default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
         git reset --hard "origin/${default_branch}" -q
     else
-        print_info "Cloning skills repository..."
         mkdir -p "$(dirname "${CACHE_DIR}")"
-        git clone "${UPSTREAM_REPO}" "${CACHE_DIR}" -q
+        run_with_spinner "Cloning skills repository..." \
+            git clone "${UPSTREAM_REPO}" "${CACHE_DIR}" -q
     fi
 }
 
@@ -142,7 +126,6 @@ sync_skill() {
     local source_commit
     source_commit="$(get_source_commit)"
 
-    # Compute SHA of the source SKILL.md
     local source_sha
     source_sha="$(compute_sha256 "${source_skill_md}")"
 
@@ -152,7 +135,7 @@ sync_skill() {
         cp -R "${source_dir}/"* "${target_dir}/"
         manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
         SKILLS_ADDED=$((SKILLS_ADDED + 1))
-        print_success "Added: ${skill_name}"
+        log_success "Added: ${skill_name}"
         return
     fi
 
@@ -174,7 +157,7 @@ sync_skill() {
             cp -R "${source_dir}/"* "${target_dir}/"
             manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
             SKILLS_UPDATED=$((SKILLS_UPDATED + 1))
-            print_success "Updated: ${skill_name}"
+            log_success "Updated: ${skill_name}"
             return
         fi
 
@@ -183,11 +166,11 @@ sync_skill() {
             cp -R "${source_dir}/"* "${target_dir}/"
             manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
             SKILLS_UPDATED=$((SKILLS_UPDATED + 1))
-            print_info "Force-updated: ${skill_name} (local modifications overwritten)"
+            log_warn "Force-updated: ${skill_name} (local modifications overwritten)"
             return
         else
             SKILLS_SKIPPED=$((SKILLS_SKIPPED + 1))
-            print_warning "Skipped: ${skill_name} (locally modified — use --force to overwrite)"
+            log_warn "Skipped: ${skill_name} (locally modified — use --force to overwrite)"
             return
         fi
     fi
@@ -196,23 +179,25 @@ sync_skill() {
     cp -R "${source_dir}/"* "${target_dir}/"
     manifest_set "${skill_name}" "${source_sha}" "${source_commit}"
     SKILLS_ADDED=$((SKILLS_ADDED + 1))
-    print_success "Added: ${skill_name}"
+    log_success "Added: ${skill_name}"
 }
 
-# Print summary of actions taken
+# Build and print summary
 print_summary() {
-    echo ""
-    printf '%b=== Skills Sync Summary ===%b\n' "${BOLD}" "${NC}"
     local total=$((SKILLS_ADDED + SKILLS_UPDATED + SKILLS_SKIPPED + SKILLS_UNCHANGED))
-    echo "  Total skills processed: ${total}"
-    [ "${SKILLS_ADDED}" -gt 0 ] && printf '  %bAdded:%b     %s\n' "${GREEN}" "${NC}" "${SKILLS_ADDED}"
-    [ "${SKILLS_UPDATED}" -gt 0 ] && printf '  %bUpdated:%b   %s\n' "${GREEN}" "${NC}" "${SKILLS_UPDATED}"
-    [ "${SKILLS_SKIPPED}" -gt 0 ] && printf '  %bSkipped:%b   %s\n' "${YELLOW}" "${NC}" "${SKILLS_SKIPPED}"
-    [ "${SKILLS_UNCHANGED}" -gt 0 ] && printf '  Unchanged: %s\n' "${SKILLS_UNCHANGED}"
+    local summary="Skills Sync Summary\n"
+    summary+="Total skills processed: ${total}\n"
+    [ "${SKILLS_ADDED}" -gt 0 ] && summary+="Added:     ${SKILLS_ADDED}\n"
+    [ "${SKILLS_UPDATED}" -gt 0 ] && summary+="Updated:   ${SKILLS_UPDATED}\n"
+    [ "${SKILLS_SKIPPED}" -gt 0 ] && summary+="Skipped:   ${SKILLS_SKIPPED}\n"
+    [ "${SKILLS_UNCHANGED}" -gt 0 ] && summary+="Unchanged: ${SKILLS_UNCHANGED}\n"
+
+    print_summary_box "$(printf '%b' "${summary}")"
+
     if [ "${SKILLS_SKIPPED}" -gt 0 ]; then
         echo ""
-        print_info "Some skills were skipped due to local modifications."
-        print_info "Run '${SCRIPT_NAME} --force' to overwrite them."
+        log_info "Some skills were skipped due to local modifications."
+        log_info "Run '${SCRIPT_NAME} --force' to overwrite them."
     fi
 }
 
@@ -227,7 +212,6 @@ usage() {
 }
 
 main() {
-    # Parse arguments
     while [ $# -gt 0 ]; do
         case "$1" in
             --force)
@@ -246,16 +230,16 @@ main() {
         esac
     done
 
-    print_info "Syncing SparkFabrik agent skills..."
+    log_info "Syncing SparkFabrik agent skills..."
 
     # Clone or update the repo
     sync_repo
 
-    # Check for system/ directory
+    # Check for system skills directory
     local system_dir="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}"
     if [ ! -d "${system_dir}" ]; then
-        print_warning "No '${SYSTEM_SKILLS_SUBDIR}/' directory found in upstream repo."
-        print_warning "Skills sync skipped. The upstream repo may need to be reorganized."
+        log_warn "No '${SYSTEM_SKILLS_SUBDIR}/' directory found in upstream repo."
+        log_warn "Skills sync skipped. The upstream repo may need to be reorganized."
         exit 0
     fi
 
@@ -265,7 +249,6 @@ main() {
     # Iterate over system skills
     local found_skills=false
     for skill_dir in "${system_dir}"/*/; do
-        # Skip if no directories match the glob
         [ -d "${skill_dir}" ] || continue
 
         local skill_name
@@ -281,7 +264,7 @@ main() {
     done
 
     if [ "${found_skills}" = false ]; then
-        print_warning "No valid skills found in '${SYSTEM_SKILLS_SUBDIR}/' directory."
+        log_warn "No valid skills found in '${SYSTEM_SKILLS_SUBDIR}/' directory."
     fi
 
     print_summary
