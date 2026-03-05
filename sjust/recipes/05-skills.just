@@ -16,4 +16,4 @@ sf-skills-refresh $force="":
 # Show status of agent skills (managed vs user-owned).
 [group('skills')]
 sf-skills-status:
-    {{sparkdock_path}}/bin/sparkdock-skills-status
+    @{{sparkdock_path}}/bin/sparkdock-skills-status
