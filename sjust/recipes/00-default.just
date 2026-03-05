@@ -205,7 +205,8 @@ system-gcloud-reconfigure:
 [group('system')]
 system-cleanup:
     #!/usr/bin/env bash
-    echo "========== System Cleanup Operations =========="
+    source "{{sparkdock_path}}/bin/common/logging.sh"
+    log_section "System Cleanup Operations"
     echo "This command will perform the following actions:"
     echo "  1. Homebrew cleanup:"
     echo "     - Remove old versions of installed formulae"
@@ -219,7 +220,6 @@ system-cleanup:
     echo ""
     echo "This will free up disk space, but you won't be able to"
     echo "recover the removed data afterward."
-    echo "=============================================="
     echo ""
 
     read -p "Do you want to continue with system cleanup? (y/n) " -n 1 -r

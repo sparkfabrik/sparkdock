@@ -2,6 +2,10 @@
 # Sparkdock Shell Utilities
 # Shared functions for shell configuration management
 
+# Source shared logging library (BASH_SOURCE for bash, $0 fallback for zsh)
+# shellcheck source=../../bin/common/logging.sh
+source "$(dirname "${BASH_SOURCE[0]:-$0}")/../../bin/common/logging.sh"
+
 # Check if a user file is symlinked to Sparkdock's default
 # Usage: check_sparkdock_symlink <user_file> <sparkdock_file>
 # Returns:
@@ -209,9 +213,7 @@ sparkdock_print_shell_overview() {
     sparkdock_compute_defaults "${zshrc_file}"
 
     echo ""
-    echo "╔═══════════════════════════════════════════╗"
-    echo "║  ✨ Sparkdock Shell Enhancement Installer ║"
-    echo "╚═══════════════════════════════════════════╝"
+    log_section "✨ Sparkdock Shell Enhancement Installer"
     echo ""
 
     echo "Included capabilities:"

@@ -1,41 +1,71 @@
-# Colors and formatting
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-BOLD='\033[1m'
-NC='\033[0m'
+# shellcheck shell=bash
+# Source shared logging library (provides colors, log_*, gum integration)
+# shellcheck source=logging.sh
+source "$(dirname "${BASH_SOURCE[0]:-$0}")/logging.sh"
 
 # Only set zsh options if we're running in zsh
 if [[ -n "${ZSH_VERSION:-}" ]]; then
     setopt PROMPT_SUBST
 fi
 
-# Print functions for different message types
-print_info() {
-    printf "${BOLD}${BLUE}[INFO]${NC} %s\n" "$1"
-}
-
-print_success() {
-    printf "${BOLD}${GREEN}[ OK ]${NC} %s\n" "$1"
-}
-
-print_warning() {
-    printf "${BOLD}${YELLOW}[WARN]${NC} %s\n" "$1"
-}
-
-print_error() {
-    printf "${BOLD}${RED}[FAIL]${NC} %s\n" "$1"
-}
-
-print_section() {
-    echo ""
-    printf "${BOLD}${BLUE}=== %s ===${NC}\n" "$1"
-}
+# Backward-compatible aliases (delegate to shared logging functions)
+print_info() { log_info "$1"; }
+print_success() { log_success "$1"; }
+print_warning() { log_warn "$1"; }
+print_error() { log_error "$1"; }
+print_section() { log_section "$1"; }
 
 # Deprecate old print function but keep for compatibility
-print() {
-    print_info "$1"
+print() { log_info "$1"; }
+
+# --- Higher-level output helpers ---
+
+# Run a command with a gum spinner (falls back to plain log + execution)
+run_with_spinner() {
+    local title="$1"
+    shift
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum spin --spinner dot --title "${title}" -- "$@"
+    else
+        log_info "${title}"
+        "$@"
+    fi
+}
+
+# Display a styled summary box (single content argument)
+print_summary_box() {
+    local content="$1"
+    if [[ "${HAS_GUM}" = true ]]; then
+        echo ""
+        echo "${content}" | gum style \
+            --border normal \
+            --border-foreground 99 \
+            --padding "1 2" \
+            --margin "0 1" \
+            --bold
+    else
+        echo ""
+        local first_line
+        first_line="$(echo "${content}" | head -1)"
+        printf "${BOLD}=== %s ===${NC}\n" "${first_line}"
+        echo "${content}" | tail -n +2
+    fi
+}
+
+# --- Utility functions ---
+
+# Compute SHA256 of a file (portable across macOS/Linux)
+# Returns: hash on stdout, exit 1 on failure
+compute_sha256() {
+    local file_path="$1"
+    if command -v shasum &>/dev/null; then
+        shasum -a 256 "${file_path}" | cut -d' ' -f1
+    elif command -v sha256sum &>/dev/null; then
+        sha256sum "${file_path}" | cut -d' ' -f1
+    else
+        log_error "No SHA256 tool found (need shasum or sha256sum)"
+        return 1
+    fi
 }
 
 checkMacosVersion() {
