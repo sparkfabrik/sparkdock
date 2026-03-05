@@ -10,7 +10,7 @@ UPSTREAM_REPO="https://github.com/sparkfabrik/sf-awesome-copilot.git"
 CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
 SKILLS_TARGET_DIR="${HOME}/.agents/skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
-SYSTEM_SKILLS_SUBDIR="system"
+SYSTEM_SKILLS_SUBDIR="skills/system"
 FORCE=false
 
 # Counters for summary
