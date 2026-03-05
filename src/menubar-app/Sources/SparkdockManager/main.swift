@@ -494,50 +494,45 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.standardError = Pipe()
 
         var terminationStatus: Int32 = -1
-        do {
-            let finished: Bool = await withTaskCancellationHandler(
-                operation: {
-                    do {
-                        terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
-                                process.terminationHandler = { proc in
-                                    continuation.resume(returning: proc.terminationStatus)
-                                }
+        let finished: Bool = await withTaskCancellationHandler(
+            operation: {
+                do {
+                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
+                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+                            process.terminationHandler = { proc in
+                                continuation.resume(returning: proc.terminationStatus)
+                            }
 
-                                do {
-                                    try process.run()
-                                } catch {
-                                    continuation.resume(throwing: error)
-                                }
+                            do {
+                                try process.run()
+                            } catch {
+                                continuation.resume(throwing: error)
                             }
                         }
-                        return true
-                    } catch {
-                        return false
                     }
-                },
-                onCancel: {
-                    process.terminate()
+                    return true
+                } catch {
+                    return false
                 }
-            )
-
-            if !finished {
-                AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.processTimeout) seconds")
-                return 0
+            },
+            onCancel: {
+                process.terminate()
             }
+        )
 
-            if terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
-                let count = Int(output) ?? 0
-                AppConstants.logger.info("Found \(count) outdated \(type.description)")
-                return count
-            } else {
-                AppConstants.logger.warning("Brew outdated check (\(type.description)) failed with exit code \(terminationStatus)")
-                return 0
-            }
-        } catch {
-            AppConstants.logger.error("Failed to run brew outdated check (\(type.description)): \(error.localizedDescription)")
+        if !finished {
+            AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.processTimeout) seconds")
+            return 0
+        }
+
+        if terminationStatus == 0 {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
+            let count = Int(output) ?? 0
+            AppConstants.logger.info("Found \(count) outdated \(type.description)")
+            return count
+        } else {
+            AppConstants.logger.warning("Brew outdated check (\(type.description)) failed with exit code \(terminationStatus)")
             return 0
         }
     }
@@ -553,44 +548,39 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.arguments = [command]
 
         var terminationStatus: Int32 = -1
-        do {
-            // Await process termination with timeout
-            let finished: Bool = await withTaskCancellationHandler(
-                operation: {
-                    do {
-                        terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
-                                process.terminationHandler = { proc in
-                                    continuation.resume(returning: proc.terminationStatus)
-                                }
+        // Await process termination with timeout
+        let finished: Bool = await withTaskCancellationHandler(
+            operation: {
+                do {
+                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
+                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+                            process.terminationHandler = { proc in
+                                continuation.resume(returning: proc.terminationStatus)
+                            }
 
-                                do {
-                                    try process.run()
-                                } catch {
-                                    continuation.resume(throwing: error)
-                                }
+                            do {
+                                try process.run()
+                            } catch {
+                                continuation.resume(throwing: error)
                             }
                         }
-                        return true
-                    } catch {
-                        return false
                     }
-                },
-                onCancel: {
-                    // If cancelled, terminate the process
-                    process.terminate()
+                    return true
+                } catch {
+                    return false
                 }
-            )
-            if !finished {
-                AppConstants.logger.error("Sparkdock command '\(command)' process timed out after \(AppConstants.processTimeout) seconds")
-                return false
+            },
+            onCancel: {
+                // If cancelled, terminate the process
+                process.terminate()
             }
-
-            return terminationStatus == 0
-        } catch {
-            AppConstants.logger.error("Failed to run sparkdock command '\(command)': \(error.localizedDescription)")
+        )
+        if !finished {
+            AppConstants.logger.error("Sparkdock command '\(command)' process timed out after \(AppConstants.processTimeout) seconds")
             return false
         }
+
+        return terminationStatus == 0
     }
 
     private func runSparkdockCheck() async -> Bool {
@@ -620,42 +610,37 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.arguments = [subsystem]
 
         var terminationStatus: Int32 = -1
-        do {
-            let finished: Bool = await withTaskCancellationHandler(
-                operation: {
-                    do {
-                        terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
-                                process.terminationHandler = { proc in
-                                    continuation.resume(returning: proc.terminationStatus)
-                                }
+        let finished: Bool = await withTaskCancellationHandler(
+            operation: {
+                do {
+                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
+                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+                            process.terminationHandler = { proc in
+                                continuation.resume(returning: proc.terminationStatus)
+                            }
 
-                                do {
-                                    try process.run()
-                                } catch {
-                                    continuation.resume(throwing: error)
-                                }
+                            do {
+                                try process.run()
+                            } catch {
+                                continuation.resume(throwing: error)
                             }
                         }
-                        return true
-                    } catch {
-                        return false
                     }
-                },
-                onCancel: {
-                    process.terminate()
+                    return true
+                } catch {
+                    return false
                 }
-            )
-            if !finished {
-                AppConstants.logger.error("sparkdock-check-updates '\(subsystem)' timed out after \(AppConstants.processTimeout) seconds")
-                return nil
+            },
+            onCancel: {
+                process.terminate()
             }
-
-            return terminationStatus
-        } catch {
-            AppConstants.logger.error("Failed to run sparkdock-check-updates '\(subsystem)': \(error.localizedDescription)")
+        )
+        if !finished {
+            AppConstants.logger.error("sparkdock-check-updates '\(subsystem)' timed out after \(AppConstants.processTimeout) seconds")
             return nil
         }
+
+        return terminationStatus
     }
 
     private func runSkillsCheck() async -> Bool {
@@ -843,7 +828,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             "--args",
             "--window-width=200",
             "--window-height=40",
-            "-e", "/bin/zsh", "-l", "-c", command
+            "-e", "/bin/zsh", "-l", "-c", "\(command); exec zsh"
         ]
         do {
             try process.run()
