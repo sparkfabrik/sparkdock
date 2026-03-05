@@ -18,6 +18,42 @@ print_section() { log_section "$1"; }
 # Deprecate old print function but keep for compatibility
 print() { log_info "$1"; }
 
+# --- Higher-level output helpers ---
+
+# Run a command with a gum spinner (falls back to plain log + execution)
+run_with_spinner() {
+    local title="$1"
+    shift
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum spin --spinner dot --title "${title}" -- "$@"
+    else
+        log_info "${title}"
+        "$@"
+    fi
+}
+
+# Display a styled summary box (single content argument)
+print_summary_box() {
+    local content="$1"
+    if [[ "${HAS_GUM}" = true ]]; then
+        echo ""
+        echo "${content}" | gum style \
+            --border normal \
+            --border-foreground 99 \
+            --padding "1 2" \
+            --margin "0 1" \
+            --bold
+    else
+        echo ""
+        local first_line
+        first_line="$(echo "${content}" | head -1)"
+        printf "${BOLD}=== %s ===${NC}\n" "${first_line}"
+        echo "${content}" | tail -n +2
+    fi
+}
+
+# --- Utility functions ---
+
 # Compute SHA256 of a file (portable across macOS/Linux)
 # Returns: hash on stdout, exit 1 on failure
 compute_sha256() {

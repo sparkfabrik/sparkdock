@@ -1,8 +1,7 @@
 # shellcheck shell=bash
 # bin/common/logging.sh — Shared logging helpers with optional gum integration
 #
-# Provides: log_info, log_success, log_warn, log_error, log_section,
-#           run_with_spinner, print_summary_box
+# Provides: log_info, log_success, log_warn, log_error, log_section
 #
 # When gum is available, uses it for styled output; falls back to plain ANSI.
 # Compatible with both bash and zsh.
@@ -76,39 +75,5 @@ log_section() {
     else
         echo ""
         printf "${BOLD}${BLUE}=== %s ===${NC}\n" "$*"
-    fi
-}
-
-# --- Higher-level helpers ---
-
-# Run a command with a gum spinner (falls back to plain log + execution)
-run_with_spinner() {
-    local title="$1"
-    shift
-    if [[ "${HAS_GUM}" = true ]]; then
-        gum spin --spinner dot --title "${title}" -- "$@"
-    else
-        log_info "${title}"
-        "$@"
-    fi
-}
-
-# Display a styled summary box (single content argument)
-print_summary_box() {
-    local content="$1"
-    if [[ "${HAS_GUM}" = true ]]; then
-        echo ""
-        echo "${content}" | gum style \
-            --border normal \
-            --border-foreground 99 \
-            --padding "1 2" \
-            --margin "0 1" \
-            --bold
-    else
-        echo ""
-        local first_line
-        first_line="$(echo "${content}" | head -1)"
-        printf "${BOLD}=== %s ===${NC}\n" "${first_line}"
-        echo "${content}" | tail -n +2
     fi
 }
