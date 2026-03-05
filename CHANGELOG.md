@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Ansible provisioning task for agent skills sync (tagged with `skills`)
 - Added shared logging library (`bin/common/logging.sh`) with optional gum integration providing `log_info`, `log_success`, `log_warn`, `log_error`, `log_section` with styled output and ANSI fallback
 - Added shared utility library (`bin/common/utils.sh`) with `run_with_spinner`, `print_summary_box`, `compute_sha256`, and backward-compatible `print_*` aliases
+- Added optional import of `~/.local/spark/sparkdock/sjust/000-system.just` to allow Sparkdock externally managed tasks (such as MDM) to be included in SparkJust
 - Disabled glab telemetry by default via `GLAB_SEND_TELEMETRY=false` in shell configuration
 - Added gcloud shell aliases: `gcloud-as` (impersonate service account), `gcloud-me` (stop impersonating), `gcloud-whoami` (show current impersonation)
 
