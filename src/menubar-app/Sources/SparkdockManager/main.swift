@@ -495,15 +495,19 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         var terminationStatus: Int32 = -1
         do {
-            try process.run()
-
             let finished: Bool = await withTaskCancellationHandler(
                 operation: {
                     do {
                         terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                            await withCheckedContinuation { continuation in
+                            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
                                 process.terminationHandler = { proc in
                                     continuation.resume(returning: proc.terminationStatus)
+                                }
+
+                                do {
+                                    try process.run()
+                                } catch {
+                                    continuation.resume(throwing: error)
                                 }
                             }
                         }
@@ -550,16 +554,20 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         var terminationStatus: Int32 = -1
         do {
-            try process.run()
-
             // Await process termination with timeout
             let finished: Bool = await withTaskCancellationHandler(
                 operation: {
                     do {
                         terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                            await withCheckedContinuation { continuation in
+                            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
                                 process.terminationHandler = { proc in
                                     continuation.resume(returning: proc.terminationStatus)
+                                }
+
+                                do {
+                                    try process.run()
+                                } catch {
+                                    continuation.resume(throwing: error)
                                 }
                             }
                         }
@@ -613,15 +621,19 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         var terminationStatus: Int32 = -1
         do {
-            try process.run()
-
             let finished: Bool = await withTaskCancellationHandler(
                 operation: {
                     do {
                         terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                            await withCheckedContinuation { continuation in
+                            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
                                 process.terminationHandler = { proc in
                                     continuation.resume(returning: proc.terminationStatus)
+                                }
+
+                                do {
+                                    try process.run()
+                                } catch {
+                                    continuation.resume(throwing: error)
                                 }
                             }
                         }

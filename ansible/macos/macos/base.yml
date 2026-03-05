@@ -790,22 +790,6 @@
             mode: "0755"
           become: no
 
-        - name: Clone or update sf-awesome-copilot repository
-          git:
-            repo: https://github.com/sparkfabrik/sf-awesome-copilot.git
-            dest: "{{ ansible_facts['env']['HOME'] }}/.cache/sparkdock/agent-skills"
-            version: main
-            force: yes
-            update: yes
-          become: no
-
-        - name: Ensure agent skills target directory exists
-          file:
-            path: "{{ ansible_facts['env']['HOME'] }}/.agents/skills"
-            state: directory
-            mode: "0755"
-          become: no
-
         - name: Make sparkdock-skills-sync executable
           file:
             path: "{{ dev_env_dir }}/bin/sparkdock-skills-sync"
