@@ -1,7 +1,5 @@
 # vim: set ft=make :
 
-sparkdock_path := "/opt/sparkdock"
-
 # Refresh agent skills from SparkFabrik upstream repository.
 [group('skills')]
 sf-skills-refresh $force="":
