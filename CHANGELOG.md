@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `c` alias from `clear` to OpenCode main command. Use `clear` command directly or ctrl+l for clearing screen instead
 
 ### Fixed
+- Fixed zsh completions from `~/.local/share/zsh/site-functions` not being discovered when the user's `.zshrc` calls `compinit` before sourcing sparkdock (sjust, opencode, openspec completions were silently ignored because `fpath` was extended after `compinit` had already run)
 - Fixed menubar terminal commands (sjust, sparkdock, brew upgrade) closing immediately after completion by dropping into an interactive shell session
 - Fixed 3 Swift compiler warnings caused by unreachable catch blocks in menubar app process-launching functions
 - Fixed `gcloud-whoami` not printing the current user when not impersonating a service account

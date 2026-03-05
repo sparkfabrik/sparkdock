@@ -11,17 +11,23 @@ else
 fi
 SPARKDOCK_SHELL_DIR="${SPARKDOCK_SHELL_SOURCE:A:h}"
 
+# Save fpath before init.zsh (which may add new entries like ~/.local/share/zsh/site-functions)
+local _sparkdock_fpath_before="${fpath[*]}"
+
 # Source shell tool initializations
 if [[ -f "${SPARKDOCK_SHELL_DIR}/init.zsh" ]]; then
   source "${SPARKDOCK_SHELL_DIR}/init.zsh"
 fi
 
-# Initialize completion system only if not already initialized
-# (oh-my-zsh calls compinit, so we guard against double initialization)
-if ! whence -w _complete >/dev/null 2>&1; then
+# Initialize completion system
+# If init.zsh extended fpath (e.g. added site-functions), we must run compinit
+# so completions in the new paths (sjust, ajust, opencode, etc.) are discovered.
+# If fpath is unchanged and compinit already ran (e.g. via oh-my-zsh), skip it.
+if [[ "${fpath[*]}" != "${_sparkdock_fpath_before}" ]] || ! whence -w _complete >/dev/null 2>&1; then
   autoload -Uz compinit
   compinit
 fi
+unset _sparkdock_fpath_before
 
 # Source shell aliases
 if [[ -f "${SPARKDOCK_SHELL_DIR}/aliases.zsh" ]]; then
