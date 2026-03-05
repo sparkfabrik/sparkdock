@@ -63,16 +63,15 @@ manifest_get_sha() {
         echo ""
         return
     fi
-    # Use python3 for reliable JSON parsing
     python3 -c "
 import json, sys
 try:
-    with open('${MANIFEST_PATH}') as f:
+    with open(sys.argv[1]) as f:
         data = json.load(f)
-    print(data.get('skills', {}).get('${skill_name}', {}).get('sha256', ''))
+    print(data.get('skills', {}).get(sys.argv[2], {}).get('sha256', ''))
 except:
     print('')
-" 2>/dev/null || echo ""
+" "${MANIFEST_PATH}" "${skill_name}" 2>/dev/null || echo ""
 }
 
 # Update or create manifest entry for a skill
@@ -84,31 +83,31 @@ manifest_set() {
     timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
     python3 -c "
-import json, os
+import json, os, sys
 
-manifest_path = '${MANIFEST_PATH}'
-skill_name = '${skill_name}'
+manifest_path = sys.argv[1]
+skill_name = sys.argv[2]
+sha256 = sys.argv[3]
+timestamp = sys.argv[4]
+source_commit = sys.argv[5]
 
-# Load existing or create new
 if os.path.exists(manifest_path):
     with open(manifest_path) as f:
         data = json.load(f)
 else:
     data = {'version': 1, 'skills': {}}
 
-# Update entry
 data['skills'][skill_name] = {
-    'sha256': '${sha256}',
-    'installed_at': '${timestamp}',
-    'source_commit': '${source_commit}'
+    'sha256': sha256,
+    'installed_at': timestamp,
+    'source_commit': source_commit
 }
 
-# Write back
 os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
 with open(manifest_path, 'w') as f:
     json.dump(data, f, indent=2)
     f.write('\n')
-"
+" "${MANIFEST_PATH}" "${skill_name}" "${sha256}" "${timestamp}" "${source_commit}"
 }
 
 # Clone or update the upstream repository

@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# sparkdock-skills-status — Show status of agent skills (managed vs user-owned).
+
+SKILLS_DIR="${HOME}/.agents/skills"
+MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
+
+echo "=== Agent Skills Status ==="
+echo ""
+
+if [[ ! -d "${SKILLS_DIR}" ]]; then
+    echo "No skills directory found at ${SKILLS_DIR}"
+    exit 0
+fi
+
+# Get managed skill names from manifest
+managed_skills=""
+if [[ -f "${MANIFEST_PATH}" ]]; then
+    managed_skills=$(python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+for name in sorted(data.get('skills', {}).keys()):
+    print(name)
+" "${MANIFEST_PATH}" 2>/dev/null || true)
+fi
+
+# Compute SHA256 portably
+compute_sha256() {
+    local file_path="$1"
+    if command -v shasum &>/dev/null; then
+        shasum -a 256 "${file_path}" | cut -d' ' -f1
+    elif command -v sha256sum &>/dev/null; then
+        sha256sum "${file_path}" | cut -d' ' -f1
+    else
+        echo ""
+    fi
+}
+
+printf "%-25s %-12s %s\n" "SKILL" "TYPE" "STATUS"
+printf "%-25s %-12s %s\n" "-----" "----" "------"
+
+for skill_dir in "${SKILLS_DIR}"/*/; do
+    [[ -d "${skill_dir}" ]] || continue
+    skill_name=$(basename "${skill_dir}")
+
+    if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
+        printf "%-25s %-12s %s\n" "${skill_name}" "incomplete" "no SKILL.md"
+        continue
+    fi
+
+    if echo "${managed_skills}" | grep -qx "${skill_name}"; then
+        if [[ -f "${MANIFEST_PATH}" ]]; then
+            manifest_sha=$(python3 -c "
+import json, sys
+with open(sys.argv[1]) as f:
+    data = json.load(f)
+print(data.get('skills', {}).get(sys.argv[2], {}).get('sha256', ''))
+" "${MANIFEST_PATH}" "${skill_name}" 2>/dev/null || true)
+
+            installed_sha=$(compute_sha256 "${skill_dir}/SKILL.md")
+
+            if [[ "${manifest_sha}" == "${installed_sha}" ]]; then
+                printf "%-25s %-12s %s\n" "${skill_name}" "managed" "up to date"
+            else
+                printf "%-25s %-12s %s\n" "${skill_name}" "managed" "locally modified"
+            fi
+        fi
+    else
+        printf "%-25s %-12s %s\n" "${skill_name}" "user" ""
+    fi
+done
+
+echo ""
+if [[ -f "${MANIFEST_PATH}" ]]; then
+    echo "Manifest: ${MANIFEST_PATH}"
+else
+    echo "No manifest found. Run 'sjust sf-skills-refresh' to sync."
+fi

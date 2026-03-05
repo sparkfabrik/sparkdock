@@ -813,6 +813,13 @@
           become: yes
           become_method: sudo
 
+        - name: Make sparkdock-skills-status executable
+          file:
+            path: "{{ dev_env_dir }}/bin/sparkdock-skills-status"
+            mode: "0755"
+          become: yes
+          become_method: sudo
+
         - name: Make sparkdock-check-updates executable
           file:
             path: "{{ dev_env_dir }}/bin/sparkdock-check-updates"
