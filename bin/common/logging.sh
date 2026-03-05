@@ -72,7 +72,7 @@ log_error() {
 log_section() {
     if [[ "${HAS_GUM}" = true ]]; then
         echo ""
-        gum style --border double --border-foreground 99 --bold --padding "0 2" "$1"
+        gum style --border double --border-foreground 99 --bold --padding "0 2 1 2" "$1"
     else
         echo ""
         printf "${BOLD}${BLUE}=== %s ===${NC}\n" "$1"
