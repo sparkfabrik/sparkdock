@@ -820,24 +820,6 @@
           become: yes
           become_method: sudo
 
-        - name: Create sparkdock-check-updates symlink
-          file:
-            src: "{{ dev_env_dir }}/bin/sparkdock-check-updates"
-            dest: /usr/local/bin/sparkdock-check-updates
-            state: link
-            force: yes
-          become: yes
-          become_method: sudo
-
-        - name: Create sparkdock-skills-sync symlink
-          file:
-            src: "{{ dev_env_dir }}/bin/sparkdock-skills-sync"
-            dest: /usr/local/bin/sparkdock-skills-sync
-            state: link
-            force: yes
-          become: yes
-          become_method: sudo
-
         - name: Run agent skills sync
           command: "{{ dev_env_dir }}/bin/sparkdock-skills-sync"
           become: no

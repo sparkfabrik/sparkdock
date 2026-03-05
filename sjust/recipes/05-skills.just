@@ -9,9 +9,9 @@ sf-skills-refresh $force="":
     set -euo pipefail
     echo "Refreshing SparkFabrik agent skills..."
     if [[ "${force}" == "force" ]]; then
-        sparkdock-skills-sync --force
+        {{sparkdock_path}}/bin/sparkdock-skills-sync --force
     else
-        sparkdock-skills-sync
+        {{sparkdock_path}}/bin/sparkdock-skills-sync
     fi
 
 # Show status of agent skills (managed vs user-owned).
