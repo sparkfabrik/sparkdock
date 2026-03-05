@@ -105,6 +105,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var hasUpdates = false
     var hasHttpProxyUpdates = false
     var hasSkillsUpdates = false
+    var skillsLastStatus: Int32? = nil
     var outdatedBrewFormulaeCount = 0
     var outdatedBrewCasksCount = 0
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
@@ -593,10 +594,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func runCheckUpdatesCommand(_ subsystem: String) async -> Bool {
+        let status = await runCheckUpdatesCommandStatus(subsystem)
+        return status == 0
+    }
+
+    /// Returns the termination status of sparkdock-check-updates, or nil on error/timeout.
+    /// Exit codes: 0 = updates available, 1 = no updates, 3 = not configured
+    private func runCheckUpdatesCommandStatus(_ subsystem: String) async -> Int32? {
         let checkUpdatesPath = AppConstants.checkUpdatesExecutablePath
         guard FileManager.default.fileExists(atPath: checkUpdatesPath) else {
             AppConstants.logger.warning("sparkdock-check-updates not found at \(checkUpdatesPath)")
-            return false
+            return nil
         }
 
         let process = Process()
@@ -628,29 +636,40 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             )
             if !finished {
                 AppConstants.logger.error("sparkdock-check-updates '\(subsystem)' timed out after \(AppConstants.processTimeout) seconds")
-                return false
+                return nil
             }
 
-            return terminationStatus == 0
+            return terminationStatus
         } catch {
             AppConstants.logger.error("Failed to run sparkdock-check-updates '\(subsystem)': \(error.localizedDescription)")
-            return false
+            return nil
         }
     }
 
     private func runSkillsCheck() async -> Bool {
-        // Check if the new check-updates script exists
-        if FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) {
-            return await runCheckUpdatesCommand("skills")
+        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
+            AppConstants.logger.info("sparkdock-check-updates not found, skills check skipped")
+            skillsLastStatus = nil
+            return false
         }
-        // Script not installed yet — skills not configured
-        AppConstants.logger.info("sparkdock-check-updates not found, skills check skipped")
-        return false
+        let status = await runCheckUpdatesCommandStatus("skills")
+        skillsLastStatus = status
+        // Exit code 3 = not configured (cache not synced yet)
+        if status == 3 {
+            return false
+        }
+        return status == 0
     }
 
-    /// Returns nil if check-updates script is not installed (skills not configured)
+    /// Skills are considered configured when script exists AND last check didn't return "not configured" (exit 3)
     private func isSkillsConfigured() -> Bool {
-        return FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath)
+        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
+            return false
+        }
+        // We need to check if the cache dir exists — the script returns exit 3 for this.
+        // Since runSkillsCheck runs first, we rely on the skillsLastStatus to determine this.
+        return skillsLastStatus != 3
+    }
     }
 
     private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasSkillsUpdates: Bool = false, skillsConfigured: Bool = true) {

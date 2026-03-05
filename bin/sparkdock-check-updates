@@ -4,7 +4,7 @@ set -euo pipefail
 
 # sparkdock-check-updates — Dispatcher for update checks across sparkdock subsystems.
 # Usage: sparkdock-check-updates <sparkdock|http-proxy|skills>
-# Exit codes: 0 = updates available, 1 = no updates available, 2 = error/usage
+# Exit codes: 0 = updates available, 1 = no updates available, 2 = error/usage, 3 = not configured
 
 SCRIPT_NAME="$(basename "$0")"
 DEFAULT_BRANCH="${DEFAULT_BRANCH:-master}"
@@ -75,15 +75,15 @@ check_http_proxy_updates() {
 check_skills_updates() {
     local skills_cache_dir="${HOME}/.cache/sparkdock/agent-skills"
 
-    # If cache doesn't exist, nothing to compare against
+    # If cache doesn't exist, skills haven't been synced yet
     if [ ! -d "${skills_cache_dir}" ]; then
-        return 1
+        return 3
     fi
 
     cd "${skills_cache_dir}"
 
     if [ ! -d ".git" ]; then
-        return 1
+        return 3
     fi
 
     git fetch origin -q 2>/dev/null || return 1
@@ -121,6 +121,7 @@ usage() {
     echo "  0  Updates available"
     echo "  1  No updates available"
     echo "  2  Usage error"
+    echo "  3  Not configured (subsystem not set up yet)"
 }
 
 # Main dispatcher
