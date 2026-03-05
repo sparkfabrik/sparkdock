@@ -673,14 +673,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status == 0
     }
 
-    /// Skills are considered configured when script exists AND last check didn't return "not configured" (exit 3)
+    /// Skills are considered configured when script exists AND last check returned a known good status.
+    /// Returns false for: missing script, nil (error/timeout), or exit 3 (not configured).
     private func isSkillsConfigured() -> Bool {
         guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
             return false
         }
-        // We need to check if the cache dir exists — the script returns exit 3 for this.
-        // Since runSkillsCheck runs first, we rely on the skillsLastStatus to determine this.
-        return skillsLastStatus != 3
+        guard let status = skillsLastStatus else {
+            // Unknown/failed status — treat as not configured to avoid misleading green UI
+            return false
+        }
+        return status != 3
     }
 
     private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasSkillsUpdates: Bool = false, skillsConfigured: Bool = true) {
@@ -790,8 +793,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         // Update the "Refresh Agent Skills" menu item visibility
         if let upgradeSkillsItem = upgradeSkillsMenuItem {
-            if hasSkillsUpdates {
-                upgradeSkillsItem.title = "Refresh Agent Skills"
+            if hasSkillsUpdates || !skillsConfigured {
+                // Show when updates available OR not configured (so user can bootstrap initial sync)
+                upgradeSkillsItem.title = hasSkillsUpdates ? "Refresh Agent Skills" : "Setup Agent Skills"
                 upgradeSkillsItem.isEnabled = true
                 upgradeSkillsItem.isHidden = false
             } else {
@@ -819,7 +823,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     @objc private func upgradeSkills() {
-        guard hasSkillsUpdates else { return }
+        // Allow refresh when skills have updates OR are not configured (initial setup)
+        let skillsConfigured = isSkillsConfigured()
+        guard hasSkillsUpdates || !skillsConfigured else { return }
         executeTerminalCommand("sjust sf-skills-refresh")
     }
 

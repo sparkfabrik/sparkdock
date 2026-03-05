@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Added automatic agent skills sync system that syncs curated SparkFabrik system skills from upstream repo to `~/.agents/skills/` with SHA256 manifest tracking, conflict detection, and `--force` flag for overwriting local modifications
-- Added `sparkdock-check-updates` unified update checker script with exit codes (0=up-to-date, 1=updates-available, 2=error, 3=not-configured) supporting sparkdock, http-proxy, and skills subsystems
+- Added `sparkdock-check-updates` unified update checker script with exit codes (0=updates-available, 1=up-to-date, 2=error, 3=not-configured) supporting sparkdock, http-proxy, and skills subsystems
 - Added `sparkdock-skills-sync` script for syncing skills from upstream with gum spinner and summary box UI
 - Added `sparkdock-skills-status` script to display managed skills status
 - Added skills subsystem to Sparkdock Manager menu bar app with colored dot status and upgrade button
-- Added `sjust skills-sync`, `sjust skills-status`, and `sjust skills-check-updates` recipes
+- Added `sjust sf-skills-refresh` and `sjust sf-skills-status` recipes
 - Added Ansible provisioning task for agent skills sync (tagged with `skills`)
 - Added shared logging library (`bin/common/logging.sh`) with optional gum integration providing `log_info`, `log_success`, `log_warn`, `log_error`, `log_section` with styled output and ANSI fallback
 - Added shared utility library (`bin/common/utils.sh`) with `run_with_spinner`, `print_summary_box`, `compute_sha256`, and backward-compatible `print_*` aliases
