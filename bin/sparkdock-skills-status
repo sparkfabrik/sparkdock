@@ -31,6 +31,7 @@ fi
 # Try to fetch the upstream skills cache so status reflects the true upstream state.
 # This is especially important on Linux where no background process keeps the cache fresh.
 CACHE_AVAILABLE=false
+CACHE_REF=""
 if [[ -d "${CACHE_DIR}/.git" ]]; then
     if run_with_spinner "Fetching upstream skills..." \
             git -C "${CACHE_DIR}" fetch origin -q 2>/dev/null; then
@@ -39,6 +40,9 @@ if [[ -d "${CACHE_DIR}/.git" ]]; then
         log_warn "Could not reach upstream — status may not reflect latest changes."
         CACHE_AVAILABLE=true  # Still use whatever is cached locally
     fi
+    # Determine the remote default branch (e.g. origin/main or origin/master)
+    CACHE_REF=$(git -C "${CACHE_DIR}" symbolic-ref refs/remotes/origin/HEAD 2>/dev/null \
+        | sed 's|^refs/remotes/||') || CACHE_REF="origin/main"
 fi
 
 # Get managed skill names from manifest
@@ -83,16 +87,28 @@ except Exception:
             installed_sha=$(compute_sha256 "${skill_dir}/SKILL.md") || installed_sha=""
 
             if [[ "${manifest_sha}" == "${installed_sha}" ]]; then
-                # Not locally modified — check upstream cache for pending updates
-                upstream_skill_md="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
-                if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -f "${upstream_skill_md}" ]]; then
-                    upstream_sha=$(compute_sha256 "${upstream_skill_md}") || upstream_sha=""
+                # Not locally modified — check upstream cache for pending updates.
+                # Use `git show` to read from the fetched remote ref, not the
+                # (potentially stale) working-tree copy.
+                upstream_skill_path="${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
+                upstream_sha=""
+                if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -n "${CACHE_REF}" ]]; then
+                    if command -v shasum &>/dev/null; then
+                        upstream_sha=$(git -C "${CACHE_DIR}" show "${CACHE_REF}:${upstream_skill_path}" 2>/dev/null \
+                            | shasum -a 256 | cut -d' ' -f1) || upstream_sha=""
+                    elif command -v sha256sum &>/dev/null; then
+                        upstream_sha=$(git -C "${CACHE_DIR}" show "${CACHE_REF}:${upstream_skill_path}" 2>/dev/null \
+                            | sha256sum | cut -d' ' -f1) || upstream_sha=""
+                    fi
+                fi
+                if [[ -n "${upstream_sha}" ]]; then
                     if [[ "${upstream_sha}" != "${installed_sha}" ]]; then
                         printf "%-25s %-12s %s\n" "${skill_name}" "managed" "update available"
                     else
                         printf "%-25s %-12s %s\n" "${skill_name}" "managed" "up to date"
                     fi
                 else
+                    # Upstream file not found in cache (cache missing or skill not in repo)
                     printf "%-25s %-12s %s\n" "${skill_name}" "managed" "up to date"
                 fi
             else
