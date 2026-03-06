@@ -12,6 +12,8 @@ source "${SCRIPT_DIR}/common/utils.sh"
 
 SKILLS_DIR="${HOME}/.agents/skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
+CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
+SYSTEM_SKILLS_SUBDIR="skills/system"
 
 # Guard: python3 is required for manifest operations
 if ! command -v python3 &>/dev/null; then
@@ -24,6 +26,19 @@ log_section "Agent Skills Status"
 if [[ ! -d "${SKILLS_DIR}" ]]; then
     log_warn "No skills directory found at ${SKILLS_DIR}"
     exit 0
+fi
+
+# Try to fetch the upstream skills cache so status reflects the true upstream state.
+# This is especially important on Linux where no background process keeps the cache fresh.
+CACHE_AVAILABLE=false
+if [[ -d "${CACHE_DIR}/.git" ]]; then
+    if run_with_spinner "Fetching upstream skills..." \
+            git -C "${CACHE_DIR}" fetch origin -q 2>/dev/null; then
+        CACHE_AVAILABLE=true
+    else
+        log_warn "Could not reach upstream — status may not reflect latest changes."
+        CACHE_AVAILABLE=true  # Still use whatever is cached locally
+    fi
 fi
 
 # Get managed skill names from manifest
@@ -68,7 +83,18 @@ except Exception:
             installed_sha=$(compute_sha256 "${skill_dir}/SKILL.md") || installed_sha=""
 
             if [[ "${manifest_sha}" == "${installed_sha}" ]]; then
-                printf "%-25s %-12s %s\n" "${skill_name}" "managed" "up to date"
+                # Not locally modified — check upstream cache for pending updates
+                upstream_skill_md="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
+                if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -f "${upstream_skill_md}" ]]; then
+                    upstream_sha=$(compute_sha256 "${upstream_skill_md}") || upstream_sha=""
+                    if [[ "${upstream_sha}" != "${installed_sha}" ]]; then
+                        printf "%-25s %-12s %s\n" "${skill_name}" "managed" "update available"
+                    else
+                        printf "%-25s %-12s %s\n" "${skill_name}" "managed" "up to date"
+                    fi
+                else
+                    printf "%-25s %-12s %s\n" "${skill_name}" "managed" "up to date"
+                fi
             else
                 printf "%-25s %-12s %s\n" "${skill_name}" "managed" "locally modified"
             fi
@@ -83,4 +109,7 @@ if [[ -f "${MANIFEST_PATH}" ]]; then
     log_info "Manifest: ${MANIFEST_PATH}"
 else
     log_warn "No manifest found. Run 'sjust sf-skills-refresh' to sync."
+fi
+if [[ "${CACHE_AVAILABLE}" == "false" ]]; then
+    log_warn "No upstream cache found. Run 'sjust sf-skills-refresh' to enable update checks."
 fi
