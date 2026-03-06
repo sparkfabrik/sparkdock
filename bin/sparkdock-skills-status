@@ -88,15 +88,15 @@ except Exception:
                 if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -f "${upstream_file}" ]]; then
                     upstream_sha=$(compute_sha256 "${upstream_file}") || upstream_sha=""
                     if [[ -n "${upstream_sha}" ]] && [[ "${upstream_sha}" != "${installed_sha}" ]]; then
-                        printf "%-25s %-12s %s\n" "${skill_name}" "managed" "update available"
+                        printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "$(colorize 40 'update available')"
                     else
-                        printf "%-25s %-12s %s\n" "${skill_name}" "managed" "up to date"
+                        printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "up to date"
                     fi
                 else
-                    printf "%-25s %-12s %s\n" "${skill_name}" "managed" "up to date"
+                    printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "up to date"
                 fi
             else
-                printf "%-25s %-12s %s\n" "${skill_name}" "managed" "locally modified"
+                printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "$(colorize 220 'locally modified')"
             fi
         fi
     else
