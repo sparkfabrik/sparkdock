@@ -28,12 +28,15 @@ if [[ ! -d "${SKILLS_DIR}" ]]; then
     exit 0
 fi
 
-# Pull the upstream skills cache so status reflects the true upstream state.
-# Uses --ff-only so the working tree is updated (safe — this is a managed cache).
+# Fetch the upstream skills cache so status reflects the true upstream state.
+# Uses fetch + reset --hard (mirrors sparkdock-skills-sync) to handle divergence
+# from upstream force-pushes. Avoids 2>/dev/null on run_with_spinner because
+# redirecting stderr breaks gum spin (it draws the spinner on stderr).
 CACHE_AVAILABLE=false
 if [[ -d "${CACHE_DIR}/.git" ]]; then
     if run_with_spinner "Fetching upstream skills..." \
-            git -C "${CACHE_DIR}" pull --ff-only -q 2>/dev/null; then
+            git -C "${CACHE_DIR}" fetch origin -q; then
+        git -C "${CACHE_DIR}" reset --hard origin/main -q 2>/dev/null
         CACHE_AVAILABLE=true
     else
         log_warn "Could not reach upstream — status may not reflect latest changes."
