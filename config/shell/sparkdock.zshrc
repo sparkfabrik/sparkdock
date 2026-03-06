@@ -11,23 +11,30 @@ else
 fi
 SPARKDOCK_SHELL_DIR="${SPARKDOCK_SHELL_SOURCE:A:h}"
 
-# Save fpath before init.zsh (which may add new entries like ~/.local/share/zsh/site-functions)
-local _sparkdock_fpath_before="${fpath[*]}"
-
 # Source shell tool initializations
 if [[ -f "${SPARKDOCK_SHELL_DIR}/init.zsh" ]]; then
   source "${SPARKDOCK_SHELL_DIR}/init.zsh"
 fi
 
-# Initialize completion system
-# If init.zsh extended fpath (e.g. added site-functions), we must run compinit
-# so completions in the new paths (sjust, ajust, opencode, etc.) are discovered.
-# If fpath is unchanged and compinit already ran (e.g. via oh-my-zsh), skip it.
-if [[ "${fpath[*]}" != "${_sparkdock_fpath_before}" ]] || ! whence -w _complete >/dev/null 2>&1; then
+# Ensure base completion system exists (only if never initialized).
+if ! whence -w compdef >/dev/null 2>&1; then
   autoload -Uz compinit
   compinit
 fi
-unset _sparkdock_fpath_before
+
+# Register site-functions completions directly via autoload + compdef.
+# This avoids re-running compinit (which wipes bashcompinit registrations
+# like aws, gcloud) and works regardless of whether the user added
+# site-functions to fpath before or after their own compinit call.
+_sparkdock_site_dir="${HOME}/.local/share/zsh/site-functions"
+if [[ -d "${_sparkdock_site_dir}" ]]; then
+  for _f in "${_sparkdock_site_dir}"/_*(N); do
+    autoload -Uz "${_f:t}"
+    compdef "${_f:t}" "${${_f:t}#_}" 2>/dev/null
+  done
+  unset _f
+fi
+unset _sparkdock_site_dir
 
 # Source shell aliases
 if [[ -f "${SPARKDOCK_SHELL_DIR}/aliases.zsh" ]]; then
