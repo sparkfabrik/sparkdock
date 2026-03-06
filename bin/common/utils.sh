@@ -32,6 +32,26 @@ run_with_spinner() {
     fi
 }
 
+# Colorize a text label via gum (falls back to plain text)
+colorize() {
+    local color="$1" text="$2"
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --foreground "${color}" "${text}"
+    else
+        echo "${text}"
+    fi
+}
+
+# Bold a text label via gum (falls back to plain text)
+bold() {
+    local text="$1"
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --bold "${text}"
+    else
+        echo "${text}"
+    fi
+}
+
 # Display a styled summary box (single content argument)
 print_summary_box() {
     local content="$1"
