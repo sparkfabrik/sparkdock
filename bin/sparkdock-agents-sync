@@ -1,0 +1,461 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# sparkdock-agents-sync — Sync SparkFabrik system agent skills and agent profiles
+#                         from the upstream sf-awesome-copilot repository.
+# Usage: sparkdock-agents-sync [--force]
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+SCRIPT_NAME="$(basename "$0")"
+
+# Source shared utility library (provides logging + compute_sha256)
+# shellcheck source=common/utils.sh
+source "${SCRIPT_DIR}/common/utils.sh"
+
+UPSTREAM_REPO="https://github.com/sparkfabrik/sf-awesome-copilot.git"
+CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
+MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
+FORCE=false
+
+# --- Skills configuration ---
+SKILLS_TARGET_DIR="${HOME}/.agents/skills"
+SYSTEM_SKILLS_SUBDIR="skills/system"
+
+# --- Agents configuration ---
+SYSTEM_AGENTS_SUBDIR="agents/system"
+
+# Tool registry: maps tool subfolder names to install directories and filename patterns.
+# Adding a new tool = 2 lines (one per array).
+# Filename pattern uses printf format: %s is replaced with the agent name.
+declare -A AGENT_TOOL_INSTALL_DIR=(
+    [copilot]="${HOME}/.copilot/agents"
+    [opencode]="${HOME}/.config/opencode/agents"
+)
+declare -A AGENT_TOOL_FILENAME=(
+    [copilot]="%s.agent.md"
+    [opencode]="%s.md"
+)
+
+# Guard: python3 is required for manifest operations
+if ! command -v python3 &>/dev/null; then
+    log_error "python3 is required but not found in PATH"
+    exit 1
+fi
+
+# Counters for summary
+SKILLS_ADDED=0
+SKILLS_UPDATED=0
+SKILLS_SKIPPED=0
+SKILLS_UNCHANGED=0
+AGENTS_ADDED=0
+AGENTS_UPDATED=0
+AGENTS_SKIPPED=0
+AGENTS_UNCHANGED=0
+
+# --- Manifest helpers ---
+
+# Read a SHA from the manifest JSON.
+# Usage: manifest_get_sha <section> <key>
+#   section: "skills" or "agents"
+#   key: skill name (e.g. "glab") or agent composite key (e.g. "the-architect/copilot")
+manifest_get_sha() {
+    local section="$1"
+    local key="$2"
+    if [[ ! -f "${MANIFEST_PATH}" ]]; then
+        echo ""
+        return
+    fi
+    python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    print(data.get(sys.argv[2], {}).get(sys.argv[3], {}).get('sha256', ''))
+except Exception:
+    print('')
+" "${MANIFEST_PATH}" "${section}" "${key}" 2>/dev/null || echo ""
+}
+
+# Update or create manifest entry.
+# Usage: manifest_set <section> <key> <sha256> <source_commit>
+manifest_set() {
+    local section="$1"
+    local key="$2"
+    local sha256="$3"
+    local source_commit="$4"
+    local timestamp
+    timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+    python3 -c "
+import json, os, sys
+
+try:
+    manifest_path = sys.argv[1]
+    section = sys.argv[2]
+    key = sys.argv[3]
+    sha256 = sys.argv[4]
+    timestamp = sys.argv[5]
+    source_commit = sys.argv[6]
+
+    if os.path.exists(manifest_path):
+        with open(manifest_path) as f:
+            data = json.load(f)
+    else:
+        data = {}
+
+    # Ensure v2 shape
+    data['version'] = 2
+    if section not in data:
+        data[section] = {}
+
+    data[section][key] = {
+        'sha256': sha256,
+        'installed_at': timestamp,
+        'source_commit': source_commit
+    }
+
+    os.makedirs(os.path.dirname(manifest_path), exist_ok=True)
+    with open(manifest_path, 'w') as f:
+        json.dump(data, f, indent=2)
+        f.write('\n')
+except Exception as e:
+    print(f'Error updating manifest: {e}', file=sys.stderr)
+    sys.exit(1)
+" "${MANIFEST_PATH}" "${section}" "${key}" "${sha256}" "${timestamp}" "${source_commit}"
+}
+
+# --- Repo management ---
+
+# Clone or update the upstream repository.
+# Uses subshell to isolate cd.
+sync_repo() (
+    set -euo pipefail
+    if [[ -d "${CACHE_DIR}/.git" ]]; then
+        cd "${CACHE_DIR}"
+        run_with_spinner "Updating cached repository..." \
+            git fetch origin -q
+        local default_branch
+        default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
+        git reset --hard "origin/${default_branch}" -q
+    else
+        mkdir -p "$(dirname "${CACHE_DIR}")"
+        run_with_spinner "Cloning repository..." \
+            git clone "${UPSTREAM_REPO}" "${CACHE_DIR}" -q
+    fi
+)
+
+# Get the current source commit hash.
+# Uses subshell to isolate cd.
+get_source_commit() (
+    set -euo pipefail
+    cd "${CACHE_DIR}"
+    git rev-parse --short HEAD
+)
+
+# --- Skill sync ---
+
+# Sync a single skill from cache to target.
+sync_skill() {
+    local skill_name="$1"
+    local source_dir="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}"
+    local target_dir="${SKILLS_TARGET_DIR}/${skill_name}"
+    local source_skill_md="${source_dir}/SKILL.md"
+    local target_skill_md="${target_dir}/SKILL.md"
+    local source_commit
+    source_commit="$(get_source_commit)"
+
+    local source_sha
+    source_sha="$(compute_sha256 "${source_skill_md}")"
+
+    # New skill — doesn't exist in target yet
+    if [[ ! -d "${target_dir}" ]]; then
+        mkdir -p "${target_dir}"
+        cp -R "${source_dir}/"* "${target_dir}/"
+        manifest_set "skills" "${skill_name}" "${source_sha}" "${source_commit}"
+        SKILLS_ADDED=$((SKILLS_ADDED + 1))
+        log_success "Skill added: ${skill_name}"
+        return
+    fi
+
+    # Existing skill — check for conflicts
+    if [[ -f "${target_skill_md}" ]]; then
+        local installed_sha
+        installed_sha="$(compute_sha256 "${target_skill_md}")"
+        local manifest_sha
+        manifest_sha="$(manifest_get_sha "skills" "${skill_name}")"
+
+        # If source matches installed, nothing to do (but ensure manifest exists)
+        if [[ "${source_sha}" = "${installed_sha}" ]]; then
+            if [[ -z "${manifest_sha}" ]]; then
+                manifest_set "skills" "${skill_name}" "${source_sha}" "${source_commit}"
+            fi
+            SKILLS_UNCHANGED=$((SKILLS_UNCHANGED + 1))
+            return
+        fi
+
+        # If manifest SHA matches installed SHA, safe to update (user hasn't modified)
+        if [[ -n "${manifest_sha}" ]] && [[ "${manifest_sha}" = "${installed_sha}" ]]; then
+            cp -R "${source_dir}/"* "${target_dir}/"
+            manifest_set "skills" "${skill_name}" "${source_sha}" "${source_commit}"
+            SKILLS_UPDATED=$((SKILLS_UPDATED + 1))
+            log_success "Skill updated: ${skill_name}"
+            return
+        fi
+
+        # Conflict: user has modified the skill
+        if [[ "${FORCE}" = true ]]; then
+            cp -R "${source_dir}/"* "${target_dir}/"
+            manifest_set "skills" "${skill_name}" "${source_sha}" "${source_commit}"
+            SKILLS_UPDATED=$((SKILLS_UPDATED + 1))
+            log_warn "Skill force-updated: ${skill_name} (local modifications overwritten)"
+            return
+        else
+            SKILLS_SKIPPED=$((SKILLS_SKIPPED + 1))
+            log_warn "Skill skipped: ${skill_name} (locally modified — use --force to overwrite)"
+            return
+        fi
+    fi
+
+    # Target directory exists but no SKILL.md — treat as new
+    cp -R "${source_dir}/"* "${target_dir}/"
+    manifest_set "skills" "${skill_name}" "${source_sha}" "${source_commit}"
+    SKILLS_ADDED=$((SKILLS_ADDED + 1))
+    log_success "Skill added: ${skill_name}"
+}
+
+# Sync all skills from the upstream cache.
+sync_skills() {
+    local system_dir="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}"
+    if [[ ! -d "${system_dir}" ]]; then
+        log_warn "No '${SYSTEM_SKILLS_SUBDIR}/' directory found in upstream repo."
+        return
+    fi
+
+    mkdir -p "${SKILLS_TARGET_DIR}"
+
+    local found=false
+    for skill_dir in "${system_dir}"/*/; do
+        [[ -d "${skill_dir}" ]] || continue
+        local skill_name
+        skill_name="$(basename "${skill_dir}")"
+        [[ -f "${skill_dir}/SKILL.md" ]] || continue
+        found=true
+        sync_skill "${skill_name}"
+    done
+
+    if [[ "${found}" = false ]]; then
+        log_warn "No valid skills found in '${SYSTEM_SKILLS_SUBDIR}/'."
+    fi
+}
+
+# --- Agent sync ---
+
+# Sync a single agent tool profile from cache to target.
+sync_agent_profile() {
+    local agent_name="$1"
+    local tool_name="$2"
+    local source_dir="${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}/${agent_name}/${tool_name}"
+    local manifest_key="${agent_name}/${tool_name}"
+    local source_commit
+    source_commit="$(get_source_commit)"
+
+    # Find the source file (first .md file in the tool subfolder)
+    local source_file=""
+    for f in "${source_dir}"/*.md; do
+        [[ -f "${f}" ]] || continue
+        source_file="${f}"
+        break
+    done
+
+    if [[ -z "${source_file}" ]]; then
+        log_warn "Agent skipped: ${agent_name}/${tool_name} (no .md file found in source)"
+        AGENTS_SKIPPED=$((AGENTS_SKIPPED + 1))
+        return
+    fi
+
+    # Resolve target path from registry
+    local install_dir="${AGENT_TOOL_INSTALL_DIR[${tool_name}]}"
+    local filename
+    # shellcheck disable=SC2059
+    filename="$(printf "${AGENT_TOOL_FILENAME[${tool_name}]}" "${agent_name}")"
+    local target_file="${install_dir}/${filename}"
+
+    local source_sha
+    source_sha="$(compute_sha256 "${source_file}")"
+
+    # Ensure target directory exists
+    mkdir -p "${install_dir}"
+
+    # New agent profile — doesn't exist in target yet
+    if [[ ! -f "${target_file}" ]]; then
+        cp "${source_file}" "${target_file}"
+        manifest_set "agents" "${manifest_key}" "${source_sha}" "${source_commit}"
+        AGENTS_ADDED=$((AGENTS_ADDED + 1))
+        log_success "Agent added: ${agent_name} (${tool_name})"
+        return
+    fi
+
+    # Existing profile — check for conflicts
+    local installed_sha
+    installed_sha="$(compute_sha256 "${target_file}")"
+    local manifest_sha
+    manifest_sha="$(manifest_get_sha "agents" "${manifest_key}")"
+
+    # If source matches installed, nothing to do (but ensure manifest exists)
+    if [[ "${source_sha}" = "${installed_sha}" ]]; then
+        if [[ -z "${manifest_sha}" ]]; then
+            manifest_set "agents" "${manifest_key}" "${source_sha}" "${source_commit}"
+        fi
+        AGENTS_UNCHANGED=$((AGENTS_UNCHANGED + 1))
+        return
+    fi
+
+    # If manifest SHA matches installed SHA, safe to update
+    if [[ -n "${manifest_sha}" ]] && [[ "${manifest_sha}" = "${installed_sha}" ]]; then
+        cp "${source_file}" "${target_file}"
+        manifest_set "agents" "${manifest_key}" "${source_sha}" "${source_commit}"
+        AGENTS_UPDATED=$((AGENTS_UPDATED + 1))
+        log_success "Agent updated: ${agent_name} (${tool_name})"
+        return
+    fi
+
+    # Conflict: user has modified the profile
+    if [[ "${FORCE}" = true ]]; then
+        cp "${source_file}" "${target_file}"
+        manifest_set "agents" "${manifest_key}" "${source_sha}" "${source_commit}"
+        AGENTS_UPDATED=$((AGENTS_UPDATED + 1))
+        log_warn "Agent force-updated: ${agent_name}/${tool_name} (local modifications overwritten)"
+        return
+    else
+        AGENTS_SKIPPED=$((AGENTS_SKIPPED + 1))
+        log_warn "Agent skipped: ${agent_name}/${tool_name} (locally modified — use --force to overwrite)"
+        return
+    fi
+}
+
+# Sync all agents from the upstream cache.
+sync_agents() {
+    local system_dir="${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}"
+    if [[ ! -d "${system_dir}" ]]; then
+        log_warn "No '${SYSTEM_AGENTS_SUBDIR}/' directory found in upstream repo."
+        return
+    fi
+
+    local found=false
+    for agent_dir in "${system_dir}"/*/; do
+        [[ -d "${agent_dir}" ]] || continue
+        local agent_name
+        agent_name="$(basename "${agent_dir}")"
+
+        # Iterate tool subfolders
+        for tool_dir in "${agent_dir}"/*/; do
+            [[ -d "${tool_dir}" ]] || continue
+            local tool_name
+            tool_name="$(basename "${tool_dir}")"
+
+            # Check registry
+            if [[ -z "${AGENT_TOOL_INSTALL_DIR[${tool_name}]+_}" ]]; then
+                log_warn "Agent skipped: ${agent_name}/${tool_name} (unknown tool '${tool_name}' — not in registry)"
+                AGENTS_SKIPPED=$((AGENTS_SKIPPED + 1))
+                continue
+            fi
+
+            found=true
+            sync_agent_profile "${agent_name}" "${tool_name}"
+        done
+    done
+
+    if [[ "${found}" = false ]]; then
+        log_warn "No valid agents found in '${SYSTEM_AGENTS_SUBDIR}/'."
+    fi
+}
+
+# --- Summary ---
+
+print_summary() {
+    local skills_total=$((SKILLS_ADDED + SKILLS_UPDATED + SKILLS_SKIPPED + SKILLS_UNCHANGED))
+    local agents_total=$((AGENTS_ADDED + AGENTS_UPDATED + AGENTS_SKIPPED + AGENTS_UNCHANGED))
+    local total=$((skills_total + agents_total))
+
+    local summary="Agent Sync Summary\n"
+    summary+="Total resources processed: ${total}\n"
+
+    if [[ "${skills_total}" -gt 0 ]]; then
+        summary+="\nSkills (${skills_total}):"
+        [[ "${SKILLS_ADDED}" -gt 0 ]] && summary+=" ${SKILLS_ADDED} added,"
+        [[ "${SKILLS_UPDATED}" -gt 0 ]] && summary+=" ${SKILLS_UPDATED} updated,"
+        [[ "${SKILLS_SKIPPED}" -gt 0 ]] && summary+=" ${SKILLS_SKIPPED} skipped,"
+        [[ "${SKILLS_UNCHANGED}" -gt 0 ]] && summary+=" ${SKILLS_UNCHANGED} unchanged,"
+        summary="${summary%,}\n"
+    fi
+
+    if [[ "${agents_total}" -gt 0 ]]; then
+        summary+="\nAgents (${agents_total}):"
+        [[ "${AGENTS_ADDED}" -gt 0 ]] && summary+=" ${AGENTS_ADDED} added,"
+        [[ "${AGENTS_UPDATED}" -gt 0 ]] && summary+=" ${AGENTS_UPDATED} updated,"
+        [[ "${AGENTS_SKIPPED}" -gt 0 ]] && summary+=" ${AGENTS_SKIPPED} skipped,"
+        [[ "${AGENTS_UNCHANGED}" -gt 0 ]] && summary+=" ${AGENTS_UNCHANGED} unchanged,"
+        summary="${summary%,}\n"
+    fi
+
+    print_summary_box "$(printf '%b' "${summary}")"
+
+    local total_skipped=$((SKILLS_SKIPPED + AGENTS_SKIPPED))
+    if [[ "${total_skipped}" -gt 0 ]]; then
+        echo ""
+        log_info "Some resources were skipped due to local modifications."
+        log_info "Run '${SCRIPT_NAME} --force' to overwrite them."
+    fi
+}
+
+# --- Main ---
+
+usage() {
+    echo "Usage: ${SCRIPT_NAME} [--force]"
+    echo ""
+    echo "Sync SparkFabrik system agent skills and agent profiles to local paths."
+    echo ""
+    echo "Skills are installed to:  ${SKILLS_TARGET_DIR}/"
+    echo "Agent profiles are installed to per-tool paths (see tool registry)."
+    echo ""
+    echo "Options:"
+    echo "  --force    Overwrite locally modified managed resources"
+    echo "  -h, --help Show this help message"
+}
+
+main() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --force)
+                FORCE=true
+                shift
+                ;;
+            -h|--help)
+                usage
+                exit 0
+                ;;
+            *)
+                echo "Error: Unknown option '$1'"
+                usage
+                exit 2
+                ;;
+        esac
+    done
+
+    log_info "Syncing SparkFabrik agent resources..."
+
+    # Clone or update the repo
+    sync_repo
+
+    # Ensure cache directory is ready
+    mkdir -p "${SKILLS_TARGET_DIR}"
+
+    # Sync both resource types
+    sync_skills
+    sync_agents
+
+    print_summary
+}
+
+main "$@"

@@ -811,7 +811,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         // Allow refresh when skills have updates OR are not configured (initial setup)
         let skillsConfigured = isSkillsConfigured()
         guard hasSkillsUpdates || !skillsConfigured else { return }
-        executeTerminalCommand("sjust sf-skills-refresh")
+        executeTerminalCommand("sjust sf-agents-refresh")
     }
 
 

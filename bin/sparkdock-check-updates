@@ -120,7 +120,8 @@ usage() {
     echo "Subsystems:"
     echo "  sparkdock    Check for sparkdock core updates"
     echo "  http-proxy   Check for http-proxy updates"
-    echo "  skills       Check for agent skills updates"
+    echo "  agents       Check for agent skills and agent profile updates"
+    echo "  skills       (alias for agents)"
     echo ""
     echo "Exit codes:"
     echo "  0  Updates available"
@@ -146,7 +147,7 @@ main() {
         http-proxy)
             check_http_proxy_updates || rc=$?
             ;;
-        skills)
+        skills|agents)
             check_skills_updates || rc=$?
             ;;
         -h|--help)

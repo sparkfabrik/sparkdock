@@ -194,6 +194,35 @@ make uninstall               # Remove installation
 - Auto-starts at login via launch agent (local development only)
 - CI environments skip LaunchAgent installation for better automation
 
+## AI Coding Agents System
+
+Sparkdock syncs AI coding resources from the upstream `sf-awesome-copilot` repository. This covers two resource types managed by a unified sync system:
+
+- **Skills**: Tool-specific instruction files (e.g., `glab`) installed to `~/.agents/skills/<name>/SKILL.md`
+- **Agent profiles**: Per-tool agent configurations (e.g., "The Architect") installed to tool-specific directories (`~/.copilot/agents/`, `~/.config/opencode/agents/`)
+
+### Key Scripts
+- `bin/sparkdock-agents-sync` — Unified sync script with tool registry, skill sync, agent sync, v2 manifest
+- `bin/sparkdock-agents-status` — Status display for both skills and agent profiles
+- `bin/sparkdock-check-updates` — Accepts both `skills` and `agents` subcommands
+
+### Tool Registry
+The sync script uses associative arrays to map each coding tool to its install directory and filename pattern. Adding support for a new tool requires only 2 lines (one in each array). Current tools: `copilot`, `opencode`.
+
+### Manifest
+Located at `~/.cache/sparkdock/sf-skills-manifest.json`. V2 format with `skills` and `agents` top-level keys. V1 manifests upgrade organically (no migration code). Agent entries use composite keys like `the-architect/copilot`.
+
+### sjust Recipes (`sjust/recipes/05-ai-coding-agents.just`)
+- `sf-agents-refresh [force]` — Sync all resources (skills + agents)
+- `sf-agents-status` — Show status of all resources
+- `sf-skills-refresh` / `sf-skills-status` — Backward-compatible aliases
+
+### Ansible Tags
+- `ai-coding-agents` (new) and `skills` (kept for backward compat)
+
+### OpenSpec Change
+Full design artifacts at `openspec/changes/unified-agents-sync/` (proposal, design, specs, tasks).
+
 ## Troubleshooting
 
 - Lock file issues: Remove `/tmp/sparkdock.lock`
