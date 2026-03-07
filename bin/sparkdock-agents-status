@@ -22,21 +22,20 @@ declare -A AGENT_TOOL_INSTALL_DIR=(
     [copilot]="${HOME}/.copilot/agents"
     [opencode]="${HOME}/.config/opencode/agents"
 )
-declare -A AGENT_TOOL_FILENAME=(
-    [copilot]="%s.agent.md"
-    [opencode]="%s.md"
-)
 
-# Guard: python3 is required for manifest operations
+# Guard: python3 and perl are required
 if ! command -v python3 &>/dev/null; then
     log_error "python3 is required but not found in PATH"
+    exit 1
+fi
+if ! command -v perl &>/dev/null; then
+    log_error "perl is required but not found in PATH"
     exit 1
 fi
 
 # --- Helpers ---
 
 # Get list of managed resource names from a manifest section.
-# Usage: get_managed_names <section>
 get_managed_names() {
     local section="$1"
     if [[ ! -f "${MANIFEST_PATH}" ]]; then
@@ -75,7 +74,6 @@ except Exception:
 
 # Check if an upstream resource exists at the given path.
 # Returns 0 (conflict) or 1 (no conflict). Sets CONFLICTS_FOUND=true on hit.
-# Usage: has_upstream_conflict <path>
 has_upstream_conflict() {
     local upstream_path="$1"
     if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -e "${upstream_path}" ]]; then
@@ -85,6 +83,78 @@ has_upstream_conflict() {
     return 1
 }
 
+# Determine the status of a managed resource by comparing SHAs.
+# Prints one of: "up to date", "update available", "locally modified".
+# Args: <manifest_section> <manifest_key> <installed_file> <upstream_file>
+#   upstream_file may be empty if unavailable.
+resolve_managed_status() {
+    local section="$1" key="$2" installed_file="$3" upstream_file="$4"
+    local manifest_sha installed_sha upstream_sha
+
+    manifest_sha=$(get_manifest_sha "${section}" "${key}")
+    installed_sha=$(compute_sha256 "${installed_file}") || installed_sha=""
+
+    if [[ "${manifest_sha}" != "${installed_sha}" ]]; then
+        echo "locally modified"
+        return
+    fi
+
+    # SHA matches manifest — check if upstream has a newer version
+    if [[ -n "${upstream_file}" ]] && [[ -f "${upstream_file}" ]]; then
+        upstream_sha=$(compute_sha256 "${upstream_file}") || upstream_sha=""
+        if [[ -n "${upstream_sha}" ]] && [[ "${upstream_sha}" != "${installed_sha}" ]]; then
+            echo "update available"
+            return
+        fi
+    fi
+
+    echo "up to date"
+}
+
+# Print a bold colored section label.
+print_label() {
+    local title="$1"
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --bold --foreground 99 "${title}"
+    else
+        printf "${BOLD}%s${NC}\n" "${title}"
+    fi
+}
+
+# Print dimmed text (adapts to terminal color scheme).
+print_faint() {
+    local text="$1"
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --faint "${text}"
+    else
+        printf "\033[2m%s\033[0m\n" "${text}"
+    fi
+}
+
+# Render a CSV table using gum table (with fallback to column).
+# Workaround: gum v0.17.0 has a bug (charmbracelet/gum#833) where --print mode
+# applies bold styling to the first data row (selected-row state leaks).
+# We strip bold escape sequences (\e[1m) via perl to neutralise this.
+# --header.foreground is also broken (colors first data row, not header), so we
+# only use --border.foreground for styling.
+# Status values are colorized post-render so they don't break column alignment.
+render_table() {
+    local csv_data="$1"
+    if [[ "${HAS_GUM}" = true ]]; then
+        echo "${csv_data}" | gum table --print \
+            --border.foreground 240 \
+            | perl -pe '
+                s/\e\[1m//g;
+                s/update available/\e[38;5;40mupdate available\e[0m/g;
+                s/locally modified/\e[38;5;220mlocally modified\e[0m/g;
+                s/conflicts with upstream/\e[38;5;220mconflicts with upstream\e[0m/g;
+                s/no SKILL\.md/\e[38;5;220mno SKILL.md\e[0m/g;
+            '
+    else
+        echo "${csv_data}" | column -t -s ','
+    fi
+}
+
 # --- Upstream cache ---
 
 log_section "Agent Resources Status"
@@ -92,7 +162,9 @@ log_section "Agent Resources Status"
 CACHE_AVAILABLE=false
 CONFLICTS_FOUND=false
 if [[ -d "${CACHE_DIR}/.git" ]]; then
-    if run_with_spinner "Fetching upstream..." \
+    if [[ "${SPARKDOCK_SKIP_FETCH:-}" == "true" ]]; then
+        CACHE_AVAILABLE=true
+    elif run_with_spinner "Fetching upstream..." \
             git -C "${CACHE_DIR}" fetch origin -q; then
         git -C "${CACHE_DIR}" reset --hard origin/main -q 2>/dev/null
         CACHE_AVAILABLE=true
@@ -104,12 +176,8 @@ fi
 
 # --- Skills section ---
 
-echo ""
-log_info "Skills"
-printf "%-25s %-12s %s\n" "SKILL" "TYPE" "STATUS"
-printf "%-25s %-12s %s\n" "-----" "----" "------"
-
 managed_skills="$(get_managed_names "skills")"
+skills_csv="NAME,TYPE,STATUS"
 skills_found=false
 
 if [[ -d "${SKILLS_DIR}" ]]; then
@@ -119,55 +187,39 @@ if [[ -d "${SKILLS_DIR}" ]]; then
         skill_name=$(basename "${skill_dir}")
 
         if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
-            printf "%-25s %-12s %s\n" "${skill_name}" "incomplete" "no SKILL.md"
+            skills_csv+=$'\n'"${skill_name},incomplete,no SKILL.md"
             continue
         fi
 
         if echo "${managed_skills}" | grep -Fqx "${skill_name}"; then
-            manifest_sha=$(get_manifest_sha "skills" "${skill_name}")
-            installed_sha=$(compute_sha256 "${skill_dir}/SKILL.md") || installed_sha=""
-
-            if [[ "${manifest_sha}" == "${installed_sha}" ]]; then
-                upstream_file="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
-                if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -f "${upstream_file}" ]]; then
-                    upstream_sha=$(compute_sha256 "${upstream_file}") || upstream_sha=""
-                    if [[ -n "${upstream_sha}" ]] && [[ "${upstream_sha}" != "${installed_sha}" ]]; then
-                        printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "$(colorize 40 'update available')"
-                    else
-                        printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "up to date"
-                    fi
-                else
-                    printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "up to date"
-                fi
-            else
-                printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "$(colorize 220 'locally modified')"
-            fi
+            upstream_file="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
+            [[ "${CACHE_AVAILABLE}" != "true" || ! -f "${upstream_file}" ]] && upstream_file=""
+            status=$(resolve_managed_status "skills" "${skill_name}" "${skill_dir}/SKILL.md" "${upstream_file}")
+            skills_csv+=$'\n'"${skill_name},managed,${status}"
         else
-            # Check if this user skill conflicts with an upstream skill
             if has_upstream_conflict "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"; then
-                printf "%-25s %-12s %s\n" "${skill_name}" "user" "$(colorize 220 'conflicts with upstream')"
+                skills_csv+=$'\n'"${skill_name},user,conflicts with upstream"
             else
-                printf "%-25s %-12s %s\n" "${skill_name}" "user" ""
+                skills_csv+=$'\n'"${skill_name},user,"
             fi
         fi
     done
 fi
 
-if [[ "${skills_found}" = false ]]; then
+print_label "Skills"
+if [[ "${skills_found}" = true ]]; then
+    render_table "${skills_csv}"
+else
     echo "  (no skills installed)"
 fi
 
 # --- Agents section ---
 
 echo ""
-log_info "Agent Profiles"
-printf "%-25s %-12s %-12s %s\n" "AGENT" "TOOL" "TYPE" "STATUS"
-printf "%-25s %-12s %-12s %s\n" "-----" "----" "----" "------"
-
 managed_agents="$(get_managed_names "agents")"
+agents_csv="NAME,TOOL,TYPE,STATUS"
 agents_found=false
 
-# Iterate over all registered tools and check installed agent files
 for tool_name in $(printf '%s\n' "${!AGENT_TOOL_INSTALL_DIR[@]}" | sort); do
     local_install_dir="${AGENT_TOOL_INSTALL_DIR[${tool_name}]}"
     [[ -d "${local_install_dir}" ]] || continue
@@ -176,9 +228,7 @@ for tool_name in $(printf '%s\n' "${!AGENT_TOOL_INSTALL_DIR[@]}" | sort); do
         [[ -f "${agent_file}" ]] || continue
         agents_found=true
 
-        # Derive agent name from filename by stripping tool-specific suffix
         filename="$(basename "${agent_file}")"
-        # Strip .agent.md or .md suffix to get the agent name
         agent_name="${filename%.agent.md}"
         if [[ "${agent_name}" == "${filename}" ]]; then
             agent_name="${filename%.md}"
@@ -187,42 +237,30 @@ for tool_name in $(printf '%s\n' "${!AGENT_TOOL_INSTALL_DIR[@]}" | sort); do
         manifest_key="${agent_name}/${tool_name}"
 
         if echo "${managed_agents}" | grep -Fqx "${manifest_key}"; then
-            manifest_sha=$(get_manifest_sha "agents" "${manifest_key}")
-            installed_sha=$(compute_sha256 "${agent_file}") || installed_sha=""
-
-            if [[ "${manifest_sha}" == "${installed_sha}" ]]; then
-                upstream_dir="${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}/${agent_name}/${tool_name}"
-                upstream_file=""
-                if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -d "${upstream_dir}" ]]; then
-                    for f in "${upstream_dir}"/*.md; do
-                        [[ -f "${f}" ]] && upstream_file="${f}" && break
-                    done
-                fi
-                if [[ -n "${upstream_file}" ]]; then
-                    upstream_sha=$(compute_sha256 "${upstream_file}") || upstream_sha=""
-                    if [[ -n "${upstream_sha}" ]] && [[ "${upstream_sha}" != "${installed_sha}" ]]; then
-                        printf "%-25s %-12s %s %s\n" "${agent_name}" "${tool_name}" "$(bold "$(printf '%-12s' 'managed')")" "$(colorize 40 'update available')"
-                    else
-                        printf "%-25s %-12s %s %s\n" "${agent_name}" "${tool_name}" "$(bold "$(printf '%-12s' 'managed')")" "up to date"
-                    fi
-                else
-                    printf "%-25s %-12s %s %s\n" "${agent_name}" "${tool_name}" "$(bold "$(printf '%-12s' 'managed')")" "up to date"
-                fi
-            else
-                printf "%-25s %-12s %s %s\n" "${agent_name}" "${tool_name}" "$(bold "$(printf '%-12s' 'managed')")" "$(colorize 220 'locally modified')"
+            # Resolve upstream file (agents use a directory with *.md glob)
+            upstream_file=""
+            upstream_dir="${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}/${agent_name}/${tool_name}"
+            if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -d "${upstream_dir}" ]]; then
+                for f in "${upstream_dir}"/*.md; do
+                    [[ -f "${f}" ]] && upstream_file="${f}" && break
+                done
             fi
+            status=$(resolve_managed_status "agents" "${manifest_key}" "${agent_file}" "${upstream_file}")
+            agents_csv+=$'\n'"${agent_name},${tool_name},managed,${status}"
         else
-            # Check if this user agent conflicts with an upstream agent
             if has_upstream_conflict "${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}/${agent_name}/${tool_name}"; then
-                printf "%-25s %-12s %-12s %s\n" "${agent_name}" "${tool_name}" "user" "$(colorize 220 'conflicts with upstream')"
+                agents_csv+=$'\n'"${agent_name},${tool_name},user,conflicts with upstream"
             else
-                printf "%-25s %-12s %-12s %s\n" "${agent_name}" "${tool_name}" "user" ""
+                agents_csv+=$'\n'"${agent_name},${tool_name},user,"
             fi
         fi
     done
 done
 
-if [[ "${agents_found}" = false ]]; then
+print_label "Agent Profiles"
+if [[ "${agents_found}" = true ]]; then
+    render_table "${agents_csv}"
+else
     echo "  (no agent profiles installed)"
 fi
 
@@ -230,7 +268,7 @@ fi
 
 echo ""
 if [[ -f "${MANIFEST_PATH}" ]]; then
-    log_info "Manifest: ${MANIFEST_PATH}"
+    print_faint "Manifest: ${MANIFEST_PATH}"
 else
     log_warn "No manifest found. Run 'sjust sf-agents-refresh' to sync."
 fi
