@@ -153,6 +153,12 @@ Per `.github/copilot-instructions.md`, all shell scripts must:
 - Use `local` for function variables
 - Pass shellcheck validation
 
+## Python Standards
+
+- Format all Python files with **ruff** before committing
+- Run via Docker: `docker run --rm -v "$(pwd)/src:/src" ghcr.io/astral-sh/ruff:latest format /src`
+- Lint check: `docker run --rm -v "$(pwd)/src:/src" ghcr.io/astral-sh/ruff:latest check /src`
+
 ## Code Quality Standards
 
 **CRITICAL: Trailing Whitespace**

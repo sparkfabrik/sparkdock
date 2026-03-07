@@ -202,8 +202,8 @@ def select_files(
     prompt_template: str,
 ) -> List[str]:
     block = render_candidate_block(candidates)
-    prompt_body = (
-        prompt_template.replace("{{QUESTION}}", question).replace("{{FILES}}", block)
+    prompt_body = prompt_template.replace("{{QUESTION}}", question).replace(
+        "{{FILES}}", block
     )
     LOGGER.trace("Selecting files for question: %s", question)
     result = invoke_llm(
@@ -224,9 +224,7 @@ def select_files(
             result.returncode,
             err_path,
         )
-        raise SparkdockAIError(
-            f"Unable to select files. See {err_path!s} for details."
-        )
+        raise SparkdockAIError(f"Unable to select files. See {err_path!s} for details.")
 
     selected = parse_file_selection(result.stdout, candidates)
     LOGGER.info("Selected %d files for contextual answer", len(selected))
@@ -242,8 +240,8 @@ def ask_with_context(
     prompt_template: str,
 ) -> str:
     LOGGER.trace("Asking with context (context_chars=%d)", len(context))
-    prompt_body = (
-        prompt_template.replace("{{QUESTION}}", question).replace("{{CONTEXT}}", context)
+    prompt_body = prompt_template.replace("{{QUESTION}}", question).replace(
+        "{{CONTEXT}}", context
     )
     result = invoke_llm(
         model=CONTEXT_MODEL,
@@ -256,7 +254,9 @@ def ask_with_context(
     return result.stdout.strip()
 
 
-def ask_without_context(*, question: str, system_prompt: str, prompt_template: str) -> str:
+def ask_without_context(
+    *, question: str, system_prompt: str, prompt_template: str
+) -> str:
     LOGGER.info("Answering without repository context using %s", DIRECT_MODEL)
     LOGGER.trace("Direct question: %s", question)
     prompt_body = prompt_template.replace("{{QUESTION}}", question)
@@ -280,8 +280,8 @@ def question_needs_repo(question: str, candidate_files: List[str]) -> bool:
     block = render_candidate_block(candidate_files)
     if not block.strip():
         block = "- (no repository files detected)"
-    prompt_body = (
-        prompt_template.replace("{{QUESTION}}", question).replace("{{FILES}}", block)
+    prompt_body = prompt_template.replace("{{QUESTION}}", question).replace(
+        "{{FILES}}", block
     )
 
     result = invoke_llm(
@@ -479,7 +479,9 @@ def generate_answer(question: str, root: Path) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Sparkdock AI assistant backend")
-    parser.add_argument("--question", required=True, help="Question to ask the assistant")
+    parser.add_argument(
+        "--question", required=True, help="Question to ask the assistant"
+    )
     parser.add_argument(
         "--root",
         default=None,

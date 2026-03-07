@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added gcloud shell aliases: `gcloud-as` (impersonate service account), `gcloud-me` (stop impersonating), `gcloud-whoami` (show current impersonation)
 
 ### Changed
+- Adopted ruff as Python formatter/linter, run via Docker before committing
 - Refactored section headers across sjust recipes (libshell.sh, 00-default.just, 01-lima.just, 03-shell.just) to use `log_section` with double-border gum style
 - Added OpenSpec (@fission-ai/openspec) npm package to default package list for spec-driven development with AI coding assistants
 - Added opencode AI coding tool to default package list (now officially supported by Copilot)
