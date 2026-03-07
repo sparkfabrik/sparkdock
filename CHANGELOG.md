@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Unified agent skills and agent profiles into a single sync system (`sparkdock-agents-sync`, `sparkdock-agents-status`) supporting per-tool agent profiles alongside skills, with v2 manifest and upstream conflict detection
+- Added `sjust sf-agents-refresh` and `sjust sf-agents-status` recipes (backward-compatible `sf-skills-*` aliases kept)
 - Added secure OpenCode permissions config with 174 glob-based deny/ask rules (116 ask + 58 deny) covering system commands, git, Docker, Kubernetes, Helm, Terraform, npm/yarn, cloud CLIs (gcloud, gsutil, aws, az), BigQuery, and macOS system utilities — with wildcard catch-all patterns (`*command*`, `vendor * delete*`) for wrapped and future commands, requiring user confirmation or hard-blocking before execution of dangerous commands- Added optional import of `~/.local/spark/sparkdock/sjust/000-system.just` to allow Sparkdock externally managed tasks (such as MDM) to be included in SparkJust
 - Added automatic agent skills sync system that syncs curated SparkFabrik system skills from upstream repo to `~/.agents/skills/` with SHA256 manifest tracking, conflict detection, and `--force` flag for overwriting local modifications
 - Added `sparkdock-check-updates` unified update checker script with exit codes (0=updates-available, 1=up-to-date, 2=error, 3=not-configured) supporting sparkdock, http-proxy, and skills subsystems
@@ -24,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added gcloud shell aliases: `gcloud-as` (impersonate service account), `gcloud-me` (stop impersonating), `gcloud-whoami` (show current impersonation)
 
 ### Changed
+- Adopted ruff as Python formatter/linter, run via Docker before committing
 - Refactored section headers across sjust recipes (libshell.sh, 00-default.just, 01-lima.just, 03-shell.just) to use `log_section` with double-border gum style
 - Added OpenSpec (@fission-ai/openspec) npm package to default package list for spec-driven development with AI coding assistants
 - Added opencode AI coding tool to default package list (now officially supported by Copilot)
@@ -38,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed `c` alias from `clear` to OpenCode main command. Use `clear` command directly or ctrl+l for clearing screen instead
 
 ### Fixed
+- Fixed Slack notification announcing already-released features by using zero-context git diff (`-U0`) to eliminate context lines that confused Claude AI
 - Fixed zsh completions from `~/.local/share/zsh/site-functions` not being discovered when the user's `.zshrc` calls `compinit` before sourcing sparkdock (sjust, opencode, openspec completions were silently ignored because `fpath` was extended after `compinit` had already run)
 - Fixed menubar terminal commands (sjust, sparkdock, brew upgrade) closing immediately after completion by dropping into an interactive shell session
 - Fixed 3 Swift compiler warnings caused by unreachable catch blocks in menubar app process-launching functions

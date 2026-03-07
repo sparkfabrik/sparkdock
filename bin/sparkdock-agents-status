@@ -1,0 +1,242 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+# sparkdock-agents-status — Show status of agent skills and agent profiles
+#                           (managed vs user-owned, up to date vs locally modified).
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
+
+# Source shared utility library (provides logging + compute_sha256)
+# shellcheck source=common/utils.sh
+source "${SCRIPT_DIR}/common/utils.sh"
+
+SKILLS_DIR="${HOME}/.agents/skills"
+MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
+CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
+SYSTEM_SKILLS_SUBDIR="skills/system"
+SYSTEM_AGENTS_SUBDIR="agents/system"
+
+# Tool registry (must mirror sparkdock-agents-sync)
+declare -A AGENT_TOOL_INSTALL_DIR=(
+    [copilot]="${HOME}/.copilot/agents"
+    [opencode]="${HOME}/.config/opencode/agents"
+)
+declare -A AGENT_TOOL_FILENAME=(
+    [copilot]="%s.agent.md"
+    [opencode]="%s.md"
+)
+
+# Guard: python3 is required for manifest operations
+if ! command -v python3 &>/dev/null; then
+    log_error "python3 is required but not found in PATH"
+    exit 1
+fi
+
+# --- Helpers ---
+
+# Get list of managed resource names from a manifest section.
+# Usage: get_managed_names <section>
+get_managed_names() {
+    local section="$1"
+    if [[ ! -f "${MANIFEST_PATH}" ]]; then
+        return
+    fi
+    python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    for name in sorted(data.get(sys.argv[2], {}).keys()):
+        print(name)
+except Exception:
+    pass
+" "${MANIFEST_PATH}" "${section}" 2>/dev/null || true
+}
+
+# Get SHA from manifest for a given section and key.
+get_manifest_sha() {
+    local section="$1"
+    local key="$2"
+    if [[ ! -f "${MANIFEST_PATH}" ]]; then
+        echo ""
+        return
+    fi
+    python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    print(data.get(sys.argv[2], {}).get(sys.argv[3], {}).get('sha256', ''))
+except Exception:
+    print('')
+" "${MANIFEST_PATH}" "${section}" "${key}" 2>/dev/null || echo ""
+}
+
+# Check if an upstream resource exists at the given path.
+# Returns 0 (conflict) or 1 (no conflict). Sets CONFLICTS_FOUND=true on hit.
+# Usage: has_upstream_conflict <path>
+has_upstream_conflict() {
+    local upstream_path="$1"
+    if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -e "${upstream_path}" ]]; then
+        CONFLICTS_FOUND=true
+        return 0
+    fi
+    return 1
+}
+
+# --- Upstream cache ---
+
+log_section "Agent Resources Status"
+
+CACHE_AVAILABLE=false
+CONFLICTS_FOUND=false
+if [[ -d "${CACHE_DIR}/.git" ]]; then
+    if run_with_spinner "Fetching upstream..." \
+            git -C "${CACHE_DIR}" fetch origin -q; then
+        git -C "${CACHE_DIR}" reset --hard origin/main -q 2>/dev/null
+        CACHE_AVAILABLE=true
+    else
+        log_warn "Could not reach upstream — status may not reflect latest changes."
+        CACHE_AVAILABLE=true  # Still use whatever is cached locally
+    fi
+fi
+
+# --- Skills section ---
+
+echo ""
+log_info "Skills"
+printf "%-25s %-12s %s\n" "SKILL" "TYPE" "STATUS"
+printf "%-25s %-12s %s\n" "-----" "----" "------"
+
+managed_skills="$(get_managed_names "skills")"
+skills_found=false
+
+if [[ -d "${SKILLS_DIR}" ]]; then
+    for skill_dir in "${SKILLS_DIR}"/*/; do
+        [[ -d "${skill_dir}" ]] || continue
+        skills_found=true
+        skill_name=$(basename "${skill_dir}")
+
+        if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
+            printf "%-25s %-12s %s\n" "${skill_name}" "incomplete" "no SKILL.md"
+            continue
+        fi
+
+        if echo "${managed_skills}" | grep -Fqx "${skill_name}"; then
+            manifest_sha=$(get_manifest_sha "skills" "${skill_name}")
+            installed_sha=$(compute_sha256 "${skill_dir}/SKILL.md") || installed_sha=""
+
+            if [[ "${manifest_sha}" == "${installed_sha}" ]]; then
+                upstream_file="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
+                if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -f "${upstream_file}" ]]; then
+                    upstream_sha=$(compute_sha256 "${upstream_file}") || upstream_sha=""
+                    if [[ -n "${upstream_sha}" ]] && [[ "${upstream_sha}" != "${installed_sha}" ]]; then
+                        printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "$(colorize 40 'update available')"
+                    else
+                        printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "up to date"
+                    fi
+                else
+                    printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "up to date"
+                fi
+            else
+                printf "%-25s %s %s\n" "${skill_name}" "$(bold "$(printf '%-12s' 'managed')")" "$(colorize 220 'locally modified')"
+            fi
+        else
+            # Check if this user skill conflicts with an upstream skill
+            if has_upstream_conflict "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"; then
+                printf "%-25s %-12s %s\n" "${skill_name}" "user" "$(colorize 220 'conflicts with upstream')"
+            else
+                printf "%-25s %-12s %s\n" "${skill_name}" "user" ""
+            fi
+        fi
+    done
+fi
+
+if [[ "${skills_found}" = false ]]; then
+    echo "  (no skills installed)"
+fi
+
+# --- Agents section ---
+
+echo ""
+log_info "Agent Profiles"
+printf "%-25s %-12s %-12s %s\n" "AGENT" "TOOL" "TYPE" "STATUS"
+printf "%-25s %-12s %-12s %s\n" "-----" "----" "----" "------"
+
+managed_agents="$(get_managed_names "agents")"
+agents_found=false
+
+# Iterate over all registered tools and check installed agent files
+for tool_name in $(printf '%s\n' "${!AGENT_TOOL_INSTALL_DIR[@]}" | sort); do
+    local_install_dir="${AGENT_TOOL_INSTALL_DIR[${tool_name}]}"
+    [[ -d "${local_install_dir}" ]] || continue
+
+    for agent_file in "${local_install_dir}"/*.md; do
+        [[ -f "${agent_file}" ]] || continue
+        agents_found=true
+
+        # Derive agent name from filename by stripping tool-specific suffix
+        filename="$(basename "${agent_file}")"
+        # Strip .agent.md or .md suffix to get the agent name
+        agent_name="${filename%.agent.md}"
+        if [[ "${agent_name}" == "${filename}" ]]; then
+            agent_name="${filename%.md}"
+        fi
+
+        manifest_key="${agent_name}/${tool_name}"
+
+        if echo "${managed_agents}" | grep -Fqx "${manifest_key}"; then
+            manifest_sha=$(get_manifest_sha "agents" "${manifest_key}")
+            installed_sha=$(compute_sha256 "${agent_file}") || installed_sha=""
+
+            if [[ "${manifest_sha}" == "${installed_sha}" ]]; then
+                upstream_dir="${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}/${agent_name}/${tool_name}"
+                upstream_file=""
+                if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -d "${upstream_dir}" ]]; then
+                    for f in "${upstream_dir}"/*.md; do
+                        [[ -f "${f}" ]] && upstream_file="${f}" && break
+                    done
+                fi
+                if [[ -n "${upstream_file}" ]]; then
+                    upstream_sha=$(compute_sha256 "${upstream_file}") || upstream_sha=""
+                    if [[ -n "${upstream_sha}" ]] && [[ "${upstream_sha}" != "${installed_sha}" ]]; then
+                        printf "%-25s %-12s %s %s\n" "${agent_name}" "${tool_name}" "$(bold "$(printf '%-12s' 'managed')")" "$(colorize 40 'update available')"
+                    else
+                        printf "%-25s %-12s %s %s\n" "${agent_name}" "${tool_name}" "$(bold "$(printf '%-12s' 'managed')")" "up to date"
+                    fi
+                else
+                    printf "%-25s %-12s %s %s\n" "${agent_name}" "${tool_name}" "$(bold "$(printf '%-12s' 'managed')")" "up to date"
+                fi
+            else
+                printf "%-25s %-12s %s %s\n" "${agent_name}" "${tool_name}" "$(bold "$(printf '%-12s' 'managed')")" "$(colorize 220 'locally modified')"
+            fi
+        else
+            # Check if this user agent conflicts with an upstream agent
+            if has_upstream_conflict "${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}/${agent_name}/${tool_name}"; then
+                printf "%-25s %-12s %-12s %s\n" "${agent_name}" "${tool_name}" "user" "$(colorize 220 'conflicts with upstream')"
+            else
+                printf "%-25s %-12s %-12s %s\n" "${agent_name}" "${tool_name}" "user" ""
+            fi
+        fi
+    done
+done
+
+if [[ "${agents_found}" = false ]]; then
+    echo "  (no agent profiles installed)"
+fi
+
+# --- Footer ---
+
+echo ""
+if [[ -f "${MANIFEST_PATH}" ]]; then
+    log_info "Manifest: ${MANIFEST_PATH}"
+else
+    log_warn "No manifest found. Run 'sjust sf-agents-refresh' to sync."
+fi
+if [[ "${CACHE_AVAILABLE}" == "false" ]]; then
+    log_warn "No upstream cache found. Run 'sjust sf-agents-refresh' to enable update checks."
+fi
+if [[ "${CONFLICTS_FOUND}" == "true" ]]; then
+    log_warn "Some user resources conflict with upstream. Run 'sjust sf-agents-refresh force' to overwrite."
+fi

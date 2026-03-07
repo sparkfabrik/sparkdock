@@ -53,15 +53,15 @@ OUTPUT_SCHEMA = {
     "properties": {
         "should_notify": {
             "type": "boolean",
-            "description": "Whether to send a Slack notification"
+            "description": "Whether to send a Slack notification",
         },
         "message": {
             "type": "string",
-            "description": "The notification message, or empty string if should_notify is false"
-        }
+            "description": "The notification message, or empty string if should_notify is false",
+        },
     },
     "required": ["should_notify", "message"],
-    "additionalProperties": False
+    "additionalProperties": False,
 }
 
 # Test cases
@@ -76,7 +76,7 @@ TEST_CASES = [
 
  ### Fixed
 +- Fixed trailing whitespace in shell configuration files
- - Fixed keyboard layout installation path"""
+ - Fixed keyboard layout installation path""",
     },
     {
         "name": "Static: Multiple features (list formatting)",
@@ -92,7 +92,7 @@ TEST_CASES = [
 +- Added new shell enhancement system with eza, starship, and fzf integration
  - Added Visual Studio Code Insiders to default package list
 
- ### Fixed"""
+ ### Fixed""",
     },
     {
         "name": "Static: New npm package/tool addition",
@@ -106,7 +106,7 @@ TEST_CASES = [
 +- Added OpenSpec (@fission-ai/openspec) npm package to default package list for spec-driven development with AI coding assistants
 +- Added opencode AI coding tool to default package list (now officially supported by Copilot)
  
- ### Fixed"""
+ ### Fixed""",
     },
 ]
 
@@ -125,22 +125,23 @@ def check_env(require_slack=True):
         sys.exit(1)
 
 
-def call_claude_api(prompt, schema, max_tokens=CLAUDE_MAX_TOKENS, temperature=CLAUDE_MODEL_TEMPERATURE):
+def call_claude_api(
+    prompt, schema, max_tokens=CLAUDE_MAX_TOKENS, temperature=CLAUDE_MODEL_TEMPERATURE
+):
     """Call Claude API with structured output."""
     if DEBUG:
         print(f"Prompt:\n---\n{prompt[:2000]}...\n---\n")
         print(f"Temperature: {temperature}")
 
-    payload = json.dumps({
-        "model": CLAUDE_MODEL,
-        "max_tokens": max_tokens,
-        "temperature": temperature,
-        "messages": [{"role": "user", "content": prompt}],
-        "output_format": {
-            "type": "json_schema",
-            "schema": schema
+    payload = json.dumps(
+        {
+            "model": CLAUDE_MODEL,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "messages": [{"role": "user", "content": prompt}],
+            "output_format": {"type": "json_schema", "schema": schema},
         }
-    }).encode()
+    ).encode()
 
     if DEBUG:
         print(f"Payload size: {len(payload)} bytes")
@@ -152,8 +153,8 @@ def call_claude_api(prompt, schema, max_tokens=CLAUDE_MAX_TOKENS, temperature=CL
             "Content-Type": "application/json",
             "x-api-key": os.environ["ANTHROPIC_API_KEY"],
             "anthropic-version": "2023-06-01",
-            "anthropic-beta": "structured-outputs-2025-11-13"
-        }
+            "anthropic-beta": "structured-outputs-2025-11-13",
+        },
     )
 
     try:
@@ -182,19 +183,22 @@ def create_slack_payload(message, commit_url, commit_sha, author):
     blocks = [
         {
             "type": "header",
-            "text": {"type": "plain_text", "text": "🚀 New Sparkdock Release", "emoji": True}
+            "text": {
+                "type": "plain_text",
+                "text": "🚀 New Sparkdock Release",
+                "emoji": True,
+            },
         },
-        {
-            "type": "section",
-            "text": {"type": "mrkdwn", "text": message}
-        },
+        {"type": "section", "text": {"type": "mrkdwn", "text": message}},
         {
             "type": "context",
-            "elements": [{
-                "type": "mrkdwn",
-                "text": f"*Commit:* <{commit_url}|{commit_sha}> by {author}"
-            }]
-        }
+            "elements": [
+                {
+                    "type": "mrkdwn",
+                    "text": f"*Commit:* <{commit_url}|{commit_sha}> by {author}",
+                }
+            ],
+        },
     ]
 
     return {"text": "🚀 New Sparkdock Release!", "blocks": blocks}
@@ -205,7 +209,7 @@ def send_slack(payload):
     req = urllib.request.Request(
         os.environ["SLACK_WEBHOOK_URL"],
         data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json"}
+        headers={"Content-Type": "application/json"},
     )
     with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
         return resp.status == 200
@@ -213,18 +217,18 @@ def send_slack(payload):
 
 def get_git_diff(changelog_file, num_commits=1):
     """Get changelog diff from the last N commits.
-    
+
     Args:
         changelog_file (str): Path to the changelog file
         num_commits (int): Number of commits to look back (default: 1)
-    
+
     Returns:
         str: Git diff output as string, or "No changes" message if no diff found
     """
     no_changes_msg = f"No changes in {changelog_file}"
     try:
         result = subprocess.run(
-            ["git", "diff", f"HEAD~{num_commits}", "HEAD", "--", changelog_file],
+            ["git", "diff", "-U0", f"HEAD~{num_commits}", "HEAD", "--", changelog_file],
             capture_output=True,
             text=True,
             check=True,
@@ -266,7 +270,7 @@ def run_test(test, commit_sha, commit_url, author):
         if DEBUG:
             print(f"\nGenerated message:\n---\n{message}\n---\n")
         payload = create_slack_payload(message, commit_url, commit_sha, author)
-        
+
         print(f"{YELLOW}Test mode: Sending notification to Slack...{NC}")
         try:
             if send_slack(payload):
@@ -310,7 +314,11 @@ def test_mode():
         results.append(run_test(test, commit_sha, commit_url, author))
 
     # Run real diff test
-    real_test = {"name": "Real: git diff HEAD~5..HEAD", "expected": None, "diff": get_git_diff("CHANGELOG.md", num_commits=5)}
+    real_test = {
+        "name": "Real: git diff HEAD~5..HEAD",
+        "expected": None,
+        "diff": get_git_diff("CHANGELOG.md", num_commits=5),
+    }
     results.append(run_test(real_test, commit_sha, commit_url, author))
 
     # Summary
@@ -321,7 +329,9 @@ def test_mode():
     for i, test in enumerate(TEST_CASES):
         status = f"{GREEN}✅ PASSED{NC}" if results[i] else f"{RED}✗ FAILED{NC}"
         print(f"Test {i + 1} ({test['name']}): {status}")
-    print(f"Test {len(TEST_CASES) + 1} (Real: git diff HEAD~5..HEAD): {GREEN}✅ COMPLETED{NC}")
+    print(
+        f"Test {len(TEST_CASES) + 1} (Real: git diff HEAD~5..HEAD): {GREEN}✅ COMPLETED{NC}"
+    )
 
     all_passed = all(results)
     color = GREEN if all_passed else RED
@@ -375,12 +385,12 @@ def dry_run_mode():
     """Dry run mode - validates script without calling APIs or sending notifications."""
     print(f"{GREEN}=== Dry Run Mode ==={NC}")
     print("Validating script configuration and structure...")
-    
+
     # Check script structure
     print("\n1. Checking script components...")
     print(f"   ✓ Script directory: {SCRIPT_DIR}")
     print(f"   ✓ Repository root: {REPO_ROOT}")
-    
+
     # Check prompt file
     if PROMPT_FILE.exists():
         print(f"   ✓ Prompt file exists: {PROMPT_FILE}")
@@ -390,7 +400,7 @@ def dry_run_mode():
     else:
         print(f"   ✗ Prompt file missing: {PROMPT_FILE}")
         sys.exit(1)
-    
+
     # Validate output schema
     print("\n2. Validating JSON schema...")
     try:
@@ -399,14 +409,14 @@ def dry_run_mode():
     except Exception as e:
         print(f"   ✗ JSON schema error: {e}")
         sys.exit(1)
-    
+
     # Test sample diffs
     print("\n3. Testing sample changelog diffs...")
     for i, test_case in enumerate(TEST_CASES, 1):
         diff = test_case.get("diff", "")
         name = test_case.get("name", f"Test #{i}")
         print(f"   ✓ {name} ({len(diff)} characters)")
-    
+
     # Validate Slack payload structure
     print("\n4. Validating Slack payload structure...")
     try:
@@ -414,21 +424,25 @@ def dry_run_mode():
             "Test message for dry run validation",
             "https://github.com/test/repo/commit/abc123",
             "abc1234",
-            "test-user"
+            "test-user",
         )
         payload_str = json.dumps(test_payload, indent=2)
         print(f"   ✓ Slack payload structure is valid ({len(payload_str)} bytes)")
     except Exception as e:
         print(f"   ✗ Slack payload error: {e}")
         sys.exit(1)
-    
+
     # Check environment (optional in dry run)
     print("\n5. Checking environment variables (optional)...")
     has_anthropic = bool(os.environ.get("ANTHROPIC_API_KEY"))
     has_slack = bool(os.environ.get("SLACK_WEBHOOK_URL"))
-    print(f"   {'✓' if has_anthropic else '○'} ANTHROPIC_API_KEY {'set' if has_anthropic else 'not set'}")
-    print(f"   {'✓' if has_slack else '○'} SLACK_WEBHOOK_URL {'set' if has_slack else 'not set'}")
-    
+    print(
+        f"   {'✓' if has_anthropic else '○'} ANTHROPIC_API_KEY {'set' if has_anthropic else 'not set'}"
+    )
+    print(
+        f"   {'✓' if has_slack else '○'} SLACK_WEBHOOK_URL {'set' if has_slack else 'not set'}"
+    )
+
     print(f"\n{GREEN}✅ Dry run validation passed - script is ready to use{NC}")
     print("\nNext steps:")
     if not has_anthropic or not has_slack:
@@ -437,7 +451,9 @@ def dry_run_mode():
             print("    export ANTHROPIC_API_KEY='your-key'")
         if not has_slack:
             print("    export SLACK_WEBHOOK_URL='your-webhook-url'")
-    print("  - Run in test mode: python3 src/slack-notify/notify-slack-on-merge.py --test")
+    print(
+        "  - Run in test mode: python3 src/slack-notify/notify-slack-on-merge.py --test"
+    )
 
 
 def main():

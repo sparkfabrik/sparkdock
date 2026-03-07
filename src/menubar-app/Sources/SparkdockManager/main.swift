@@ -51,7 +51,7 @@ private enum MenuItemTag: Int {
     case loginItem = 2
     case upgradeBrew = 3
     case upgradeHttpProxy = 4
-    case upgradeSkills = 5
+    case upgradeAgents = 5
 }
 
 // MARK: - Brew Package Types
@@ -104,8 +104,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var menu: NSMenu?
     var hasUpdates = false
     var hasHttpProxyUpdates = false
-    var hasSkillsUpdates = false
-    var skillsLastStatus: Int32? = nil
+    var hasAgentUpdates = false
+    var agentsLastStatus: Int32? = nil
     var outdatedBrewFormulaeCount = 0
     var outdatedBrewCasksCount = 0
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
@@ -113,11 +113,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var sparkdockStatusMenuItem: NSMenuItem?
     var brewStatusMenuItem: NSMenuItem?
     var httpProxyStatusMenuItem: NSMenuItem?
-    var skillsStatusMenuItem: NSMenuItem?
+    var agentsStatusMenuItem: NSMenuItem?
     var updateNowMenuItem: NSMenuItem?
     var upgradeBrewMenuItem: NSMenuItem?
     var upgradeHttpProxyMenuItem: NSMenuItem?
-    var upgradeSkillsMenuItem: NSMenuItem?
+    var upgradeAgentsMenuItem: NSMenuItem?
     private var pathMonitor: NWPathMonitor?
     fileprivate var menuConfig: MenuConfig?
     // Cache icons to avoid recreating them
@@ -174,7 +174,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
-        skillsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -247,10 +247,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(httpProxyStatusItem)
         self.httpProxyStatusMenuItem = httpProxyStatusItem
 
-        let skillsStatusItem = NSMenuItem(title: "Checking for updates (Agent Skills)...", action: #selector(checkSkillsUpdatesAction), keyEquivalent: "")
-        skillsStatusItem.target = self
-        menu.addItem(skillsStatusItem)
-        self.skillsStatusMenuItem = skillsStatusItem
+        let agentsStatusItem = NSMenuItem(title: "Checking for updates (Agent Skills)...", action: #selector(checkAgentUpdatesAction), keyEquivalent: "")
+        agentsStatusItem.target = self
+        menu.addItem(agentsStatusItem)
+        self.agentsStatusMenuItem = agentsStatusItem
 
         menu.addItem(.separator())
 
@@ -281,14 +281,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(upgradeHttpProxyItem)
         upgradeHttpProxyMenuItem = upgradeHttpProxyItem
 
-        let upgradeSkillsItem = NSMenuItem(title: "", action: #selector(upgradeSkills), keyEquivalent: "")
-        upgradeSkillsItem.target = self
-        upgradeSkillsItem.tag = MenuItemTag.upgradeSkills.rawValue
-        upgradeSkillsItem.attributedTitle = NSAttributedString(string: "Refresh Agent Skills", attributes: [
+        let upgradeAgentsItem = NSMenuItem(title: "", action: #selector(upgradeAgents), keyEquivalent: "")
+        upgradeAgentsItem.target = self
+        upgradeAgentsItem.tag = MenuItemTag.upgradeAgents.rawValue
+        upgradeAgentsItem.attributedTitle = NSAttributedString(string: "Refresh Agent Skills", attributes: [
             .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
         ])
-        menu.addItem(upgradeSkillsItem)
-        upgradeSkillsMenuItem = upgradeSkillsItem
+        menu.addItem(upgradeAgentsItem)
+        upgradeAgentsMenuItem = upgradeAgentsItem
 
         menu.addItem(.separator())
 
@@ -386,7 +386,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                     self?.sparkdockStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
                     self?.brewStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
                     self?.httpProxyStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
-                    self?.skillsStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+                    self?.agentsStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
                     self?.checkForUpdates()
                 }
             }
@@ -406,7 +406,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
-        skillsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -414,7 +414,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
-        skillsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -433,8 +433,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         checkForUpdates()
     }
 
-    @objc private func checkSkillsUpdatesAction() {
-        skillsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+    @objc private func checkAgentUpdatesAction() {
+        agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -443,10 +443,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             let hasUpdates = await runSparkdockCheck()
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
             let hasHttpProxyUpdates = await runHttpProxyCheck()
-            let hasSkillsUpdates = await runSkillsCheck()
-            let skillsConfigured = isSkillsConfigured()
+            let hasAgentUpdates = await runAgentsCheck()
+            let agentsConfigured = isAgentsConfigured()
             await MainActor.run {
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasSkillsUpdates: hasSkillsUpdates, skillsConfigured: skillsConfigured)
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured)
             }
         }
     }
@@ -643,14 +643,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return terminationStatus
     }
 
-    private func runSkillsCheck() async -> Bool {
+    private func runAgentsCheck() async -> Bool {
         guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
-            AppConstants.logger.info("sparkdock-check-updates not found, skills check skipped")
-            skillsLastStatus = nil
+            AppConstants.logger.info("sparkdock-check-updates not found, agents check skipped")
+            agentsLastStatus = nil
             return false
         }
-        let status = await runCheckUpdatesCommandStatus("skills")
-        skillsLastStatus = status
+        let status = await runCheckUpdatesCommandStatus("agents")
+        agentsLastStatus = status
         // Exit code 3 = not configured (cache not synced yet)
         if status == 3 {
             return false
@@ -658,28 +658,28 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status == 0
     }
 
-    /// Skills are considered configured when script exists AND last check returned a known good status.
+    /// Agent resources are considered configured when script exists AND last check returned a known good status.
     /// Returns false for: missing script, nil (error/timeout), or exit 3 (not configured).
-    private func isSkillsConfigured() -> Bool {
+    private func isAgentsConfigured() -> Bool {
         guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
             return false
         }
-        guard let status = skillsLastStatus else {
+        guard let status = agentsLastStatus else {
             // Unknown/failed status — treat as not configured to avoid misleading green UI
             return false
         }
         return status != 3
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasSkillsUpdates: Bool = false, skillsConfigured: Bool = true) {
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true) {
         self.hasUpdates = hasUpdates
         self.hasHttpProxyUpdates = hasHttpProxyUpdates
-        self.hasSkillsUpdates = hasSkillsUpdates
+        self.hasAgentUpdates = hasAgentUpdates
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
         self.outdatedBrewCasksCount = outdatedBrewCasks
         let totalBrewCount = totalOutdatedBrewCount
 
-        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates || hasSkillsUpdates
+        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates || hasAgentUpdates
         statusItem?.button?.image = loadIcon(hasUpdates: hasAnyUpdates)
 
         // Create more detailed tooltip
@@ -690,7 +690,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         if hasHttpProxyUpdates {
             tooltipParts.append("Http-proxy updates available")
         }
-        if hasSkillsUpdates {
+        if hasAgentUpdates {
             tooltipParts.append("Agent Skills updates available")
         }
         if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
@@ -732,12 +732,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
 
         // Update Agent Skills status line
-        if !skillsConfigured {
-            skillsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills: not configured", color: .systemGray)
-        } else if hasSkillsUpdates {
-            skillsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills updates available", color: .systemOrange)
+        if !agentsConfigured {
+            agentsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills: not configured", color: .systemGray)
+        } else if hasAgentUpdates {
+            agentsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills updates available", color: .systemOrange)
         } else {
-            skillsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills: up to date", color: .systemGreen)
+            agentsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills: up to date", color: .systemGreen)
         }
 
         // Update the "Upgrade Sparkdock" menu item visibility
@@ -777,14 +777,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
 
         // Update the "Refresh Agent Skills" menu item visibility
-        if let upgradeSkillsItem = upgradeSkillsMenuItem {
-            if hasSkillsUpdates || !skillsConfigured {
+        if let upgradeAgentsItem = upgradeAgentsMenuItem {
+            if hasAgentUpdates || !agentsConfigured {
                 // Show when updates available OR not configured (so user can bootstrap initial sync)
-                upgradeSkillsItem.title = hasSkillsUpdates ? "Refresh Agent Skills" : "Setup Agent Skills"
-                upgradeSkillsItem.isEnabled = true
-                upgradeSkillsItem.isHidden = false
+                upgradeAgentsItem.title = hasAgentUpdates ? "Refresh Agent Skills" : "Setup Agent Skills"
+                upgradeAgentsItem.isEnabled = true
+                upgradeAgentsItem.isHidden = false
             } else {
-                upgradeSkillsItem.isHidden = true
+                upgradeAgentsItem.isHidden = true
             }
         }
     }
@@ -807,11 +807,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         executeTerminalCommand("sjust http-proxy-install-update")
     }
 
-    @objc private func upgradeSkills() {
-        // Allow refresh when skills have updates OR are not configured (initial setup)
-        let skillsConfigured = isSkillsConfigured()
-        guard hasSkillsUpdates || !skillsConfigured else { return }
-        executeTerminalCommand("sjust sf-skills-refresh")
+    @objc private func upgradeAgents() {
+        // Allow refresh when agent resources have updates OR are not configured (initial setup)
+        let agentsConfigured = isAgentsConfigured()
+        guard hasAgentUpdates || !agentsConfigured else { return }
+        executeTerminalCommand("sjust sf-agents-refresh")
     }
 
 
