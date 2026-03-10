@@ -41,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Changed npm global package installation state from `present` to `latest` to ensure packages are always updated to their latest version
 - Changed `c` alias from `clear` to OpenCode main command. Use `clear` command directly or ctrl+l for clearing screen instead
 
+### Removed
+- Removed `sjust sf-skills-refresh` backward-compatible alias (use `sf-agents-refresh` instead)
+- Removed `sjust sf-skills-status` backward-compatible alias (use `sf-agents-status` instead)
+
 ### Fixed
 - Fixed Slack notification announcing already-released features by using zero-context git diff (`-U0`) to eliminate context lines that confused Claude AI
 - Fixed zsh completions from `~/.local/share/zsh/site-functions` not being discovered when the user's `.zshrc` calls `compinit` before sourcing sparkdock (sjust, opencode, openspec completions were silently ignored because `fpath` was extended after `compinit` had already run)
