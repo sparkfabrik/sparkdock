@@ -227,7 +227,6 @@ Located at `~/.cache/sparkdock/sf-skills-manifest.json`. V2 format with `skills`
 ### sjust Recipes (`sjust/recipes/05-ai-coding-agents.just`)
 - `sf-agents-refresh [force]` — Sync all resources (skills + agents)
 - `sf-agents-status` — Show status of all resources
-- `sf-skills-refresh` / `sf-skills-status` — Backward-compatible aliases
 
 ### Ansible Tags
 - `ai-coding-agents` (new) and `skills` (kept for backward compat)
