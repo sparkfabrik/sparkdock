@@ -12,6 +12,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 source "${SCRIPT_DIR}/common/utils.sh"
 
 SKILLS_DIR="${HOME}/.agents/skills"
+COPILOT_SKILLS_DIR="${HOME}/.copilot/skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
 CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
 SYSTEM_SKILLS_SUBDIR="skills/system"
@@ -262,6 +263,36 @@ if [[ "${agents_found}" = true ]]; then
     render_table "${agents_csv}"
 else
     echo "  (no agent profiles installed)"
+fi
+
+# --- Copilot CLI skill symlinks ---
+# Only warn when symlinks are missing or skipped — silent when everything is fine.
+# Track: https://github.com/github/copilot-cli/issues/1744
+
+copilot_issues=()
+for skill_dir in "${SKILLS_DIR}"/*/; do
+    [[ -d "${skill_dir}" ]] || continue
+    local_skill_name=$(basename "${skill_dir}")
+    copilot_target="${COPILOT_SKILLS_DIR}/${local_skill_name}"
+
+    if [[ -L "${copilot_target}" ]]; then
+        link_dest="$(readlink "${copilot_target}")"
+        if [[ "${link_dest}" != "${SKILLS_DIR}/${local_skill_name}" ]]; then
+            copilot_issues+=("${local_skill_name}: symlink points to ${link_dest} instead of ${SKILLS_DIR}/${local_skill_name}")
+        fi
+    elif [[ -e "${copilot_target}" ]]; then
+        copilot_issues+=("${local_skill_name}: skipped (user content exists at ${copilot_target})")
+    elif [[ -d "${SKILLS_DIR}" ]]; then
+        copilot_issues+=("${local_skill_name}: not linked — run 'sjust sf-agents-refresh' to fix")
+    fi
+done
+
+if [[ ${#copilot_issues[@]} -gt 0 ]]; then
+    echo ""
+    log_warn "Copilot CLI skill symlinks:"
+    for issue in "${copilot_issues[@]}"; do
+        log_warn "  ${issue}"
+    done
 fi
 
 # --- Footer ---

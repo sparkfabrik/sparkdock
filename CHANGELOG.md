@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added Copilot CLI skill symlinks: creates per-skill symlinks in `~/.copilot/skills/` pointing to `~/.agents/skills/` so Copilot CLI can discover sparkdock-managed skills (workaround for [github/copilot-cli#1744](https://github.com/github/copilot-cli/issues/1744))
 - Unified agent skills and agent profiles into a single sync system (`sparkdock-agents-sync`, `sparkdock-agents-status`) supporting per-tool agent profiles alongside skills, with v2 manifest and upstream conflict detection
 - Added `sjust sf-agents-refresh` and `sjust sf-agents-status` recipes (backward-compatible `sf-skills-*` aliases kept)
 - Added secure OpenCode permissions config with 174 glob-based deny/ask rules (116 ask + 58 deny) covering system commands, git, Docker, Kubernetes, Helm, Terraform, npm/yarn, cloud CLIs (gcloud, gsutil, aws, az), BigQuery, and macOS system utilities — with wildcard catch-all patterns (`*command*`, `vendor * delete*`) for wrapped and future commands, requiring user confirmation or hard-blocking before execution of dangerous commands- Added optional import of `~/.local/spark/sparkdock/sjust/000-system.just` to allow Sparkdock externally managed tasks (such as MDM) to be included in SparkJust

@@ -25,6 +25,12 @@ SYSTEM_SKILLS_SUBDIR="skills/system"
 # --- Agents configuration ---
 SYSTEM_AGENTS_SUBDIR="agents/system"
 
+# --- Copilot CLI compatibility ---
+# Copilot CLI does not support ~/.agents/skills/ — only ~/.copilot/skills/.
+# Track: https://github.com/github/copilot-cli/issues/1744
+#        https://github.com/github/copilot-cli/issues/1846
+COPILOT_SKILLS_DIR="${HOME}/.copilot/skills"
+
 # Tool registry: maps tool subfolder names to install directories and filename patterns.
 # Adding a new tool = 2 lines (one per array).
 # Filename pattern uses printf format: %s is replaced with the agent name.
@@ -52,6 +58,9 @@ AGENTS_ADDED=0
 AGENTS_UPDATED=0
 AGENTS_SKIPPED=0
 AGENTS_UNCHANGED=0
+COPILOT_CLI_SYMLINKED=0
+COPILOT_CLI_SKIPPED=0
+COPILOT_CLI_CLEANED=0
 
 # --- Manifest helpers ---
 
@@ -371,6 +380,63 @@ sync_agents() {
     fi
 }
 
+# --- Phase 3: Copilot CLI skill symlinks ---
+# Copilot CLI only reads personal skills from ~/.copilot/skills/, not ~/.agents/skills/.
+# Create per-skill symlinks so managed skills are visible to Copilot CLI.
+# Remove this section when Copilot CLI adds native ~/.agents/skills/ support.
+# Track: https://github.com/github/copilot-cli/issues/1744
+#        https://github.com/github/copilot-cli/issues/1846
+
+ensure_copilot_cli_symlinks() {
+    mkdir -p "${COPILOT_SKILLS_DIR}"
+
+    # Create symlinks for each managed skill
+    for skill_dir in "${SKILLS_TARGET_DIR}"/*/; do
+        [[ -d "${skill_dir}" ]] || continue
+        local skill_name
+        skill_name="$(basename "${skill_dir}")"
+        local target="${COPILOT_SKILLS_DIR}/${skill_name}"
+        local source="${SKILLS_TARGET_DIR}/${skill_name}"
+
+        if [[ -L "${target}" ]]; then
+            local link_target
+            link_target="$(readlink "${target}")"
+            if [[ "${link_target}" == "${source}" ]]; then
+                # Already pointing to the right place
+                continue
+            fi
+            log_warn "Copilot CLI: skipped ${skill_name} (symlink points to ${link_target})"
+            COPILOT_CLI_SKIPPED=$((COPILOT_CLI_SKIPPED + 1))
+            continue
+        fi
+
+        if [[ -e "${target}" ]]; then
+            log_warn "Copilot CLI: skipped ${skill_name} (user content exists at ${target})"
+            COPILOT_CLI_SKIPPED=$((COPILOT_CLI_SKIPPED + 1))
+            continue
+        fi
+
+        ln -s "${source}" "${target}"
+        COPILOT_CLI_SYMLINKED=$((COPILOT_CLI_SYMLINKED + 1))
+        log_success "Copilot CLI: symlinked ${skill_name}"
+    done
+
+    # Clean up stale symlinks (point into ~/.agents/skills/ but target no longer exists)
+    for entry in "${COPILOT_SKILLS_DIR}"/*; do
+        [[ -L "${entry}" ]] || continue
+        local link_target
+        link_target="$(readlink "${entry}")"
+        # Only touch symlinks that point into our managed skills directory
+        if [[ "${link_target}" == "${SKILLS_TARGET_DIR}/"* ]] && [[ ! -d "${link_target}" ]]; then
+            rm "${entry}"
+            COPILOT_CLI_CLEANED=$((COPILOT_CLI_CLEANED + 1))
+            local stale_name
+            stale_name="$(basename "${entry}")"
+            log_info "Copilot CLI: removed stale symlink ${stale_name}"
+        fi
+    done
+}
+
 # --- Summary ---
 
 print_summary() {
@@ -396,6 +462,15 @@ print_summary() {
         [[ "${AGENTS_UPDATED}" -gt 0 ]] && summary+=" ${AGENTS_UPDATED} updated,"
         [[ "${AGENTS_SKIPPED}" -gt 0 ]] && summary+=" ${AGENTS_SKIPPED} skipped,"
         [[ "${AGENTS_UNCHANGED}" -gt 0 ]] && summary+=" ${AGENTS_UNCHANGED} unchanged,"
+        summary="${summary%,}\n"
+    fi
+
+    local copilot_cli_total=$((COPILOT_CLI_SYMLINKED + COPILOT_CLI_SKIPPED + COPILOT_CLI_CLEANED))
+    if [[ "${copilot_cli_total}" -gt 0 ]]; then
+        summary+="\nCopilot CLI symlinks:"
+        [[ "${COPILOT_CLI_SYMLINKED}" -gt 0 ]] && summary+=" ${COPILOT_CLI_SYMLINKED} created,"
+        [[ "${COPILOT_CLI_SKIPPED}" -gt 0 ]] && summary+=" ${COPILOT_CLI_SKIPPED} skipped,"
+        [[ "${COPILOT_CLI_CLEANED}" -gt 0 ]] && summary+=" ${COPILOT_CLI_CLEANED} cleaned,"
         summary="${summary%,}\n"
     fi
 
@@ -454,6 +529,9 @@ main() {
     # Sync both resource types
     sync_skills
     sync_agents
+
+    # Create Copilot CLI symlinks for managed skills
+    ensure_copilot_cli_symlinks
 
     print_summary
 }
