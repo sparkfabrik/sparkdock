@@ -43,6 +43,20 @@ jobs:
           chmod +x ./bin/sparkdock.macos
           chmod +x ./bin/common/utils.sh
 
+      - name: Test curl-based bootstrap sourcing chain
+        run: |
+          echo "=== Testing /tmp/ bootstrap path (simulates bash <(curl ...) flow) ==="
+          # Copy common libs to /tmp/ as install.macos would via curl
+          cp ./bin/common/logging.sh /tmp/logging.sh
+          cp ./bin/common/utils.sh /tmp/utils.sh
+          # Source utils.sh from /tmp/ — this is the exact codepath that
+          # breaks when a dependency is missing (logging.sh must resolve
+          # via the relative path inside utils.sh)
+          /bin/bash -c 'source /tmp/utils.sh && log_info "Bootstrap sourcing chain OK"'
+          echo "✅ curl-based bootstrap sourcing chain works"
+          # Clean up
+          rm -f /tmp/logging.sh /tmp/utils.sh
+
       - name: Run installer script in non-interactive mode (first run - fresh install)
         run: |
           echo "=== FIRST RUN: Fresh installation ==="
