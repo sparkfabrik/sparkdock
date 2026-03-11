@@ -8,7 +8,7 @@ print() {
 
 checkMacosVersion() {
     if ! [[ $( sw_vers -productVersion ) =~ ^(26.[0-9]+|15.[0-9]+) ]] ; then
-        print "Sorry, this script is supposed to be executed on macOS Sequoia (15.x) or macOS Tahoe (26.x). Please use a supported version."
+        echo -e "\e[1m\e[31mSorry, this script is supposed to be executed on macOS Sequoia (15.x) or macOS Tahoe (26.x). Please use a supported version.\e[0m"
         return 1
     fi
     return 0
