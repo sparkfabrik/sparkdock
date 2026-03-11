@@ -178,6 +178,8 @@ check_copilot_cli_availability() {
 
     if [[ -L "${copilot_target}" ]]; then
         local link_dest
+        # Note: readlink without -f returns the raw target. This works because
+        # sparkdock-agents-sync always creates absolute symlinks.
         link_dest="$(readlink "${copilot_target}")"
         if [[ "${link_dest}" == "${SKILLS_DIR}/${skill_name}" ]]; then
             COPILOT_CLI_AVAILABLE="ok"

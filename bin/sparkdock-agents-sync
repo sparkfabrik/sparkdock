@@ -134,13 +134,22 @@ except Exception as e:
 " "${MANIFEST_PATH}" "${section}" "${key}" "${sha256}" "${timestamp}" "${source_commit}"
 }
 
-# Check whether a skill is managed (has a manifest entry).
-# Usage: is_managed_skill <skill_name>
-is_managed_skill() {
-    local skill_name="$1"
-    local sha
-    sha="$(manifest_get_sha "skills" "${skill_name}")"
-    [[ -n "${sha}" ]]
+# List all managed skill names from the manifest (one per line).
+# Single python3 call — avoids per-skill overhead.
+get_managed_skill_names() {
+    if [[ ! -f "${MANIFEST_PATH}" ]]; then
+        return
+    fi
+    python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    for name in sorted(data.get('skills', {}).keys()):
+        print(name)
+except Exception:
+    pass
+" "${MANIFEST_PATH}" 2>/dev/null || true
 }
 
 # --- Repo management ---
@@ -399,6 +408,10 @@ sync_agents() {
 ensure_copilot_cli_symlinks() {
     mkdir -p "${COPILOT_SKILLS_DIR}"
 
+    # Fetch managed skill names once (single python3 call)
+    local managed_names
+    managed_names="$(get_managed_skill_names)"
+
     # Create symlinks for each managed skill in ~/.agents/skills/
     for skill_dir in "${SKILLS_TARGET_DIR}"/*/; do
         [[ -d "${skill_dir}" ]] || continue
@@ -406,7 +419,7 @@ ensure_copilot_cli_symlinks() {
         skill_name="$(basename "${skill_dir}")"
 
         # Only symlink skills that sparkdock manages — skip user-created ones
-        if ! is_managed_skill "${skill_name}"; then
+        if ! echo "${managed_names}" | grep -Fqx "${skill_name}"; then
             continue
         fi
 
@@ -415,6 +428,8 @@ ensure_copilot_cli_symlinks() {
 
         if [[ -L "${target}" ]]; then
             local link_target
+            # Note: readlink without -f returns the raw target. This works because
+            # we always create absolute symlinks (ln -s "${source}" above).
             link_target="$(readlink "${target}")"
             if [[ "${link_target}" == "${source}" ]]; then
                 # Already pointing to the right place
@@ -446,7 +461,8 @@ ensure_copilot_cli_symlinks() {
         log_success "Copilot CLI: symlinked ${skill_name}"
     done
 
-    # Clean up stale symlinks (point into ~/.agents/skills/ but target no longer exists)
+    # Clean up stale symlinks (point into ~/.agents/skills/ but target no longer exists).
+    # Guard: if directory is empty, the glob expands to a literal "*/"; -L catches it.
     for entry in "${COPILOT_SKILLS_DIR}"/*; do
         [[ -L "${entry}" ]] || continue
         local link_target
