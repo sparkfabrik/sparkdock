@@ -792,6 +792,27 @@
             mode: "0755"
           become: no
 
+        - name: Ensure skills directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.agents/skills"
+            state: directory
+            mode: "0755"
+          become: no
+
+        - name: Ensure Copilot agents directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.copilot/agents"
+            state: directory
+            mode: "0755"
+          become: no
+
+        - name: Ensure Copilot skills directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.copilot/skills"
+            state: directory
+            mode: "0755"
+          become: no
+
         - name: Make sparkdock-agents-sync executable
           file:
             path: "{{ dev_env_dir }}/bin/sparkdock-agents-sync"

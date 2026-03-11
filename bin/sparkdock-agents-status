@@ -11,6 +11,10 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 # shellcheck source=common/utils.sh
 source "${SCRIPT_DIR}/common/utils.sh"
 
+# Source Copilot CLI shim (temporary — remove when copilot-cli#1744 lands)
+# shellcheck source=common/copilot-cli-shim.sh
+source "${SCRIPT_DIR}/common/copilot-cli-shim.sh"
+
 SKILLS_DIR="${HOME}/.agents/skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
 CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
@@ -149,6 +153,8 @@ render_table() {
                 s/locally modified/\e[38;5;220mlocally modified\e[0m/g;
                 s/conflicts with upstream/\e[38;5;220mconflicts with upstream\e[0m/g;
                 s/no SKILL\.md/\e[38;5;220mno SKILL.md\e[0m/g;
+                s/\bpartial\b/\e[38;5;220mpartial\e[0m/g;
+                s/\bok\b/\e[38;5;40mok\e[0m/g;
             '
     else
         echo "${csv_data}" | column -t -s ','
@@ -177,7 +183,7 @@ fi
 # --- Skills section ---
 
 managed_skills="$(get_managed_names "skills")"
-skills_csv="NAME,TYPE,STATUS"
+skills_csv="NAME,TYPE,STATUS,AVAILABLE"
 skills_found=false
 
 if [[ -d "${SKILLS_DIR}" ]]; then
@@ -187,20 +193,24 @@ if [[ -d "${SKILLS_DIR}" ]]; then
         skill_name=$(basename "${skill_dir}")
 
         if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
-            skills_csv+=$'\n'"${skill_name},incomplete,no SKILL.md"
+            skills_csv+=$'\n'"${skill_name},incomplete,no SKILL.md,"
             continue
         fi
 
         if echo "${managed_skills}" | grep -Fqx "${skill_name}"; then
+            # Only check Copilot CLI availability for managed skills
+            check_copilot_cli_availability "${skill_name}"
+            available="${COPILOT_CLI_AVAILABLE}"
+
             upstream_file="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
             [[ "${CACHE_AVAILABLE}" != "true" || ! -f "${upstream_file}" ]] && upstream_file=""
             status=$(resolve_managed_status "skills" "${skill_name}" "${skill_dir}/SKILL.md" "${upstream_file}")
-            skills_csv+=$'\n'"${skill_name},managed,${status}"
+            skills_csv+=$'\n'"${skill_name},managed,${status},${available}"
         else
             if has_upstream_conflict "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"; then
-                skills_csv+=$'\n'"${skill_name},user,conflicts with upstream"
+                skills_csv+=$'\n'"${skill_name},user,conflicts with upstream,"
             else
-                skills_csv+=$'\n'"${skill_name},user,"
+                skills_csv+=$'\n'"${skill_name},user,,"
             fi
         fi
     done
@@ -263,6 +273,8 @@ if [[ "${agents_found}" = true ]]; then
 else
     echo "  (no agent profiles installed)"
 fi
+
+print_copilot_cli_issues
 
 # --- Footer ---
 

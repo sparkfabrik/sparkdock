@@ -13,6 +13,10 @@ SCRIPT_NAME="$(basename "$0")"
 # shellcheck source=common/utils.sh
 source "${SCRIPT_DIR}/common/utils.sh"
 
+# Source Copilot CLI shim (temporary — remove when copilot-cli#1744 lands)
+# shellcheck source=common/copilot-cli-shim.sh
+source "${SCRIPT_DIR}/common/copilot-cli-shim.sh"
+
 UPSTREAM_REPO="https://github.com/sparkfabrik/sf-awesome-copilot.git"
 CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
@@ -399,6 +403,15 @@ print_summary() {
         summary="${summary%,}\n"
     fi
 
+    local copilot_cli_total=$((COPILOT_CLI_SYMLINKED + COPILOT_CLI_SKIPPED + COPILOT_CLI_CLEANED))
+    if [[ "${copilot_cli_total}" -gt 0 ]]; then
+        summary+="\nCopilot CLI symlinks:"
+        [[ "${COPILOT_CLI_SYMLINKED}" -gt 0 ]] && summary+=" ${COPILOT_CLI_SYMLINKED} created,"
+        [[ "${COPILOT_CLI_SKIPPED}" -gt 0 ]] && summary+=" ${COPILOT_CLI_SKIPPED} skipped,"
+        [[ "${COPILOT_CLI_CLEANED}" -gt 0 ]] && summary+=" ${COPILOT_CLI_CLEANED} cleaned,"
+        summary="${summary%,}\n"
+    fi
+
     print_summary_box "$(printf '%b' "${summary}")"
 
     local total_skipped=$((SKILLS_SKIPPED + AGENTS_SKIPPED))
@@ -454,6 +467,9 @@ main() {
     # Sync both resource types
     sync_skills
     sync_agents
+
+    # Create Copilot CLI symlinks for managed skills
+    ensure_copilot_cli_symlinks
 
     print_summary
 }
