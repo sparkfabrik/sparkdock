@@ -11,6 +11,10 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 # shellcheck source=common/utils.sh
 source "${SCRIPT_DIR}/common/utils.sh"
 
+# Source Copilot CLI shim (temporary — remove when copilot-cli#1744 lands)
+# shellcheck source=common/copilot-cli-shim.sh
+source "${SCRIPT_DIR}/common/copilot-cli-shim.sh"
+
 SKILLS_DIR="${HOME}/.agents/skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
 CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
@@ -154,77 +158,6 @@ render_table() {
             '
     else
         echo "${csv_data}" | column -t -s ','
-    fi
-}
-
-# --- Copilot CLI shim (remove when github/copilot-cli#1744 lands) ---
-# Copilot CLI only reads ~/.copilot/skills/, not ~/.agents/skills/.
-# We bridge the gap with per-skill symlinks managed by sparkdock-agents-sync.
-# Everything in this block is isolated so it can be deleted cleanly later.
-
-COPILOT_SKILLS_DIR="${HOME}/.copilot/skills"
-copilot_cli_issues=()
-
-# Check whether a skill is discoverable by Copilot CLI.
-# Sets COPILOT_CLI_AVAILABLE to "ok" or "partial". Appends a descriptive
-# string to copilot_cli_issues when the skill is not properly linked.
-# IMPORTANT: Must be called directly (not inside $(...) or a pipeline)
-# so that array side effects propagate to the caller.
-# Args: <skill_name>
-COPILOT_CLI_AVAILABLE=""
-check_copilot_cli_availability() {
-    local skill_name="$1"
-    local copilot_target="${COPILOT_SKILLS_DIR}/${skill_name}"
-
-    if [[ -L "${copilot_target}" ]]; then
-        local link_dest
-        # Note: readlink without -f returns the raw target. This works because
-        # sparkdock-agents-sync always creates absolute symlinks.
-        link_dest="$(readlink "${copilot_target}")"
-        if [[ "${link_dest}" == "${SKILLS_DIR}/${skill_name}" ]]; then
-            COPILOT_CLI_AVAILABLE="ok"
-            return
-        fi
-        copilot_cli_issues+=("${skill_name}: blocked by foreign symlink at ${copilot_target}")
-    elif [[ -e "${copilot_target}" ]]; then
-        copilot_cli_issues+=("${skill_name}: blocked by user content at ${copilot_target}")
-    else
-        copilot_cli_issues+=("${skill_name}: symlink missing")
-    fi
-    COPILOT_CLI_AVAILABLE="partial"
-}
-
-# Print Copilot CLI diagnostic box when skills have issues.
-# Silent when everything is fine.
-print_copilot_cli_issues() {
-    if [[ ${#copilot_cli_issues[@]} -eq 0 ]]; then
-        return
-    fi
-
-    local lines=()
-    lines+=("Copilot CLI can't discover these skills")
-    lines+=("")
-    for issue in "${copilot_cli_issues[@]}"; do
-        lines+=("  • ${issue}")
-    done
-    lines+=("")
-    lines+=("Run 'sjust sf-agents-refresh force' to fix.")
-
-    local body
-    body="$(printf '%s\n' "${lines[@]}")"
-
-    echo ""
-    if [[ "${HAS_GUM}" = true ]]; then
-        echo "${body}" | gum style \
-            --border rounded \
-            --border-foreground 220 \
-            --padding "1 2" \
-            --margin "0 1" \
-            --foreground 220
-    else
-        printf "${YELLOW}%s${NC}\n" "────────────────────────────────────────"
-        printf '%s\n' "${lines[@]}"
-        printf "${YELLOW}%s${NC}\n" "────────────────────────────────────────"
     fi
 }
 
