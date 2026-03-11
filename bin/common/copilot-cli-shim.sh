@@ -95,6 +95,7 @@ ensure_copilot_cli_symlinks() {
             fi
         elif [[ -e "${target}" ]]; then
             if [[ "${FORCE}" = true ]]; then
+                [[ -n "${target}" && "${target}" != "/" ]] || { log_error "refusing to remove unsafe path"; continue; }
                 rm -rf "${target}"
                 log_warn "Copilot CLI: removed user content for ${skill_name} (was at ${target})"
             else
@@ -117,7 +118,7 @@ ensure_copilot_cli_symlinks() {
         link_target="$(readlink "${entry}")"
         # Only touch symlinks that point into our managed skills directory
         if [[ "${link_target}" == "${SKILLS_TARGET_DIR}/"* ]] && [[ ! -d "${link_target}" ]]; then
-            rm "${entry}"
+            rm -f "${entry}"
             COPILOT_CLI_CLEANED=$((COPILOT_CLI_CLEANED + 1))
             local stale_name
             stale_name="$(basename "${entry}")"
