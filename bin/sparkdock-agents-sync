@@ -398,7 +398,7 @@ sync_agents() {
     fi
 }
 
-# --- Phase 3: Copilot CLI skill symlinks ---
+# --- Copilot CLI skill symlinks (remove when github/copilot-cli#1744 lands) ---
 # Copilot CLI only reads personal skills from ~/.copilot/skills/, not ~/.agents/skills/.
 # Create per-skill symlinks so managed skills are visible to Copilot CLI.
 # Remove this section when Copilot CLI adds native ~/.agents/skills/ support.
