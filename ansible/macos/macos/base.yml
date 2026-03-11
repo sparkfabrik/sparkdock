@@ -207,8 +207,24 @@
       loop: "{{ all_cask_packages }}"
       when: all_cask_packages | length > 0
       become: false
-
+      
+    - name: Force reinstall unregistered casks
+      tags: cask
+      shell: |
+        if brew list --cask "{{ item }}" >/dev/null 2>&1; then
+          echo "already registered"
+        else
+          brew reinstall --cask --force "{{ item }}" 2>&1 || true
+        fi
+      loop: "{{ all_cask_packages }}"
+      when: all_cask_packages | length > 0
+      become: true
+      become_method: sudo
+      register: cask_force
+      changed_when: "'already registered' not in cask_force.stdout"
+      
     - name: Assert cask packages installed
+      tags: cask
       shell: |
         missing=0
         for pkg in {{ all_cask_packages | map('quote') | join(' ') }}; do
