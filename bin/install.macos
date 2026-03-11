@@ -2,24 +2,13 @@
 
 set -e
 
-BASE_DIR="$(dirname "$(readlink -f "$0")")"
-
-# When we install this script with this: bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.macos)
-# we do not have the common utils sourced, so we have to grab it first.
-if [ ! -f ${BASE_DIR}/common/utils.sh ]; then
-  curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/common/utils.sh -o /tmp/utils.sh
-  source /tmp/utils.sh
-else
-  source ${BASE_DIR}/common/utils.sh
-fi
-
 print() {
     echo -e "\e[1m\e[93m[ \e[92m•\e[93m ] \e[4m$1\e[0m"
 }
 
 checkMacosVersion() {
     if ! [[ $( sw_vers -productVersion ) =~ ^(26.[0-9]+|15.[0-9]+) ]] ; then
-        print  "${RED}Sorry, this script is supposed to be executed on macOS Sequoia (15.x) or macOS Tahoe (26.x). Please use a supported version.${NC}"
+        echo -e "\e[1m\e[31mSorry, this script is supposed to be executed on macOS Sequoia (15.x) or macOS Tahoe (26.x). Please use a supported version.\e[0m"
         return 1
     fi
     return 0
@@ -48,7 +37,16 @@ ARCH=$(uname -m)
 
 # Cleaning the TTY.
 clear
-sparkdockfetch
+
+cat <<"EOF"
+
+  ___                _      _         _
+ / __|_ __  __ _ _ _| |____| |___  __| |__
+ \__ \ '_ \/ _` | '_| / / _` / _ \/ _| / /
+ |___/ .__/\__,_|_| |_\_\__,_\___/\__|_\_\
+     |_|
+
+EOF
 
 print "Sparkdock installer: This is a MacOS provisioner, to bootstrap the system."
 print "Checking for macOS supported version..."
