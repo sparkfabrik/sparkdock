@@ -134,6 +134,15 @@ except Exception as e:
 " "${MANIFEST_PATH}" "${section}" "${key}" "${sha256}" "${timestamp}" "${source_commit}"
 }
 
+# Check whether a skill is managed (has a manifest entry).
+# Usage: is_managed_skill <skill_name>
+is_managed_skill() {
+    local skill_name="$1"
+    local sha
+    sha="$(manifest_get_sha "skills" "${skill_name}")"
+    [[ -n "${sha}" ]]
+}
+
 # --- Repo management ---
 
 # Clone or update the upstream repository.
@@ -390,11 +399,17 @@ sync_agents() {
 ensure_copilot_cli_symlinks() {
     mkdir -p "${COPILOT_SKILLS_DIR}"
 
-    # Create symlinks for each skill in ~/.agents/skills/
+    # Create symlinks for each managed skill in ~/.agents/skills/
     for skill_dir in "${SKILLS_TARGET_DIR}"/*/; do
         [[ -d "${skill_dir}" ]] || continue
         local skill_name
         skill_name="$(basename "${skill_dir}")"
+
+        # Only symlink skills that sparkdock manages — skip user-created ones
+        if ! is_managed_skill "${skill_name}"; then
+            continue
+        fi
+
         local target="${COPILOT_SKILLS_DIR}/${skill_name}"
         local source="${SKILLS_TARGET_DIR}/${skill_name}"
 
