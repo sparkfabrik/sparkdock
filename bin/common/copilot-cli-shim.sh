@@ -56,6 +56,11 @@ except Exception:
 # Handles collisions (foreign symlinks, user content) with skip+warn.
 # Cleans up stale symlinks that point into ~/.agents/skills/ but no longer exist.
 ensure_copilot_cli_symlinks() {
+    if [[ -z "${COPILOT_SKILLS_DIR}" ]]; then
+        log_error "Copilot CLI: COPILOT_SKILLS_DIR is empty (HOME unset?), skipping symlinks"
+        return 1
+    fi
+
     mkdir -p "${COPILOT_SKILLS_DIR}"
 
     # Fetch managed skill names once (single python3 call)
@@ -69,7 +74,7 @@ ensure_copilot_cli_symlinks() {
         skill_name="$(basename "${skill_dir}")"
 
         # Only symlink skills that sparkdock manages — skip user-created ones
-        if ! echo "${managed_names}" | grep -Fqx "${skill_name}"; then
+        if [[ -z "${managed_names}" ]] || ! echo "${managed_names}" | grep -Fqx "${skill_name}"; then
             continue
         fi
 
@@ -93,9 +98,7 @@ ensure_copilot_cli_symlinks() {
                 COPILOT_CLI_SKIPPED=$((COPILOT_CLI_SKIPPED + 1))
                 continue
             fi
-        fi
-
-        if [[ -e "${target}" ]]; then
+        elif [[ -e "${target}" ]]; then
             if [[ "${FORCE}" = true ]]; then
                 rm -rf "${target}"
                 log_warn "Copilot CLI: removed user content for ${skill_name} (was at ${target})"
@@ -192,8 +195,8 @@ print_copilot_cli_issues() {
             --margin "0 1" \
             --foreground 220
     else
-        printf "${YELLOW}%s${NC}\n" "────────────────────────────────────────"
+        printf '%b%s%b\n' "${YELLOW}" "────────────────────────────────────────" "${NC}"
         printf '%s\n' "${lines[@]}"
-        printf "${YELLOW}%s${NC}\n" "────────────────────────────────────────"
+        printf '%b%s%b\n' "${YELLOW}" "────────────────────────────────────────" "${NC}"
     fi
 }
