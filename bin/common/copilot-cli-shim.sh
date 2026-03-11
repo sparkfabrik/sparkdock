@@ -56,11 +56,6 @@ except Exception:
 # Handles collisions (foreign symlinks, user content) with skip+warn.
 # Cleans up stale symlinks that point into ~/.agents/skills/ but no longer exist.
 ensure_copilot_cli_symlinks() {
-    if [[ -z "${COPILOT_SKILLS_DIR}" ]]; then
-        log_error "Copilot CLI: COPILOT_SKILLS_DIR is empty (HOME unset?), skipping symlinks"
-        return 1
-    fi
-
     mkdir -p "${COPILOT_SKILLS_DIR}"
 
     # Fetch managed skill names once (single python3 call)
