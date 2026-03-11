@@ -7,6 +7,7 @@ BASE_DIR="$(dirname "$(readlink -f "$0")")"
 # When we install this script with this: bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.macos)
 # we do not have the common utils sourced, so we have to grab it first.
 if [ ! -f ${BASE_DIR}/common/utils.sh ]; then
+  curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/common/logging.sh -o /tmp/logging.sh
   curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/common/utils.sh -o /tmp/utils.sh
   source /tmp/utils.sh
 else
