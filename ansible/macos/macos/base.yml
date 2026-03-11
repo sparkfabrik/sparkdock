@@ -27,6 +27,7 @@
       tags:
         - brew_packages
         - npm_packages
+        - always
       set_fact:
         all_cask_packages: "{{ all_packages.cask_packages | default([]) }}"
         all_homebrew_packages: "{{ all_packages.homebrew_packages | default([]) }}"
