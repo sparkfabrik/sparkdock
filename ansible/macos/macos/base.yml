@@ -207,7 +207,7 @@
       loop: "{{ all_cask_packages }}"
       when: all_cask_packages | length > 0
       become: false
-      
+
     - name: Force reinstall unregistered casks
       tags: cask
       shell: |
@@ -222,7 +222,7 @@
       become_method: sudo
       register: cask_force
       changed_when: "'already registered' not in cask_force.stdout"
-      
+
     - name: Assert cask packages installed
       tags: cask
       shell: |
