@@ -12,7 +12,6 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 source "${SCRIPT_DIR}/common/utils.sh"
 
 SKILLS_DIR="${HOME}/.agents/skills"
-COPILOT_SKILLS_DIR="${HOME}/.copilot/skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
 CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
 SYSTEM_SKILLS_SUBDIR="skills/system"
@@ -150,9 +149,80 @@ render_table() {
                 s/locally modified/\e[38;5;220mlocally modified\e[0m/g;
                 s/conflicts with upstream/\e[38;5;220mconflicts with upstream\e[0m/g;
                 s/no SKILL\.md/\e[38;5;220mno SKILL.md\e[0m/g;
+                s/\bpartial\b/\e[38;5;220mpartial\e[0m/g;
+                s/\bok\b/\e[38;5;40mok\e[0m/g;
             '
     else
         echo "${csv_data}" | column -t -s ','
+    fi
+}
+
+# --- Copilot CLI shim (remove when github/copilot-cli#1744 lands) ---
+# Copilot CLI only reads ~/.copilot/skills/, not ~/.agents/skills/.
+# We bridge the gap with per-skill symlinks managed by sparkdock-agents-sync.
+# Everything in this block is isolated so it can be deleted cleanly later.
+
+COPILOT_SKILLS_DIR="${HOME}/.copilot/skills"
+copilot_cli_issues=()
+
+# Check whether a skill is discoverable by Copilot CLI.
+# Sets COPILOT_CLI_AVAILABLE to "ok" or "partial". Appends a descriptive
+# string to copilot_cli_issues when the skill is not properly linked.
+# IMPORTANT: Must be called directly (not inside $(...) or a pipeline)
+# so that array side effects propagate to the caller.
+# Args: <skill_name>
+COPILOT_CLI_AVAILABLE=""
+check_copilot_cli_availability() {
+    local skill_name="$1"
+    local copilot_target="${COPILOT_SKILLS_DIR}/${skill_name}"
+
+    if [[ -L "${copilot_target}" ]]; then
+        local link_dest
+        link_dest="$(readlink "${copilot_target}")"
+        if [[ "${link_dest}" == "${SKILLS_DIR}/${skill_name}" ]]; then
+            COPILOT_CLI_AVAILABLE="ok"
+            return
+        fi
+        copilot_cli_issues+=("${skill_name}: blocked by foreign symlink at ${copilot_target}")
+    elif [[ -e "${copilot_target}" ]]; then
+        copilot_cli_issues+=("${skill_name}: blocked by user content at ${copilot_target}")
+    else
+        copilot_cli_issues+=("${skill_name}: symlink missing")
+    fi
+    COPILOT_CLI_AVAILABLE="partial"
+}
+
+# Print Copilot CLI diagnostic box when skills have issues.
+# Silent when everything is fine.
+print_copilot_cli_issues() {
+    if [[ ${#copilot_cli_issues[@]} -eq 0 ]]; then
+        return
+    fi
+
+    local lines=()
+    lines+=("Copilot CLI can't discover these skills")
+    lines+=("")
+    for issue in "${copilot_cli_issues[@]}"; do
+        lines+=("  • ${issue}")
+    done
+    lines+=("")
+    lines+=("Run 'sjust sf-agents-refresh force' to fix.")
+
+    local body
+    body="$(printf '%s\n' "${lines[@]}")"
+
+    echo ""
+    if [[ "${HAS_GUM}" = true ]]; then
+        echo "${body}" | gum style \
+            --border rounded \
+            --border-foreground 220 \
+            --padding "1 2" \
+            --margin "0 1" \
+            --foreground 220
+    else
+        printf "${YELLOW}%s${NC}\n" "────────────────────────────────────────"
+        printf '%s\n' "${lines[@]}"
+        printf "${YELLOW}%s${NC}\n" "────────────────────────────────────────"
     fi
 }
 
@@ -178,7 +248,7 @@ fi
 # --- Skills section ---
 
 managed_skills="$(get_managed_names "skills")"
-skills_csv="NAME,TYPE,STATUS"
+skills_csv="NAME,TYPE,STATUS,AVAILABLE"
 skills_found=false
 
 if [[ -d "${SKILLS_DIR}" ]]; then
@@ -187,8 +257,12 @@ if [[ -d "${SKILLS_DIR}" ]]; then
         skills_found=true
         skill_name=$(basename "${skill_dir}")
 
+        # Determine skill availability across all agents
+        check_copilot_cli_availability "${skill_name}"
+        available="${COPILOT_CLI_AVAILABLE}"
+
         if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
-            skills_csv+=$'\n'"${skill_name},incomplete,no SKILL.md"
+            skills_csv+=$'\n'"${skill_name},incomplete,no SKILL.md,${available}"
             continue
         fi
 
@@ -196,12 +270,12 @@ if [[ -d "${SKILLS_DIR}" ]]; then
             upstream_file="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
             [[ "${CACHE_AVAILABLE}" != "true" || ! -f "${upstream_file}" ]] && upstream_file=""
             status=$(resolve_managed_status "skills" "${skill_name}" "${skill_dir}/SKILL.md" "${upstream_file}")
-            skills_csv+=$'\n'"${skill_name},managed,${status}"
+            skills_csv+=$'\n'"${skill_name},managed,${status},${available}"
         else
             if has_upstream_conflict "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"; then
-                skills_csv+=$'\n'"${skill_name},user,conflicts with upstream"
+                skills_csv+=$'\n'"${skill_name},user,conflicts with upstream,${available}"
             else
-                skills_csv+=$'\n'"${skill_name},user,"
+                skills_csv+=$'\n'"${skill_name},user,,${available}"
             fi
         fi
     done
@@ -265,35 +339,7 @@ else
     echo "  (no agent profiles installed)"
 fi
 
-# --- Copilot CLI skill symlinks ---
-# Only warn when symlinks are missing or skipped — silent when everything is fine.
-# Track: https://github.com/github/copilot-cli/issues/1744
-
-copilot_issues=()
-for skill_dir in "${SKILLS_DIR}"/*/; do
-    [[ -d "${skill_dir}" ]] || continue
-    local_skill_name=$(basename "${skill_dir}")
-    copilot_target="${COPILOT_SKILLS_DIR}/${local_skill_name}"
-
-    if [[ -L "${copilot_target}" ]]; then
-        link_dest="$(readlink "${copilot_target}")"
-        if [[ "${link_dest}" != "${SKILLS_DIR}/${local_skill_name}" ]]; then
-            copilot_issues+=("${local_skill_name}: symlink points to ${link_dest} instead of ${SKILLS_DIR}/${local_skill_name}")
-        fi
-    elif [[ -e "${copilot_target}" ]]; then
-        copilot_issues+=("${local_skill_name}: skipped (user content exists at ${copilot_target})")
-    elif [[ -d "${SKILLS_DIR}" ]]; then
-        copilot_issues+=("${local_skill_name}: not linked — run 'sjust sf-agents-refresh' to fix")
-    fi
-done
-
-if [[ ${#copilot_issues[@]} -gt 0 ]]; then
-    echo ""
-    log_warn "Copilot CLI skill symlinks:"
-    for issue in "${copilot_issues[@]}"; do
-        log_warn "  ${issue}"
-    done
-fi
+print_copilot_cli_issues
 
 # --- Footer ---
 

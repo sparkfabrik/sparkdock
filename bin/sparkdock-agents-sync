@@ -390,7 +390,7 @@ sync_agents() {
 ensure_copilot_cli_symlinks() {
     mkdir -p "${COPILOT_SKILLS_DIR}"
 
-    # Create symlinks for each managed skill
+    # Create symlinks for each skill in ~/.agents/skills/
     for skill_dir in "${SKILLS_TARGET_DIR}"/*/; do
         [[ -d "${skill_dir}" ]] || continue
         local skill_name
@@ -405,15 +405,25 @@ ensure_copilot_cli_symlinks() {
                 # Already pointing to the right place
                 continue
             fi
-            log_warn "Copilot CLI: skipped ${skill_name} (symlink points to ${link_target})"
-            COPILOT_CLI_SKIPPED=$((COPILOT_CLI_SKIPPED + 1))
-            continue
+            if [[ "${FORCE}" = true ]]; then
+                rm -f "${target}"
+                log_warn "Copilot CLI: removed foreign symlink for ${skill_name} (was pointing to ${link_target})"
+            else
+                log_warn "Copilot CLI: skipped ${skill_name} (symlink points to ${link_target})"
+                COPILOT_CLI_SKIPPED=$((COPILOT_CLI_SKIPPED + 1))
+                continue
+            fi
         fi
 
         if [[ -e "${target}" ]]; then
-            log_warn "Copilot CLI: skipped ${skill_name} (user content exists at ${target})"
-            COPILOT_CLI_SKIPPED=$((COPILOT_CLI_SKIPPED + 1))
-            continue
+            if [[ "${FORCE}" = true ]]; then
+                rm -rf "${target}"
+                log_warn "Copilot CLI: removed user content for ${skill_name} (was at ${target})"
+            else
+                log_warn "Copilot CLI: skipped ${skill_name} (user content exists at ${target})"
+                COPILOT_CLI_SKIPPED=$((COPILOT_CLI_SKIPPED + 1))
+                continue
+            fi
         fi
 
         ln -s "${source}" "${target}"
