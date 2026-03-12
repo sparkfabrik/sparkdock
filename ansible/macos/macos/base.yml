@@ -221,7 +221,7 @@
       when: all_cask_packages | length > 0
       become: false
       register: cask_force
-      changed_when: "'already registered' not in stdout"
+      changed_when: "'already registered' not in cask_force.stdout"
 
     - name: Assert cask packages installed
       tags: cask
