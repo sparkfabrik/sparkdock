@@ -221,7 +221,7 @@
       when: all_cask_packages | length > 0
       become: false
       register: cask_force
-      changed_when: "'already registered' not in cask_force.stdout"
+      changed_when: "'already registered' not in stdout"
 
     - name: Assert cask packages installed
       tags: cask
@@ -259,7 +259,6 @@
       loop: "{{ all_homebrew_packages }}"
       when: all_homebrew_packages | length > 0
       become: false
-      ignore_errors: true
 
     - name: Force install unregistered homebrew packages
       tags: brew_packages
@@ -268,7 +267,7 @@
         if brew list "$pkg_name" >/dev/null 2>&1; then
           echo "already installed"
         else
-          brew install "{{ item }}" 2>&1 || true
+          brew install "{{ item }}" 2>&1
         fi
       loop: "{{ all_homebrew_packages }}"
       when: all_homebrew_packages | length > 0
