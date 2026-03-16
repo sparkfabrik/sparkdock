@@ -167,6 +167,7 @@ log_section "Agent Resources Status"
 
 CACHE_AVAILABLE=false
 CONFLICTS_FOUND=false
+UPDATES_AVAILABLE=false
 if [[ -d "${CACHE_DIR}/.git" ]]; then
     if [[ "${SPARKDOCK_SKIP_FETCH:-}" == "true" ]]; then
         CACHE_AVAILABLE=true
@@ -205,6 +206,7 @@ if [[ -d "${SKILLS_DIR}" ]]; then
             upstream_file="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
             [[ "${CACHE_AVAILABLE}" != "true" || ! -f "${upstream_file}" ]] && upstream_file=""
             status=$(resolve_managed_status "skills" "${skill_name}" "${skill_dir}/SKILL.md" "${upstream_file}")
+            [[ "${status}" == "update available" ]] && UPDATES_AVAILABLE=true
             skills_csv+=$'\n'"${skill_name},managed,${status},${available}"
         else
             if has_upstream_conflict "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"; then
@@ -256,6 +258,7 @@ for tool_name in $(printf '%s\n' "${!AGENT_TOOL_INSTALL_DIR[@]}" | sort); do
                 done
             fi
             status=$(resolve_managed_status "agents" "${manifest_key}" "${agent_file}" "${upstream_file}")
+            [[ "${status}" == "update available" ]] && UPDATES_AVAILABLE=true
             agents_csv+=$'\n'"${agent_name},${tool_name},managed,${status}"
         else
             if has_upstream_conflict "${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}/${agent_name}/${tool_name}"; then
@@ -289,4 +292,7 @@ if [[ "${CACHE_AVAILABLE}" == "false" ]]; then
 fi
 if [[ "${CONFLICTS_FOUND}" == "true" ]]; then
     log_warn "Some user resources conflict with upstream. Run 'sjust sf-agents-refresh force' to overwrite."
+fi
+if [[ "${UPDATES_AVAILABLE}" == "true" ]]; then
+    log_warn "Updates available. Run 'sjust sf-agents-refresh' to update."
 fi
