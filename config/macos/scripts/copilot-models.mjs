@@ -63,7 +63,13 @@ async function getAccessToken() {
       `Cannot read ${AUTH_PATH}\nMake sure opencode is installed and authenticated with GitHub Copilot.`
     );
   }
-  const token = JSON.parse(raw)?.["github-copilot"]?.access;
+  let auth;
+  try {
+    auth = JSON.parse(raw);
+  } catch {
+    fail(`Invalid JSON in ${AUTH_PATH} — the auth file may be corrupted.`);
+  }
+  const token = auth?.["github-copilot"]?.access;
   if (!token) fail(`No github-copilot access token found in ${AUTH_PATH}`);
   return token;
 }
@@ -111,7 +117,12 @@ async function readLocalLimits() {
   } catch {
     return null;
   }
-  const config = JSON.parse(raw);
+  let config;
+  try {
+    config = JSON.parse(raw);
+  } catch {
+    fail(`Invalid JSON in ${OPENCODE_JSON_PATH} — the config file may be corrupted.`);
+  }
   return config?.provider?.["github-copilot"]?.models || null;
 }
 
@@ -124,7 +135,7 @@ function compare(apiModels, localModels) {
 
   if (!localModels) {
     warnings.push({
-      type: "INFO",
+      type: "MISSING",
       id: "-",
       message: `No provider.github-copilot.models found in ${OPENCODE_JSON_PATH}`,
     });
