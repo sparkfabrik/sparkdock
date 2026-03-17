@@ -8,12 +8,18 @@
 //   https://github.com/anomalyco/models.dev/issues/1136
 //   https://github.com/anomalyco/opencode/issues/16129
 
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import path from "node:path";
+import path, { dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const AUTH_PATH = path.join(homedir(), ".local/share/opencode/auth.json");
 const OPENCODE_JSON_PATH = path.join(homedir(), ".config/opencode/opencode.json");
+const SOURCE_CONFIG_PATH = path.resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  "..",
+  "opencode.json"
+);
 const API_BASE = "https://api.business.githubcopilot.com";
 
 const BASE_HEADERS = {
@@ -127,6 +133,62 @@ async function readLocalLimits() {
 }
 
 // ---------------------------------------------------------------------------
+// Update support
+// ---------------------------------------------------------------------------
+
+function buildModelsBlock(apiModels) {
+  const models = {};
+  for (const m of apiModels) {
+    if (m.context == null || m.output == null) continue;
+    models[m.id] = { limit: { context: m.context, output: m.output } };
+  }
+  return models;
+}
+
+async function updateLocalConfig(modelsBlock) {
+  let raw;
+  let source = OPENCODE_JSON_PATH;
+
+  try {
+    raw = await readFile(OPENCODE_JSON_PATH, "utf8");
+  } catch {
+    // File doesn't exist — seed from sparkdock source config
+    source = SOURCE_CONFIG_PATH;
+    try {
+      raw = await readFile(SOURCE_CONFIG_PATH, "utf8");
+    } catch {
+      fail(
+        `Cannot read ${OPENCODE_JSON_PATH} or ${SOURCE_CONFIG_PATH}\n` +
+          "The sparkdock installation may be incomplete."
+      );
+    }
+  }
+
+  let config;
+  try {
+    config = JSON.parse(raw);
+  } catch {
+    fail(`Invalid JSON in ${source} — the config file may be corrupted.`);
+  }
+
+  // Deep-set provider.github-copilot.models, creating intermediate keys if needed
+  if (!config.provider) config.provider = {};
+  if (!config.provider["github-copilot"]) config.provider["github-copilot"] = {};
+  config.provider["github-copilot"].models = modelsBlock;
+
+  await mkdir(dirname(OPENCODE_JSON_PATH), { recursive: true });
+  await writeFile(OPENCODE_JSON_PATH, JSON.stringify(config, null, 2) + "\n");
+
+  const count = Object.keys(modelsBlock).length;
+  if (source !== OPENCODE_JSON_PATH) {
+    console.log(`\nSeeded from ${source}`);
+  }
+  console.log(
+    `Updated ${count} models in ${OPENCODE_JSON_PATH}`
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Comparison
 // ---------------------------------------------------------------------------
 
@@ -223,15 +285,14 @@ function printWarnings(warnings) {
   }
 }
 
-function printSnippet(apiModels) {
-  const models = {};
-  for (const m of apiModels) {
-    if (m.context == null || m.output == null) continue;
-    models[m.id] = { limit: { context: m.context, output: m.output } };
-  }
+function printSnippet(modelsBlock) {
   console.log("\n--- opencode.json provider snippet ---\n");
   console.log(
-    JSON.stringify({ provider: { "github-copilot": { models } } }, null, 2)
+    JSON.stringify(
+      { provider: { "github-copilot": { models: modelsBlock } } },
+      null,
+      2
+    )
   );
 }
 
@@ -240,6 +301,7 @@ function printSnippet(apiModels) {
 // ---------------------------------------------------------------------------
 
 async function main() {
+  const doUpdate = process.argv.includes("--update");
   const accessToken = await getAccessToken();
   const payload = await fetchModels(accessToken);
   const apiModels = buildApiModels(payload);
@@ -258,13 +320,19 @@ async function main() {
   );
 
   if (hasDrift) {
-    printSnippet(apiModels);
-    console.log(
-      "\nUpdate the provider.github-copilot.models block in opencode.json with the snippet above."
-    );
+    const modelsBlock = buildModelsBlock(apiModels);
+
+    if (doUpdate) {
+      await updateLocalConfig(modelsBlock);
+    } else {
+      printSnippet(modelsBlock);
+      console.log(
+        "\nRun with --update to apply automatically, or copy the snippet above into opencode.json."
+      );
+    }
   }
 
-  process.exit(hasDrift ? 1 : 0);
+  process.exit(hasDrift && !doUpdate ? 1 : 0);
 }
 
 main().catch((error) => {
