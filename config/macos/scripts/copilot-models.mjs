@@ -151,7 +151,10 @@ async function updateLocalConfig(modelsBlock) {
 
   try {
     raw = await readFile(OPENCODE_JSON_PATH, "utf8");
-  } catch {
+  } catch (err) {
+    if (err.code !== "ENOENT") {
+      fail(`Cannot read ${OPENCODE_JSON_PATH}: ${err.message}`);
+    }
     // File doesn't exist — seed from sparkdock source config
     source = SOURCE_CONFIG_PATH;
     try {
