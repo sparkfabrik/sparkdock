@@ -4,6 +4,8 @@ http-proxy
 .build
 .claude/settings.local.json
 
+# GitHuman - exclude generated code and data
+.githuman/
 # OpenSpec - exclude specs and changes (may contain private content)
 openspec/specs/
 openspec/changes/
