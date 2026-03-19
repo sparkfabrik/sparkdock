@@ -207,10 +207,11 @@ githuman-stop $name="":
         if docker ps -q --filter "name=^${name}$" --filter "label={{githuman_label}}=true" 2>/dev/null | grep -q .; then
             docker stop "${name}" > /dev/null
             echo "✅ Stopped ${name}"
+            exit 0
         else
             echo "⚠️  No GitHuman instance found with name '${name}'"
+            exit 1
         fi
-        exit 0
     fi
 
     mapfile -t names < <(docker ps --filter "label={{githuman_label}}=true" --format '{{ "{{" }}.Names{{ "}}" }}' 2>/dev/null)
