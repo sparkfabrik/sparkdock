@@ -24,6 +24,11 @@ githuman-start $directory=".":
     # Sanitize basename for DNS-compatible hostname (RFC 952)
     sanitized=$(echo "${basename_raw}" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g; s/--*/-/g; s/^-//; s/-$//')
 
+    # Fallback to a random 16-char string if sanitized is empty (e.g., basename was all symbols)
+    if [[ -z "${sanitized}" ]]; then
+        sanitized=$(openssl rand -hex 8)
+    fi
+
     # Query running GitHuman containers for duplicate detection
     # Note: {{ "{{" }} and {{ "}}" }} are Just escape sequences producing literal Go template delimiters
     existing=$(docker ps --filter "label={{githuman_label}}=true" \
