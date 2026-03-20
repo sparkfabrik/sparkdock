@@ -8,11 +8,11 @@ command_exists() {
 }
 
 # Initialize thefuck (command correction)
+# Unalias any existing manual 'fuck' alias to prevent parse errors
+# when thefuck defines its own function with the same name.
 if command_exists thefuck; then
-  # Only initialize if 'fuck' alias doesn't already exist
-  if ! alias fuck &> /dev/null && ! command_exists fuck; then
-    eval "$(thefuck --alias)"
-  fi
+  unalias fuck 2>/dev/null
+  eval "$(thefuck --alias)"
 fi
 
 # Alias to open images from terminal with chafa.
