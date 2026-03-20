@@ -121,6 +121,55 @@ jobs:
           # Test that upgrade-system command can be parsed (dry-run)
           sjust --dry-run system-upgrade
 
+          # Test that sf-openspec-configure command can be parsed (dry-run)
+          sjust --dry-run sf-openspec-configure
+
+      - name: Test sf-openspec-configure recipe
+        run: |
+          echo "Testing sf-openspec-configure recipe..."
+          CONFIG_FILE="${HOME}/.config/openspec/config.json"
+
+          # Ensure clean state
+          rm -f "${CONFIG_FILE}"
+
+          # Test 1: Force mode creates config from scratch
+          echo "Test 1: Force mode creates config when missing..."
+          sjust sf-openspec-configure force
+          if [ ! -f "${CONFIG_FILE}" ]; then
+            echo "FAIL: Config file was not created"
+            exit 1
+          fi
+          echo "PASS: Config file created"
+
+          # Test 2: Validate config content
+          echo "Test 2: Validating config content..."
+          grep -q '"profile": "custom"' "${CONFIG_FILE}" || { echo "FAIL: profile not set to custom"; exit 1; }
+          grep -q '"enabled": false' "${CONFIG_FILE}" || { echo "FAIL: telemetry not disabled"; exit 1; }
+          grep -q '"noticeSeen": true' "${CONFIG_FILE}" || { echo "FAIL: noticeSeen not set"; exit 1; }
+          grep -q '"propose"' "${CONFIG_FILE}" || { echo "FAIL: propose workflow missing"; exit 1; }
+          grep -q '"onboard"' "${CONFIG_FILE}" || { echo "FAIL: onboard workflow missing"; exit 1; }
+          grep -q '"bulk-archive"' "${CONFIG_FILE}" || { echo "FAIL: bulk-archive workflow missing"; exit 1; }
+          echo "PASS: Config content is correct"
+
+          # Test 3: Force mode overwrites existing config
+          echo "Test 3: Force mode overwrites existing config..."
+          sjust sf-openspec-configure force
+          echo "PASS: Force overwrite succeeded"
+
+          # Test 4: Interactive mode declines overwrite (pipe 'n')
+          echo "Test 4: Interactive mode respects decline..."
+          BEFORE_HASH=$(shasum "${CONFIG_FILE}" | cut -d' ' -f1)
+          echo "n" | sjust sf-openspec-configure || true
+          AFTER_HASH=$(shasum "${CONFIG_FILE}" | cut -d' ' -f1)
+          if [ "${BEFORE_HASH}" = "${AFTER_HASH}" ]; then
+            echo "PASS: Config preserved after declining overwrite"
+          else
+            echo "FAIL: Config was modified despite declining"
+            exit 1
+          fi
+
+          echo "All sf-openspec-configure tests passed"
+
       - name: Test sjust with non-interactive environment
         env:
           NON_INTERACTIVE: "true"
@@ -150,3 +199,6 @@ jobs:
 
           # Clean up sparkdock directory
           sudo rm -rf /opt/sparkdock
+
+          # Clean up openspec config
+          rm -rf ~/.config/openspec
