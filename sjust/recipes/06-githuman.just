@@ -5,6 +5,7 @@
 githuman_version := "0.6.0"
 githuman_label := "com.sparkfabrik.githuman"
 githuman_cache_volume := "githuman-npm-cache"
+githuman_data_volume := "githuman-data"
 
 # Start a GitHuman code review container for a project directory.
 [group('githuman')]
@@ -85,19 +86,32 @@ githuman-start $directory=".":
     echo "   Container: ${container_name}"
     echo "   FQDN: ${fqdn}"
 
+    # Ensure data volume subdirectory and home dir exist, owned by current user
+    docker run --rm \
+        -v {{githuman_data_volume}}:/data/githuman \
+        -v {{githuman_cache_volume}}:/cache/npm \
+        node:lts \
+        bash -c "mkdir -p /data/githuman/${container_name}/home && chown -R $(id -u):$(id -g) /data/githuman/${container_name} /cache/npm" \
+        > /dev/null
+
     docker run -d --rm \
         --name "${container_name}" \
+        --user "$(id -u):$(id -g)" \
+        -e HOME=/data/githuman/${container_name}/home \
         -e VIRTUAL_HOST="${fqdn}" \
         -e VIRTUAL_PORT=3847 \
-        -v "${target_dir}:/workspace:ro" \
-        -v {{githuman_cache_volume}}:/root/.npm \
-        -w /workspace \
+        -e GITHUMAN_DB_PATH="/data/githuman/${container_name}/home/reviews.db" \
+        -e npm_config_cache=/cache/npm \
+        -v "${target_dir}:${target_dir}" \
+        -v {{githuman_cache_volume}}:/cache/npm \
+        -v {{githuman_data_volume}}:/data/githuman \
+        -w "${target_dir}" \
         --label "{{githuman_label}}=true" \
         --label "{{githuman_label}}.directory=${target_dir}" \
         --label "{{githuman_label}}.fqdn=${fqdn}" \
         --label "{{githuman_label}}.token=${token}" \
         node:lts \
-        bash -c "git config --global --add safe.directory /workspace && npx githuman@{{githuman_version}} serve --host 0.0.0.0 --no-open --no-https --auth '${token}'" \
+        bash -c "git config --global --add safe.directory '${target_dir}' && npx githuman@{{githuman_version}} serve --host 0.0.0.0 --no-open --no-https --auth '${token}'" \
         > /dev/null
 
     echo "✅ GitHuman container started"
@@ -253,6 +267,11 @@ githuman-purge:
     if docker volume inspect {{githuman_cache_volume}} > /dev/null 2>&1; then
         docker volume rm {{githuman_cache_volume}} > /dev/null
         echo "✅ Removed npm cache volume ({{githuman_cache_volume}})"
+    fi
+
+    if docker volume inspect {{githuman_data_volume}} > /dev/null 2>&1; then
+        docker volume rm {{githuman_data_volume}} > /dev/null
+        echo "✅ Removed data volume ({{githuman_data_volume}})"
     fi
 
     echo "🧹 GitHuman purge complete"
