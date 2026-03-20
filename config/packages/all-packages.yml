@@ -78,14 +78,14 @@ homebrew_packages:
   - uv
   - llm
   - anomalyco/tap/opencode
+  - openspec
   - python@3.13
   - python@3.14
   - yarn
   - yarn-completion
 
 # NPM Global Packages
-npm_packages:
-  - "@fission-ai/openspec"
+npm_packages: []
 
 linked_packages: []
 
