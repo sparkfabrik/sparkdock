@@ -7,7 +7,7 @@
 if [[ -n "${SPARKDOCK_SHELL_LOADED}" ]]; then
   return
 fi
-export SPARKDOCK_SHELL_LOADED=1
+typeset -g SPARKDOCK_SHELL_LOADED=1
 
 # Determine the directory where this script is located
 SPARKDOCK_SHELL_DIR="${0:A:h}"
@@ -37,7 +37,7 @@ SPARKDOCK_SHELL_DIR="${0:A:h}"
     for dir in "${fpath[@]}"; do
       # (I) returns 0 when the element is not found in the array.
       if (( ! ${fpath_before[(I)${dir}]} )); then
-        for f in "${dir}"/_*(N); do
+        for f in "${dir}"/_*(N.); do
           fname="${f:t}"
           autoload -Uz "${fname}"
 
