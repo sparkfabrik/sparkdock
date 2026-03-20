@@ -160,8 +160,8 @@ githuman-start $directory=".":
 githuman-list:
     #!/usr/bin/env bash
     set -euo pipefail
-    source "{{source_directory()}}/../libs/libformatting.sh"
-    source "{{source_directory()}}/../libs/libcolors.sh"
+    source "{{source_directory()}}/../../libs/libformatting.sh"
+    source "{{source_directory()}}/../../libs/libcolors.sh"
 
     containers=$(docker ps --filter "label={{githuman_label}}=true" \
         --format '{{ "{{" }}.Names{{ "}}" }}|{{ "{{" }}.Label "{{githuman_label}}.directory"{{ "}}" }}|{{ "{{" }}.Label "{{githuman_label}}.fqdn"{{ "}}" }}|{{ "{{" }}.Label "{{githuman_label}}.token"{{ "}}" }}' 2>/dev/null || true)
