@@ -1,4 +1,4 @@
-You are analyzing a CHANGELOG.md diff for Sparkdock, a macOS development environment provisioner used by developers at SparkFabrik.
+You are preparing a daily Slack digest for Sparkdock, a macOS development environment provisioner used by developers at SparkFabrik.
 
 Sparkdock automates the setup of development environments on macOS, including:
 - Container runtimes (Docker Desktop, Lima)
@@ -6,42 +6,47 @@ Sparkdock automates the setup of development environments on macOS, including:
 - HTTP proxy for local development (.loc domains)
 - Development tools (CLI utilities, editors, languages)
 
+You are given a structured digest candidate for one calendar day.
+
 Your task is to:
-1. Analyze ONLY the lines starting with `+` in the diff below - these are NEW additions being released NOW
-2. IGNORE all lines that do NOT start with `+` - these are context lines showing what was already in the file
-3. Determine if the NEW additions (lines with `+`) contain significant features worth announcing
-4. Ignore ONLY minor changes:
-   - Simple bug fixes that don't add new capabilities
-   - Documentation-only updates (typos, formatting)
-   - Internal refactoring with no user-facing impact
-   - Dependency version bumps (e.g., "Updated package X from v1.0 to v1.1")
-5. DO announce new capabilities and features, including:
-   - New tools, packages, or applications added to the default installation
-   - New commands, aliases, or workflows available to users
-   - New system integrations or configurations
-   - Significant feature additions that change how users work
+1. Analyze ONLY the changelog entries listed under "Daily changelog additions" below.
+2. Decide whether those entries are meaningful enough to announce to the team.
+3. Skip the notification when the additions are empty or only contain low-signal maintenance work.
 
-CRITICAL RULES FOR READING GIT DIFFS:
-- Lines starting with `+` (plus sign) = NEW content added in this commit - ANALYZE THESE
-- Lines starting with ` ` (space) = Context/existing content already in the file - IGNORE THESE COMPLETELY
-- Lines starting with `-` (minus sign) = Content removed in this commit - IGNORE THESE
-- If you see a changelog entry without a `+` prefix, it was already released previously - DO NOT include it
+Treat these as NOT worth announcing unless clearly developer-visible and high-impact:
+- Minor bug fixes or maintenance-only fixes
+- Internal refactors with no workflow change
+- Documentation-only updates
+- Dependency version bumps that do not unlock a new capability
+- CI/build changes with no user-facing effect
 
-IMPORTANT: Only analyze and report on features from lines that start with `+`. Context lines (starting with space) show existing changelog entries from previous releases and must be completely ignored.
+Treat these as worth announcing:
+- New tools, packages, or applications added to the default install
+- New commands, aliases, workflows, or integrations
+- Significant changes to how Sparkdock users work day to day
+- Important configuration or automation improvements with clear developer impact
 
-Guidelines for the message (if should_notify is true):
-- Start with a brief one-line intro (e.g., "This release brings improvements to..." or "New capabilities available:")
-- Then list ONLY the features from lines with `+` prefix as bullet points using "• " (bullet character)
-- For each feature, USE YOUR KNOWLEDGE about the technology to explain WHY it matters to developers
-- Focus on concrete user benefits: faster workflows, better experience, solved pain points
-- Use a professional, informative tone (no marketing language or excessive enthusiasm)
-- Do NOT use exclamation marks or words like "exciting", "amazing", "great"
-- DO NOT include any features from context lines (lines without `+` prefix)
+Message requirements when `should_notify` is true:
+- Write a concise digest suitable for Slack
+- Start with one short intro sentence
+- Then use `• ` bullets
+- Explain why each bullet matters to developers, not just what changed
+- Use a professional, informative tone
+- Do not use exclamation marks
+- Only mention items that appear in the provided changelog additions
 
-Here is the CHANGELOG.md diff to analyze:
+Reason requirements:
+- Always provide a short `reason`
+- If skipping, explain why the digest is not meaningful enough
+- If notifying, explain why the digest is worth sending
 
-```diff
-{diff}
-```
+Digest date: {target_date}
+Digest time zone: {timezone_name}
 
-Analyze the diff and respond accordingly. Remember: ONLY analyze lines with `+` prefix. Ignore all context lines.
+Git commits in this window:
+{commit_block}
+
+Daily changelog additions:
+{entries_block}
+
+Respond using the JSON schema only.

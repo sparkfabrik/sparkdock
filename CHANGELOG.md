@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added gcloud shell aliases: `gcloud-as` (impersonate service account), `gcloud-me` (stop impersonating), `gcloud-whoami` (show current impersonation)
 
 ### Changed
+- Changed Slack notifications to run as a daily 10:30 Europe/Rome digest that summarizes the previous day's meaningful `CHANGELOG.md` additions on `master`, with manual replay/preview support and GitHub Actions run summaries
 - Refactored `sparkdock-agents-status` to use `gum table` for polished terminal output with colored status values, replacing printf-based column formatting. Includes `resolve_managed_status` helper to deduplicate SHA comparison logic, `render_table` with post-render perl colorization (workaround for charmbracelet/gum#833), `print_label`/`print_faint` helpers with non-gum fallback, `SPARKDOCK_SKIP_FETCH` env var for offline testing, and `perl` dependency guard
 - Adopted ruff as Python formatter/linter, run via Docker before committing
 - Refactored section headers across sjust recipes (libshell.sh, 00-default.just, 01-lima.just, 03-shell.just) to use `log_section` with double-border gum style
