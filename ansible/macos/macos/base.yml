@@ -292,6 +292,13 @@
         - all_npm_packages | length > 0
       become: false
 
+    - name: Uninstall legacy npm-installed OpenSpec
+      tags: npm_packages
+      shell: npm list -g @fission-ai/openspec >/dev/null 2>&1 && npm uninstall -g @fission-ai/openspec || true
+      become: false
+      when: npm_available.stdout == "available"
+      changed_when: false
+
     - name: Ensure zsh site-functions directory exists
       ansible.builtin.file:
         path: "{{ ansible_facts['env']['HOME'] }}/.local/share/zsh/site-functions"
@@ -299,28 +306,6 @@
         mode: "0755"
       become: false
       tags: npm_packages
-
-    - name: Generate openspec zsh completions
-      ansible.builtin.command: openspec completion generate zsh
-      register: openspec_completion_output
-      changed_when: false
-      become: false
-      tags: npm_packages
-      when:
-        - npm_available.stdout == "available"
-        - "'@fission-ai/openspec' in all_npm_packages"
-        - npm_check.rc == 0
-
-    - name: Write openspec completions to file
-      ansible.builtin.copy:
-        content: "{{ openspec_completion_output.stdout }}\n"
-        dest: "{{ ansible_facts['env']['HOME'] }}/.local/share/zsh/site-functions/_openspec"
-        mode: "0644"
-      become: false
-      tags: npm_packages
-      when:
-        - openspec_completion_output is not skipped
-        - openspec_completion_output.rc == 0
 
     - name: Link yarn with conflict resolution
       command: brew link --overwrite yarn
@@ -780,6 +765,36 @@
           when:
             - opencode_completion_output is not skipped
             - opencode_completion_output.rc == 0
+
+    - name: Configure OpenSpec settings
+      tags: openspec
+      block:
+        - name: Configure OpenSpec custom profile with all workflows
+          command: "{{ dev_env_dir }}/sjust/sjust.sh sf-openspec-configure force"
+          become: false
+
+        - name: Ensure zsh site-functions directory exists
+          ansible.builtin.file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.local/share/zsh/site-functions"
+            state: directory
+            mode: "0755"
+          become: false
+
+        - name: Generate openspec zsh completions
+          ansible.builtin.command: openspec completion generate zsh
+          register: openspec_completion_output
+          changed_when: false
+          become: false
+
+        - name: Write openspec completions to file
+          ansible.builtin.copy:
+            content: "{{ openspec_completion_output.stdout }}\n"
+            dest: "{{ ansible_facts['env']['HOME'] }}/.local/share/zsh/site-functions/_openspec"
+            mode: "0644"
+          become: false
+          when:
+            - openspec_completion_output is not skipped
+            - openspec_completion_output.rc == 0
 
     - name: Sync AI coding agent resources from upstream repository
       tags:
