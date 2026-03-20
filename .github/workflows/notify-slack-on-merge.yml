@@ -1,37 +1,109 @@
-name: Notify Slack on Master Merge
+name: Daily Slack Digest
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - "CHANGELOG.md"
+  schedule:
+    - cron: "30 8 * * 1-5"
+    - cron: "30 9 * * 1-5"
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Digest date to replay in YYYY-MM-DD format"
+        required: false
+        type: string
+      preview:
+        description: "Generate the digest without posting to Slack"
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   notify-slack:
     runs-on: ubuntu-latest
+    concurrency:
+      group: daily-slack-digest
+      cancel-in-progress: false
     permissions:
       contents: read
+    env:
+      DIGEST_TIMEZONE: Europe/Rome
 
     steps:
+      - name: Check schedule guard
+        id: schedule-guard
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          EVENT_SCHEDULE: ${{ github.event.schedule }}
+        run: |
+          if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+            echo "run=true" >> "${GITHUB_OUTPUT}"
+            {
+              echo "### Schedule guard"
+              echo
+              echo "- **Decision:** manual dispatch"
+              echo "- **Reason:** workflow_dispatch bypasses the schedule guard"
+            } >> "${GITHUB_STEP_SUMMARY}"
+            exit 0
+          fi
+
+          current_offset="$(TZ="${DIGEST_TIMEZONE}" date +%z)"
+          if [ "${current_offset}" = "+0200" ]; then
+            expected_cron="30 8 * * *"
+          else
+            expected_cron="30 9 * * *"
+          fi
+
+          if [ "${EVENT_SCHEDULE}" = "${expected_cron}" ]; then
+            echo "run=true" >> "${GITHUB_OUTPUT}"
+            {
+              echo "### Schedule guard"
+              echo
+              echo "- **Decision:** scheduled run accepted"
+              echo "- **Timezone:** \`${DIGEST_TIMEZONE}\`"
+              echo "- **Current UTC offset:** \`${current_offset}\`"
+              echo "- **Expected cron:** \`${expected_cron}\`"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          else
+            echo "run=false" >> "${GITHUB_OUTPUT}"
+            {
+              echo "### Schedule guard"
+              echo
+              echo "- **Decision:** skipped"
+              echo "- **Reason:** this UTC schedule does not map to 10:30 in \`${DIGEST_TIMEZONE}\` today"
+              echo "- **Current UTC offset:** \`${current_offset}\`"
+              echo "- **Triggered cron:** \`${EVENT_SCHEDULE}\`"
+              echo "- **Expected cron:** \`${expected_cron}\`"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          fi
+
       - name: Checkout repository
+        if: steps.schedule-guard.outputs.run == 'true'
         uses: actions/checkout@v6
         with:
-          fetch-depth: 2 # Fetch current and previous commit
+          fetch-depth: 0
 
-      - name: Send Slack notification
+      - name: Set up Python
+        if: steps.schedule-guard.outputs.run == 'true'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.14'
+
+      - name: Send Slack digest
+        if: steps.schedule-guard.outputs.run == 'true'
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          INPUT_DATE: ${{ github.event.inputs.date || '' }}
+          INPUT_PREVIEW: ${{ github.event.inputs.preview || 'false' }}
         run: |
-          # Get commit info
-          COMMIT_SHA="${GITHUB_SHA:0:7}"
-          COMMIT_URL="https://github.com/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}"
-          AUTHOR="${GITHUB_ACTOR}"
+          args=(daily --timezone "${DIGEST_TIMEZONE}")
+          args+=(--ref "origin/master")
 
-          # Run the notification script
-          python3 ./src/slack-notify/notify-slack-on-merge.py \
-            "CHANGELOG.md" \
-            "${COMMIT_SHA}" \
-            "${COMMIT_URL}" \
-            "${AUTHOR}"
+          if [ -n "${INPUT_DATE}" ]; then
+            args+=(--date "${INPUT_DATE}")
+          fi
+
+          if [ "${INPUT_PREVIEW}" = "true" ]; then
+            args+=(--preview)
+          fi
+
+          python3 ./src/slack-notify/notify-slack-on-merge.py "${args[@]}"

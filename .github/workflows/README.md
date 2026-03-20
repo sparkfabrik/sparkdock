@@ -22,9 +22,9 @@ Tests for the Swift menubar application.
 Tests for the SparkJust task runner.
 
 ### Slack Notifications (`notify-slack-on-merge.yml`)
-Automated Slack notifications for significant feature releases.
+Automated daily Slack digests for meaningful Sparkdock updates.
 
-Triggers when `CHANGELOG.md` changes are pushed to `master`. Uses Claude AI to analyze changes and send user-friendly announcements to the #tech Slack channel for significant features.
+Runs every day at 10:30 Europe/Rome (with a UTC schedule guard for DST) and on manual dispatch. Uses Claude AI to analyze the previous calendar day's net additions in `CHANGELOG.md` and send a single digest to the #tech Slack channel when the changes are meaningful.
 
 **Requirements:**
 - `ANTHROPIC_API_KEY` - Already configured
@@ -41,8 +41,14 @@ Triggers when `CHANGELOG.md` changes are pushed to `master`. Uses Claude AI to a
 # Dry-run validation (no API keys)
 python3 src/slack-notify/notify-slack-on-merge.py --dry-run
 
-# End-to-end test (requires API keys)
+# Offline extraction tests (no API keys)
 python3 src/slack-notify/notify-slack-on-merge.py --test
+
+# Preview a daily digest without posting to Slack
+python3 src/slack-notify/notify-slack-on-merge.py daily --date 2026-03-11 --preview --ref origin/master
+
+# Send the default daily digest for yesterday (requires API keys)
+python3 src/slack-notify/notify-slack-on-merge.py daily --ref origin/master
 ```
 
 📖 **Full documentation:** See [docs/SLACK_NOTIFICATION_EXAMPLES.md](../../docs/SLACK_NOTIFICATION_EXAMPLES.md) for examples, customization, and detailed testing instructions.
@@ -52,9 +58,10 @@ Validates the Slack notification Python script on pull requests and pushes.
 
 #### What It Tests
 1. **Python syntax validation** - Ensures the script has no syntax errors
-2. **Dry-run validation** - Validates script structure and configuration without API calls
-3. **File existence** - Verifies prompt files and dependencies exist
-4. **JSON schema validation** - Ensures Slack payload structure is correct
+2. **Offline extraction tests** - Verifies daily changelog entry extraction logic without API calls
+3. **Dry-run validation** - Validates script structure and repository context without API calls
+4. **File existence** - Verifies prompt files and dependencies exist
+5. **JSON schema validation** - Ensures Slack payload structure is correct
 
 This workflow ensures the notification script is ready to deploy without requiring API keys or secrets.
 

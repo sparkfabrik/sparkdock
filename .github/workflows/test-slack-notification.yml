@@ -5,12 +5,14 @@ on:
     paths:
       - 'src/slack-notify/**'
       - '.github/workflows/test-slack-notification.yml'
+      - '.github/workflows/notify-slack-on-merge.yml'
   push:
     branches:
       - master
     paths:
       - 'src/slack-notify/**'
       - '.github/workflows/test-slack-notification.yml'
+      - '.github/workflows/notify-slack-on-merge.yml'
 
 jobs:
   validate-syntax:
@@ -30,6 +32,11 @@ jobs:
         run: |
           python3 -m py_compile src/slack-notify/notify-slack-on-merge.py
           echo "✅ Python syntax is valid"
+
+      - name: Run offline notifier tests
+        run: |
+          python3 src/slack-notify/notify-slack-on-merge.py --test
+          echo "✅ Offline notifier tests passed"
       
       - name: Run dry-run validation
         run: |
