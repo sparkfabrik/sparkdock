@@ -431,20 +431,30 @@ def extract_daily_entries(
     return additions
 
 
-def parse_target_date(raw_date: str | None, timezone_name: str) -> date:
+def parse_target_date(raw_date: str | None, timezone_name: str) -> tuple[date, date]:
+    """Return (start_date, end_date) for the digest window.
+
+    When a date is provided explicitly, both start and end are the same day.
+    When no date is given, the window covers yesterday on Tue-Fri, and
+    Friday through Sunday on Monday (so weekend changes are not missed).
+    """
     if raw_date:
         parsed = date.fromisoformat(raw_date)
         if parsed > datetime.now(ZoneInfo(timezone_name)).date():
             raise ValueError("Target date cannot be in the future")
-        return parsed
-    now_local = datetime.now(ZoneInfo(timezone_name))
-    return now_local.date() - timedelta(days=1)
+        return parsed, parsed
+    today = datetime.now(ZoneInfo(timezone_name)).date()
+    if today.weekday() == 0:  # Monday
+        return today - timedelta(days=3), today - timedelta(days=1)
+    return today - timedelta(days=1), today - timedelta(days=1)
 
 
-def get_day_window(target_date: date, timezone_name: str) -> tuple[datetime, datetime]:
+def get_day_window(
+    start_date: date, end_date: date, timezone_name: str
+) -> tuple[datetime, datetime]:
     timezone = ZoneInfo(timezone_name)
-    start = datetime.combine(target_date, time.min, tzinfo=timezone)
-    end = start + timedelta(days=1)
+    start = datetime.combine(start_date, time.min, tzinfo=timezone)
+    end = datetime.combine(end_date + timedelta(days=1), time.min, tzinfo=timezone)
     return start, end
 
 
@@ -531,27 +541,34 @@ def format_commits_block(commits: list[CommitInfo]) -> str:
     )
 
 
+def format_date_range(start_date: date, end_date: date) -> str:
+    if start_date == end_date:
+        return start_date.isoformat()
+    return f"{start_date.isoformat()} .. {end_date.isoformat()}"
+
+
 def build_prompt(
-    target_date: date,
+    start_date: date,
+    end_date: date,
     timezone_name: str,
     entries_by_section: dict[str, list[str]],
     commits: list[CommitInfo],
 ) -> str:
     return PROMPT_FILE.read_text(encoding="utf-8").format(
-        target_date=target_date.isoformat(),
+        target_date=format_date_range(start_date, end_date),
         timezone_name=timezone_name,
         commit_block=format_commits_block(commits),
         entries_block=format_entries_block(entries_by_section),
     )
 
 
-def create_digest_title(target_date: date, timezone_name: str) -> str:
-    expected_yesterday = datetime.now(ZoneInfo(timezone_name)).date() - timedelta(
-        days=1
-    )
-    if target_date == expected_yesterday:
-        return "What shipped yesterday in Sparkdock"
-    return f"What shipped in Sparkdock on {target_date.isoformat()}"
+def create_digest_title(start_date: date, end_date: date, timezone_name: str) -> str:
+    today = datetime.now(ZoneInfo(timezone_name)).date()
+    if start_date == end_date:
+        if start_date == today - timedelta(days=1):
+            return "What shipped yesterday in Sparkdock"
+        return f"What shipped in Sparkdock on {start_date.isoformat()}"
+    return f"What shipped in Sparkdock ({start_date.isoformat()} \u2013 {end_date.isoformat()})"
 
 
 def build_commit_context(commits: list[CommitInfo], limit: int = 3) -> str:
@@ -566,7 +583,11 @@ def build_commit_context(commits: list[CommitInfo], limit: int = 3) -> str:
 
 
 def create_slack_payload(
-    title: str, message: str, target_date: date, commits: list[CommitInfo]
+    title: str,
+    message: str,
+    start_date: date,
+    end_date: date,
+    commits: list[CommitInfo],
 ) -> dict:
     blocks = [
         {
@@ -584,7 +605,7 @@ def create_slack_payload(
                 {
                     "type": "mrkdwn",
                     "text": (
-                        f"*Date:* {target_date.isoformat()}  |  "
+                        f"*Date:* {format_date_range(start_date, end_date)}  |  "
                         f"*Commits:* {build_commit_context(commits)}"
                     ),
                 }
@@ -606,7 +627,8 @@ def send_slack(payload: dict) -> bool:
 
 def write_digest_summary(
     *,
-    target_date: date,
+    start_date: date,
+    end_date: date,
     timezone_name: str,
     digest_ref: str,
     commits: list[CommitInfo],
@@ -619,7 +641,7 @@ def write_digest_summary(
     lines = [
         "## Daily Slack digest",
         "",
-        f"- **Target date:** `{target_date.isoformat()}`",
+        f"- **Digest window:** `{format_date_range(start_date, end_date)}`",
         f"- **Time zone:** `{timezone_name}`",
         f"- **Git ref:** `{digest_ref}`",
         f"- **Commits considered:** {len(commits)}",
@@ -640,12 +662,15 @@ def write_digest_summary(
 
 
 def analyze_digest(
-    target_date: date,
+    start_date: date,
+    end_date: date,
     timezone_name: str,
     entries_by_section: dict[str, list[str]],
     commits: list[CommitInfo],
 ) -> dict:
-    prompt = build_prompt(target_date, timezone_name, entries_by_section, commits)
+    prompt = build_prompt(
+        start_date, end_date, timezone_name, entries_by_section, commits
+    )
     result = call_claude_api(prompt, OUTPUT_SCHEMA)
     debug(f"Claude response: {json.dumps(result, indent=2)}")
     return result
@@ -676,11 +701,11 @@ def dry_run_mode() -> int:
         print(f"   ⚠ {DEFAULT_DIGEST_REF} not found, falling back to HEAD")
         digest_ref = resolve_digest_ref(None)
     print(f"   ✓ Repository URL: {repo_url}")
-    target_date = parse_target_date(None, DEFAULT_TIMEZONE)
-    start, end = get_day_window(target_date, DEFAULT_TIMEZONE)
+    start_date, end_date = parse_target_date(None, DEFAULT_TIMEZONE)
+    start, end = get_day_window(start_date, end_date, DEFAULT_TIMEZONE)
     commits = get_commits_for_window(start, end, repo_url, digest_ref)
     print(
-        f"   ✓ Default digest window: {target_date.isoformat()} ({DEFAULT_TIMEZONE}) on {digest_ref} with {len(commits)} commit(s)"
+        f"   ✓ Default digest window: {format_date_range(start_date, end_date)} ({DEFAULT_TIMEZONE}) on {digest_ref} with {len(commits)} commit(s)"
     )
 
     print("\n4. Parsing current changelog structure...")
@@ -731,15 +756,16 @@ def daily_mode(
 ) -> int:
     repo_url = build_repo_url()
     digest_ref = resolve_digest_ref(requested_ref)
-    target_date = parse_target_date(target_date_raw, timezone_name)
-    start, end = get_day_window(target_date, timezone_name)
+    start_date, end_date = parse_target_date(target_date_raw, timezone_name)
+    start, end = get_day_window(start_date, end_date, timezone_name)
     commits = get_commits_for_window(start, end, repo_url, digest_ref)
 
     if not commits:
-        reason = f"No commits landed on {digest_ref} during the selected day"
+        reason = f"No commits landed on {digest_ref} during the digest window"
         print(reason)
         write_digest_summary(
-            target_date=target_date,
+            start_date=start_date,
+            end_date=end_date,
             timezone_name=timezone_name,
             digest_ref=digest_ref,
             commits=commits,
@@ -760,11 +786,12 @@ def daily_mode(
 
     if not entries_by_section:
         reason = (
-            "CHANGELOG.md has no net additions in [Unreleased] for the selected day"
+            "CHANGELOG.md has no net additions in [Unreleased] for the digest window"
         )
         print(reason)
         write_digest_summary(
-            target_date=target_date,
+            start_date=start_date,
+            end_date=end_date,
             timezone_name=timezone_name,
             digest_ref=digest_ref,
             commits=commits,
@@ -778,11 +805,14 @@ def daily_mode(
 
     print("Changelog additions detected, analyzing daily digest with Claude AI...")
     try:
-        result = analyze_digest(target_date, timezone_name, entries_by_section, commits)
+        result = analyze_digest(
+            start_date, end_date, timezone_name, entries_by_section, commits
+        )
     except Exception as error:
         reason = f"Claude analysis failed: {error}"
         write_digest_summary(
-            target_date=target_date,
+            start_date=start_date,
+            end_date=end_date,
             timezone_name=timezone_name,
             digest_ref=digest_ref,
             commits=commits,
@@ -799,7 +829,8 @@ def daily_mode(
         )
         print(reason)
         write_digest_summary(
-            target_date=target_date,
+            start_date=start_date,
+            end_date=end_date,
             timezone_name=timezone_name,
             digest_ref=digest_ref,
             commits=commits,
@@ -814,7 +845,8 @@ def daily_mode(
     if not message:
         reason = "Claude approved the digest but returned an empty message"
         write_digest_summary(
-            target_date=target_date,
+            start_date=start_date,
+            end_date=end_date,
             timezone_name=timezone_name,
             digest_ref=digest_ref,
             commits=commits,
@@ -825,15 +857,16 @@ def daily_mode(
         print(f"{RED}{reason}{NC}")
         return 1
 
-    title = create_digest_title(target_date, timezone_name)
-    payload = create_slack_payload(title, message, target_date, commits)
+    title = create_digest_title(start_date, end_date, timezone_name)
+    payload = create_slack_payload(title, message, start_date, end_date, commits)
 
     if preview:
         print(f"{YELLOW}Preview mode enabled - Slack delivery skipped{NC}")
         print(f"Title: {title}")
         print(f"Message:\n{message}")
         write_digest_summary(
-            target_date=target_date,
+            start_date=start_date,
+            end_date=end_date,
             timezone_name=timezone_name,
             digest_ref=digest_ref,
             commits=commits,
@@ -849,7 +882,8 @@ def daily_mode(
         send_slack(payload)
         print("✅ Slack notification sent successfully")
         write_digest_summary(
-            target_date=target_date,
+            start_date=start_date,
+            end_date=end_date,
             timezone_name=timezone_name,
             digest_ref=digest_ref,
             commits=commits,
@@ -861,7 +895,8 @@ def daily_mode(
         return 0
     except Exception as error:
         write_digest_summary(
-            target_date=target_date,
+            start_date=start_date,
+            end_date=end_date,
             timezone_name=timezone_name,
             digest_ref=digest_ref,
             commits=commits,
