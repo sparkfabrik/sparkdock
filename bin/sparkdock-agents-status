@@ -153,6 +153,7 @@ render_table() {
                 s/locally modified/\e[38;5;220mlocally modified\e[0m/g;
                 s/conflicts with upstream/\e[38;5;220mconflicts with upstream\e[0m/g;
                 s/no SKILL\.md/\e[38;5;220mno SKILL.md\e[0m/g;
+                s/not installed/\e[2mnot installed\e[0m/g;
                 s/\bpartial\b/\e[38;5;220mpartial\e[0m/g;
                 s/\bok\b/\e[38;5;40mok\e[0m/g;
             '
@@ -168,6 +169,7 @@ log_section "Agent Resources Status"
 CACHE_AVAILABLE=false
 CONFLICTS_FOUND=false
 UPDATES_AVAILABLE=false
+NEW_RESOURCES_AVAILABLE=false
 if [[ -d "${CACHE_DIR}/.git" ]]; then
     if [[ "${SPARKDOCK_SKIP_FETCH:-}" == "true" ]]; then
         CACHE_AVAILABLE=true
@@ -186,12 +188,14 @@ fi
 managed_skills="$(get_managed_names "skills")"
 skills_csv="NAME,TYPE,STATUS,AVAILABLE"
 skills_found=false
+declare -A seen_skills=()
 
 if [[ -d "${SKILLS_DIR}" ]]; then
     for skill_dir in "${SKILLS_DIR}"/*/; do
         [[ -d "${skill_dir}" ]] || continue
         skills_found=true
         skill_name=$(basename "${skill_dir}")
+        seen_skills["${skill_name}"]=1
 
         if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
             skills_csv+=$'\n'"${skill_name},incomplete,no SKILL.md,"
@@ -218,6 +222,23 @@ if [[ -d "${SKILLS_DIR}" ]]; then
     done
 fi
 
+# Show skills available upstream but not installed locally
+if [[ "${CACHE_AVAILABLE}" == "true" ]]; then
+    upstream_skills_dir="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}"
+    if [[ -d "${upstream_skills_dir}" ]]; then
+        for skill_dir in "${upstream_skills_dir}"/*/; do
+            [[ -d "${skill_dir}" ]] || continue
+            skill_name=$(basename "${skill_dir}")
+            [[ -f "${skill_dir}/SKILL.md" ]] || continue
+            # Skip if already seen locally
+            [[ -n "${seen_skills[${skill_name}]+_}" ]] && continue
+            skills_found=true
+            NEW_RESOURCES_AVAILABLE=true
+            skills_csv+=$'\n'"${skill_name},available,not installed,"
+        done
+    fi
+fi
+
 print_label "Skills"
 if [[ "${skills_found}" = true ]]; then
     render_table "${skills_csv}"
@@ -231,6 +252,7 @@ echo ""
 managed_agents="$(get_managed_names "agents")"
 agents_csv="NAME,TOOL,TYPE,STATUS"
 agents_found=false
+declare -A seen_agents=()
 
 for tool_name in $(printf '%s\n' "${!AGENT_TOOL_INSTALL_DIR[@]}" | sort); do
     local_install_dir="${AGENT_TOOL_INSTALL_DIR[${tool_name}]}"
@@ -247,6 +269,7 @@ for tool_name in $(printf '%s\n' "${!AGENT_TOOL_INSTALL_DIR[@]}" | sort); do
         fi
 
         manifest_key="${agent_name}/${tool_name}"
+        seen_agents["${manifest_key}"]=1
 
         if echo "${managed_agents}" | grep -Fqx "${manifest_key}"; then
             # Resolve upstream file (agents use a directory with *.md glob)
@@ -269,6 +292,31 @@ for tool_name in $(printf '%s\n' "${!AGENT_TOOL_INSTALL_DIR[@]}" | sort); do
         fi
     done
 done
+
+# Show agent profiles available upstream but not installed locally
+if [[ "${CACHE_AVAILABLE}" == "true" ]]; then
+    upstream_agents_dir="${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}"
+    if [[ -d "${upstream_agents_dir}" ]]; then
+        for agent_dir in "${upstream_agents_dir}"/*/; do
+            [[ -d "${agent_dir}" ]] || continue
+            agent_name=$(basename "${agent_dir}")
+            for tool_dir in "${agent_dir}"/*/; do
+                [[ -d "${tool_dir}" ]] || continue
+                tool_name=$(basename "${tool_dir}")
+                # Only consider tools in the registry
+                [[ -z "${AGENT_TOOL_INSTALL_DIR[${tool_name}]+_}" ]] && continue
+                # Needs at least one .md file
+                compgen -G "${tool_dir}/*.md" >/dev/null || continue
+                # Skip if already seen locally
+                manifest_key="${agent_name}/${tool_name}"
+                [[ -n "${seen_agents[${manifest_key}]+_}" ]] && continue
+                agents_found=true
+                NEW_RESOURCES_AVAILABLE=true
+                agents_csv+=$'\n'"${agent_name},${tool_name},available,not installed"
+            done
+        done
+    fi
+fi
 
 print_label "Agent Profiles"
 if [[ "${agents_found}" = true ]]; then
@@ -295,4 +343,7 @@ if [[ "${CONFLICTS_FOUND}" == "true" ]]; then
 fi
 if [[ "${UPDATES_AVAILABLE}" == "true" ]]; then
     log_warn "Updates available. Run 'sjust sf-agents-refresh' to update."
+fi
+if [[ "${NEW_RESOURCES_AVAILABLE}" == "true" ]]; then
+    log_warn "New resources available. Run 'sjust sf-agents-refresh' to install."
 fi
