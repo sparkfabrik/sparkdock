@@ -294,10 +294,12 @@
 
     - name: Uninstall legacy npm-installed OpenSpec
       tags: npm_packages
-      shell: npm list -g @fission-ai/openspec >/dev/null 2>&1 && npm uninstall -g @fission-ai/openspec || true
+      community.general.npm:
+        name: "@fission-ai/openspec"
+        global: true
+        state: absent
       become: false
       when: npm_available.stdout == "available"
-      changed_when: false
 
     - name: Ensure zsh site-functions directory exists
       ansible.builtin.file:
@@ -780,11 +782,18 @@
             mode: "0755"
           become: false
 
+        - name: Check if openspec command is available
+          shell: command -v openspec >/dev/null 2>&1 && echo "available" || echo "not-available"
+          register: openspec_available
+          changed_when: false
+          become: false
+
         - name: Generate openspec zsh completions
           ansible.builtin.command: openspec completion generate zsh
           register: openspec_completion_output
           changed_when: false
           become: false
+          when: openspec_available.stdout == "available"
 
         - name: Write openspec completions to file
           ansible.builtin.copy:
@@ -793,6 +802,7 @@
             mode: "0644"
           become: false
           when:
+            - openspec_available.stdout == "available"
             - openspec_completion_output is not skipped
             - openspec_completion_output.rc == 0
 

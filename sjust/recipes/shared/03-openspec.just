@@ -24,7 +24,7 @@ sf-openspec-configure $force="":
             log_warn "OpenSpec config already exists at ${CONFIG_FILE}"
             read -p "Overwrite with Sparkdock defaults? (y/N): " -n 1 -r
             echo
-            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            if [[ ! ${REPLY} =~ ^[Yy]$ ]]; then
                 log_info "Keeping existing configuration."
                 exit 0
             fi
@@ -32,6 +32,7 @@ sf-openspec-configure $force="":
     fi
 
     mkdir -p "${CONFIG_DIR}"
+    rm -f "${CONFIG_FILE}"
     cp "${SOURCE_FILE}" "${CONFIG_FILE}"
     chmod 644 "${CONFIG_FILE}"
     log_success "OpenSpec configured with custom profile (all 11 workflows enabled)"
