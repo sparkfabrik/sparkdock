@@ -734,16 +734,53 @@
             mode: "0755"
           become: no
 
-        - name: Deploy OpenCode configuration with security permissions and OpenCode provider disabled
-          copy:
+        - name: Check if opencode local override file exists
+          ansible.builtin.stat:
+            path: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.local.json"
+          register: opencode_local_config_stat
+          become: no
+
+        - name: Read opencode base config
+          ansible.builtin.slurp:
+            src: "{{ dev_env_dir }}/config/macos/opencode.json"
+          register: opencode_base_config_content
+          no_log: true
+          become: no
+          when: opencode_local_config_stat.stat.exists
+
+        - name: Read opencode local override file
+          ansible.builtin.slurp:
+            src: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.local.json"
+          register: opencode_local_config_content
+          no_log: true
+          become: no
+          when: opencode_local_config_stat.stat.exists
+
+        - name: Write merged opencode config with local overrides
+          ansible.builtin.copy:
+            content: "{{ (opencode_base_config_content.content | b64decode | from_json) | combine(opencode_local_config_content.content | b64decode | from_json, recursive=True) | to_nice_json }}\n"
+            dest: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
+            mode: "0644"
+          no_log: true
+          become: no
+          when: opencode_local_config_stat.stat.exists
+
+        - name: Copy opencode base config file (no local overrides)
+          ansible.builtin.copy:
             src: "{{ dev_env_dir }}/config/macos/opencode.json"
             dest: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
             mode: "0644"
           become: no
+          when: not opencode_local_config_stat.stat.exists
 
         - name: Display OpenCode configuration status
           debug:
-            msg: "✅ OpenCode configuration deployed successfully (OpenCode provider disabled; 175 permission rules — dangerous commands are blocked or require confirmation)"
+            msg: >-
+              {{ opencode_local_config_stat.stat.exists |
+                 ternary(
+                   '✅ OpenCode configuration deployed with local overrides merged (opencode.local.json)',
+                   '✅ OpenCode configuration deployed (OpenCode provider disabled; 175 permission rules — dangerous commands are blocked or require confirmation)'
+                 ) }}
 
         - name: Ensure zsh site-functions directory exists
           ansible.builtin.file:
