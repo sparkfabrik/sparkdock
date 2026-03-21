@@ -36,3 +36,34 @@ sf-copilot-model-limits *args='':
         exit 1
     fi
     node "{{sparkdock_path}}/config/macos/scripts/copilot-models.mjs" {{args}}
+
+# Show current personal GitHub Copilot premium request usage.
+# Requires opencode to be authenticated with GitHub Copilot.
+[group('ai-coding-agents')]
+sf-copilot-premium-usage:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    AUTH_FILE="${HOME}/.local/share/opencode/auth.json"
+    if [[ ! -f "${AUTH_FILE}" ]]; then
+        echo "ERROR: opencode auth not found at ${AUTH_FILE}"
+        echo "Run opencode and authenticate with GitHub Copilot first."
+        exit 1
+    fi
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "ERROR: jq is required but not found."
+        exit 1
+    fi
+    TOKEN=$(jq -r '.["github-copilot"].access' "${AUTH_FILE}")
+    if [[ -z "${TOKEN}" || "${TOKEN}" == "null" ]]; then
+        echo "ERROR: No github-copilot access token found in ${AUTH_FILE}"
+        exit 1
+    fi
+    curl -sS "https://api.github.com/copilot_internal/user" \
+        -H "content-type: application/json" \
+        -H "accept: application/json" \
+        -H "authorization: token ${TOKEN}" \
+        -H "editor-version: vscode/1.104.3" \
+        -H "editor-plugin-version: copilot-chat/0.26.7" \
+        -H "user-agent: GitHubCopilotChat/0.26.7" \
+        -H "x-github-api-version: 2025-04-01" \
+        -H "x-vscode-user-agent-library-version: electron-fetch" | jq
