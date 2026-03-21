@@ -1,11 +1,12 @@
 # vim: set ft=make :
 
 # Refresh AI coding agent resources (skills + agent profiles) from upstream.
+# Pass "force" or "--force" to overwrite local modifications.
 [group('ai-coding-agents')]
 sf-agents-refresh $force="":
     #!/usr/bin/env bash
     set -euo pipefail
-    if [[ "${force}" == "force" ]]; then
+    if [[ "${force}" == "force" || "${force}" == "--force" ]]; then
         {{sparkdock_path}}/bin/sparkdock-agents-sync --force
     else
         {{sparkdock_path}}/bin/sparkdock-agents-sync
