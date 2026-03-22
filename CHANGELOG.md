@@ -7,17 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- `sf-agents-refresh` now accepts both `force` and `--force` to trigger a forced update
-
 ### Added
 
+- Added OpenSpec shell aliases: `os` (openspec), `osi` (init with opencode+github-copilot tools), `osl` (list), `oss` (status), `osn` (new change), `osa` (archive)
 - Added `sjust githuman-open` recipe to open the browser for a running GitHuman instance or start a new one
 - Added `sjust githuman-id` recipe to print the container ID of a running GitHuman instance
 
 ### Changed
 
+- `sf-agents-refresh` now accepts both `force` and `--force` to trigger a forced update
 - `githuman-start` now opens the browser automatically when a GitHuman instance is already running for the directory
 - Show upstream-available but not-yet-installed skills and agent profiles in `sf-agents-status` output, with `available / not installed` status and footer hint to run `sf-agents-refresh`
 - Added `sjust sf-openspec-configure` recipe to deploy OpenSpec custom profile with all 11 workflows and telemetry disabled, with interactive overwrite confirmation (pass `force` for programmatic/Ansible use)

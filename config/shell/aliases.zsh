@@ -195,6 +195,16 @@ if command_exists opencode; then
   alias c='opencode'
 fi
 
+# OpenSpec shortcuts
+if command_exists openspec; then
+  alias os='openspec'
+  alias osi='openspec init --tools opencode,github-copilot'
+  alias osl='openspec list'
+  alias oss='openspec status'
+  alias osn='openspec new change'
+  alias osa='openspec archive'
+fi
+
 # Directory navigation
 alias ..='cd ..'
 alias ...='cd ../..'
