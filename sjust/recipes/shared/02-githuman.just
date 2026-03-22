@@ -34,9 +34,16 @@ githuman-start $directory=".":
     if [[ -n "${existing}" ]]; then
         while IFS='|' read -r dir name fqdn_existing token_existing; do
             if [[ "${dir}" == "${target_dir}" ]]; then
+                url="https://${fqdn_existing}?token=${token_existing}"
                 echo "⚠️  GitHuman is already running for ${target_dir}"
                 echo "   Container: ${name}"
-                echo "   URL: https://${fqdn_existing}?token=${token_existing}"
+                echo "   URL: ${url}"
+                echo "🌐 Opening ${url}"
+                if [[ "$(uname)" == "Darwin" ]]; then
+                    open "${url}"
+                else
+                    xdg-open "${url}"
+                fi
                 exit 0
             fi
         done <<< "${existing}"
@@ -154,6 +161,63 @@ githuman-start $directory=".":
     else
         xdg-open "${url}"
     fi
+
+# Open the browser for a running GitHuman instance, or start a new one.
+[group('githuman')]
+[no-cd]
+githuman-open $directory=".":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ ! -d "${directory}" ]]; then
+        echo "❌ Directory not found: ${directory}"
+        exit 1
+    fi
+
+    target_dir=$(cd "${directory}" && pwd)
+
+    match=$(docker ps --filter "label={{githuman_label}}=true" \
+        --format '{{ "{{" }}.Label "{{githuman_label}}.directory"{{ "}}" }}|{{ "{{" }}.Label "{{githuman_label}}.fqdn"{{ "}}" }}|{{ "{{" }}.Label "{{githuman_label}}.token"{{ "}}" }}' 2>/dev/null \
+        | grep "^${target_dir}|" || true)
+
+    if [[ -z "${match}" ]]; then
+        just githuman-start "${directory}"
+        exit 0
+    fi
+
+    IFS='|' read -r _dir fqdn token <<< "${match}"
+    url="https://${fqdn}?token=${token}"
+    echo "🌐 Opening ${url}"
+    if [[ "$(uname)" == "Darwin" ]]; then
+        open "${url}"
+    else
+        xdg-open "${url}"
+    fi
+
+# Print the container ID for a running GitHuman instance.
+[group('githuman')]
+[no-cd]
+githuman-id $directory=".":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ ! -d "${directory}" ]]; then
+        echo "❌ Directory not found: ${directory}"
+        exit 1
+    fi
+
+    target_dir=$(cd "${directory}" && pwd)
+
+    container_id=$(docker ps --filter "label={{githuman_label}}=true" \
+        --format '{{ "{{" }}.Label "{{githuman_label}}.directory"{{ "}}" }}|{{ "{{" }}.ID{{ "}}" }}' 2>/dev/null \
+        | grep "^${target_dir}|" | cut -d'|' -f2 || true)
+
+    if [[ -z "${container_id}" ]]; then
+        echo "No GitHuman instance running for this directory. Use 'githuman-start' to start one."
+        exit 1
+    fi
+
+    echo "${container_id}"
 
 # List all running GitHuman instances.
 [group('githuman')]
