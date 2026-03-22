@@ -197,6 +197,7 @@ fi
 
 # OpenSpec shortcuts
 if command_exists openspec; then
+  export OPENSPEC_NO_AUTO_CONFIG=1
   alias os='openspec'
   alias osi='openspec init --tools opencode,github-copilot'
   alias osl='openspec list'
