@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- `sf-agents-refresh` now accepts both `force` and `--force` to trigger a forced update
+
 ### Added
 
 - Show upstream-available but not-yet-installed skills and agent profiles in `sf-agents-status` output, with `available / not installed` status and footer hint to run `sf-agents-refresh`
