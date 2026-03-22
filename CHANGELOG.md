@@ -13,6 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `sjust githuman-open` recipe to open the browser for a running GitHuman instance or start a new one
+- Added `sjust githuman-id` recipe to print the container ID of a running GitHuman instance
+
+### Changed
+
+- `githuman-start` now opens the browser automatically when a GitHuman instance is already running for the directory
 - Show upstream-available but not-yet-installed skills and agent profiles in `sf-agents-status` output, with `available / not installed` status and footer hint to run `sf-agents-refresh`
 - Added `sjust sf-openspec-configure` recipe to deploy OpenSpec custom profile with all 11 workflows and telemetry disabled, with interactive overwrite confirmation (pass `force` for programmatic/Ansible use)
 - Added Copilot CLI skill symlinks: creates per-skill symlinks in `~/.copilot/skills/` pointing to `~/.agents/skills/` so Copilot CLI can discover sparkdock-managed skills (workaround for [github/copilot-cli#1744](https://github.com/github/copilot-cli/issues/1744))
