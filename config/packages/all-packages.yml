@@ -104,3 +104,7 @@ removed_taps:
   - homebrew/cask-drivers
 
 removed_cask_packages: []
+
+# Removed npm packages (uninstalled before brew install to avoid link conflicts)
+removed_npm_packages:
+  - "@fission-ai/openspec"
