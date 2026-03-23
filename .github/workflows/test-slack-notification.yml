@@ -5,14 +5,14 @@ on:
     paths:
       - 'src/slack-notify/**'
       - '.github/workflows/test-slack-notification.yml'
-      - '.github/workflows/notify-slack-on-merge.yml'
+      - '.github/workflows/daily-slack-digest.yml'
   push:
     branches:
       - master
     paths:
       - 'src/slack-notify/**'
       - '.github/workflows/test-slack-notification.yml'
-      - '.github/workflows/notify-slack-on-merge.yml'
+      - '.github/workflows/daily-slack-digest.yml'
 
 jobs:
   validate-syntax:

@@ -21,7 +21,7 @@ Tests for the Swift menubar application.
 ### Test sjust (`test-sjust.yml`)
 Tests for the SparkJust task runner.
 
-### Slack Notifications (`notify-slack-on-merge.yml`)
+### Slack Notifications (`daily-slack-digest.yml`)
 Automated daily Slack digests for meaningful Sparkdock updates.
 
 Runs every day at 10:30 Europe/Rome (with a UTC schedule guard for DST) and on manual dispatch. Uses Claude AI to analyze the previous calendar day's net additions in `CHANGELOG.md` and send a single digest to the #tech Slack channel when the changes are meaningful.

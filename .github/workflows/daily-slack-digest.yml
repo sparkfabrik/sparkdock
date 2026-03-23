@@ -47,9 +47,9 @@ jobs:
 
           current_offset="$(TZ="${DIGEST_TIMEZONE}" date +%z)"
           if [ "${current_offset}" = "+0200" ]; then
-            expected_cron="30 8 * * *"
+            expected_cron="30 8 * * 1-5"
           else
-            expected_cron="30 9 * * *"
+            expected_cron="30 9 * * 1-5"
           fi
 
           if [ "${EVENT_SCHEDULE}" = "${expected_cron}" ]; then
