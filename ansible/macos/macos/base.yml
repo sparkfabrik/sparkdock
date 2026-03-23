@@ -36,6 +36,7 @@
         all_removed_taps: "{{ all_packages.removed_taps | default([]) }}"
         all_taps: "{{ all_packages.taps | default([]) }}"
         all_removed_cask_packages: "{{ all_packages.removed_cask_packages | default([]) }}"
+        all_removed_npm_packages: "{{ all_packages.removed_npm_packages | default([]) }}"
         all_npm_packages: "{{ all_packages.npm_packages | default([]) }}"
 
     - name: Configure homebrew taps
@@ -234,6 +235,27 @@
       when: "'google-cloud-sdk' in all_cask_packages"
       become: false
 
+    - name: Check if npm command is available
+      shell: command -v npm >/dev/null 2>&1 && echo "available" || echo "not-available"
+      register: npm_available
+      changed_when: false
+      become: false
+      tags:
+        - brew_packages
+        - npm_packages
+
+    - name: Uninstall removed npm packages
+      tags: brew_packages
+      community.general.npm:
+        name: "{{ item }}"
+        global: true
+        state: absent
+      loop: "{{ all_removed_npm_packages }}"
+      become: false
+      when:
+        - npm_available.stdout == "available"
+        - all_removed_npm_packages | length > 0
+
     - name: Install homebrew packages
       tags: brew_packages
       community.general.homebrew:
@@ -256,13 +278,6 @@
       changed_when: false
       failed_when: brew_check.rc != 0
       become: false
-
-    - name: Check if npm command is available
-      shell: command -v npm >/dev/null 2>&1 && echo "available" || echo "not-available"
-      register: npm_available
-      changed_when: false
-      become: false
-      tags: npm_packages
 
     - name: Install npm global packages
       tags: npm_packages
@@ -292,15 +307,6 @@
         - all_npm_packages | length > 0
       become: false
 
-    - name: Uninstall legacy npm-installed OpenSpec
-      tags: npm_packages
-      community.general.npm:
-        name: "@fission-ai/openspec"
-        global: true
-        state: absent
-      become: false
-      when: npm_available.stdout == "available"
-
     - name: Ensure zsh site-functions directory exists
       ansible.builtin.file:
         path: "{{ ansible_facts['env']['HOME'] }}/.local/share/zsh/site-functions"
@@ -312,6 +318,12 @@
     - name: Link yarn with conflict resolution
       command: brew link --overwrite yarn
       when: "'yarn' in all_homebrew_packages"
+      become: false
+      ignore_errors: yes
+
+    - name: Link openspec with conflict resolution
+      command: brew link --overwrite openspec
+      when: "'openspec' in all_homebrew_packages"
       become: false
       ignore_errors: yes
 
