@@ -24,7 +24,7 @@ Tests for the SparkJust task runner.
 ### Slack Notifications (`daily-slack-digest.yml`)
 Automated daily Slack digests for meaningful Sparkdock updates.
 
-Runs every day at 10:30 Europe/Rome (with a UTC schedule guard for DST) and on manual dispatch. Uses Claude AI to analyze the previous calendar day's net additions in `CHANGELOG.md` and send a single digest to the #tech Slack channel when the changes are meaningful.
+Runs weekdays at 08:30 UTC (10:30 CET / 11:30 CEST) and on manual dispatch. Uses Claude AI to analyze the previous calendar day's net additions in `CHANGELOG.md` and send a single digest to the #tech Slack channel when the changes are meaningful.
 
 **Requirements:**
 - `ANTHROPIC_API_KEY` - Already configured
