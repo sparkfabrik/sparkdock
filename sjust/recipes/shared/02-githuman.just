@@ -19,7 +19,7 @@ githuman-start $directory=".":
         exit 1
     fi
 
-    target_dir=$(cd "${directory}" && pwd)
+    target_dir=$(cd -P "${directory}" && pwd -P)
     basename_raw=$(basename "${target_dir}")
 
     # Sanitize basename for DNS-compatible hostname (RFC 952)
@@ -174,11 +174,11 @@ githuman-open $directory=".":
         exit 1
     fi
 
-    target_dir=$(cd "${directory}" && pwd)
+    target_dir=$(cd -P "${directory}" && pwd -P)
 
     match=$(docker ps --filter "label={{githuman_label}}=true" \
         --format '{{ "{{" }}.Label "{{githuman_label}}.directory"{{ "}}" }}|{{ "{{" }}.Label "{{githuman_label}}.fqdn"{{ "}}" }}|{{ "{{" }}.Label "{{githuman_label}}.token"{{ "}}" }}' 2>/dev/null \
-        | grep "^${target_dir}|" || true)
+        | awk -F'|' -v dir="${target_dir}" '$1 == dir' || true)
 
     if [[ -z "${match}" ]]; then
         just githuman-start "${directory}"
@@ -206,11 +206,11 @@ githuman-id $directory=".":
         exit 1
     fi
 
-    target_dir=$(cd "${directory}" && pwd)
+    target_dir=$(cd -P "${directory}" && pwd -P)
 
     container_id=$(docker ps --filter "label={{githuman_label}}=true" \
         --format '{{ "{{" }}.Label "{{githuman_label}}.directory"{{ "}}" }}|{{ "{{" }}.ID{{ "}}" }}' 2>/dev/null \
-        | grep "^${target_dir}|" | cut -d'|' -f2 || true)
+        | awk -F'|' -v dir="${target_dir}" '$1 == dir {print $2}' || true)
 
     if [[ -z "${container_id}" ]]; then
         echo "No GitHuman instance running for this directory. Use 'githuman-start' to start one."
@@ -218,6 +218,38 @@ githuman-id $directory=".":
     fi
 
     echo "${container_id}"
+
+# Execute a command inside a running GitHuman container for the current directory.
+[group('githuman')]
+[no-cd]
+githuman-exec *args='':
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    if [[ -z "{{args}}" ]]; then
+        echo "Usage: sjust githuman-exec <command...>"
+        echo "Example: sjust githuman-exec npm install"
+        exit 1
+    fi
+
+    target_dir=$(pwd -P)
+
+    container_name=$(docker ps --filter "label={{githuman_label}}=true" \
+        --format '{{ "{{" }}.Label "{{githuman_label}}.directory"{{ "}}" }}|{{ "{{" }}.Names{{ "}}" }}' 2>/dev/null \
+        | awk -F'|' -v dir="${target_dir}" '$1 == dir {print $2}' || true)
+
+    if [[ -z "${container_name}" ]]; then
+        echo "❌ No GitHuman instance running for ${target_dir}"
+        echo "💡 Run 'sjust githuman-start' first to start an instance."
+        exit 1
+    fi
+
+    exec_flags="-i"
+    if [ -t 0 ]; then
+        exec_flags="-it"
+    fi
+
+    docker exec ${exec_flags} "${container_name}" {{args}}
 
 # List all running GitHuman instances.
 [group('githuman')]
