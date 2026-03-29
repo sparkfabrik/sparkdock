@@ -1,0 +1,22 @@
+{
+  "featureFlags": {},
+  "profile": "custom",
+  "delivery": "both",
+  "telemetry": {
+    "noticeSeen": true,
+    "enabled": false
+  },
+  "workflows": [
+    "propose",
+    "explore",
+    "new",
+    "continue",
+    "apply",
+    "ff",
+    "sync",
+    "archive",
+    "bulk-archive",
+    "verify",
+    "onboard"
+  ]
+}

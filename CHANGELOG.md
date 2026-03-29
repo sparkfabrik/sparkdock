@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added OpenSpec shell aliases: `os` (openspec), `osi` (init with opencode+github-copilot tools), `osl` (list), `oss` (status), `osn` (new change), `osa` (archive)
+- Added `sjust githuman-open` recipe to open the browser for a running GitHuman instance or start a new one
+- Added `sjust githuman-id` recipe to print the container ID of a running GitHuman instance
+
+### Changed
+
+- `sf-agents-refresh` now accepts both `force` and `--force` to trigger a forced update
+- `githuman-start` now opens the browser automatically when a GitHuman instance is already running for the directory
+- Show upstream-available but not-yet-installed skills and agent profiles in `sf-agents-status` output, with `available / not installed` status and footer hint to run `sf-agents-refresh`
+- Added `sjust sf-openspec-configure` recipe to deploy OpenSpec custom profile with all 11 workflows and telemetry disabled, with interactive overwrite confirmation (pass `force` for programmatic/Ansible use)
 - Added Copilot CLI skill symlinks: creates per-skill symlinks in `~/.copilot/skills/` pointing to `~/.agents/skills/` so Copilot CLI can discover sparkdock-managed skills (workaround for [github/copilot-cli#1744](https://github.com/github/copilot-cli/issues/1744))
 - Unified agent skills and agent profiles into a single sync system (`sparkdock-agents-sync`, `sparkdock-agents-status`) supporting per-tool agent profiles alongside skills, with v2 manifest and upstream conflict detection
 - Added `sjust sf-agents-refresh` and `sjust sf-agents-status` recipes (backward-compatible `sf-skills-*` aliases kept)
@@ -27,6 +37,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added gcloud shell aliases: `gcloud-as` (impersonate service account), `gcloud-me` (stop impersonating), `gcloud-whoami` (show current impersonation)
 
 ### Changed
+- Migrated OpenSpec installation from npm (`@fission-ai/openspec`) to Homebrew (`brew install openspec`) for simpler dependency management and version alignment, with automatic cleanup of the legacy npm package
+- Changed Slack notifications to run as a daily 10:30 Europe/Rome digest that summarizes the previous day's meaningful `CHANGELOG.md` additions on `master`, with manual replay/preview support and GitHub Actions run summaries
 - Refactored `sparkdock-agents-status` to use `gum table` for polished terminal output with colored status values, replacing printf-based column formatting. Includes `resolve_managed_status` helper to deduplicate SHA comparison logic, `render_table` with post-render perl colorization (workaround for charmbracelet/gum#833), `print_label`/`print_faint` helpers with non-gum fallback, `SPARKDOCK_SKIP_FETCH` env var for offline testing, and `perl` dependency guard
 - Adopted ruff as Python formatter/linter, run via Docker before committing
 - Refactored section headers across sjust recipes (libshell.sh, 00-default.just, 01-lima.just, 03-shell.just) to use `log_section` with double-border gum style
