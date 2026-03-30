@@ -9,7 +9,9 @@
 //   https://github.com/anomalyco/opencode/issues/16129
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
+import { writeFileSync, unlinkSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { homedir, tmpdir } from "node:os";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -271,19 +273,73 @@ function compare(apiModels, localModels) {
 // Output
 // ---------------------------------------------------------------------------
 
+function splitModels(apiModels) {
+  const included = apiModels
+    .filter((m) => !m.multiplier)
+    .sort((a, b) => a.id.localeCompare(b.id));
+  const premium = apiModels
+    .filter((m) => m.multiplier > 0)
+    .sort((a, b) => a.multiplier - b.multiplier || a.id.localeCompare(b.id));
+  return { included, premium };
+}
+
+function toRow(r) {
+  return [
+    r.id,
+    r.multiplier != null ? `${r.multiplier}x` : "-",
+    fmt(r.prompt),
+    fmt(r.output),
+    fmt(r.window),
+    fmt(r.promptPlusOutput),
+    fmt(r.context),
+  ].join("\t");
+}
+
+function hasGum() {
+  try {
+    execFileSync("gum", ["--version"], { stdio: "ignore" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function gumTable(csv) {
+  const tmp = path.join(tmpdir(), `copilot-models-${process.pid}.csv`);
+  writeFileSync(tmp, csv);
+  try {
+    execFileSync("gum", ["table", "--print", "--border", "rounded", "--separator", "\t", "--file", tmp], {
+      stdio: ["inherit", "inherit", "inherit"],
+    });
+  } finally {
+    try { unlinkSync(tmp); } catch {}
+  }
+}
+
 function printTable(apiModels) {
-  console.table(
-    apiModels.map((r) => ({
-      id: r.id,
-      multiplier: r.multiplier != null ? `${r.multiplier}x` : "-",
-      premium: r.premium ? "yes" : "no",
-      prompt: fmt(r.prompt),
-      output: fmt(r.output),
-      window: fmt(r.window),
-      "prompt+output": fmt(r.promptPlusOutput),
-      "inferred context": fmt(r.context),
-    })),
-  );
+  const { included, premium } = splitModels(apiModels);
+  const header = "Model\tMultiplier\tPrompt\tOutput\tWindow\tPrompt+Output\tContext";
+  const useGum = hasGum();
+
+  if (included.length) {
+    console.log("\n📦 Included models (0x)\n");
+    const csv = [header, ...included.map(toRow)].join("\n");
+    if (useGum) {
+      gumTable(csv);
+    } else {
+      console.log(csv);
+    }
+  }
+
+  if (premium.length) {
+    console.log("\n💎 Premium models (by multiplier)\n");
+    const csv = [header, ...premium.map(toRow)].join("\n");
+    if (useGum) {
+      gumTable(csv);
+    } else {
+      console.log(csv);
+    }
+  }
 }
 
 function printWarnings(warnings) {
@@ -325,9 +381,19 @@ async function main() {
   const apiModels = buildApiModels(payload);
 
   if (doList) {
-    for (const m of apiModels) {
-      const mult = m.multiplier != null ? `${m.multiplier}x` : "-";
-      console.log(`${m.id}\t${mult}`);
+    const { included, premium } = splitModels(apiModels);
+    if (included.length) {
+      console.log("# Included (0x)");
+      for (const m of included) {
+        console.log(m.id);
+      }
+    }
+    if (premium.length) {
+      if (included.length) console.log();
+      console.log("# Premium (by multiplier)");
+      for (const m of premium) {
+        console.log(`${m.id}\t${m.multiplier}x`);
+      }
     }
     process.exit(0);
   }
