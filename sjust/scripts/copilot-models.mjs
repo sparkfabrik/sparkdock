@@ -14,11 +14,17 @@ import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const AUTH_PATH = path.join(homedir(), ".local/share/opencode/auth.json");
-const OPENCODE_JSON_PATH = path.join(homedir(), ".config/opencode/opencode.json");
+const OPENCODE_JSON_PATH = path.join(
+  homedir(),
+  ".config/opencode/opencode.json",
+);
 const SOURCE_CONFIG_PATH = path.resolve(
   dirname(fileURLToPath(import.meta.url)),
   "..",
-  "opencode.json"
+  "..",
+  "config",
+  "macos",
+  "opencode.json",
 );
 const API_BASE = "https://api.business.githubcopilot.com";
 
@@ -66,7 +72,7 @@ async function getAccessToken() {
     raw = await readFile(AUTH_PATH, "utf8");
   } catch {
     fail(
-      `Cannot read ${AUTH_PATH}\nMake sure opencode is installed and authenticated with GitHub Copilot.`
+      `Cannot read ${AUTH_PATH}\nMake sure opencode is installed and authenticated with GitHub Copilot.`,
     );
   }
   let auth;
@@ -86,7 +92,7 @@ async function fetchModels(accessToken) {
   if (!response.ok) {
     const body = await response.text();
     fail(
-      `Copilot Business API returned ${response.status} ${response.statusText}\n${body}`
+      `Copilot Business API returned ${response.status} ${response.statusText}\n${body}`,
     );
   }
   return response.json();
@@ -105,7 +111,8 @@ function buildApiModels(payload) {
         prompt,
         output,
         window,
-        promptPlusOutput: prompt != null && output != null ? prompt + output : null,
+        promptPlusOutput:
+          prompt != null && output != null ? prompt + output : null,
         context: inferContext(limits),
       };
     })
@@ -127,7 +134,9 @@ async function readLocalLimits() {
   try {
     config = JSON.parse(raw);
   } catch {
-    fail(`Invalid JSON in ${OPENCODE_JSON_PATH} — the config file may be corrupted.`);
+    fail(
+      `Invalid JSON in ${OPENCODE_JSON_PATH} — the config file may be corrupted.`,
+    );
   }
   return config?.provider?.["github-copilot"]?.models || null;
 }
@@ -162,7 +171,7 @@ async function updateLocalConfig(modelsBlock) {
     } catch {
       fail(
         `Cannot read ${OPENCODE_JSON_PATH} or ${SOURCE_CONFIG_PATH}\n` +
-          "The sparkdock installation may be incomplete."
+          "The sparkdock installation may be incomplete.",
       );
     }
   }
@@ -176,7 +185,8 @@ async function updateLocalConfig(modelsBlock) {
 
   // Deep-set provider.github-copilot.models, creating intermediate keys if needed
   if (!config.provider) config.provider = {};
-  if (!config.provider["github-copilot"]) config.provider["github-copilot"] = {};
+  if (!config.provider["github-copilot"])
+    config.provider["github-copilot"] = {};
   config.provider["github-copilot"].models = modelsBlock;
 
   await mkdir(dirname(OPENCODE_JSON_PATH), { recursive: true });
@@ -186,9 +196,7 @@ async function updateLocalConfig(modelsBlock) {
   if (source !== OPENCODE_JSON_PATH) {
     console.log(`\nSeeded from ${source}`);
   }
-  console.log(
-    `Updated ${count} models in ${OPENCODE_JSON_PATH}`
-  );
+  console.log(`Updated ${count} models in ${OPENCODE_JSON_PATH}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -268,7 +276,7 @@ function printTable(apiModels) {
       window: fmt(r.window),
       "prompt+output": fmt(r.promptPlusOutput),
       "inferred context": fmt(r.context),
-    }))
+    })),
   );
 }
 
@@ -283,7 +291,7 @@ function printWarnings(warnings) {
   const maxId = Math.max(...warnings.map((w) => w.id.length));
   for (const w of warnings) {
     console.log(
-      `  ${w.type.padEnd(maxType)}  ${w.id.padEnd(maxId)}  ${w.message}`
+      `  ${w.type.padEnd(maxType)}  ${w.id.padEnd(maxId)}  ${w.message}`,
     );
   }
 }
@@ -294,8 +302,8 @@ function printSnippet(modelsBlock) {
     JSON.stringify(
       { provider: { "github-copilot": { models: modelsBlock } } },
       null,
-      2
-    )
+      2,
+    ),
   );
 }
 
@@ -305,9 +313,18 @@ function printSnippet(modelsBlock) {
 
 async function main() {
   const doUpdate = process.argv.includes("--update");
+  const doList = process.argv.includes("--list");
   const accessToken = await getAccessToken();
   const payload = await fetchModels(accessToken);
   const apiModels = buildApiModels(payload);
+
+  if (doList) {
+    for (const m of apiModels) {
+      console.log(m.id);
+    }
+    process.exit(0);
+  }
+
   const localModels = await readLocalLimits();
 
   console.log(`API endpoint: ${API_BASE}`);
@@ -319,7 +336,7 @@ async function main() {
   printWarnings(warnings);
 
   const hasDrift = warnings.some(
-    (w) => w.type === "DRIFT" || w.type === "MISSING" || w.type === "STALE"
+    (w) => w.type === "DRIFT" || w.type === "MISSING" || w.type === "STALE",
   );
 
   if (hasDrift) {
@@ -330,7 +347,7 @@ async function main() {
     } else {
       printSnippet(modelsBlock);
       console.log(
-        "\nRun with --update to apply automatically, or copy the snippet above into opencode.json."
+        "\nRun with --update to apply automatically, or copy the snippet above into opencode.json.",
       );
     }
   }
