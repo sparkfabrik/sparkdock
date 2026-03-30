@@ -219,7 +219,7 @@ githuman-id $directory=".":
 
     echo "${container_id}"
 
-# Execute a command inside a running GitHuman container for the current directory.
+# Run a GitHuman CLI command inside a running container for the current directory.
 [group('githuman')]
 [no-cd]
 githuman-exec *args='':
@@ -227,8 +227,8 @@ githuman-exec *args='':
     set -euo pipefail
 
     if [[ -z "{{args}}" ]]; then
-        echo "Usage: sjust githuman-exec <command...>"
-        echo "Example: sjust githuman-exec npm install"
+        echo "Usage: sjust githuman-exec <githuman-command...>"
+        echo "Example: sjust githuman-exec review list"
         exit 1
     fi
 
@@ -249,7 +249,7 @@ githuman-exec *args='':
         exec_flags="-it"
     fi
 
-    docker exec ${exec_flags} "${container_name}" {{args}}
+    docker exec ${exec_flags} "${container_name}" npx githuman@{{githuman_version}} {{args}}
 
 # List all running GitHuman instances.
 [group('githuman')]
