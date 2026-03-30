@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `sjust sf-copilot-premium-usage` recipe to show premium Copilot request usage in a formatted dashboard
+- Added `--json` option to `sjust sf-copilot-premium-usage` for raw API output
+- Added shared Copilot auth module (`sjust/scripts/lib/copilot-auth.mjs`) to deduplicate token handling across scripts
 - Added OpenSpec shell aliases: `os` (openspec), `osi` (init with opencode+github-copilot tools), `osl` (list), `oss` (status), `osn` (new change), `osa` (archive)
 - Added `sjust githuman-open` recipe to open the browser for a running GitHuman instance or start a new one
 - Added `sjust githuman-id` recipe to print the container ID of a running GitHuman instance

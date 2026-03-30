@@ -9,14 +9,12 @@
 //   https://github.com/anomalyco/opencode/issues/16129
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { writeFileSync, unlinkSync } from "node:fs";
-import { execFileSync } from "node:child_process";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { randomUUID } from "node:crypto";
+import { fail, getAccessToken, BASE_HEADERS } from "./lib/copilot-auth.mjs";
+import { printTable } from "./lib/gum.mjs";
 
-const AUTH_PATH = path.join(homedir(), ".local/share/opencode/auth.json");
 const OPENCODE_JSON_PATH = path.join(
   homedir(),
   ".config/opencode/opencode.json",
@@ -31,22 +29,9 @@ const SOURCE_CONFIG_PATH = path.resolve(
 );
 const API_BASE = "https://api.business.githubcopilot.com";
 
-const BASE_HEADERS = {
-  "User-Agent": "GitHubCopilotChat/0.39.0",
-  "Editor-Version": "vscode/1.111.0",
-  "Editor-Plugin-Version": "copilot-chat/0.39.0",
-  "Copilot-Integration-Id": "vscode-chat",
-  "X-GitHub-Api-Version": "2025-05-01",
-};
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function fail(message) {
-  console.error(`ERROR: ${message}`);
-  process.exit(2);
-}
 
 function parseNumber(value) {
   return typeof value === "number" ? value : null;
@@ -68,26 +53,6 @@ function inferContext(limits) {
 // ---------------------------------------------------------------------------
 // Data fetching
 // ---------------------------------------------------------------------------
-
-async function getAccessToken() {
-  let raw;
-  try {
-    raw = await readFile(AUTH_PATH, "utf8");
-  } catch {
-    fail(
-      `Cannot read ${AUTH_PATH}\nMake sure opencode is installed and authenticated with GitHub Copilot.`,
-    );
-  }
-  let auth;
-  try {
-    auth = JSON.parse(raw);
-  } catch {
-    fail(`Invalid JSON in ${AUTH_PATH} — the auth file may be corrupted.`);
-  }
-  const token = auth?.["github-copilot"]?.access;
-  if (!token) fail(`No github-copilot access token found in ${AUTH_PATH}`);
-  return token;
-}
 
 async function fetchModels(accessToken) {
   const headers = { ...BASE_HEADERS, Authorization: `Bearer ${accessToken}` };
@@ -296,81 +261,21 @@ function toRow(r) {
   ].join("\t");
 }
 
-function hasGum() {
-  try {
-    execFileSync("gum", ["--version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function plainTable(csv) {
-  const rows = csv.split("\n").map((r) => r.split("\t"));
-  const cols = rows[0].length;
-  const widths = Array.from({ length: cols }, (_, i) =>
-    Math.max(...rows.map((r) => (r[i] || "").length)),
-  );
-  const pad = (val, w, i) =>
-    i === 0 ? (val || "").padEnd(w) : (val || "").padStart(w);
-  const sep = widths.map((w) => "─".repeat(w)).join("──");
-  const line = (r) => rows[r].map((v, i) => pad(v, widths[i], i)).join("  ");
-  console.log(line(0));
-  console.log(sep);
-  for (let r = 1; r < rows.length; r++) console.log(line(r));
-}
-
-function gumTable(csv) {
-  const tmp = path.join(tmpdir(), `copilot-models-${randomUUID()}.csv`);
-  writeFileSync(tmp, csv);
-  try {
-    execFileSync(
-      "gum",
-      [
-        "table",
-        "--print",
-        "--border",
-        "rounded",
-        "--separator",
-        "\t",
-        "--file",
-        tmp,
-      ],
-      {
-        stdio: ["inherit", "inherit", "inherit"],
-      },
-    );
-  } finally {
-    try {
-      unlinkSync(tmp);
-    } catch {}
-  }
-}
-
-function printTable(apiModels) {
+function printModelsTable(apiModels) {
   const { included, premium } = splitModels(apiModels);
   const header =
     "Model\tMultiplier\tPrompt\tOutput\tWindow\tPrompt+Output\tContext";
-  const useGum = hasGum();
 
   if (included.length) {
     console.log("\n📦 Included models (0x)\n");
     const csv = [header, ...included.map(toRow)].join("\n");
-    if (useGum) {
-      gumTable(csv);
-    } else {
-      plainTable(csv);
-    }
+    printTable(csv);
   }
 
   if (premium.length) {
     console.log("\n💎 Premium models (by multiplier)\n");
     const csv = [header, ...premium.map(toRow)].join("\n");
-    if (useGum) {
-      gumTable(csv);
-    } else {
-      plainTable(csv);
-    }
+    printTable(csv);
   }
 }
 
@@ -414,18 +319,13 @@ async function main() {
 
   if (doList) {
     const { included, premium } = splitModels(apiModels);
-    const useGum = hasGum();
     const listHeader = "Model\tMultiplier\tContext";
 
     if (included.length) {
       console.log("\n📦 Included models (0x)\n");
       const rows = included.map((m) => `${m.id}\t-\t${fmt(m.context)}`);
       const csv = [listHeader, ...rows].join("\n");
-      if (useGum) {
-        gumTable(csv);
-      } else {
-        plainTable(csv);
-      }
+      printTable(csv);
     }
     if (premium.length) {
       console.log("\n💎 Premium models (by multiplier)\n");
@@ -433,11 +333,7 @@ async function main() {
         (m) => `${m.id}\t${m.multiplier}x\t${fmt(m.context)}`,
       );
       const csv = [listHeader, ...rows].join("\n");
-      if (useGum) {
-        gumTable(csv);
-      } else {
-        plainTable(csv);
-      }
+      printTable(csv);
     }
     process.exit(0);
   }
@@ -447,7 +343,7 @@ async function main() {
   console.log(`API endpoint: ${API_BASE}`);
   console.log(`Local config: ${OPENCODE_JSON_PATH}\n`);
 
-  printTable(apiModels);
+  printModelsTable(apiModels);
 
   const warnings = compare(apiModels, localModels);
   printWarnings(warnings);
