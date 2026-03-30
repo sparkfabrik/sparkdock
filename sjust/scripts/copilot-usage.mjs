@@ -38,8 +38,8 @@ function fmt(value) {
 }
 
 function progressBar(used, total, width = 30) {
-  const ratio = total > 0 ? Math.min(used / total, 1) : 0;
-  const filled = Math.round(ratio * width);
+  const ratio = total > 0 ? Math.max(0, Math.min(used / total, 1)) : 0;
+  const filled = Math.max(0, Math.min(width, Math.round(ratio * width)));
   const empty = width - filled;
   return "█".repeat(filled) + "░".repeat(empty);
 }
@@ -49,7 +49,7 @@ function daysUntil(dateStr) {
   const reset = new Date(dateStr);
   const now = new Date();
   const diff = Math.ceil((reset - now) / (1000 * 60 * 60 * 24));
-  return diff;
+  return diff > 0 ? diff : 0;
 }
 
 function formatDate(dateStr) {
@@ -94,7 +94,13 @@ function renderDashboard(data) {
     .join(", ") || "-";
   const resetDate = formatDate(data.quota_reset_date_utc || data.quota_reset_date);
   const days = daysUntil(data.quota_reset_date_utc || data.quota_reset_date);
-  const daysStr = days != null ? `resets in ${days} day${days !== 1 ? "s" : ""}` : "";
+  let daysStr = "reset date unavailable";
+  if (days != null) {
+    daysStr =
+      days === 0
+        ? "resets today"
+        : `resets in ${days} day${days !== 1 ? "s" : ""}`;
+  }
 
   const snapshots = data.quota_snapshots || {};
   const premium = snapshots.premium_interactions;
