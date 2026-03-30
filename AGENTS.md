@@ -168,6 +168,9 @@ Per `.github/copilot-instructions.md`, all shell scripts must:
 - Use your editor's "show whitespace" feature to identify issues
 - This applies to ALL files: Swift, shell scripts, YAML, Markdown, etc.
 
+**JavaScript Style**
+- Always use braces for `if`, `for`, `while`, and similar control statements, even for single-line bodies
+
 **CHANGELOG.md Conventions**
 - Follow [Keep a Changelog](https://keepachangelog.com/) format
 - New entries go at the **top** of their section (`### Added`, `### Changed`, `### Fixed`, etc.) — newest first, preserving temporal order
