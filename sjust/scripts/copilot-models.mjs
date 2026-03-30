@@ -399,11 +399,11 @@ async function main() {
   if (doList) {
     const { included, premium } = splitModels(apiModels);
     const useGum = hasGum();
-    const listHeader = "Model\tMultiplier";
+    const listHeader = "Model\tMultiplier\tContext";
 
     if (included.length) {
       console.log("\n📦 Included models (0x)\n");
-      const rows = included.map((m) => m.id + "\t-");
+      const rows = included.map((m) => `${m.id}\t-\t${fmt(m.context)}`);
       if (useGum) {
         gumTable([listHeader, ...rows].join("\n"));
       } else {
@@ -412,7 +412,9 @@ async function main() {
     }
     if (premium.length) {
       console.log("\n💎 Premium models (by multiplier)\n");
-      const rows = premium.map((m) => `${m.id}\t${m.multiplier}x`);
+      const rows = premium.map(
+        (m) => `${m.id}\t${m.multiplier}x\t${fmt(m.context)}`,
+      );
       if (useGum) {
         gumTable([listHeader, ...rows].join("\n"));
       } else {
