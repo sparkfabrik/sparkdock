@@ -106,6 +106,8 @@ function buildApiModels(payload) {
       const prompt = parseNumber(limits.max_prompt_tokens);
       const output = parseNumber(limits.max_output_tokens);
       const window = parseNumber(limits.max_context_window_tokens);
+      const multiplier = m?.billing?.multiplier ?? null;
+      const premium = m?.billing?.is_premium ?? false;
       return {
         id: m.id,
         prompt,
@@ -114,6 +116,8 @@ function buildApiModels(payload) {
         promptPlusOutput:
           prompt != null && output != null ? prompt + output : null,
         context: inferContext(limits),
+        multiplier,
+        premium,
       };
     })
     .sort((a, b) => a.id.localeCompare(b.id));
@@ -271,6 +275,8 @@ function printTable(apiModels) {
   console.table(
     apiModels.map((r) => ({
       id: r.id,
+      multiplier: r.multiplier != null ? `${r.multiplier}x` : "-",
+      premium: r.premium ? "yes" : "no",
       prompt: fmt(r.prompt),
       output: fmt(r.output),
       window: fmt(r.window),
@@ -320,7 +326,8 @@ async function main() {
 
   if (doList) {
     for (const m of apiModels) {
-      console.log(m.id);
+      const mult = m.multiplier != null ? `${m.multiplier}x` : "-";
+      console.log(`${m.id}\t${mult}`);
     }
     process.exit(0);
   }
