@@ -1,51 +1,10 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to AI coding agents when working with code in this repository.
 
-## Context Sources
+## Platform Support
 
-When working with this codebase, Claude agents have access to multiple instruction sources that provide context and guidelines:
-
-### Primary Context Files
-
-1. **CLAUDE.md** (this file) - High-level repository overview, architecture, and common workflows
-2. **.github/copilot-instructions.md** - Detailed development conventions, patterns, and project-specific standards
-3. **.github/instructions/** - Specialized instruction files for specific file types or domains
-
-### File-Specific Instructions with applyTo Pattern
-
-Instruction files in `.github/instructions/` can use the `applyTo` frontmatter to target specific file patterns. This ensures that domain-specific guidance is automatically provided when working with matching files.
-
-**Syntax:**
-```markdown
----
-applyTo: "**/*.zsh,**/sparkdock.zshrc"
----
-
-# Your instructions here
-```
-
-**How it works:**
-- The `applyTo` field accepts glob patterns to match file paths
-- Multiple patterns can be comma-separated
-- The agent will receive these instructions as additional context when editing matching files
-- This allows specialized guidance (e.g., shell configuration patterns) without cluttering the main context
-
-**Example:**
-```markdown
----
-applyTo: "**/*.swift,**/Makefile"
----
-
-# Swift Development Guidelines
-- Use structured concurrency with async/await
-- Implement proper timeout handling
-```
-
-When editing files matching `**/*.swift` or `**/Makefile`, the agent automatically receives these specific guidelines in addition to the general repository instructions.
-
-**Available Specialized Instructions:**
-- `.github/instructions/shell-config.instructions.md` - Shell configuration patterns (applies to `**/*.zsh,**/sparkdock.zshrc`)
+**Apple Silicon Only**: Sparkdock supports **only Apple Silicon Macs**. Intel-based Macs are **not supported**.
 
 ## Overview
 
@@ -132,6 +91,9 @@ sjust install-tags "docker,keyboard"
 - Wrapper around Just task runner: `sjust/sjust.sh`
 - Recipe files in `sjust/recipes/` with modular task definitions
 - User customizations via `~/.config/sjust/100-custom.just`
+- Keep recipe files clean and focused on task orchestration
+- Extract complex logic into reusable functions in `sjust/libs/libshell.sh`
+- Use `source "{{source_directory()}}/../libs/libshell.sh"` to load shared utilities
 
 **HTTP Proxy Integration:**
 - Clones SparkFabrik HTTP proxy to `/opt/sparkdock/http-proxy`
@@ -146,12 +108,27 @@ sjust install-tags "docker,keyboard"
 
 ## Shell Script Standards
 
-Per `.github/copilot-instructions.md`, all shell scripts must:
+All shell scripts must:
 - Use `#!/usr/bin/env bash` shebang
 - Include `set -euo pipefail` for error handling
-- Use `${variable}` syntax with braces
-- Use `local` for function variables
+- Use `${variable}` syntax with braces (never bare `$variable`)
+- Use `local` for function variables to avoid namespace pollution
 - Pass shellcheck validation
+- Prefer early-return / guard-clause style over `else` branches when checking pre-conditions:
+
+```bash
+# Good: guard clause, no else
+if ! command -v cirrus >/dev/null 2>&1; then
+    brew install cirruslabs/cli/cirrus
+fi
+
+# Avoid: unnecessary else branch
+if ! command -v cirrus >/dev/null 2>&1; then
+    brew install cirruslabs/cli/cirrus
+else
+    echo "Cirrus CLI is already installed"
+fi
+```
 
 ## Python Standards
 
@@ -172,10 +149,17 @@ Per `.github/copilot-instructions.md`, all shell scripts must:
 - Always use braces for `if`, `for`, `while`, and similar control statements, even for single-line bodies
 
 **CHANGELOG.md Conventions**
+
+This project uses a daily Slack digest that parses `CHANGELOG.md` to detect and announce new entries. Malformed sections (duplicate headers, wrong categories) **break the digest silently**. Follow these rules strictly:
+
 - Follow [Keep a Changelog](https://keepachangelog.com/) format
-- New entries go at the **top** of their section (`### Added`, `### Changed`, `### Fixed`, etc.) — newest first, preserving temporal order
-- Never reorder existing entries — only prepend above them
-- Keep entries concise: one line per change, no excessive detail
+- **One header per section**: Each `### Added`, `### Changed`, `### Fixed`, `### Removed`, `### Deprecated`, `### Security` must appear **exactly once** under `## [Unreleased]`. Never create a duplicate section header — always prepend entries to the existing section
+- **Standard section order**: Added, Changed, Deprecated, Removed, Fixed, Security. Do not intersperse or reorder sections
+- **Correct categorization**: Entries must match their section. New features/tools/commands go under `### Added`, not `### Changed`. Use `### Changed` only for modifications to existing behavior. Use `### Fixed` for bug fixes. If an entry starts with "Added", it belongs under `### Added`
+- **New entries go at the top** of their section — newest first, preserving temporal order
+- **Never reorder existing entries** — only prepend above them
+- **One line per entry**: Keep entries concise, no excessive detail. Do not use `####` sub-headings or multi-level nesting inside `## [Unreleased]`
+- **No trailing whitespace** on any line
 
 ## Testing
 
@@ -236,6 +220,13 @@ Located at `~/.cache/sparkdock/sf-skills-manifest.json`. V2 format with `skills`
 
 ### OpenSpec Change
 Full design artifacts at `openspec/changes/unified-agents-sync/` (proposal, design, specs, tasks).
+
+## Git Workflow
+
+- **Default branch**: `master` (not `main`)
+- Automatic stashing of local changes during updates
+- Lock file at `/tmp/sparkdock.lock` prevents concurrent updates
+- Built-in rollback on failed updates using stored commit hashes
 
 ## Troubleshooting
 
