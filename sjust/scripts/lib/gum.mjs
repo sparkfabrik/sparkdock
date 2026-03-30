@@ -37,7 +37,9 @@ export function printPlainTable(csv) {
 
   console.log(formatRow(rows[0]));
   console.log(separator);
-  for (const row of rows.slice(1)) console.log(formatRow(row));
+  for (const row of rows.slice(1)) {
+    console.log(formatRow(row));
+  }
 }
 
 function printGumTable(csv) {

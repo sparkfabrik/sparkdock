@@ -46,9 +46,15 @@ function progressBar(used, total, width = 30) {
 }
 
 function daysUntil(dateStr) {
-  if (!dateStr) return null;
+  if (!dateStr) {
+    return null;
+  }
+
   const reset = new Date(dateStr);
-  if (Number.isNaN(reset.getTime())) return null;
+  if (Number.isNaN(reset.getTime())) {
+    return null;
+  }
+
   const now = new Date();
 
   // Normalize both dates to UTC midnight so date-only API values stay stable
@@ -69,7 +75,10 @@ function daysUntil(dateStr) {
 }
 
 function formatDate(dateStr) {
-  if (!dateStr) return "-";
+  if (!dateStr) {
+    return "-";
+  }
+
   return dateStr.split("T")[0];
 }
 
@@ -78,7 +87,9 @@ function formatDate(dateStr) {
 // ---------------------------------------------------------------------------
 
 function renderQuota(snapshot) {
-  if (!snapshot) return "  (no data)";
+  if (!snapshot) {
+    return "  (no data)";
+  }
 
   if (snapshot.unlimited) {
     return "  unlimited";
