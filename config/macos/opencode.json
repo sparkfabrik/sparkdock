@@ -1,5 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "share": "disabled",
   "disabled_providers": ["opencode"],
   "provider": {
     "github-copilot": {
