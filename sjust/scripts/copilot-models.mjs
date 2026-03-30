@@ -14,8 +14,8 @@ import { execFileSync } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { fail, getAccessToken, BASE_HEADERS } from "./lib/copilot-auth.mjs";
 
-const AUTH_PATH = path.join(homedir(), ".local/share/opencode/auth.json");
 const OPENCODE_JSON_PATH = path.join(
   homedir(),
   ".config/opencode/opencode.json",
@@ -30,22 +30,9 @@ const SOURCE_CONFIG_PATH = path.resolve(
 );
 const API_BASE = "https://api.business.githubcopilot.com";
 
-const BASE_HEADERS = {
-  "User-Agent": "GitHubCopilotChat/0.39.0",
-  "Editor-Version": "vscode/1.111.0",
-  "Editor-Plugin-Version": "copilot-chat/0.39.0",
-  "Copilot-Integration-Id": "vscode-chat",
-  "X-GitHub-Api-Version": "2025-05-01",
-};
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function fail(message) {
-  console.error(`ERROR: ${message}`);
-  process.exit(2);
-}
 
 function parseNumber(value) {
   return typeof value === "number" ? value : null;
@@ -67,26 +54,6 @@ function inferContext(limits) {
 // ---------------------------------------------------------------------------
 // Data fetching
 // ---------------------------------------------------------------------------
-
-async function getAccessToken() {
-  let raw;
-  try {
-    raw = await readFile(AUTH_PATH, "utf8");
-  } catch {
-    fail(
-      `Cannot read ${AUTH_PATH}\nMake sure opencode is installed and authenticated with GitHub Copilot.`,
-    );
-  }
-  let auth;
-  try {
-    auth = JSON.parse(raw);
-  } catch {
-    fail(`Invalid JSON in ${AUTH_PATH} — the auth file may be corrupted.`);
-  }
-  const token = auth?.["github-copilot"]?.access;
-  if (!token) fail(`No github-copilot access token found in ${AUTH_PATH}`);
-  return token;
-}
 
 async function fetchModels(accessToken) {
   const headers = { ...BASE_HEADERS, Authorization: `Bearer ${accessToken}` };

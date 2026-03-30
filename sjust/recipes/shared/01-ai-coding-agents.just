@@ -55,3 +55,22 @@ sf-copilot-model-list:
         exit 1
     fi
     node "{{sparkdock_path}}/sjust/scripts/copilot-models.mjs" --list
+
+# Show current personal GitHub Copilot premium request usage.
+# Pass --json to output the raw API response for scripting.
+# Requires opencode to be authenticated with GitHub Copilot.
+[group('ai-coding-agents')]
+sf-copilot-premium-usage *args='':
+    #!/usr/bin/env bash
+    set -euo pipefail
+    AUTH_FILE="${HOME}/.local/share/opencode/auth.json"
+    if [[ ! -f "${AUTH_FILE}" ]]; then
+        echo "ERROR: opencode auth not found at ${AUTH_FILE}"
+        echo "Run opencode and authenticate with GitHub Copilot first."
+        exit 1
+    fi
+    if ! command -v node >/dev/null 2>&1; then
+        echo "ERROR: Node.js is required but not found."
+        exit 1
+    fi
+    node "{{sparkdock_path}}/sjust/scripts/copilot-usage.mjs" {{args}}
