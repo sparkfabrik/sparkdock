@@ -9,12 +9,11 @@
 //   https://github.com/anomalyco/opencode/issues/16129
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { writeFileSync, unlinkSync } from "node:fs";
-import { execFileSync } from "node:child_process";
-import { homedir, tmpdir } from "node:os";
+import { homedir } from "node:os";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fail, getAccessToken, BASE_HEADERS } from "./lib/copilot-auth.mjs";
+import { printTable } from "./lib/gum.mjs";
 
 const OPENCODE_JSON_PATH = path.join(
   homedir(),
@@ -242,11 +241,11 @@ function compare(apiModels, localModels) {
 
 function splitModels(apiModels) {
   const included = apiModels
-    .filter((m) => !m.multiplier)
+    .filter((m) => !m.premium)
     .sort((a, b) => a.id.localeCompare(b.id));
   const premium = apiModels
-    .filter((m) => m.multiplier > 0)
-    .sort((a, b) => a.multiplier - b.multiplier || a.id.localeCompare(b.id));
+    .filter((m) => m.premium)
+    .sort((a, b) => (a.multiplier ?? 0) - (b.multiplier ?? 0) || a.id.localeCompare(b.id));
   return { included, premium };
 }
 
@@ -262,66 +261,21 @@ function toRow(r) {
   ].join("\t");
 }
 
-function hasGum() {
-  try {
-    execFileSync("gum", ["--version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function gumTable(csv) {
-  const tmp = path.join(tmpdir(), `copilot-models-${process.pid}.csv`);
-  writeFileSync(tmp, csv);
-  try {
-    execFileSync(
-      "gum",
-      [
-        "table",
-        "--print",
-        "--border",
-        "rounded",
-        "--separator",
-        "\t",
-        "--file",
-        tmp,
-      ],
-      {
-        stdio: ["inherit", "inherit", "inherit"],
-      },
-    );
-  } finally {
-    try {
-      unlinkSync(tmp);
-    } catch {}
-  }
-}
-
-function printTable(apiModels) {
+function printModelsTable(apiModels) {
   const { included, premium } = splitModels(apiModels);
   const header =
     "Model\tMultiplier\tPrompt\tOutput\tWindow\tPrompt+Output\tContext";
-  const useGum = hasGum();
 
   if (included.length) {
     console.log("\n📦 Included models (0x)\n");
     const csv = [header, ...included.map(toRow)].join("\n");
-    if (useGum) {
-      gumTable(csv);
-    } else {
-      console.log(csv);
-    }
+    printTable(csv);
   }
 
   if (premium.length) {
     console.log("\n💎 Premium models (by multiplier)\n");
     const csv = [header, ...premium.map(toRow)].join("\n");
-    if (useGum) {
-      gumTable(csv);
-    } else {
-      console.log(csv);
-    }
+    printTable(csv);
   }
 }
 
@@ -365,28 +319,21 @@ async function main() {
 
   if (doList) {
     const { included, premium } = splitModels(apiModels);
-    const useGum = hasGum();
     const listHeader = "Model\tMultiplier\tContext";
 
     if (included.length) {
       console.log("\n📦 Included models (0x)\n");
       const rows = included.map((m) => `${m.id}\t-\t${fmt(m.context)}`);
-      if (useGum) {
-        gumTable([listHeader, ...rows].join("\n"));
-      } else {
-        for (const m of included) console.log(m.id);
-      }
+      const csv = [listHeader, ...rows].join("\n");
+      printTable(csv);
     }
     if (premium.length) {
       console.log("\n💎 Premium models (by multiplier)\n");
       const rows = premium.map(
         (m) => `${m.id}\t${m.multiplier}x\t${fmt(m.context)}`,
       );
-      if (useGum) {
-        gumTable([listHeader, ...rows].join("\n"));
-      } else {
-        for (const r of rows) console.log(r);
-      }
+      const csv = [listHeader, ...rows].join("\n");
+      printTable(csv);
     }
     process.exit(0);
   }
@@ -396,7 +343,7 @@ async function main() {
   console.log(`API endpoint: ${API_BASE}`);
   console.log(`Local config: ${OPENCODE_JSON_PATH}\n`);
 
-  printTable(apiModels);
+  printModelsTable(apiModels);
 
   const warnings = compare(apiModels, localModels);
   printWarnings(warnings);

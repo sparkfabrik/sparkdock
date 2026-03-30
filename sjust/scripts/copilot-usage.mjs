@@ -7,8 +7,8 @@
 //   node copilot-usage.mjs          # formatted dashboard
 //   node copilot-usage.mjs --json   # raw API JSON
 
-import { execFileSync } from "node:child_process";
 import { fail, getAccessToken, BASE_HEADERS } from "./lib/copilot-auth.mjs";
+import { printBox } from "./lib/gum.mjs";
 
 const API_URL = "https://api.github.com/copilot_internal/user";
 
@@ -31,41 +31,6 @@ async function fetchUsage(accessToken) {
     );
   }
   return response.json();
-}
-
-// ---------------------------------------------------------------------------
-// Formatting helpers
-// ---------------------------------------------------------------------------
-
-function hasGum() {
-  try {
-    execFileSync("gum", ["--version"], { stdio: "ignore" });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function gumStyle(text) {
-  try {
-    execFileSync(
-      "gum",
-      [
-        "style",
-        "--border",
-        "rounded",
-        "--padding",
-        "1 2",
-        "--border-foreground",
-        "212",
-        text,
-      ],
-      { stdio: ["inherit", "inherit", "inherit"] },
-    );
-  } catch {
-    // Fallback: just print the text
-    console.log(text);
-  }
 }
 
 function fmt(value) {
@@ -171,14 +136,9 @@ async function main() {
   }
 
   const dashboard = renderDashboard(data);
-  const useGum = hasGum();
 
   console.log("");
-  if (useGum) {
-    gumStyle(dashboard);
-  } else {
-    console.log(dashboard);
-  }
+  printBox(dashboard);
   console.log("");
 }
 
