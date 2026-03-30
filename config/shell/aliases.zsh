@@ -165,23 +165,23 @@ if command_exists copilot; then
 
   ## One-shot mode aliases (co = copilot one-shot)
   # co/cos/coh/coc/cog/coo - Run a single prompt and exit
-  co()  { copilot --allow-all-tools --silent --model gpt-4.1 -p "${@}"; }
-  cos() { copilot --allow-all-tools --silent --model claude-sonnet-4.5 -p "${@}"; }
+  co()  { copilot --allow-all-tools --silent --model gpt-5-mini -p "${@}"; }
+  cos() { copilot --allow-all-tools --silent --model claude-sonnet-4.6 -p "${@}"; }
   coh() { copilot --allow-all-tools --silent --model claude-haiku-4.5 -p "${@}"; }
-  coc() { copilot --allow-all-tools --silent --model gpt-5.1-codex-max -p "${@}"; }
-  cog() { copilot --allow-all-tools --silent --model gemini-3-pro -p "${@}"; }
-  coo() { copilot --allow-all-tools --silent --model claude-opus-4.5 -p "${@}"; }
+  coc() { copilot --allow-all-tools --silent --model gpt-5.3-codex -p "${@}"; }
+  cog() { copilot --allow-all-tools --silent --model gemini-3.1-pro-preview -p "${@}"; }
+  coo() { copilot --allow-all-tools --silent --model claude-opus-4.6 -p "${@}"; }
 
   ## Interactive mode aliases (ico = interactive copilot)
   # ico/icos/icoh/icoc/icog/icoo - Start interactive session, optionally with initial prompt
   # Usage: ico → starts full interactive session
   #        ico "prompt" → starts session with initial prompt
-  ico()  { copilot --model gpt-4.1 --allow-all-tools ${1:+-i} "${@}"; }
-  icos() { copilot --model claude-sonnet-4.5 --allow-all-tools ${1:+-i} "${@}"; }
+  ico()  { copilot --model gpt-5-mini --allow-all-tools ${1:+-i} "${@}"; }
+  icos() { copilot --model claude-sonnet-4.6 --allow-all-tools ${1:+-i} "${@}"; }
   icoh() { copilot --model claude-haiku-4.5 --allow-all-tools ${1:+-i} "${@}"; }
-  icoc() { copilot --model gpt-5.1-codex-max --allow-all-tools ${1:+-i} "${@}"; }
-  icog() { copilot --model gemini-3-pro --allow-all-tools ${1:+-i} "${@}"; }
-  icoo() { copilot --model claude-opus-4.5 --allow-all-tools ${1:+-i} "${@}"; }
+  icoc() { copilot --model gpt-5.3-codex --allow-all-tools ${1:+-i} "${@}"; }
+  icog() { copilot --model gemini-3.1-pro-preview --allow-all-tools ${1:+-i} "${@}"; }
+  icoo() { copilot --model claude-opus-4.6 --allow-all-tools ${1:+-i} "${@}"; }
 
   ## Session Management
   # cocon - Resume the last session
