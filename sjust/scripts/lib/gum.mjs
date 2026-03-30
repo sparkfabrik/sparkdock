@@ -4,13 +4,21 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 
+let cachedHasGum;
+
 export function hasGum() {
+  if (cachedHasGum !== undefined) {
+    return cachedHasGum;
+  }
+
   try {
     execFileSync("gum", ["--version"], { stdio: "ignore" });
-    return true;
+    cachedHasGum = true;
   } catch {
-    return false;
+    cachedHasGum = false;
   }
+
+  return cachedHasGum;
 }
 
 export function printPlainTable(csv) {
