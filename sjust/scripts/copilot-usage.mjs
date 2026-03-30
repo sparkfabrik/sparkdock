@@ -11,6 +11,7 @@ import { fail, getAccessToken, BASE_HEADERS } from "./lib/copilot-auth.mjs";
 import { printBox } from "./lib/gum.mjs";
 
 const API_URL = "https://api.github.com/copilot_internal/user";
+const DAY_MS = 24 * 60 * 60 * 1000;
 
 // ---------------------------------------------------------------------------
 // Data fetching
@@ -47,8 +48,23 @@ function progressBar(used, total, width = 30) {
 function daysUntil(dateStr) {
   if (!dateStr) return null;
   const reset = new Date(dateStr);
+  if (Number.isNaN(reset.getTime())) return null;
   const now = new Date();
-  const diff = Math.ceil((reset - now) / (1000 * 60 * 60 * 24));
+
+  // Normalize both dates to UTC midnight so date-only API values stay stable
+  // regardless of local timezone or time-of-day.
+  const resetUTC = Date.UTC(
+    reset.getUTCFullYear(),
+    reset.getUTCMonth(),
+    reset.getUTCDate(),
+  );
+  const nowUTC = Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate(),
+  );
+  const diff = (resetUTC - nowUTC) / DAY_MS;
+
   return diff > 0 ? diff : 0;
 }
 
