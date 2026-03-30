@@ -14,6 +14,7 @@ import { execFileSync } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import { randomUUID } from "node:crypto";
 
 const AUTH_PATH = path.join(homedir(), ".local/share/opencode/auth.json");
 const OPENCODE_JSON_PATH = path.join(
@@ -275,11 +276,11 @@ function compare(apiModels, localModels) {
 
 function splitModels(apiModels) {
   const included = apiModels
-    .filter((m) => !m.multiplier)
+    .filter((m) => !m.premium)
     .sort((a, b) => a.id.localeCompare(b.id));
   const premium = apiModels
-    .filter((m) => m.multiplier > 0)
-    .sort((a, b) => a.multiplier - b.multiplier || a.id.localeCompare(b.id));
+    .filter((m) => m.premium)
+    .sort((a, b) => (a.multiplier ?? 0) - (b.multiplier ?? 0) || a.id.localeCompare(b.id));
   return { included, premium };
 }
 
@@ -304,8 +305,23 @@ function hasGum() {
   }
 }
 
+function plainTable(csv) {
+  const rows = csv.split("\n").map((r) => r.split("\t"));
+  const cols = rows[0].length;
+  const widths = Array.from({ length: cols }, (_, i) =>
+    Math.max(...rows.map((r) => (r[i] || "").length)),
+  );
+  const pad = (val, w, i) =>
+    i === 0 ? (val || "").padEnd(w) : (val || "").padStart(w);
+  const sep = widths.map((w) => "─".repeat(w)).join("──");
+  const line = (r) => rows[r].map((v, i) => pad(v, widths[i], i)).join("  ");
+  console.log(line(0));
+  console.log(sep);
+  for (let r = 1; r < rows.length; r++) console.log(line(r));
+}
+
 function gumTable(csv) {
-  const tmp = path.join(tmpdir(), `copilot-models-${process.pid}.csv`);
+  const tmp = path.join(tmpdir(), `copilot-models-${randomUUID()}.csv`);
   writeFileSync(tmp, csv);
   try {
     execFileSync(
@@ -343,7 +359,7 @@ function printTable(apiModels) {
     if (useGum) {
       gumTable(csv);
     } else {
-      console.log(csv);
+      plainTable(csv);
     }
   }
 
@@ -353,7 +369,7 @@ function printTable(apiModels) {
     if (useGum) {
       gumTable(csv);
     } else {
-      console.log(csv);
+      plainTable(csv);
     }
   }
 }
@@ -404,10 +420,11 @@ async function main() {
     if (included.length) {
       console.log("\n📦 Included models (0x)\n");
       const rows = included.map((m) => `${m.id}\t-\t${fmt(m.context)}`);
+      const csv = [listHeader, ...rows].join("\n");
       if (useGum) {
-        gumTable([listHeader, ...rows].join("\n"));
+        gumTable(csv);
       } else {
-        for (const m of included) console.log(m.id);
+        plainTable(csv);
       }
     }
     if (premium.length) {
@@ -415,10 +432,11 @@ async function main() {
       const rows = premium.map(
         (m) => `${m.id}\t${m.multiplier}x\t${fmt(m.context)}`,
       );
+      const csv = [listHeader, ...rows].join("\n");
       if (useGum) {
-        gumTable([listHeader, ...rows].join("\n"));
+        gumTable(csv);
       } else {
-        for (const r of rows) console.log(r);
+        plainTable(csv);
       }
     }
     process.exit(0);
