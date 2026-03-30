@@ -308,17 +308,33 @@ function gumTable(csv) {
   const tmp = path.join(tmpdir(), `copilot-models-${process.pid}.csv`);
   writeFileSync(tmp, csv);
   try {
-    execFileSync("gum", ["table", "--print", "--border", "rounded", "--separator", "\t", "--file", tmp], {
-      stdio: ["inherit", "inherit", "inherit"],
-    });
+    execFileSync(
+      "gum",
+      [
+        "table",
+        "--print",
+        "--border",
+        "rounded",
+        "--separator",
+        "\t",
+        "--file",
+        tmp,
+      ],
+      {
+        stdio: ["inherit", "inherit", "inherit"],
+      },
+    );
   } finally {
-    try { unlinkSync(tmp); } catch {}
+    try {
+      unlinkSync(tmp);
+    } catch {}
   }
 }
 
 function printTable(apiModels) {
   const { included, premium } = splitModels(apiModels);
-  const header = "Model\tMultiplier\tPrompt\tOutput\tWindow\tPrompt+Output\tContext";
+  const header =
+    "Model\tMultiplier\tPrompt\tOutput\tWindow\tPrompt+Output\tContext";
   const useGum = hasGum();
 
   if (included.length) {
@@ -382,17 +398,25 @@ async function main() {
 
   if (doList) {
     const { included, premium } = splitModels(apiModels);
+    const useGum = hasGum();
+    const listHeader = "Model\tMultiplier";
+
     if (included.length) {
-      console.log("# Included (0x)");
-      for (const m of included) {
-        console.log(m.id);
+      console.log("\n📦 Included models (0x)\n");
+      const rows = included.map((m) => m.id + "\t-");
+      if (useGum) {
+        gumTable([listHeader, ...rows].join("\n"));
+      } else {
+        for (const m of included) console.log(m.id);
       }
     }
     if (premium.length) {
-      if (included.length) console.log();
-      console.log("# Premium (by multiplier)");
-      for (const m of premium) {
-        console.log(`${m.id}\t${m.multiplier}x`);
+      console.log("\n💎 Premium models (by multiplier)\n");
+      const rows = premium.map((m) => `${m.id}\t${m.multiplier}x`);
+      if (useGum) {
+        gumTable([listHeader, ...rows].join("\n"));
+      } else {
+        for (const r of rows) console.log(r);
       }
     }
     process.exit(0);
