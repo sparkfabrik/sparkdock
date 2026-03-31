@@ -412,6 +412,15 @@ print_summary() {
         summary="${summary%,}\n"
     fi
 
+    local claude_code_total=$((CLAUDE_CODE_SYMLINKED + CLAUDE_CODE_SKIPPED + CLAUDE_CODE_CLEANED))
+    if [[ "${claude_code_total}" -gt 0 ]]; then
+        summary+="\nClaude Code symlinks:"
+        [[ "${CLAUDE_CODE_SYMLINKED}" -gt 0 ]] && summary+=" ${CLAUDE_CODE_SYMLINKED} created,"
+        [[ "${CLAUDE_CODE_SKIPPED}" -gt 0 ]] && summary+=" ${CLAUDE_CODE_SKIPPED} skipped,"
+        [[ "${CLAUDE_CODE_CLEANED}" -gt 0 ]] && summary+=" ${CLAUDE_CODE_CLEANED} cleaned,"
+        summary="${summary%,}\n"
+    fi
+
     print_summary_box "$(printf '%b' "${summary}")"
 
     local total_skipped=$((SKILLS_SKIPPED + AGENTS_SKIPPED))
@@ -470,6 +479,9 @@ main() {
 
     # Create Copilot CLI symlinks for managed skills
     ensure_copilot_cli_symlinks
+
+    # Create Claude Code symlinks for managed skills
+    ensure_claude_code_symlinks
 
     print_summary
 }

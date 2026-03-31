@@ -186,7 +186,7 @@ fi
 # --- Skills section ---
 
 managed_skills="$(get_managed_names "skills")"
-skills_csv="NAME,TYPE,STATUS,AVAILABLE"
+skills_csv="NAME,TYPE,STATUS,COPILOT,CLAUDE"
 skills_found=false
 declare -A seen_skills=()
 
@@ -198,25 +198,27 @@ if [[ -d "${SKILLS_DIR}" ]]; then
         seen_skills["${skill_name}"]=1
 
         if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
-            skills_csv+=$'\n'"${skill_name},incomplete,no SKILL.md,"
+            skills_csv+=$'\n'"${skill_name},incomplete,no SKILL.md,,"
             continue
         fi
 
         if echo "${managed_skills}" | grep -Fqx "${skill_name}"; then
-            # Only check Copilot CLI availability for managed skills
+            # Check availability for each tool (must be called directly, not in subshell)
             check_copilot_cli_availability "${skill_name}"
-            available="${COPILOT_CLI_AVAILABLE}"
+            copilot_available="${COPILOT_CLI_AVAILABLE}"
+            check_claude_code_availability "${skill_name}"
+            claude_available="${CLAUDE_CODE_AVAILABLE}"
 
             upstream_file="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
             [[ "${CACHE_AVAILABLE}" != "true" || ! -f "${upstream_file}" ]] && upstream_file=""
             status=$(resolve_managed_status "skills" "${skill_name}" "${skill_dir}/SKILL.md" "${upstream_file}")
             [[ "${status}" == "update available" ]] && UPDATES_AVAILABLE=true
-            skills_csv+=$'\n'"${skill_name},managed,${status},${available}"
+            skills_csv+=$'\n'"${skill_name},managed,${status},${copilot_available},${claude_available}"
         else
             if has_upstream_conflict "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"; then
-                skills_csv+=$'\n'"${skill_name},user,conflicts with upstream,"
+                skills_csv+=$'\n'"${skill_name},user,conflicts with upstream,,"
             else
-                skills_csv+=$'\n'"${skill_name},user,,"
+                skills_csv+=$'\n'"${skill_name},user,,,"
             fi
         fi
     done
@@ -234,7 +236,7 @@ if [[ "${CACHE_AVAILABLE}" == "true" ]]; then
             [[ -n "${seen_skills[${skill_name}]+_}" ]] && continue
             skills_found=true
             NEW_RESOURCES_AVAILABLE=true
-            skills_csv+=$'\n'"${skill_name},available,not installed,"
+            skills_csv+=$'\n'"${skill_name},available,not installed,,"
         done
     fi
 fi
@@ -326,6 +328,7 @@ else
 fi
 
 print_copilot_cli_issues
+print_claude_code_issues
 
 # --- Footer ---
 
