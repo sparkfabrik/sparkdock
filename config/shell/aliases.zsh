@@ -146,6 +146,9 @@ fi
 
 # Add some copilot aliases.
 if command_exists copilot; then
+  # Global agent instructions directory
+  export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.agents"
+
   # Override copilot function only on macOS for keychain certificate handling
   if [[ "$OSTYPE" == "darwin"* ]]; then
     copilot() {
