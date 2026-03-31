@@ -146,8 +146,12 @@ fi
 
 # Add some copilot aliases.
 if command_exists copilot; then
-  # Global agent instructions directory
-  export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.agents"
+  # Respect any existing user configuration and ensure ~/.agents is included
+  if [[ -z "${COPILOT_CUSTOM_INSTRUCTIONS_DIRS:-}" ]]; then
+    export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.agents"
+  else
+    export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.agents:${COPILOT_CUSTOM_INSTRUCTIONS_DIRS}"
+  fi
 
   # Override copilot function only on macOS for keychain certificate handling
   if [[ "$OSTYPE" == "darwin"* ]]; then
