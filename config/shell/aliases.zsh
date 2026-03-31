@@ -150,7 +150,10 @@ if command_exists copilot; then
   if [[ -z "${COPILOT_CUSTOM_INSTRUCTIONS_DIRS:-}" ]]; then
     export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.agents"
   else
-    export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.agents:${COPILOT_CUSTOM_INSTRUCTIONS_DIRS}"
+    # Only prepend ~/.agents if it's not already present (idempotent with : boundaries)
+    if [[ ":${COPILOT_CUSTOM_INSTRUCTIONS_DIRS}:" != *":${HOME}/.agents:"* ]]; then
+      export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.agents:${COPILOT_CUSTOM_INSTRUCTIONS_DIRS}"
+    fi
   fi
 
   # Override copilot function only on macOS for keychain certificate handling
