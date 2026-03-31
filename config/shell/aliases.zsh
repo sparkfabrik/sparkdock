@@ -146,14 +146,9 @@ fi
 
 # Add some copilot aliases.
 if command_exists copilot; then
-  # Respect any existing user configuration and ensure ~/.agents is included
-  if [[ -z "${COPILOT_CUSTOM_INSTRUCTIONS_DIRS:-}" ]]; then
-    export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.agents"
-  else
-    # Only prepend ~/.agents if it's not already present (idempotent with : boundaries)
-    if [[ ":${COPILOT_CUSTOM_INSTRUCTIONS_DIRS}:" != *":${HOME}/.agents:"* ]]; then
-      export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.agents:${COPILOT_CUSTOM_INSTRUCTIONS_DIRS}"
-    fi
+  # Ensure ~/.agents is in COPILOT_CUSTOM_INSTRUCTIONS_DIRS (idempotent, preserves existing)
+  if [[ ":${COPILOT_CUSTOM_INSTRUCTIONS_DIRS:-}:" != *":${HOME}/.agents:"* ]]; then
+    export COPILOT_CUSTOM_INSTRUCTIONS_DIRS="${HOME}/.agents${COPILOT_CUSTOM_INSTRUCTIONS_DIRS:+:${COPILOT_CUSTOM_INSTRUCTIONS_DIRS}}"
   fi
 
   # Override copilot function only on macOS for keychain certificate handling
