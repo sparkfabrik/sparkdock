@@ -13,9 +13,9 @@ SCRIPT_NAME="$(basename "$0")"
 # shellcheck source=common/utils.sh
 source "${SCRIPT_DIR}/common/utils.sh"
 
-# Source Copilot CLI shim (temporary — remove when copilot-cli#1744 lands)
-# shellcheck source=common/copilot-cli-shim.sh
-source "${SCRIPT_DIR}/common/copilot-cli-shim.sh"
+# Source skills symlink shim (temporary — see shim header for removal instructions)
+# shellcheck source=common/skills-symlink-shim.sh
+source "${SCRIPT_DIR}/common/skills-symlink-shim.sh"
 
 UPSTREAM_REPO="https://github.com/sparkfabrik/sf-awesome-copilot.git"
 CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
@@ -403,23 +403,19 @@ print_summary() {
         summary="${summary%,}\n"
     fi
 
-    local copilot_cli_total=$((COPILOT_CLI_SYMLINKED + COPILOT_CLI_SKIPPED + COPILOT_CLI_CLEANED))
-    if [[ "${copilot_cli_total}" -gt 0 ]]; then
-        summary+="\nCopilot CLI symlinks:"
-        [[ "${COPILOT_CLI_SYMLINKED}" -gt 0 ]] && summary+=" ${COPILOT_CLI_SYMLINKED} created,"
-        [[ "${COPILOT_CLI_SKIPPED}" -gt 0 ]] && summary+=" ${COPILOT_CLI_SKIPPED} skipped,"
-        [[ "${COPILOT_CLI_CLEANED}" -gt 0 ]] && summary+=" ${COPILOT_CLI_CLEANED} cleaned,"
-        summary="${summary%,}\n"
-    fi
-
-    local claude_code_total=$((CLAUDE_CODE_SYMLINKED + CLAUDE_CODE_SKIPPED + CLAUDE_CODE_CLEANED))
-    if [[ "${claude_code_total}" -gt 0 ]]; then
-        summary+="\nClaude Code symlinks:"
-        [[ "${CLAUDE_CODE_SYMLINKED}" -gt 0 ]] && summary+=" ${CLAUDE_CODE_SYMLINKED} created,"
-        [[ "${CLAUDE_CODE_SKIPPED}" -gt 0 ]] && summary+=" ${CLAUDE_CODE_SKIPPED} skipped,"
-        [[ "${CLAUDE_CODE_CLEANED}" -gt 0 ]] && summary+=" ${CLAUDE_CODE_CLEANED} cleaned,"
-        summary="${summary%,}\n"
-    fi
+    # Print per-tool symlink summaries
+    local tool_id
+    for tool_id in $(printf '%s\n' "${!TOOL_SKILLS_DIR[@]}" | sort); do
+        local tool_label="${TOOL_LABEL[${tool_id}]}"
+        local tool_total=$((TOOL_SYMLINKED[${tool_id}] + TOOL_SKIPPED[${tool_id}] + TOOL_CLEANED[${tool_id}]))
+        if [[ "${tool_total}" -gt 0 ]]; then
+            summary+="\n${tool_label} symlinks:"
+            [[ "${TOOL_SYMLINKED[${tool_id}]}" -gt 0 ]] && summary+=" ${TOOL_SYMLINKED[${tool_id}]} created,"
+            [[ "${TOOL_SKIPPED[${tool_id}]}" -gt 0 ]] && summary+=" ${TOOL_SKIPPED[${tool_id}]} skipped,"
+            [[ "${TOOL_CLEANED[${tool_id}]}" -gt 0 ]] && summary+=" ${TOOL_CLEANED[${tool_id}]} cleaned,"
+            summary="${summary%,}\n"
+        fi
+    done
 
     print_summary_box "$(printf '%b' "${summary}")"
 
@@ -477,11 +473,13 @@ main() {
     sync_skills
     sync_agents
 
-    # Create Copilot CLI symlinks for managed skills
-    ensure_copilot_cli_symlinks
-
-    # Create Claude Code symlinks for managed skills
-    ensure_claude_code_symlinks
+    # Create skill symlinks for all registered tools
+    local managed_names
+    managed_names="$(get_managed_skill_names)"
+    local tool_id
+    for tool_id in $(printf '%s\n' "${!TOOL_SKILLS_DIR[@]}" | sort); do
+        ensure_tool_symlinks "${tool_id}" "${managed_names}"
+    done
 
     print_summary
 }
