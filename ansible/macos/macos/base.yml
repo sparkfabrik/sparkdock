@@ -851,6 +851,13 @@
             mode: "0755"
           become: no
 
+        - name: Ensure Claude Code skills directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.claude/skills"
+            state: directory
+            mode: "0755"
+          become: no
+
         - name: Make sparkdock-agents-sync executable
           file:
             path: "{{ dev_env_dir }}/bin/sparkdock-agents-sync"

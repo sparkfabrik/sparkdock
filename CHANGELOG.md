@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added Claude Code skill symlinks: creates per-skill symlinks in `~/.claude/skills/` pointing to `~/.agents/skills/` so Claude Code can discover sparkdock-managed skills (mirrors existing Copilot CLI support, uses shared tool registry for easy extensibility)
 - Added `sjust sf-copilot-premium-usage` recipe to show premium Copilot request usage in a formatted dashboard
 - Added `--json` option to `sjust sf-copilot-premium-usage` for raw API output
 - Added shared Copilot auth module (`sjust/scripts/lib/copilot-auth.mjs`) to deduplicate token handling across scripts

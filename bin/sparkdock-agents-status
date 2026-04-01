@@ -11,9 +11,9 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 # shellcheck source=common/utils.sh
 source "${SCRIPT_DIR}/common/utils.sh"
 
-# Source Copilot CLI shim (temporary — remove when copilot-cli#1744 lands)
-# shellcheck source=common/copilot-cli-shim.sh
-source "${SCRIPT_DIR}/common/copilot-cli-shim.sh"
+# Source skills symlink shim (temporary — see shim header for removal instructions)
+# shellcheck source=common/skills-symlink-shim.sh
+source "${SCRIPT_DIR}/common/skills-symlink-shim.sh"
 
 SKILLS_DIR="${HOME}/.agents/skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
@@ -186,7 +186,17 @@ fi
 # --- Skills section ---
 
 managed_skills="$(get_managed_names "skills")"
-skills_csv="NAME,TYPE,STATUS,AVAILABLE"
+
+# Build CSV header dynamically from tool registry (sorted for stable column order)
+sorted_tool_ids=()
+mapfile -t sorted_tool_ids < <(printf '%s\n' "${!TOOL_SKILLS_DIR[@]}" | sort)
+skills_csv="NAME,TYPE,STATUS"
+empty_tool_cols=""
+for _tid in "${sorted_tool_ids[@]}"; do
+    skills_csv+=",$(echo "${_tid}" | tr '[:lower:]' '[:upper:]')"
+    empty_tool_cols+=","
+done
+
 skills_found=false
 declare -A seen_skills=()
 
@@ -198,25 +208,28 @@ if [[ -d "${SKILLS_DIR}" ]]; then
         seen_skills["${skill_name}"]=1
 
         if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
-            skills_csv+=$'\n'"${skill_name},incomplete,no SKILL.md,"
+            skills_csv+=$'\n'"${skill_name},incomplete,no SKILL.md${empty_tool_cols}"
             continue
         fi
 
         if echo "${managed_skills}" | grep -Fqx "${skill_name}"; then
-            # Only check Copilot CLI availability for managed skills
-            check_copilot_cli_availability "${skill_name}"
-            available="${COPILOT_CLI_AVAILABLE}"
+            # Check availability for each registered tool (must be called directly, not in subshell)
+            availability_cols=""
+            for _tid in "${sorted_tool_ids[@]}"; do
+                check_tool_availability "${_tid}" "${skill_name}"
+                availability_cols+=",${TOOL_AVAILABLE}"
+            done
 
             upstream_file="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
             [[ "${CACHE_AVAILABLE}" != "true" || ! -f "${upstream_file}" ]] && upstream_file=""
             status=$(resolve_managed_status "skills" "${skill_name}" "${skill_dir}/SKILL.md" "${upstream_file}")
             [[ "${status}" == "update available" ]] && UPDATES_AVAILABLE=true
-            skills_csv+=$'\n'"${skill_name},managed,${status},${available}"
+            skills_csv+=$'\n'"${skill_name},managed,${status}${availability_cols}"
         else
             if has_upstream_conflict "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"; then
-                skills_csv+=$'\n'"${skill_name},user,conflicts with upstream,"
+                skills_csv+=$'\n'"${skill_name},user,conflicts with upstream${empty_tool_cols}"
             else
-                skills_csv+=$'\n'"${skill_name},user,,"
+                skills_csv+=$'\n'"${skill_name},user,${empty_tool_cols}"
             fi
         fi
     done
@@ -234,7 +247,7 @@ if [[ "${CACHE_AVAILABLE}" == "true" ]]; then
             [[ -n "${seen_skills[${skill_name}]+_}" ]] && continue
             skills_found=true
             NEW_RESOURCES_AVAILABLE=true
-            skills_csv+=$'\n'"${skill_name},available,not installed,"
+            skills_csv+=$'\n'"${skill_name},available,not installed${empty_tool_cols}"
         done
     fi
 fi
@@ -325,7 +338,9 @@ else
     echo "  (no agent profiles installed)"
 fi
 
-print_copilot_cli_issues
+for _tid in "${sorted_tool_ids[@]}"; do
+    print_tool_issues "${_tid}"
+done
 
 # --- Footer ---
 
