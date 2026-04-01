@@ -39,12 +39,11 @@ function Urllink (){
 
     # Check for known terminals that support OSC 8 hyperlinks
     # or specific terminals that don't.
-    if [[ "$TERM_PROGRAM" == "iTerm.app" || \
-          "$TERM_PROGRAM" == "vscode" || \
-          "$TERM_PROGRAM" == "Hyper" || \
-          "$TERM_PROGRAM" == "WezTerm" || \
-
-          "$TERM_PROGRAM" == "kitty" ]]; then
+    if [[ "${TERM_PROGRAM:-}" == "iTerm.app" || \
+          "${TERM_PROGRAM:-}" == "vscode" || \
+          "${TERM_PROGRAM:-}" == "Hyper" || \
+          "${TERM_PROGRAM:-}" == "WezTerm" || \
+          "${TERM_PROGRAM:-}" == "kitty" ]]; then
         printf "\033]8;;%s\033\\%s\033]8;;\033\\" "$URL" "$TEXT${n}"
     else
         printf "%s (%s)${n}" "$TEXT" "$URL"
