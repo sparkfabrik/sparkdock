@@ -113,7 +113,7 @@ All shell scripts must:
 - Include `set -euo pipefail` for error handling
 - Use `${variable}` syntax with braces (never bare `$variable`)
 - Use `local` for function variables to avoid namespace pollution
-- Pass shellcheck validation
+- Pass shellcheck validation (see below)
 - Prefer early-return / guard-clause style over `else` branches when checking pre-conditions:
 
 ```bash
@@ -128,6 +128,14 @@ if ! command -v cirrus >/dev/null 2>&1; then
 else
     echo "Cirrus CLI is already installed"
 fi
+```
+
+**Shellcheck Validation**
+
+Before committing changes to shell scripts, run shellcheck using the official Docker image:
+
+```bash
+docker run --rm -v "$(pwd):/src" koalaman/shellcheck:stable /src/bin/sparkdock-agents-status
 ```
 
 ## Python Standards
@@ -210,6 +218,9 @@ The sync script uses associative arrays to map each coding tool to its install d
 
 ### Manifest
 Located at `~/.cache/sparkdock/sf-skills-manifest.json`. V2 format with `skills` and `agents` top-level keys. V1 manifests upgrade organically (no migration code). Agent entries use composite keys like `the-architect/copilot`.
+
+### Catalog Metadata
+The upstream repo provides `config/catalog.json` with short human-friendly descriptions for each system skill and agent. The status script reads this file from the local cache (`~/.cache/sparkdock/agent-skills/config/catalog.json`) to display a DESCRIPTION column in the table. No sync changes are needed — the file is part of the cloned cache.
 
 ### sjust Recipes (`sjust/recipes/05-ai-coding-agents.just`)
 - `sf-agents-refresh [force]` — Sync all resources (skills + agents)
