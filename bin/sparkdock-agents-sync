@@ -52,10 +52,12 @@ SKILLS_ADDED=0
 SKILLS_UPDATED=0
 SKILLS_SKIPPED=0
 SKILLS_UNCHANGED=0
+SKILLS_REMOVED=0
 AGENTS_ADDED=0
 AGENTS_UPDATED=0
 AGENTS_SKIPPED=0
 AGENTS_UNCHANGED=0
+AGENTS_REMOVED=0
 
 # --- Manifest helpers ---
 
@@ -127,6 +129,56 @@ except Exception as e:
     print(f'Error updating manifest: {e}', file=sys.stderr)
     sys.exit(1)
 " "${MANIFEST_PATH}" "${section}" "${key}" "${sha256}" "${timestamp}" "${source_commit}"
+}
+
+# Remove a key from a manifest section.
+# Usage: manifest_remove <section> <key>
+manifest_remove() {
+    local section="$1"
+    local key="$2"
+    if [[ ! -f "${MANIFEST_PATH}" ]]; then
+        return
+    fi
+    python3 -c "
+import json, sys
+
+try:
+    manifest_path = sys.argv[1]
+    section = sys.argv[2]
+    key = sys.argv[3]
+
+    with open(manifest_path) as f:
+        data = json.load(f)
+
+    if section in data and key in data[section]:
+        del data[section][key]
+
+    with open(manifest_path, 'w') as f:
+        json.dump(data, f, indent=2)
+        f.write('\n')
+except Exception as e:
+    print(f'Error updating manifest: {e}', file=sys.stderr)
+    sys.exit(1)
+" "${MANIFEST_PATH}" "${section}" "${key}"
+}
+
+# List all keys from a manifest section (one per line).
+# Usage: manifest_list_keys <section>
+manifest_list_keys() {
+    local section="$1"
+    if [[ ! -f "${MANIFEST_PATH}" ]]; then
+        return
+    fi
+    python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    for name in sorted(data.get(sys.argv[2], {}).keys()):
+        print(name)
+except Exception:
+    pass
+" "${MANIFEST_PATH}" "${section}" 2>/dev/null || true
 }
 
 # --- Repo management ---
@@ -375,11 +427,135 @@ sync_agents() {
     fi
 }
 
+# --- Orphan cleanup ---
+
+# Remove managed skills that no longer exist in upstream.
+cleanup_orphan_skills() {
+    local system_dir="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}"
+
+    # Build set of upstream skill names
+    declare -A upstream_skills=()
+    if [[ -d "${system_dir}" ]]; then
+        for skill_dir in "${system_dir}"/*/; do
+            [[ -d "${skill_dir}" ]] || continue
+            local skill_name
+            skill_name="$(basename "${skill_dir}")"
+            [[ -f "${skill_dir}/SKILL.md" ]] || continue
+            upstream_skills["${skill_name}"]=1
+        done
+    fi
+
+    # Check each managed skill in the manifest
+    local managed_skill_names
+    managed_skill_names="$(manifest_list_keys "skills")"
+    [[ -z "${managed_skill_names}" ]] && return
+
+    while IFS= read -r skill_name; do
+        [[ -z "${skill_name}" ]] && continue
+        # Skip if still in upstream
+        [[ -n "${upstream_skills[${skill_name}]+_}" ]] && continue
+
+        local target_dir="${SKILLS_TARGET_DIR}/${skill_name}"
+
+        # Check if user has locally modified the orphaned skill
+        if [[ -f "${target_dir}/SKILL.md" ]]; then
+            local installed_sha manifest_sha
+            installed_sha="$(compute_sha256 "${target_dir}/SKILL.md")"
+            manifest_sha="$(manifest_get_sha "skills" "${skill_name}")"
+
+            if [[ -n "${manifest_sha}" ]] && [[ "${manifest_sha}" != "${installed_sha}" ]] && [[ "${FORCE}" != true ]]; then
+                SKILLS_SKIPPED=$((SKILLS_SKIPPED + 1))
+                log_warn "Orphan skipped: ${skill_name} (locally modified — use --force to remove)"
+                continue
+            fi
+        fi
+
+        # Remove the skill directory if it exists
+        if [[ -d "${target_dir}" ]]; then
+            [[ -n "${target_dir}" && "${target_dir}" != "/" ]] || { log_error "refusing to remove unsafe path"; continue; }
+            rm -rf "${target_dir}"
+        fi
+
+        # Remove from manifest
+        manifest_remove "skills" "${skill_name}"
+        SKILLS_REMOVED=$((SKILLS_REMOVED + 1))
+        log_success "Orphan removed: ${skill_name} (no longer in upstream)"
+    done <<< "${managed_skill_names}"
+}
+
+# Remove managed agent profiles that no longer exist in upstream.
+cleanup_orphan_agents() {
+    local system_dir="${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}"
+
+    # Build set of upstream agent keys (agent_name/tool_name)
+    declare -A upstream_agents=()
+    if [[ -d "${system_dir}" ]]; then
+        for agent_dir in "${system_dir}"/*/; do
+            [[ -d "${agent_dir}" ]] || continue
+            local agent_name
+            agent_name="$(basename "${agent_dir}")"
+            for tool_dir in "${agent_dir}"/*/; do
+                [[ -d "${tool_dir}" ]] || continue
+                local tool_name
+                tool_name="$(basename "${tool_dir}")"
+                [[ -z "${AGENT_TOOL_INSTALL_DIR[${tool_name}]+_}" ]] && continue
+                compgen -G "${tool_dir}/*.md" >/dev/null || continue
+                upstream_agents["${agent_name}/${tool_name}"]=1
+            done
+        done
+    fi
+
+    # Check each managed agent in the manifest
+    local managed_agent_keys
+    managed_agent_keys="$(manifest_list_keys "agents")"
+    [[ -z "${managed_agent_keys}" ]] && return
+
+    while IFS= read -r manifest_key; do
+        [[ -z "${manifest_key}" ]] && continue
+        # Skip if still in upstream
+        [[ -n "${upstream_agents[${manifest_key}]+_}" ]] && continue
+
+        local agent_name tool_name
+        agent_name="${manifest_key%%/*}"
+        tool_name="${manifest_key#*/}"
+
+        # Skip if tool is not in registry
+        [[ -z "${AGENT_TOOL_INSTALL_DIR[${tool_name}]+_}" ]] && continue
+
+        # Resolve installed file path
+        local install_dir="${AGENT_TOOL_INSTALL_DIR[${tool_name}]}"
+        local filename
+        # shellcheck disable=SC2059
+        filename="$(printf "${AGENT_TOOL_FILENAME[${tool_name}]}" "${agent_name}")"
+        local target_file="${install_dir}/${filename}"
+
+        # Check if user has locally modified the orphaned agent
+        if [[ -f "${target_file}" ]]; then
+            local installed_sha manifest_sha
+            installed_sha="$(compute_sha256 "${target_file}")"
+            manifest_sha="$(manifest_get_sha "agents" "${manifest_key}")"
+
+            if [[ -n "${manifest_sha}" ]] && [[ "${manifest_sha}" != "${installed_sha}" ]] && [[ "${FORCE}" != true ]]; then
+                AGENTS_SKIPPED=$((AGENTS_SKIPPED + 1))
+                log_warn "Orphan skipped: ${manifest_key} (locally modified — use --force to remove)"
+                continue
+            fi
+
+            rm -f "${target_file}"
+        fi
+
+        # Remove from manifest
+        manifest_remove "agents" "${manifest_key}"
+        AGENTS_REMOVED=$((AGENTS_REMOVED + 1))
+        log_success "Orphan removed: ${agent_name} (${tool_name}) (no longer in upstream)"
+    done <<< "${managed_agent_keys}"
+}
+
 # --- Summary ---
 
 print_summary() {
-    local skills_total=$((SKILLS_ADDED + SKILLS_UPDATED + SKILLS_SKIPPED + SKILLS_UNCHANGED))
-    local agents_total=$((AGENTS_ADDED + AGENTS_UPDATED + AGENTS_SKIPPED + AGENTS_UNCHANGED))
+    local skills_total=$((SKILLS_ADDED + SKILLS_UPDATED + SKILLS_SKIPPED + SKILLS_UNCHANGED + SKILLS_REMOVED))
+    local agents_total=$((AGENTS_ADDED + AGENTS_UPDATED + AGENTS_SKIPPED + AGENTS_UNCHANGED + AGENTS_REMOVED))
     local total=$((skills_total + agents_total))
 
     local summary="Agent Sync Summary\n"
@@ -389,6 +565,7 @@ print_summary() {
         summary+="\nSkills (${skills_total}):"
         [[ "${SKILLS_ADDED}" -gt 0 ]] && summary+=" ${SKILLS_ADDED} added,"
         [[ "${SKILLS_UPDATED}" -gt 0 ]] && summary+=" ${SKILLS_UPDATED} updated,"
+        [[ "${SKILLS_REMOVED}" -gt 0 ]] && summary+=" ${SKILLS_REMOVED} removed,"
         [[ "${SKILLS_SKIPPED}" -gt 0 ]] && summary+=" ${SKILLS_SKIPPED} skipped,"
         [[ "${SKILLS_UNCHANGED}" -gt 0 ]] && summary+=" ${SKILLS_UNCHANGED} unchanged,"
         summary="${summary%,}\n"
@@ -398,6 +575,7 @@ print_summary() {
         summary+="\nAgents (${agents_total}):"
         [[ "${AGENTS_ADDED}" -gt 0 ]] && summary+=" ${AGENTS_ADDED} added,"
         [[ "${AGENTS_UPDATED}" -gt 0 ]] && summary+=" ${AGENTS_UPDATED} updated,"
+        [[ "${AGENTS_REMOVED}" -gt 0 ]] && summary+=" ${AGENTS_REMOVED} removed,"
         [[ "${AGENTS_SKIPPED}" -gt 0 ]] && summary+=" ${AGENTS_SKIPPED} skipped,"
         [[ "${AGENTS_UNCHANGED}" -gt 0 ]] && summary+=" ${AGENTS_UNCHANGED} unchanged,"
         summary="${summary%,}\n"
@@ -472,6 +650,10 @@ main() {
     # Sync both resource types
     sync_skills
     sync_agents
+
+    # Clean up orphaned resources (managed locally but removed from upstream)
+    cleanup_orphan_skills
+    cleanup_orphan_agents
 
     # Create skill symlinks for all registered tools
     local managed_names

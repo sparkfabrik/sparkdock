@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added orphan cleanup to `sparkdock-agents-sync`: detects managed skills and agent profiles removed from upstream, auto-removes unmodified orphans (skips locally modified with warning unless `--force`), and updates the manifest accordingly
+- Added orphan detection to `sparkdock-agents-status`: flags managed resources no longer in upstream as `orphan` type with `removed from upstream` status, with footer hint to run `sf-agents-refresh` for cleanup
 - Added Claude Code skill symlinks: creates per-skill symlinks in `~/.claude/skills/` pointing to `~/.agents/skills/` so Claude Code can discover sparkdock-managed skills (mirrors existing Copilot CLI support, uses shared tool registry for easy extensibility)
 - Added `sjust sf-copilot-premium-usage` recipe to show premium Copilot request usage in a formatted dashboard
 - Added `--json` option to `sjust sf-copilot-premium-usage` for raw API output
