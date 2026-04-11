@@ -39,24 +39,6 @@ fi
 
 # --- Helpers ---
 
-# Get list of managed resource names from a manifest section.
-get_managed_names() {
-    local section="$1"
-    if [[ ! -f "${MANIFEST_PATH}" ]]; then
-        return
-    fi
-    python3 -c "
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        data = json.load(f)
-    for name in sorted(data.get(sys.argv[2], {}).keys()):
-        print(name)
-except Exception:
-    pass
-" "${MANIFEST_PATH}" "${section}" 2>/dev/null || true
-}
-
 # Get SHA from manifest for a given section and key.
 get_manifest_sha() {
     local section="$1"
@@ -188,7 +170,7 @@ fi
 
 # --- Skills section ---
 
-managed_skills="$(get_managed_names "skills")"
+managed_skills="$(manifest_list_keys "skills")"
 
 # Build CSV header dynamically from tool registry (sorted for stable column order)
 sorted_tool_ids=()
@@ -273,7 +255,7 @@ fi
 # --- Agents section ---
 
 echo ""
-managed_agents="$(get_managed_names "agents")"
+managed_agents="$(manifest_list_keys "agents")"
 agents_csv="NAME,TOOL,TYPE,STATUS"
 agents_found=false
 declare -A seen_agents=()
