@@ -2,7 +2,7 @@
 
 # GitHuman - Review AI agent code changes before commit
 # https://githuman.dev/
-githuman_version := "0.6.0"
+githuman_version := "0.9.0"
 githuman_label := "com.sparkfabrik.githuman"
 githuman_cache_volume := "githuman-npm-cache"
 githuman_data_volume := "githuman-data"
@@ -181,7 +181,7 @@ githuman-open $directory=".":
         | awk -F'|' -v dir="${target_dir}" '$1 == dir' || true)
 
     if [[ -z "${match}" ]]; then
-        just githuman-start "${directory}"
+        just --justfile "{{justfile()}}" githuman-start "${directory}"
         exit 0
     fi
 
