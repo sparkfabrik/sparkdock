@@ -88,6 +88,26 @@ compute_sha256() {
     fi
 }
 
+# List all keys from a manifest section (one per line).
+# Requires MANIFEST_PATH to be set by the caller.
+# Usage: manifest_list_keys <section>
+manifest_list_keys() {
+    local section="$1"
+    if [[ ! -f "${MANIFEST_PATH}" ]]; then
+        return
+    fi
+    python3 -c "
+import json, sys
+try:
+    with open(sys.argv[1]) as f:
+        data = json.load(f)
+    for name in sorted(data.get(sys.argv[2], {}).keys()):
+        print(name)
+except Exception:
+    pass
+" "${MANIFEST_PATH}" "${section}" 2>/dev/null || true
+}
+
 checkMacosVersion() {
     if ! [[ $( sw_vers -productVersion ) =~ ^(26.[0-9]+|15.[0-9]+) ]] ; then
         print_error "Sorry, this script is supposed to be executed on macOS Sequoia (15.x) or macOS Tahoe (26.x). Please use a supported version."

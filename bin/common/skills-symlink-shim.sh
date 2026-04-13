@@ -58,21 +58,9 @@ done
 unset _tool_id
 
 # List all managed skill names from the manifest (one per line).
-# Single python3 call — avoids per-skill overhead.
+# Delegates to the shared manifest_list_keys() from utils.sh.
 get_managed_skill_names() {
-    if [[ ! -f "${MANIFEST_PATH}" ]]; then
-        return
-    fi
-    python3 -c "
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        data = json.load(f)
-    for name in sorted(data.get('skills', {}).keys()):
-        print(name)
-except Exception:
-    pass
-" "${MANIFEST_PATH}" 2>/dev/null || true
+    manifest_list_keys "skills"
 }
 
 # Create per-skill symlinks in a tool's skills directory for managed skills.

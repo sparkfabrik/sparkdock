@@ -43,24 +43,6 @@ fi
 
 # --- Helpers ---
 
-# Get list of managed resource names from a manifest section.
-get_managed_names() {
-    local section="$1"
-    if [[ ! -f "${MANIFEST_PATH}" ]]; then
-        return
-    fi
-    python3 -c "
-import json, sys
-try:
-    with open(sys.argv[1]) as f:
-        data = json.load(f)
-    for name in sorted(data.get(sys.argv[2], {}).keys()):
-        print(name)
-except Exception:
-    pass
-" "${MANIFEST_PATH}" "${section}" 2>/dev/null || true
-}
-
 # Get SHA from manifest for a given section and key.
 get_manifest_sha() {
     local section="$1"
@@ -183,6 +165,8 @@ render_table() {
                 s/update available/\e[38;5;40mupdate available\e[0m/g;
                 s/locally modified/\e[38;5;220mlocally modified\e[0m/g;
                 s/conflicts with upstream/\e[38;5;220mconflicts with upstream\e[0m/g;
+                s/removed from upstream/\e[38;5;196mremoved from upstream\e[0m/g;
+                s/\borphan\b/\e[38;5;196morphan\e[0m/g;
                 s/no SKILL\.md/\e[38;5;220mno SKILL.md\e[0m/g;
                 s/not installed/\e[2mnot installed\e[0m/g;
                 s/\bpartial\b/\e[38;5;220mpartial\e[0m/g;
@@ -201,6 +185,7 @@ CACHE_AVAILABLE=false
 CONFLICTS_FOUND=false
 UPDATES_AVAILABLE=false
 NEW_RESOURCES_AVAILABLE=false
+ORPHANS_FOUND=false
 if [[ -d "${CACHE_DIR}/.git" ]]; then
     if [[ "${SPARKDOCK_SKIP_FETCH:-}" == "true" ]]; then
         CACHE_AVAILABLE=true
@@ -216,7 +201,7 @@ fi
 
 # --- Skills section ---
 
-managed_skills="$(get_managed_names "skills")"
+managed_skills="$(manifest_list_keys "skills")"
 
 # Build CSV header dynamically from tool registry (sorted for stable column order)
 sorted_tool_ids=()
@@ -244,6 +229,14 @@ if [[ -d "${SKILLS_DIR}" ]]; then
         fi
 
         if echo "${managed_skills}" | grep -Fqx "${skill_name}"; then
+            # Check if this managed skill is orphaned (no longer in upstream)
+            if [[ "${CACHE_AVAILABLE}" == "true" ]] && \
+               [[ ! -f "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md" ]]; then
+                ORPHANS_FOUND=true
+                skills_csv+=$'\n'"${skill_name},orphan,removed from upstream${empty_tool_cols}"
+                continue
+            fi
+
             # Check availability for each registered tool (must be called directly, not in subshell)
             availability_cols=""
             for _tid in "${sorted_tool_ids[@]}"; do
@@ -295,7 +288,7 @@ fi
 # --- Agents section ---
 
 echo ""
-managed_agents="$(get_managed_names "agents")"
+managed_agents="$(manifest_list_keys "agents")"
 agents_csv="NAME${SEP}TOOL${SEP}TYPE${SEP}STATUS${SEP}DESCRIPTION"
 agents_found=false
 declare -A seen_agents=()
@@ -318,9 +311,24 @@ for tool_name in $(printf '%s\n' "${!AGENT_TOOL_INSTALL_DIR[@]}" | sort); do
         seen_agents["${manifest_key}"]=1
 
         if echo "${managed_agents}" | grep -Fqx "${manifest_key}"; then
+            # Check if this managed agent is orphaned (no longer in upstream)
+            upstream_dir="${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}/${agent_name}/${tool_name}"
+            if [[ "${CACHE_AVAILABLE}" == "true" ]]; then
+                has_upstream_md=false
+                if [[ -d "${upstream_dir}" ]]; then
+                    for f in "${upstream_dir}"/*.md; do
+                        [[ -f "${f}" ]] && has_upstream_md=true && break
+                    done
+                fi
+                if [[ "${has_upstream_md}" == "false" ]]; then
+                    ORPHANS_FOUND=true
+                    agents_csv+=$'\n'"${agent_name}${SEP}${tool_name}${SEP}orphan${SEP}removed from upstream${SEP}"
+                    continue
+                fi
+            fi
+
             # Resolve upstream file (agents use a directory with *.md glob)
             upstream_file=""
-            upstream_dir="${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}/${agent_name}/${tool_name}"
             if [[ "${CACHE_AVAILABLE}" == "true" ]] && [[ -d "${upstream_dir}" ]]; then
                 for f in "${upstream_dir}"/*.md; do
                     [[ -f "${f}" ]] && upstream_file="${f}" && break
@@ -390,6 +398,9 @@ if [[ "${CACHE_AVAILABLE}" == "false" ]]; then
 fi
 if [[ "${CONFLICTS_FOUND}" == "true" ]]; then
     log_warn "Some user resources conflict with upstream. Run 'sjust sf-agents-refresh force' to overwrite."
+fi
+if [[ "${ORPHANS_FOUND}" == "true" ]]; then
+    log_warn "Orphaned resources detected (removed from upstream). Run 'sjust sf-agents-refresh' to clean up."
 fi
 if [[ "${UPDATES_AVAILABLE}" == "true" ]]; then
     log_warn "Updates available. Run 'sjust sf-agents-refresh' to update."
