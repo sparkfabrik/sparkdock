@@ -46,14 +46,34 @@ endif
 	sudo mkdir -p "$$BREW_PREFIX/share/zsh/site-functions"; \
 	printf '%s\n' \
 		'#compdef sjust' \
-		'# Custom completion for sjust (sparkdock wrapper around just).' \
-		'# Uses just'\''s dynamic completer with the sparkdock justfile.' \
-		'export JUST_JUSTFILE="/opt/sparkdock/sjust/Justfile"' \
-		'source <(JUST_COMPLETE=zsh just)' \
-		'if [ "$$funcstack[1]" = "_sjust" ]; then' \
-		'  words[1]="just"' \
-		'  _clap_dynamic_completer_just "$$@"' \
-		'fi' \
+		'' \
+		'# Zsh completion for sjust — a just wrapper with a fixed justfile.' \
+		'# Calls just directly with JUST_JUSTFILE scoped to the subprocess, filtering' \
+		"# out just's own flags (--*) so that only recipes are completed." \
+		'_sjust() {' \
+		'  local _CLAP_COMPLETE_INDEX=$$(expr $$CURRENT - 1)' \
+		"  local _CLAP_IFS=$$'\\n'" \
+		'' \
+		'  local completions=("$${(@f)$$(' \
+		'    _CLAP_IFS="$$_CLAP_IFS" \' \
+		'    _CLAP_COMPLETE_INDEX="$$_CLAP_COMPLETE_INDEX" \' \
+		'    JUST_COMPLETE="zsh" \' \
+		'    JUST_JUSTFILE="/opt/sparkdock/sjust/Justfile" \' \
+		'    just -- "$${words[@]}" 2>/dev/null \' \
+		"    | grep -v '^--'" \
+		'  )}")' \
+		'' \
+		'  if [[ -n $$completions ]]; then' \
+		'    local -a other=()' \
+		'    local completion' \
+		'    for completion in $$completions; do' \
+		'      other+=("$$completion")' \
+		'    done' \
+		'    [[ -n $$other ]] && _describe '"'"'recipes'"'"' other' \
+		'  fi' \
+		'}' \
+		'' \
+		'_sjust "$$@"' \
 	| sudo tee "$$BREW_PREFIX/share/zsh/site-functions/_sjust" > /dev/null; \
 	sudo chown $$(id -u):$$(id -g) "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
 	sudo chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"

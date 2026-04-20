@@ -91,11 +91,19 @@ jobs:
               exit 1
             fi
 
-            # Verify it uses just's dynamic completer (not a renamed sjust variant)
-            if grep -q '_clap_dynamic_completer_just' "$COMPLETION_FILE"; then
-              echo "✅ Completion file correctly calls _clap_dynamic_completer_just"
+            # Verify it defines an _sjust function with scoped JUST_JUSTFILE
+            if grep -q '_sjust()' "$COMPLETION_FILE"; then
+              echo "✅ Completion file defines _sjust() function"
             else
-              echo "❌ Completion file does not call _clap_dynamic_completer_just"
+              echo "❌ Completion file does not define _sjust() function"
+              exit 1
+            fi
+
+            # Verify JUST_JUSTFILE is scoped to the subprocess (not exported globally)
+            if grep -q 'JUST_JUSTFILE="/opt/sparkdock/sjust/Justfile"' "$COMPLETION_FILE" && ! grep -q 'export JUST_JUSTFILE' "$COMPLETION_FILE"; then
+              echo "✅ JUST_JUSTFILE is correctly scoped to subprocess"
+            else
+              echo "❌ JUST_JUSTFILE should be scoped, not exported"
               exit 1
             fi
           else
