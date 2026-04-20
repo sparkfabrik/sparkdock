@@ -44,11 +44,18 @@ endif
 	@echo "Generating zsh completion for sjust..."
 	@BREW_PREFIX=$$(brew --prefix 2>/dev/null || echo "/usr/local"); \
 	sudo mkdir -p "$$BREW_PREFIX/share/zsh/site-functions"; \
-	TEMP_FILE=$$(mktemp); \
-	just --completions zsh | sed -E 's/([\(_" ])just/\1sjust/g' > "$$TEMP_FILE"; \
-	sudo cp "$$TEMP_FILE" "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
+	printf '%s\n' \
+		'#compdef sjust' \
+		'# Custom completion for sjust (sparkdock wrapper around just).' \
+		'# Uses just'\''s dynamic completer with the sparkdock justfile.' \
+		'export JUST_JUSTFILE="/opt/sparkdock/sjust/Justfile"' \
+		'source <(JUST_COMPLETE=zsh just)' \
+		'if [ "$$funcstack[1]" = "_sjust" ]; then' \
+		'  words[1]="just"' \
+		'  _clap_dynamic_completer_just "$$@"' \
+		'fi' \
+	| sudo tee "$$BREW_PREFIX/share/zsh/site-functions/_sjust" > /dev/null; \
 	sudo chown $$(id -u):$$(id -g) "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
-	sudo chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
-	rm -f "$$TEMP_FILE"
+	sudo chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"
 	@echo "✅ sjust installed successfully!"
 	@echo "You can now run: sjust http-proxy-install-update"

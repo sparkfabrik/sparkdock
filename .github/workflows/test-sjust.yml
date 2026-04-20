@@ -81,13 +81,21 @@ jobs:
           if [ -f "$COMPLETION_FILE" ]; then
             echo "✅ Completion file created at: $COMPLETION_FILE"
             echo "Checking completion file content..."
-            head -5 "$COMPLETION_FILE"
+            cat "$COMPLETION_FILE"
 
-            # Verify it contains sjust references instead of just
-            if grep -q "sjust" "$COMPLETION_FILE"; then
-              echo "✅ Completion file correctly references 'sjust'"
+            # Verify compdef targets sjust
+            if head -1 "$COMPLETION_FILE" | grep -q '#compdef sjust'; then
+              echo "✅ Completion file has correct #compdef sjust header"
             else
-              echo "❌ Completion file does not contain 'sjust' references"
+              echo "❌ Completion file missing #compdef sjust header"
+              exit 1
+            fi
+
+            # Verify it uses just's dynamic completer (not a renamed sjust variant)
+            if grep -q '_clap_dynamic_completer_just' "$COMPLETION_FILE"; then
+              echo "✅ Completion file correctly calls _clap_dynamic_completer_just"
+            else
+              echo "❌ Completion file does not call _clap_dynamic_completer_just"
               exit 1
             fi
           else

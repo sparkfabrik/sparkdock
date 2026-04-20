@@ -613,10 +613,19 @@
           ignore_errors: yes
 
         - name: Generate sjust zsh completion
-          shell: |
-            just --completions zsh | sed -E 's/([\(_" ])just/\1sjust/g' > "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
-          register: completion_result
-          changed_when: completion_result.rc == 0
+          copy:
+            dest: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
+            content: |
+              #compdef sjust
+              # Custom completion for sjust (sparkdock wrapper around just).
+              # Uses just's dynamic completer with the sparkdock justfile.
+              export JUST_JUSTFILE="/opt/sparkdock/sjust/Justfile"
+              source <(JUST_COMPLETE=zsh just)
+              if [ "$funcstack[1]" = "_sjust" ]; then
+                words[1]="just"
+                _clap_dynamic_completer_just "$@"
+              fi
+            mode: "0644"
           become: no
 
         - name: Ensure sjust zsh completion has correct ownership and permissions
