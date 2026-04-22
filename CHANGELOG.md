@@ -78,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Unified agent skills and agent profiles into a single sync system (`sparkdock-agents-sync`, `sparkdock-agents-status`) supporting per-tool agent profiles alongside skills, with v2 manifest and upstream conflict detection
 - Adopted ruff as Python formatter/linter, run via Docker before committing
 - Refactored section headers across sjust recipes (libshell.sh, 00-default.just, 01-lima.just, 03-shell.just) to use `log_section` with double-border gum style
+- Disabled gh (GitHub CLI) telemetry by default via `GH_NO_TELEMETRY=1` in shell configuration
 - Disabled glab telemetry by default via `GLAB_SEND_TELEMETRY=false` in shell configuration
 - Regenerate opencode and openspec zsh completion files via Ansible on every install/upgrade to keep them up to date
 - Changed npm global package installation state from `present` to `latest` to ensure packages are always updated to their latest version

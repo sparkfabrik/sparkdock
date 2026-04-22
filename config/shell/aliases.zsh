@@ -108,6 +108,11 @@ if command_exists glab; then
   export GLAB_SEND_TELEMETRY=false
 fi
 
+# gh (GitHub CLI) - disable telemetry
+if command_exists gh; then
+  export GH_NO_TELEMETRY=1
+fi
+
 # Kubernetes shortcuts
 if command_exists kubectl; then
   alias k='kubectl'
