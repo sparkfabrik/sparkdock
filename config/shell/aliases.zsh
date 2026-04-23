@@ -109,8 +109,9 @@ if command_exists glab; then
 fi
 
 # gh (GitHub CLI) - disable telemetry
+# https://cli.github.com/telemetry
 if command_exists gh; then
-  export GH_NO_TELEMETRY=1
+  export GH_TELEMETRY=false
 fi
 
 # Kubernetes shortcuts
