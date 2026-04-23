@@ -40,15 +40,12 @@ endif
 	@# Copy sjust executable
 	sudo cp sjust/sjust.sh /usr/local/bin/sjust
 	sudo chmod 755 /usr/local/bin/sjust
-	@# Generate zsh completion
-	@echo "Generating zsh completion for sjust..."
+	@# Install zsh completion
+	@echo "Installing zsh completion for sjust..."
 	@BREW_PREFIX=$$(brew --prefix 2>/dev/null || echo "/usr/local"); \
 	sudo mkdir -p "$$BREW_PREFIX/share/zsh/site-functions"; \
-	TEMP_FILE=$$(mktemp); \
-	just --completions zsh | sed -E 's/([\(_" ])just/\1sjust/g' > "$$TEMP_FILE"; \
-	sudo cp "$$TEMP_FILE" "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
+	sudo cp sjust/completions/_sjust "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
 	sudo chown $$(id -u):$$(id -g) "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
-	sudo chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
-	rm -f "$$TEMP_FILE"
+	sudo chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"
 	@echo "✅ sjust installed successfully!"
 	@echo "You can now run: sjust http-proxy-install-update"

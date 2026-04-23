@@ -81,13 +81,29 @@ jobs:
           if [ -f "$COMPLETION_FILE" ]; then
             echo "✅ Completion file created at: $COMPLETION_FILE"
             echo "Checking completion file content..."
-            head -5 "$COMPLETION_FILE"
+            cat "$COMPLETION_FILE"
 
-            # Verify it contains sjust references instead of just
-            if grep -q "sjust" "$COMPLETION_FILE"; then
-              echo "✅ Completion file correctly references 'sjust'"
+            # Verify compdef targets sjust
+            if head -1 "$COMPLETION_FILE" | grep -q '#compdef sjust'; then
+              echo "✅ Completion file has correct #compdef sjust header"
             else
-              echo "❌ Completion file does not contain 'sjust' references"
+              echo "❌ Completion file missing #compdef sjust header"
+              exit 1
+            fi
+
+            # Verify it defines an _sjust function with scoped JUST_JUSTFILE
+            if grep -q '_sjust()' "$COMPLETION_FILE"; then
+              echo "✅ Completion file defines _sjust() function"
+            else
+              echo "❌ Completion file does not define _sjust() function"
+              exit 1
+            fi
+
+            # Verify JUST_JUSTFILE is scoped to the subprocess (not exported globally)
+            if grep -q 'JUST_JUSTFILE="/opt/sparkdock/sjust/Justfile"' "$COMPLETION_FILE" && ! grep -q 'export JUST_JUSTFILE' "$COMPLETION_FILE"; then
+              echo "✅ JUST_JUSTFILE is correctly scoped to subprocess"
+            else
+              echo "❌ JUST_JUSTFILE should be scoped, not exported"
               exit 1
             fi
           else
