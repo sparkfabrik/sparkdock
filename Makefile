@@ -40,41 +40,11 @@ endif
 	@# Copy sjust executable
 	sudo cp sjust/sjust.sh /usr/local/bin/sjust
 	sudo chmod 755 /usr/local/bin/sjust
-	@# Generate zsh completion
-	@echo "Generating zsh completion for sjust..."
+	@# Install zsh completion
+	@echo "Installing zsh completion for sjust..."
 	@BREW_PREFIX=$$(brew --prefix 2>/dev/null || echo "/usr/local"); \
 	sudo mkdir -p "$$BREW_PREFIX/share/zsh/site-functions"; \
-	printf '%s\n' \
-		'#compdef sjust' \
-		'' \
-		'# Zsh completion for sjust — a just wrapper with a fixed justfile.' \
-		'# Calls just directly with JUST_JUSTFILE scoped to the subprocess, filtering' \
-		"# out just's own flags (--*) so that only recipes are completed." \
-		'_sjust() {' \
-		'  local _CLAP_COMPLETE_INDEX=$$(expr $$CURRENT - 1)' \
-		"  local _CLAP_IFS=$$'\\n'" \
-		'' \
-		'  local completions=("$${(@f)$$(' \
-		'    _CLAP_IFS="$$_CLAP_IFS" \' \
-		'    _CLAP_COMPLETE_INDEX="$$_CLAP_COMPLETE_INDEX" \' \
-		'    JUST_COMPLETE="zsh" \' \
-		'    JUST_JUSTFILE="/opt/sparkdock/sjust/Justfile" \' \
-		'    just -- "$${words[@]}" 2>/dev/null \' \
-		"    | grep -v '^--'" \
-		'  )}")' \
-		'' \
-		'  if [[ -n $$completions ]]; then' \
-		'    local -a other=()' \
-		'    local completion' \
-		'    for completion in $$completions; do' \
-		'      other+=("$$completion")' \
-		'    done' \
-		'    [[ -n $$other ]] && _describe '"'"'recipes'"'"' other' \
-		'  fi' \
-		'}' \
-		'' \
-		'_sjust "$$@"' \
-	| sudo tee "$$BREW_PREFIX/share/zsh/site-functions/_sjust" > /dev/null; \
+	sudo cp sjust/completions/_sjust "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
 	sudo chown $$(id -u):$$(id -g) "$$BREW_PREFIX/share/zsh/site-functions/_sjust"; \
 	sudo chmod 644 "$$BREW_PREFIX/share/zsh/site-functions/_sjust"
 	@echo "✅ sjust installed successfully!"
