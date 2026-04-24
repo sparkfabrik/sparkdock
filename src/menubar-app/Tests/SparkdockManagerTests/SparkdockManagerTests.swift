@@ -106,46 +106,35 @@ final class SparkdockManagerTests: XCTestCase {
 
     // MARK: - Darwin Recheck Notification Tests
 
+    /// Expected notification names — must match RecheckNotification constants in main.swift.
+    private static let expectedRecheckNotifications = [
+        "com.sparkfabrik.sparkdock.recheck.sparkdock",
+        "com.sparkfabrik.sparkdock.recheck.brew",
+        "com.sparkfabrik.sparkdock.recheck.http-proxy",
+        "com.sparkfabrik.sparkdock.recheck.agents"
+    ]
+
     func testRecheckNotificationNamesAreUnique() {
-        let names = [
-            "com.sparkfabrik.sparkdock.recheck.sparkdock",
-            "com.sparkfabrik.sparkdock.recheck.brew",
-            "com.sparkfabrik.sparkdock.recheck.http-proxy",
-            "com.sparkfabrik.sparkdock.recheck.agents"
-        ]
+        let names = Self.expectedRecheckNotifications
         let uniqueNames = Set(names)
         XCTAssertEqual(names.count, uniqueNames.count, "All recheck notification names should be unique")
     }
 
     func testRecheckNotificationNamesHaveCorrectPrefix() {
         let prefix = "com.sparkfabrik.sparkdock.recheck."
-        let names = [
-            "com.sparkfabrik.sparkdock.recheck.sparkdock",
-            "com.sparkfabrik.sparkdock.recheck.brew",
-            "com.sparkfabrik.sparkdock.recheck.http-proxy",
-            "com.sparkfabrik.sparkdock.recheck.agents"
-        ]
-        for name in names {
+        for name in Self.expectedRecheckNotifications {
             XCTAssertTrue(name.hasPrefix(prefix), "Notification name '\(name)' should have prefix '\(prefix)'")
         }
     }
 
     func testRecheckNotificationAllContainsAllSubsystems() {
-        let allNotifications = [
-            "com.sparkfabrik.sparkdock.recheck.sparkdock",
-            "com.sparkfabrik.sparkdock.recheck.brew",
-            "com.sparkfabrik.sparkdock.recheck.http-proxy",
-            "com.sparkfabrik.sparkdock.recheck.agents"
-        ]
-        XCTAssertEqual(allNotifications.count, 4, "Should have exactly 4 recheck notifications (one per subsystem)")
+        XCTAssertEqual(Self.expectedRecheckNotifications.count, 4, "Should have exactly 4 recheck notifications (one per subsystem)")
     }
 
     func testNotifyutilExists() {
         let notifyutilPath = "/usr/bin/notifyutil"
         let fileExists = FileManager.default.fileExists(atPath: notifyutilPath)
-        if fileExists {
-            XCTAssertTrue(fileExists, "notifyutil should exist at \(notifyutilPath) on macOS systems")
-        }
+        XCTAssertTrue(fileExists, "notifyutil should exist at \(notifyutilPath) on macOS systems")
     }
 
     func testUpgradeCommandAppendsNotification() {

@@ -938,11 +938,24 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
 
+    /// Executes a command in a new Ghostty terminal window.
+    /// - Parameters:
+    ///   - command: The shell command to run. Current callers pass hardcoded strings only.
+    ///   - recheckNotification: Optional Darwin notification name to post after the command finishes.
+    ///     When set and notifyutil is available, a `notifyutil -p` call is appended so the app
+    ///     can recheck the relevant subsystem. No sanitization is performed on either parameter;
+    ///     callers must ensure values are safe for shell interpolation.
     private func executeTerminalCommand(_ command: String, recheckNotification: String? = nil) {
         // Append Darwin notification trigger if provided (fires after command completes)
         let finalCommand: String
         if let notification = recheckNotification {
-            finalCommand = "\(command); /usr/bin/notifyutil -p \(notification)"
+            let notifyutilPath = "/usr/bin/notifyutil"
+            if FileManager.default.fileExists(atPath: notifyutilPath) {
+                finalCommand = "\(command); \(notifyutilPath) -p \(notification)"
+            } else {
+                AppConstants.logger.warning("Skipping recheck notification '\(notification)' because \(notifyutilPath) is unavailable")
+                finalCommand = command
+            }
         } else {
             finalCommand = command
         }
