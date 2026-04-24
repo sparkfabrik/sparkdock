@@ -129,13 +129,14 @@ export async function getAccessToken() {
 /**
  * Fetch a URL trying each available token in priority order.
  * Falls back to the next token on 401/403 responses.
- * Logs which auth source succeeded to stderr for debuggability.
+ * Set DEBUG=1 to log auth source activity to stderr.
  * @param {string} url
  * @param {Record<string, string>} headers - base headers (Authorization is added automatically)
  * @param {"token"|"Bearer"} scheme - Authorization scheme
  * @returns {Promise<Response>} the first successful response
  */
 export async function fetchWithAuth(url, headers, scheme = "Bearer") {
+  const debug = Boolean(process.env.DEBUG);
   const { tokens, warnings } = await resolveTokens();
   if (tokens.length === 0) {
     failNoAuth(warnings);
@@ -146,7 +147,17 @@ export async function fetchWithAuth(url, headers, scheme = "Bearer") {
       headers: { ...headers, Authorization: `${scheme} ${token}` },
     });
     if (response.status !== 401 && response.status !== 403) {
+      if (debug) {
+        console.error(`[copilot-auth] Token from "${source}" accepted`);
+      }
       return response;
+    }
+    // Drain the response body to allow connection reuse before trying the next token.
+    await response.text().catch(() => {});
+    if (debug) {
+      console.error(
+        `[copilot-auth] Token from "${source}" rejected (${response.status}), trying next`,
+      );
     }
     lastResponse = response;
   }
