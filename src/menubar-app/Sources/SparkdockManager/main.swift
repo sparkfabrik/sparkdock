@@ -45,6 +45,16 @@ fileprivate struct MenuItem: Codable {
     }
 }
 
+// MARK: - Darwin Notification Names (for post-upgrade recheck)
+private enum RecheckNotification {
+    static let prefix = "com.sparkfabrik.sparkdock.recheck"
+    static let sparkdock = "\(prefix).sparkdock"
+    static let brew = "\(prefix).brew"
+    static let httpProxy = "\(prefix).http-proxy"
+    static let agents = "\(prefix).agents"
+    static let all = [sparkdock, brew, httpProxy, agents]
+}
+
 // MARK: - Menu Item Tags
 private enum MenuItemTag: Int {
     case updateNow = 1
@@ -99,6 +109,15 @@ private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async
     }
 }
 
+// MARK: - Darwin Notification Callback (C-compatible, must be top-level)
+private let darwinRecheckCallback: CFNotificationCallback = { _, observer, name, _, _ in
+    guard let observer = observer else { return }
+    let app = Unmanaged<SparkdockMenubarApp>.fromOpaque(observer).takeUnretainedValue()
+    guard let notificationName = name?.rawValue as String? else { return }
+    AppConstants.logger.info("Received Darwin recheck notification: \(notificationName)")
+    app.handleRecheckNotification(notificationName)
+}
+
 class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var menu: NSMenu?
@@ -109,6 +128,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var outdatedBrewFormulaeCount = 0
     var outdatedBrewCasksCount = 0
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
+    /// Generation counter to discard stale full-check results after a per-subsystem recheck
+    private var checkGeneration: Int = 0
     var statusMenuItem: NSMenuItem?
     var sparkdockStatusMenuItem: NSMenuItem?
     var brewStatusMenuItem: NSMenuItem?
@@ -169,6 +190,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         loadMenuConfiguration()
         setupMenuBar()
         setupUpdateObservers()
+        setupRecheckObservers()
 
         // Set initial status and check for updates
         sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
@@ -399,6 +421,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         pathMonitor?.cancel()
         pathMonitor = nil
+        CFNotificationCenterRemoveEveryObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque()
+        )
         AppConstants.logger.info("Update observers cleaned up")
     }
     @objc private func systemDidWake() {
@@ -438,7 +464,100 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         checkForUpdates()
     }
 
+    // MARK: - Darwin Notification Observers (post-upgrade recheck)
+
+    private func setupRecheckObservers() {
+        let center = CFNotificationCenterGetDarwinNotifyCenter()
+        for name in RecheckNotification.all {
+            CFNotificationCenterAddObserver(
+                center,
+                Unmanaged.passUnretained(self).toOpaque(),
+                darwinRecheckCallback,
+                name as CFString,
+                nil,
+                .deliverImmediately
+            )
+        }
+        AppConstants.logger.info("Darwin recheck observers configured")
+    }
+
+    fileprivate func handleRecheckNotification(_ name: String) {
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let handlers: [String: () -> Void] = [
+                RecheckNotification.sparkdock: self.recheckSparkdock,
+                RecheckNotification.brew: self.recheckBrew,
+                RecheckNotification.httpProxy: self.recheckHttpProxy,
+                RecheckNotification.agents: self.recheckAgents
+            ]
+            handlers[name]?()
+        }
+    }
+
+    private func recheckSparkdock() {
+        checkGeneration += 1
+        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+        Task(priority: .background) {
+            let result = await runSparkdockCheck()
+            await MainActor.run {
+                self.hasUpdates = result
+                self.refreshUI()
+            }
+        }
+    }
+
+    private func recheckBrew() {
+        checkGeneration += 1
+        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
+        Task(priority: .background) {
+            let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
+            await MainActor.run {
+                self.outdatedBrewFormulaeCount = formulaeCount
+                self.outdatedBrewCasksCount = casksCount
+                self.refreshUI()
+            }
+        }
+    }
+
+    private func recheckHttpProxy() {
+        checkGeneration += 1
+        httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
+        Task(priority: .background) {
+            let result = await runHttpProxyCheck()
+            await MainActor.run {
+                self.hasHttpProxyUpdates = result
+                self.refreshUI()
+            }
+        }
+    }
+
+    private func recheckAgents() {
+        checkGeneration += 1
+        agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        Task(priority: .background) {
+            let result = await runAgentsCheck()
+            await MainActor.run {
+                self.hasAgentUpdates = result
+                self.refreshUI()
+            }
+        }
+    }
+
+    /// Refresh UI using current instance state (safe for per-subsystem updates)
+    private func refreshUI() {
+        updateUI(
+            hasUpdates: hasUpdates,
+            outdatedBrewFormulae: outdatedBrewFormulaeCount,
+            outdatedBrewCasks: outdatedBrewCasksCount,
+            hasHttpProxyUpdates: hasHttpProxyUpdates,
+            hasAgentUpdates: hasAgentUpdates,
+            agentsConfigured: isAgentsConfigured()
+        )
+    }
+
     private func checkForUpdates() {
+        checkGeneration += 1
+        let expectedGeneration = checkGeneration
         Task(priority: .background) {
             let hasUpdates = await runSparkdockCheck()
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
@@ -446,6 +565,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             let hasAgentUpdates = await runAgentsCheck()
             let agentsConfigured = isAgentsConfigured()
             await MainActor.run {
+                // Discard results if a per-subsystem recheck started after this full check
+                guard self.checkGeneration == expectedGeneration else {
+                    AppConstants.logger.info("Discarding stale full-check results (generation \(expectedGeneration) != \(self.checkGeneration))")
+                    return
+                }
                 updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured)
             }
         }
@@ -791,31 +915,53 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     @objc private func updateNow() {
         guard hasUpdates else { return }
-        executeTerminalCommand("sparkdock")
+        executeTerminalCommand("sparkdock", recheckNotification: RecheckNotification.sparkdock)
     }
 
     @objc private func upgradeBrew() {
         guard totalOutdatedBrewCount > 0 else { return }
-
         // Create a compound command that only runs the second upgrade if the first succeeds
         let upgradeCommand = "brew upgrade && brew upgrade --cask"
-        executeTerminalCommand(upgradeCommand)
+        executeTerminalCommand(upgradeCommand, recheckNotification: RecheckNotification.brew)
     }
 
     @objc private func upgradeHttpProxy() {
         guard hasHttpProxyUpdates else { return }
-        executeTerminalCommand("sjust http-proxy-install-update")
+        executeTerminalCommand("sjust http-proxy-install-update", recheckNotification: RecheckNotification.httpProxy)
     }
 
     @objc private func upgradeAgents() {
         // Allow refresh when agent resources have updates OR are not configured (initial setup)
         let agentsConfigured = isAgentsConfigured()
         guard hasAgentUpdates || !agentsConfigured else { return }
-        executeTerminalCommand("sjust sf-agents-refresh")
+        executeTerminalCommand("sjust sf-agents-refresh", recheckNotification: RecheckNotification.agents)
     }
 
 
-    private func executeTerminalCommand(_ command: String) {
+    /// Executes a command in a new Ghostty terminal window.
+    /// - Parameters:
+    ///   - command: The shell command to run. Callers include both hardcoded commands and
+    ///     commands loaded from dynamic menu configuration (for example, `menu.json`).
+    ///   - recheckNotification: Optional Darwin notification name to post after the command finishes.
+    ///     Current callers pass hardcoded notification names only. When set and notifyutil is
+    ///     available, a `notifyutil -p` call is appended so the app can recheck the relevant
+    ///     subsystem. No sanitization is performed on either parameter; callers must ensure
+    ///     values are safe for shell interpolation.
+    private func executeTerminalCommand(_ command: String, recheckNotification: String? = nil) {
+        // Append Darwin notification trigger if provided (fires after command completes)
+        let finalCommand: String
+        if let notification = recheckNotification {
+            let notifyutilPath = "/usr/bin/notifyutil"
+            if FileManager.default.fileExists(atPath: notifyutilPath) {
+                finalCommand = "\(command); \(notifyutilPath) -p \(notification)"
+            } else {
+                AppConstants.logger.warning("Skipping recheck notification '\(notification)' because \(notifyutilPath) is unavailable")
+                finalCommand = command
+            }
+        } else {
+            finalCommand = command
+        }
+
         let process = Process()
         // Use the ghostty CLI to open a new window with the command
         process.executableURL = URL(fileURLWithPath: "/usr/bin/open")
@@ -828,13 +974,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             "--args",
             "--window-width=200",
             "--window-height=40",
-            "-e", "/bin/zsh", "-l", "-c", "\(command); exec zsh"
+            "-e", "/bin/zsh", "-l", "-c", "\(finalCommand); exec zsh"
         ]
         do {
             try process.run()
-            AppConstants.logger.info("Executed terminal command: \(command)")
+            AppConstants.logger.info("Executed terminal command: \(finalCommand)")
         } catch {
-            AppConstants.logger.error("Failed to execute terminal command '\(command)': \(error.localizedDescription)")
+            AppConstants.logger.error("Failed to execute terminal command '\(finalCommand)': \(error.localizedDescription)")
             showErrorAlert("Command Execution Error", "Failed to execute command: \(command)")
         }
     }

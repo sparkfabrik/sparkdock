@@ -66,6 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Menubar app now auto-refreshes subsystem status after upgrade actions complete so the icon updates immediately
 - Changed Copilot API auth to support multiple sources (gh CLI, OpenCode) with automatic fallback on 401/403, removing the hard dependency on OpenCode for `sf-copilot-premium-usage`, `sf-copilot-model-limits`, and `sf-copilot-model-list` recipes
 - Improved `copilot-models.mjs` plain-text table output with proper column alignment when `gum` is not available, use `premium` API field for model grouping, and use unique temp file names for `gum` table rendering
 - Updated Copilot shell aliases (`co`/`ico` family) to latest available models: gpt-5-mini, claude-sonnet-4.6, claude-opus-4.6, gpt-5.3-codex, gemini-3.1-pro-preview
