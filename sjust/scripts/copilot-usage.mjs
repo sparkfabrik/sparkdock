@@ -7,7 +7,7 @@
 //   node copilot-usage.mjs          # formatted dashboard
 //   node copilot-usage.mjs --json   # raw API JSON
 
-import { fail, getAccessToken, BASE_HEADERS } from "./lib/copilot-auth.mjs";
+import { fail, fetchWithAuth, BASE_HEADERS } from "./lib/copilot-auth.mjs";
 import { printBox } from "./lib/gum.mjs";
 
 const API_URL = "https://api.github.com/copilot_internal/user";
@@ -17,14 +17,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 // Data fetching
 // ---------------------------------------------------------------------------
 
-async function fetchUsage(accessToken) {
+async function fetchUsage() {
   const headers = {
     ...BASE_HEADERS,
     "Content-Type": "application/json",
     Accept: "application/json",
-    Authorization: `token ${accessToken}`,
   };
-  const response = await fetch(API_URL, { headers });
+  const response = await fetchWithAuth(API_URL, headers, "token");
   if (!response.ok) {
     const body = await response.text();
     fail(
@@ -160,8 +159,7 @@ function renderDashboard(data) {
 
 async function main() {
   const doJson = process.argv.includes("--json");
-  const accessToken = await getAccessToken();
-  const data = await fetchUsage(accessToken);
+  const data = await fetchUsage();
 
   if (doJson) {
     console.log(JSON.stringify(data, null, 2));
