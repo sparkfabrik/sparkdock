@@ -203,13 +203,29 @@
       community.general.homebrew_cask:
         name: "{{ item }}"
         state: present
-        install_options: force
+        install_options:
+          - force
         sudo_password: "{{ ansible_become_pass | default(omit) }}"
       loop: "{{ all_cask_packages }}"
       when: all_cask_packages | length > 0
       become: false
 
+    - name: Force reinstall unregistered casks
+      tags: cask
+      shell: |
+        if brew list --cask "{{ item }}" >/dev/null 2>&1; then
+          echo "already registered"
+        else
+          brew reinstall --cask --force "{{ item }}" 2>&1
+        fi
+      loop: "{{ all_cask_packages }}"
+      when: all_cask_packages | length > 0
+      become: false
+      register: cask_force
+      changed_when: "'already registered' not in cask_force.stdout"
+
     - name: Assert cask packages installed
+      tags: cask
       shell: |
         missing=0
         for pkg in {{ all_cask_packages | map('quote') | join(' ') }}; do
@@ -266,12 +282,36 @@
       when: all_homebrew_packages | length > 0
       become: false
 
+    - name: Force install unregistered homebrew packages
+      tags: brew_packages
+      shell: |
+        pkg_name=$(echo "{{ item }}" | sed 's|.*/||')
+        if brew list "$pkg_name" >/dev/null 2>&1; then
+          echo "already installed"
+        else
+          brew install "{{ item }}" 2>&1
+        fi
+      loop: "{{ all_homebrew_packages }}"
+      when: all_homebrew_packages | length > 0
+      become: false
+      register: brew_force
+      changed_when: "'already installed' not in brew_force.stdout"
+
+    - name: Force link homebrew packages
+      tags: brew_packages
+      shell: brew link --overwrite "{{ item }}" 2>/dev/null || true
+      loop: "{{ all_homebrew_packages }}"
+      when: all_homebrew_packages | length > 0
+      become: false
+      changed_when: false
+
     - name: Assert homebrew packages installed
       tags: brew_packages
       shell: |
         missing=0
         for pkg in {{ all_homebrew_packages | map('quote') | join(' ') }}; do
-          brew list "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
+          pkg_name=$(echo "$pkg" | sed 's|.*/||')
+          brew list "$pkg_name" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
         done
         exit $missing
       register: brew_check
@@ -499,6 +539,7 @@
           become_method: sudo
 
         - name: Migrate old dinghy certificates to new location
+          become: false
           block:
             - name: Check if old dinghy certs directory exists
               stat:
