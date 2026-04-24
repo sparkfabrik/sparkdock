@@ -940,11 +940,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     /// Executes a command in a new Ghostty terminal window.
     /// - Parameters:
-    ///   - command: The shell command to run. Current callers pass hardcoded strings only.
+    ///   - command: The shell command to run. Callers include both hardcoded commands and
+    ///     commands loaded from dynamic menu configuration (for example, `menu.json`).
     ///   - recheckNotification: Optional Darwin notification name to post after the command finishes.
-    ///     When set and notifyutil is available, a `notifyutil -p` call is appended so the app
-    ///     can recheck the relevant subsystem. No sanitization is performed on either parameter;
-    ///     callers must ensure values are safe for shell interpolation.
+    ///     Current callers pass hardcoded notification names only. When set and notifyutil is
+    ///     available, a `notifyutil -p` call is appended so the app can recheck the relevant
+    ///     subsystem. No sanitization is performed on either parameter; callers must ensure
+    ///     values are safe for shell interpolation.
     private func executeTerminalCommand(_ command: String, recheckNotification: String? = nil) {
         // Append Darwin notification trigger if provided (fires after command completes)
         let finalCommand: String

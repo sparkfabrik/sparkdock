@@ -127,7 +127,7 @@ final class SparkdockManagerTests: XCTestCase {
         }
     }
 
-    func testRecheckNotificationAllContainsAllSubsystems() {
+    func testRecheckNotificationsHasOneEntryPerSubsystem() {
         XCTAssertEqual(Self.expectedRecheckNotifications.count, 4, "Should have exactly 4 recheck notifications (one per subsystem)")
     }
 
