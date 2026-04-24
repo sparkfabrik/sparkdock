@@ -153,7 +153,11 @@ export async function fetchWithAuth(url, headers, scheme = "Bearer") {
       return response;
     }
     // Drain the response body to allow connection reuse before trying the next token.
-    await response.text().catch(() => {});
+    await response.text().catch((err) => {
+      if (debug) {
+        console.error(`[copilot-auth] Error draining response body: ${err.message}`);
+      }
+    });
     if (debug) {
       console.error(
         `[copilot-auth] Token from "${source}" rejected (${response.status}), trying next`,
