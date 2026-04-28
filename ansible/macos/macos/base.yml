@@ -821,23 +821,62 @@
     - name: Configure RTK for LLM token optimization
       tags: rtk
       block:
+        - name: Backup existing Claude Code CLAUDE.md
+          copy:
+            src: "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md"
+            dest: "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md.bak"
+            remote_src: true
+          become: false
+          ignore_errors: yes
+
+        - name: Initialize RTK for Claude Code
+          command: rtk init -g --auto-patch
+          register: rtk_claude_result
+          changed_when: true
+          failed_when: rtk_claude_result.rc != 0
+          become: false
+
+        - name: Restore user content to Claude Code CLAUDE.md
+          shell: |
+            if [ -f "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md.bak" ]; then
+              cat "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md.bak" >> "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md"
+              rm "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md.bak"
+            fi
+          become: false
+
+        - name: Backup existing Copilot custom instructions
+          copy:
+            src: "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md"
+            dest: "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md.bak"
+            remote_src: true
+          become: false
+          ignore_errors: yes
+
         - name: Initialize RTK for GitHub Copilot
           command: rtk init -g --copilot --auto-patch
           register: rtk_copilot_result
-          changed_when: false
+          changed_when: true
           failed_when: rtk_copilot_result.rc != 0
+          become: false
+
+        - name: Restore user content to Copilot custom instructions
+          shell: |
+            if [ -f "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md.bak" ]; then
+              cat "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md.bak" >> "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md"
+              rm "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md.bak"
+            fi
           become: false
 
         - name: Initialize RTK for OpenCode
           command: rtk init -g --opencode --auto-patch
           register: rtk_opencode_result
-          changed_when: false
+          changed_when: true
           failed_when: rtk_opencode_result.rc != 0
           become: false
 
         - name: Display RTK initialization status
           debug:
-            msg: "✅ RTK initialized for GitHub Copilot and OpenCode. Restart your AI coding tools to activate."
+            msg: "✅ RTK initialized for Claude Code, GitHub Copilot and OpenCode. Restart your AI coding tools to activate."
 
     - name: Sync AI coding agent resources from upstream repository
       tags:
