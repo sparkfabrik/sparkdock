@@ -27,7 +27,7 @@ Sparkdock is an automated macOS development environment provisioner built with A
 
 - **Modern Shell Tools**: eza (ls), fd (find), ripgrep (grep), bat (cat), zoxide (cd)
 - **Shell Enhancement**: Atuin (shell history), fzf (fuzzy finder), thefuck (command correction)
-- **Terminal Tools**: tmux, tmate, watch, jq, jless
+- **Terminal Tools**: tmux, upterm, watch, jq, jless
 - **System Info**: fastfetch, mactop
 - **Fonts**: Nerd Fonts (Droid Sans Mono, Inconsolata, Fira Code)
 
