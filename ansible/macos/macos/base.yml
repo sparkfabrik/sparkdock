@@ -818,6 +818,27 @@
             - openspec_completion_output is not skipped
             - openspec_completion_output.rc == 0
 
+    - name: Configure RTK for LLM token optimization
+      tags: rtk
+      block:
+        - name: Initialize RTK for GitHub Copilot
+          command: rtk init -g --copilot --auto-patch
+          register: rtk_copilot_result
+          changed_when: false
+          failed_when: rtk_copilot_result.rc != 0
+          become: false
+
+        - name: Initialize RTK for OpenCode
+          command: rtk init -g --opencode --auto-patch
+          register: rtk_opencode_result
+          changed_when: false
+          failed_when: rtk_opencode_result.rc != 0
+          become: false
+
+        - name: Display RTK initialization status
+          debug:
+            msg: "✅ RTK initialized for GitHub Copilot and OpenCode. Restart your AI coding tools to activate."
+
     - name: Sync AI coding agent resources from upstream repository
       tags:
         - skills

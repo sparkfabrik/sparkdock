@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added RTK (Rust Token Killer) to default package list and Ansible provisioning: installs via `brew install rtk` and runs `rtk init -g --copilot` and `rtk init -g --opencode` to activate the token-optimization hook for GitHub Copilot and OpenCode (60-90% token savings on common dev commands)
 - Added orphan cleanup to `sparkdock-agents-sync`: detects and removes managed skills/agent profiles no longer in upstream, with `--force` to remove locally modified orphans
 - Added orphan detection to `sparkdock-agents-status`: flags resources removed from upstream as `orphan` type with cleanup hint
 - Added DESCRIPTION column to `sjust sf-agents-status` tables, reading short descriptions from upstream `catalog.json` with tab-delimited rendering to support commas in descriptions
