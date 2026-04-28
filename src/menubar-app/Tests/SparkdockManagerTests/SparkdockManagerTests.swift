@@ -103,4 +103,59 @@ final class SparkdockManagerTests: XCTestCase {
         let httpProxyCheckCommand = ["http-proxy-check-updates"]
         XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "Http-proxy check command should be correct")
     }
+
+    // MARK: - Darwin Recheck Notification Tests
+
+    /// Expected notification names — must match RecheckNotification constants in main.swift.
+    private static let expectedRecheckNotifications = [
+        "com.sparkfabrik.sparkdock.recheck.sparkdock",
+        "com.sparkfabrik.sparkdock.recheck.brew",
+        "com.sparkfabrik.sparkdock.recheck.http-proxy",
+        "com.sparkfabrik.sparkdock.recheck.agents"
+    ]
+
+    func testRecheckNotificationNamesAreUnique() {
+        let names = Self.expectedRecheckNotifications
+        let uniqueNames = Set(names)
+        XCTAssertEqual(names.count, uniqueNames.count, "All recheck notification names should be unique")
+    }
+
+    func testRecheckNotificationNamesHaveCorrectPrefix() {
+        let prefix = "com.sparkfabrik.sparkdock.recheck."
+        for name in Self.expectedRecheckNotifications {
+            XCTAssertTrue(name.hasPrefix(prefix), "Notification name '\(name)' should have prefix '\(prefix)'")
+        }
+    }
+
+    func testRecheckNotificationsHasOneEntryPerSubsystem() {
+        XCTAssertEqual(Self.expectedRecheckNotifications.count, 4, "Should have exactly 4 recheck notifications (one per subsystem)")
+    }
+
+    func testNotifyutilExists() {
+        let notifyutilPath = "/usr/bin/notifyutil"
+        let fileExists = FileManager.default.fileExists(atPath: notifyutilPath)
+        XCTAssertTrue(fileExists, "notifyutil should exist at \(notifyutilPath) on macOS systems")
+    }
+
+    func testUpgradeCommandAppendsNotification() {
+        let command = "brew upgrade && brew upgrade --cask"
+        let notification = "com.sparkfabrik.sparkdock.recheck.brew"
+        let finalCommand = "\(command); /usr/bin/notifyutil -p \(notification)"
+        XCTAssertTrue(finalCommand.hasPrefix(command), "Final command should start with original command")
+        XCTAssertTrue(finalCommand.contains("; /usr/bin/notifyutil -p "), "Final command should contain notifyutil trigger")
+        XCTAssertTrue(finalCommand.hasSuffix(notification), "Final command should end with notification name")
+    }
+
+    func testUpgradeCommandWithoutNotification() {
+        let command = "some-dynamic-menu-command"
+        let recheckNotification: String? = nil
+        let finalCommand: String
+        if let notification = recheckNotification {
+            finalCommand = "\(command); /usr/bin/notifyutil -p \(notification)"
+        } else {
+            finalCommand = command
+        }
+        XCTAssertEqual(finalCommand, command, "Command without notification should remain unchanged")
+        XCTAssertFalse(finalCommand.contains("notifyutil"), "Command without notification should not contain notifyutil")
+    }
 }

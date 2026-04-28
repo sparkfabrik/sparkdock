@@ -12,7 +12,7 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { fail, getAccessToken, BASE_HEADERS } from "./lib/copilot-auth.mjs";
+import { fail, fetchWithAuth, BASE_HEADERS } from "./lib/copilot-auth.mjs";
 import { printTable } from "./lib/gum.mjs";
 
 const OPENCODE_JSON_PATH = path.join(
@@ -54,9 +54,9 @@ function inferContext(limits) {
 // Data fetching
 // ---------------------------------------------------------------------------
 
-async function fetchModels(accessToken) {
-  const headers = { ...BASE_HEADERS, Authorization: `Bearer ${accessToken}` };
-  const response = await fetch(`${API_BASE}/models`, { headers });
+async function fetchModels() {
+  const headers = { ...BASE_HEADERS };
+  const response = await fetchWithAuth(`${API_BASE}/models`, headers, "Bearer");
   if (!response.ok) {
     const body = await response.text();
     fail(
@@ -313,8 +313,7 @@ function printSnippet(modelsBlock) {
 async function main() {
   const doUpdate = process.argv.includes("--update");
   const doList = process.argv.includes("--list");
-  const accessToken = await getAccessToken();
-  const payload = await fetchModels(accessToken);
+  const payload = await fetchModels();
   const apiModels = buildApiModels(payload);
 
   if (doList) {

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `~/.local/bin` to default zsh PATH for user-local binaries (XDG convention), auto-creating the directory if missing
 - Added orphan cleanup to `sparkdock-agents-sync`: detects and removes managed skills/agent profiles no longer in upstream, with `--force` to remove locally modified orphans
 - Added orphan detection to `sparkdock-agents-status`: flags resources removed from upstream as `orphan` type with cleanup hint
 - Added DESCRIPTION column to `sjust sf-agents-status` tables, reading short descriptions from upstream `catalog.json` with tab-delimited rendering to support commas in descriptions
@@ -66,6 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced tmate with upterm for terminal session sharing (tmate is deprecated in Homebrew), with a transition shell shim that guides users to the new tool
+
+- Menubar app now auto-refreshes subsystem status after upgrade actions complete so the icon updates immediately
+- Changed Copilot API auth to support multiple sources (gh CLI, OpenCode) with automatic fallback on 401/403, removing the hard dependency on OpenCode for `sf-copilot-premium-usage`, `sf-copilot-model-limits`, and `sf-copilot-model-list` recipes
 - Improved `copilot-models.mjs` plain-text table output with proper column alignment when `gum` is not available, use `premium` API field for model grouping, and use unique temp file names for `gum` table rendering
 - Updated Copilot shell aliases (`co`/`ico` family) to latest available models: gpt-5-mini, claude-sonnet-4.6, claude-opus-4.6, gpt-5.3-codex, gemini-3.1-pro-preview
 - Moved `copilot-models.mjs` from `config/macos/scripts/` to `sjust/scripts/` to colocate with recipes
@@ -98,6 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed sjust zsh tab-completion (`_clap_dynamic_completer_sjust` not found) caused by just 1.40+ switching to dynamic clap completions — replaced sed-based renaming with a custom completion file that correctly bridges sjust to just's dynamic completer
 - Fixed Slack notification announcing already-released features by using zero-context git diff (`-U0`) to eliminate context lines that confused Claude AI
 - Fixed zsh completions from `~/.local/share/zsh/site-functions` not being discovered when the user's `.zshrc` calls `compinit` before sourcing sparkdock
 - Fixed menubar terminal commands (sjust, sparkdock, brew upgrade) closing immediately after completion by dropping into an interactive shell session
