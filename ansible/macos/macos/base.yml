@@ -821,52 +821,86 @@
     - name: Configure RTK for LLM token optimization
       tags: rtk
       block:
-        - name: Backup existing Claude Code CLAUDE.md
+        # --- Claude Code ---
+        - name: Install RTK hook for Claude Code (global, hook only)
+          command: rtk init -g --hook-only --auto-patch
+          register: rtk_claude_hook_result
+          changed_when: true
+          failed_when: rtk_claude_hook_result.rc != 0
+          become: false
+
+        - name: Initialize RTK for Claude Code in temp directory
+          shell: |
+            RTK_TMPDIR=$(mktemp -d)
+            cd "${RTK_TMPDIR}"
+            rtk init --auto-patch
+            echo "${RTK_TMPDIR}"
+          register: rtk_claude_tmpdir
+          changed_when: false
+          become: false
+
+        - name: Ensure Claude Code config directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.claude"
+            state: directory
+            mode: '0755'
+          become: false
+
+        - name: Inject RTK instructions into Claude Code CLAUDE.md
+          blockinfile:
+            path: "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md"
+            marker: "<!-- {mark} RTK MANAGED BLOCK -->"
+            block: "{{ lookup('file', rtk_claude_tmpdir.stdout + '/CLAUDE.md') }}"
+            create: yes
+          become: false
+
+        - name: Cleanup Claude Code temp directory
+          file:
+            path: "{{ rtk_claude_tmpdir.stdout }}"
+            state: absent
+          become: false
+
+        # --- GitHub Copilot ---
+        - name: Initialize RTK for GitHub Copilot in temp directory
+          shell: |
+            RTK_TMPDIR=$(mktemp -d)
+            cd "${RTK_TMPDIR}"
+            rtk init --copilot --auto-patch
+            echo "${RTK_TMPDIR}"
+          register: rtk_copilot_tmpdir
+          changed_when: false
+          become: false
+
+        - name: Ensure GitHub Copilot hooks directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.github-copilot/hooks"
+            state: directory
+            mode: '0755'
+          become: false
+
+        - name: Copy RTK hooks to GitHub Copilot config
           copy:
-            src: "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md"
-            dest: "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md.bak"
+            src: "{{ rtk_copilot_tmpdir.stdout }}/.github-copilot/hooks/"
+            dest: "{{ ansible_facts['env']['HOME'] }}/.github-copilot/hooks/"
             remote_src: true
           become: false
           ignore_errors: yes
 
-        - name: Initialize RTK for Claude Code
-          command: rtk init -g --auto-patch
-          register: rtk_claude_result
-          changed_when: true
-          failed_when: rtk_claude_result.rc != 0
+        - name: Inject RTK instructions into Copilot custom-instructions.md
+          blockinfile:
+            path: "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md"
+            marker: "<!-- {mark} RTK MANAGED BLOCK -->"
+            block: "{{ lookup('file', rtk_copilot_tmpdir.stdout + '/.github-copilot/custom-instructions.md') }}"
+            create: yes
           become: false
 
-        - name: Restore user content to Claude Code CLAUDE.md
-          shell: |
-            if [ -f "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md.bak" ]; then
-              cat "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md.bak" >> "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md"
-              rm "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md.bak"
-            fi
+        - name: Cleanup GitHub Copilot temp directory
+          file:
+            path: "{{ rtk_copilot_tmpdir.stdout }}"
+            state: absent
           become: false
 
-        - name: Backup existing Copilot custom instructions
-          copy:
-            src: "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md"
-            dest: "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md.bak"
-            remote_src: true
-          become: false
-          ignore_errors: yes
-
-        - name: Initialize RTK for GitHub Copilot
-          command: rtk init -g --copilot --auto-patch
-          register: rtk_copilot_result
-          changed_when: true
-          failed_when: rtk_copilot_result.rc != 0
-          become: false
-
-        - name: Restore user content to Copilot custom instructions
-          shell: |
-            if [ -f "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md.bak" ]; then
-              cat "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md.bak" >> "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md"
-              rm "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md.bak"
-            fi
-          become: false
-
+        # --- OpenCode ---
         - name: Initialize RTK for OpenCode
           command: rtk init -g --opencode --auto-patch
           register: rtk_opencode_result
