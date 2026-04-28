@@ -117,6 +117,12 @@ jobs:
 
           echo "✅ RTK integration validated successfully"
 
+      - name: Add user content to custom-instructions.md before second run
+        run: |
+          echo "# My custom instructions" >> "${HOME}/.github-copilot/custom-instructions.md"
+          echo "This user content must survive re-provisioning." >> "${HOME}/.github-copilot/custom-instructions.md"
+          echo "✅ User content added before second run"
+
       - name: Fix ownership permissions and clean git state before second run
         run: |
           echo "=== Fixing ownership permissions and git state for second run ==="
@@ -187,6 +193,13 @@ jobs:
             exit 1
           fi
           echo "✅ RTK managed block appears exactly once — idempotency confirmed"
+
+          # User content added before the second run must still be present
+          if ! grep -q "My custom instructions" "${HOME}/.github-copilot/custom-instructions.md"; then
+            echo "❌ User content was lost after re-provisioning"
+            exit 1
+          fi
+          echo "✅ User content preserved after re-provisioning"
 
           echo "✅ RTK idempotency validated successfully"
 

@@ -825,11 +825,10 @@
         - name: Initialize RTK for GitHub Copilot in temp directory
           shell: |
             RTK_TMPDIR=$(mktemp -d)
-            cd "${RTK_TMPDIR}"
-            rtk init --copilot --auto-patch
+            HOME="${RTK_TMPDIR}" rtk init -g --copilot --auto-patch
             echo "${RTK_TMPDIR}"
           register: rtk_copilot_tmpdir
-          changed_when: false
+          changed_when: true
           become: false
 
         - name: Ensure GitHub Copilot hooks directory exists
