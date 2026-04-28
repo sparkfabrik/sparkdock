@@ -95,7 +95,7 @@ jobs:
           fi
           echo "✅ rtk command is available"
 
-          # Check that GitHub Copilot hooks directory was created and populated
+          # Check that GitHub Copilot Chat hooks directory was created and populated (VS Code)
           if [ ! -d "${HOME}/.github/hooks" ]; then
             echo "❌ ~/.github/hooks directory not found"
             exit 1
@@ -106,7 +106,7 @@ jobs:
             exit 1
           fi
           echo "✅ ~/.github/hooks directory exists and contains hook files"
-          # Check that RTK instructions were injected into copilot-instructions.md
+          # Check that RTK instructions were injected into copilot-instructions.md (VS Code)
           if [ ! -f "${HOME}/.github/copilot-instructions.md" ]; then
             echo "❌ ~/.github/copilot-instructions.md not found"
             exit 1
@@ -114,10 +114,35 @@ jobs:
           echo "✅ ~/.github/copilot-instructions.md exists"
 
           if ! grep -q "BEGIN RTK MANAGED BLOCK" "${HOME}/.github/copilot-instructions.md"; then
-            echo "❌ RTK managed block not found in copilot-instructions.md"
+            echo "❌ RTK managed block not found in ~/.github/copilot-instructions.md"
             exit 1
           fi
-          echo "✅ RTK managed block present in copilot-instructions.md"
+          echo "✅ RTK managed block present in ~/.github/copilot-instructions.md"
+
+          # Check that Copilot CLI hooks directory was created and populated (~/.copilot/)
+          if [ ! -d "${HOME}/.copilot/hooks" ]; then
+            echo "❌ ~/.copilot/hooks directory not found"
+            exit 1
+          fi
+
+          if ! find "${HOME}/.copilot/hooks" -mindepth 1 -print -quit | grep -q .; then
+            echo "❌ ~/.copilot/hooks directory is empty"
+            exit 1
+          fi
+          echo "✅ ~/.copilot/hooks directory exists and contains hook files"
+
+          # Check that RTK instructions were injected into Copilot CLI copilot-instructions.md
+          if [ ! -f "${HOME}/.copilot/copilot-instructions.md" ]; then
+            echo "❌ ~/.copilot/copilot-instructions.md not found"
+            exit 1
+          fi
+          echo "✅ ~/.copilot/copilot-instructions.md exists"
+
+          if ! grep -q "BEGIN RTK MANAGED BLOCK" "${HOME}/.copilot/copilot-instructions.md"; then
+            echo "❌ RTK managed block not found in ~/.copilot/copilot-instructions.md"
+            exit 1
+          fi
+          echo "✅ RTK managed block present in ~/.copilot/copilot-instructions.md"
 
           echo "✅ RTK integration validated successfully"
 
@@ -125,6 +150,8 @@ jobs:
         run: |
           echo "# My custom instructions" >> "${HOME}/.github/copilot-instructions.md"
           echo "This user content must survive re-provisioning." >> "${HOME}/.github/copilot-instructions.md"
+          echo "# My custom instructions" >> "${HOME}/.copilot/copilot-instructions.md"
+          echo "This user content must survive re-provisioning." >> "${HOME}/.copilot/copilot-instructions.md"
           echo "✅ User content added before second run"
 
       - name: Fix ownership permissions and clean git state before second run
@@ -190,20 +217,35 @@ jobs:
         run: |
           echo "=== Validating RTK idempotency ==="
 
-          # The BEGIN marker must appear exactly once — blockinfile must replace, not append
+          # VS Code path: BEGIN marker must appear exactly once
           MARKER_COUNT=$(grep -c "BEGIN RTK MANAGED BLOCK" "${HOME}/.github/copilot-instructions.md" || true)
           if [ "${MARKER_COUNT}" -ne 1 ]; then
-            echo "❌ RTK managed block appears ${MARKER_COUNT} time(s) (expected 1) - idempotency broken"
+            echo "❌ RTK managed block appears ${MARKER_COUNT} time(s) in ~/.github/copilot-instructions.md (expected 1) - idempotency broken"
             exit 1
           fi
-          echo "✅ RTK managed block appears exactly once — idempotency confirmed"
+          echo "✅ RTK managed block appears exactly once in ~/.github/copilot-instructions.md — idempotency confirmed"
 
-          # User content added before the second run must still be present
+          # VS Code path: user content must still be present
           if ! grep -q "My custom instructions" "${HOME}/.github/copilot-instructions.md"; then
-            echo "❌ User content was lost after re-provisioning"
+            echo "❌ User content was lost from ~/.github/copilot-instructions.md after re-provisioning"
             exit 1
           fi
-          echo "✅ User content preserved after re-provisioning"
+          echo "✅ User content preserved in ~/.github/copilot-instructions.md after re-provisioning"
+
+          # Copilot CLI path: BEGIN marker must appear exactly once
+          MARKER_COUNT=$(grep -c "BEGIN RTK MANAGED BLOCK" "${HOME}/.copilot/copilot-instructions.md" || true)
+          if [ "${MARKER_COUNT}" -ne 1 ]; then
+            echo "❌ RTK managed block appears ${MARKER_COUNT} time(s) in ~/.copilot/copilot-instructions.md (expected 1) - idempotency broken"
+            exit 1
+          fi
+          echo "✅ RTK managed block appears exactly once in ~/.copilot/copilot-instructions.md — idempotency confirmed"
+
+          # Copilot CLI path: user content must still be present
+          if ! grep -q "My custom instructions" "${HOME}/.copilot/copilot-instructions.md"; then
+            echo "❌ User content was lost from ~/.copilot/copilot-instructions.md after re-provisioning"
+            exit 1
+          fi
+          echo "✅ User content preserved in ~/.copilot/copilot-instructions.md after re-provisioning"
 
           echo "✅ RTK idempotency validated successfully"
 

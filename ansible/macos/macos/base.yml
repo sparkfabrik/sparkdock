@@ -832,14 +832,14 @@
           changed_when: true
           become: false
 
-        - name: Ensure GitHub Copilot hooks directory exists
+        - name: Ensure GitHub Copilot Chat hooks directory exists (VS Code)
           file:
             path: "{{ ansible_facts['env']['HOME'] }}/.github/hooks"
             state: directory
             mode: '0755'
           become: false
 
-        - name: Copy RTK hooks to GitHub Copilot config
+        - name: Copy RTK hooks to GitHub Copilot Chat config (VS Code)
           copy:
             src: "{{ rtk_copilot_tmpdir.stdout }}/.github/hooks/"
             dest: "{{ ansible_facts['env']['HOME'] }}/.github/hooks/"
@@ -847,9 +847,32 @@
           become: false
           ignore_errors: yes
 
-        - name: Inject RTK instructions into Copilot copilot-instructions.md
+        - name: Inject RTK instructions into Copilot copilot-instructions.md (VS Code)
           blockinfile:
             path: "{{ ansible_facts['env']['HOME'] }}/.github/copilot-instructions.md"
+            marker: "<!-- {mark} RTK MANAGED BLOCK -->"
+            block: "{{ lookup('file', rtk_copilot_tmpdir.stdout + '/.github/copilot-instructions.md') }}"
+            create: yes
+          become: false
+
+        # --- Copilot CLI paths (~/.copilot/) ---
+        - name: Ensure Copilot CLI hooks directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.copilot/hooks"
+            state: directory
+            mode: '0755'
+          become: false
+
+        - name: Copy RTK hooks to Copilot CLI config
+          copy:
+            src: "{{ rtk_copilot_tmpdir.stdout }}/.github/hooks/"
+            dest: "{{ ansible_facts['env']['HOME'] }}/.copilot/hooks/"
+            remote_src: true
+          become: false
+
+        - name: Inject RTK instructions into Copilot CLI copilot-instructions.md
+          blockinfile:
+            path: "{{ ansible_facts['env']['HOME'] }}/.copilot/copilot-instructions.md"
             marker: "<!-- {mark} RTK MANAGED BLOCK -->"
             block: "{{ lookup('file', rtk_copilot_tmpdir.stdout + '/.github/copilot-instructions.md') }}"
             create: yes
