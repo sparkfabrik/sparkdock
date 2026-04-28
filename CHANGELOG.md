@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added RTK (Rust Token Killer) to default package list and Ansible provisioning: installs via `brew install rtk` and runs `rtk init --copilot --auto-patch` for GitHub Copilot and `rtk init -g --opencode --auto-patch` for OpenCode to activate the token-optimization hook (60-90% token savings on common dev commands)
+- Added `~/.local/bin` to default zsh PATH for user-local binaries (XDG convention), auto-creating the directory if missing
 - Added orphan cleanup to `sparkdock-agents-sync`: detects and removes managed skills/agent profiles no longer in upstream, with `--force` to remove locally modified orphans
 - Added orphan detection to `sparkdock-agents-status`: flags resources removed from upstream as `orphan` type with cleanup hint
 - Added DESCRIPTION column to `sjust sf-agents-status` tables, reading short descriptions from upstream `catalog.json` with tab-delimited rendering to support commas in descriptions
@@ -66,6 +67,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `docker-desktop-install-version-4412` task to download Docker Desktop 4.41.2 to work around network issues
 
 ### Changed
+
+- Replaced tmate with upterm for terminal session sharing (tmate is deprecated in Homebrew), with a transition shell shim that guides users to the new tool
 
 - Menubar app now auto-refreshes subsystem status after upgrade actions complete so the icon updates immediately
 - Changed Copilot API auth to support multiple sources (gh CLI, OpenCode) with automatic fallback on 401/403, removing the hard dependency on OpenCode for `sf-copilot-premium-usage`, `sf-copilot-model-limits`, and `sf-copilot-model-list` recipes

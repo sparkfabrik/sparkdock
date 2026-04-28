@@ -60,7 +60,7 @@ homebrew_packages:
   - navi
   - jq
   - yadm
-  - tmate
+  - upterm
   - tmux
   - watch
   - zoxide
@@ -97,6 +97,7 @@ removed_homebrew_packages:
   - docker-compose
   - neofetch
   - "php@8.3"
+  - tmate
 
 removed_taps:
   - homebrew/cask-versions

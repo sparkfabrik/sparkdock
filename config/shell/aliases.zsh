@@ -34,6 +34,30 @@ if command_exists fzf; then
   alias ff="fzf --preview 'bat --style=numbers --color=always {}'"
 fi
 
+# tmate -> upterm transition helper
+# tmate is deprecated in Homebrew; upterm is the replacement.
+if ! command_exists tmate; then
+  tmate() {
+    local msg="tmate has been replaced by upterm in Sparkdock.
+See: https://upterm.dev/"
+    if command_exists gum; then
+      gum style --border rounded --border-foreground 214 --foreground 214 \
+        --bold --padding "0 1" --margin "0 0 1 0" "${msg}" >&2
+    else
+      echo "" >&2
+      echo "\033[1;33m${msg}\033[0m" >&2
+      echo "" >&2
+    fi
+    if command_exists upterm; then
+      echo "Running: upterm host -- ${SHELL}" >&2
+      upterm host -- "${SHELL}"
+    else
+      echo "Install upterm first: brew install upterm" >&2
+      return 127
+    fi
+  }
+fi
+
 # zoxide integration with smart cd replacement
 if command_exists zoxide; then
   alias cd="zd"
