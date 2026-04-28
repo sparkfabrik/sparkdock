@@ -95,13 +95,17 @@ jobs:
           fi
           echo "✅ rtk command is available"
 
-          # Check that GitHub Copilot hooks directory was created
+          # Check that GitHub Copilot hooks directory was created and populated
           if [ ! -d "${HOME}/.github/hooks" ]; then
             echo "❌ ~/.github/hooks directory not found"
             exit 1
           fi
-          echo "✅ ~/.github/hooks directory exists"
 
+          if ! find "${HOME}/.github/hooks" -mindepth 1 -print -quit | grep -q .; then
+            echo "❌ ~/.github/hooks directory is empty"
+            exit 1
+          fi
+          echo "✅ ~/.github/hooks directory exists and contains hook files"
           # Check that RTK instructions were injected into copilot-instructions.md
           if [ ! -f "${HOME}/.github/copilot-instructions.md" ]; then
             echo "❌ ~/.github/copilot-instructions.md not found"

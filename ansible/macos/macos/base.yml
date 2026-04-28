@@ -839,13 +839,38 @@
             mode: '0755'
           become: false
 
+        - name: Check for generated RTK GitHub Copilot hooks directory
+          stat:
+            path: "{{ rtk_copilot_tmpdir.stdout }}/.github/hooks"
+          register: rtk_copilot_hooks_dir
+          become: false
+
+        - name: Find generated RTK GitHub Copilot hook files
+          find:
+            paths: "{{ rtk_copilot_tmpdir.stdout }}/.github/hooks"
+            file_type: file
+          register: rtk_copilot_hook_files
+          when: rtk_copilot_hooks_dir.stat.exists and rtk_copilot_hooks_dir.stat.isdir
+          become: false
+
+        - name: Fail when RTK GitHub Copilot hooks were not generated
+          fail:
+            msg: >-
+              RTK did not generate any GitHub Copilot hooks in
+              {{ rtk_copilot_tmpdir.stdout }}/.github/hooks.
+              Ensure `rtk init --copilot --auto-patch` completed successfully.
+          when: >
+            (not rtk_copilot_hooks_dir.stat.exists) or
+            (not rtk_copilot_hooks_dir.stat.isdir) or
+            ((rtk_copilot_hook_files.matched | default(0)) == 0)
+          become: false
+
         - name: Copy RTK hooks to GitHub Copilot config
           copy:
             src: "{{ rtk_copilot_tmpdir.stdout }}/.github/hooks/"
             dest: "{{ ansible_facts['env']['HOME'] }}/.github/hooks/"
             remote_src: true
           become: false
-          ignore_errors: yes
 
         - name: Inject RTK instructions into Copilot copilot-instructions.md
           blockinfile:
