@@ -15,6 +15,12 @@ HOMEBREW_PREFIX="/opt/homebrew"
 : "${SPARKDOCK_ENABLE_FZF:=1}"       # Enabled by default
 : "${SPARKDOCK_ENABLE_ATUIN:=0}"     # Disabled by default
 
+# Ensure ~/.local/bin exists and is on PATH (user-local binaries, XDG convention).
+[[ -d ~/.local/bin ]] || mkdir -p ~/.local/bin
+if [[ ":${PATH}:" != *":${HOME}/.local/bin:"* ]]; then
+  export PATH="${HOME}/.local/bin:${PATH}"
+fi
+
 # Add local zsh functions directory to fpath (skip if already present).
 if [[ -d ~/.local/share/zsh/site-functions ]] && (( ! ${fpath[(Ie)${HOME}/.local/share/zsh/site-functions]} )); then
   fpath+=~/.local/share/zsh/site-functions
