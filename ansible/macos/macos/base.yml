@@ -821,45 +821,6 @@
     - name: Configure RTK for LLM token optimization
       tags: rtk
       block:
-        # --- Claude Code ---
-        - name: Install RTK hook for Claude Code (global, hook only)
-          command: rtk init -g --hook-only --auto-patch
-          register: rtk_claude_hook_result
-          changed_when: true
-          failed_when: rtk_claude_hook_result.rc != 0
-          become: false
-
-        - name: Initialize RTK for Claude Code in temp directory
-          shell: |
-            RTK_TMPDIR=$(mktemp -d)
-            cd "${RTK_TMPDIR}"
-            rtk init --auto-patch
-            echo "${RTK_TMPDIR}"
-          register: rtk_claude_tmpdir
-          changed_when: false
-          become: false
-
-        - name: Ensure Claude Code config directory exists
-          file:
-            path: "{{ ansible_facts['env']['HOME'] }}/.claude"
-            state: directory
-            mode: '0755'
-          become: false
-
-        - name: Inject RTK instructions into Claude Code CLAUDE.md
-          blockinfile:
-            path: "{{ ansible_facts['env']['HOME'] }}/.claude/CLAUDE.md"
-            marker: "<!-- {mark} RTK MANAGED BLOCK -->"
-            block: "{{ lookup('file', rtk_claude_tmpdir.stdout + '/CLAUDE.md') }}"
-            create: yes
-          become: false
-
-        - name: Cleanup Claude Code temp directory
-          file:
-            path: "{{ rtk_claude_tmpdir.stdout }}"
-            state: absent
-          become: false
-
         # --- GitHub Copilot ---
         - name: Initialize RTK for GitHub Copilot in temp directory
           shell: |
@@ -910,7 +871,7 @@
 
         - name: Display RTK initialization status
           debug:
-            msg: "✅ RTK initialized for Claude Code, GitHub Copilot and OpenCode. Restart your AI coding tools to activate."
+            msg: "✅ RTK initialized for GitHub Copilot and OpenCode. Restart your AI coding tools to activate."
 
     - name: Sync AI coding agent resources from upstream repository
       tags:
