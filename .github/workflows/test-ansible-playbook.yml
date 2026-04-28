@@ -84,6 +84,39 @@ jobs:
           # Test basic functionality
           echo "✅ First installation completed successfully"
 
+      - name: Validate RTK integration (first run)
+        run: |
+          echo "=== Validating RTK integration ==="
+
+          # Check that rtk command is available (installed via Homebrew)
+          if ! command -v rtk >/dev/null 2>&1; then
+            echo "❌ rtk command not found"
+            exit 1
+          fi
+          echo "✅ rtk command is available"
+
+          # Check that GitHub Copilot hooks directory was created
+          if [ ! -d "${HOME}/.github-copilot/hooks" ]; then
+            echo "❌ ~/.github-copilot/hooks directory not found"
+            exit 1
+          fi
+          echo "✅ ~/.github-copilot/hooks directory exists"
+
+          # Check that RTK instructions were injected into custom-instructions.md
+          if [ ! -f "${HOME}/.github-copilot/custom-instructions.md" ]; then
+            echo "❌ ~/.github-copilot/custom-instructions.md not found"
+            exit 1
+          fi
+          echo "✅ ~/.github-copilot/custom-instructions.md exists"
+
+          if ! grep -q "BEGIN RTK MANAGED BLOCK" "${HOME}/.github-copilot/custom-instructions.md"; then
+            echo "❌ RTK managed block not found in custom-instructions.md"
+            exit 1
+          fi
+          echo "✅ RTK managed block present in custom-instructions.md"
+
+          echo "✅ RTK integration validated successfully"
+
       - name: Fix ownership permissions and clean git state before second run
         run: |
           echo "=== Fixing ownership permissions and git state for second run ==="
@@ -142,6 +175,20 @@ jobs:
           echo "✅ sjust functionality verified"
 
           echo "✅ Second installation completed successfully - installer is idempotent"
+
+      - name: Validate RTK idempotency (second run)
+        run: |
+          echo "=== Validating RTK idempotency ==="
+
+          # The BEGIN marker must appear exactly once — blockinfile must replace, not append
+          MARKER_COUNT=$(grep -c "BEGIN RTK MANAGED BLOCK" "${HOME}/.github-copilot/custom-instructions.md" || true)
+          if [ "${MARKER_COUNT}" -ne 1 ]; then
+            echo "❌ RTK managed block appears ${MARKER_COUNT} time(s) (expected 1) - idempotency broken"
+            exit 1
+          fi
+          echo "✅ RTK managed block appears exactly once — idempotency confirmed"
+
+          echo "✅ RTK idempotency validated successfully"
 
       - name: Clean up test installations (optional)
         if: always()
