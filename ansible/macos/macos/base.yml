@@ -826,7 +826,7 @@
           shell: |
             RTK_TMPDIR=$(mktemp -d)
             cd "${RTK_TMPDIR}"
-            rtk init --copilot --auto-patch
+            rtk init --copilot --auto-patch > /dev/null 2>&1
             echo "${RTK_TMPDIR}"
           register: rtk_copilot_tmpdir
           changed_when: true
