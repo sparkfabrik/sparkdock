@@ -96,31 +96,31 @@ jobs:
           echo "✅ rtk command is available"
 
           # Check that GitHub Copilot hooks directory was created
-          if [ ! -d "${HOME}/.github-copilot/hooks" ]; then
-            echo "❌ ~/.github-copilot/hooks directory not found"
+          if [ ! -d "${HOME}/.github/hooks" ]; then
+            echo "❌ ~/.github/hooks directory not found"
             exit 1
           fi
-          echo "✅ ~/.github-copilot/hooks directory exists"
+          echo "✅ ~/.github/hooks directory exists"
 
-          # Check that RTK instructions were injected into custom-instructions.md
-          if [ ! -f "${HOME}/.github-copilot/custom-instructions.md" ]; then
-            echo "❌ ~/.github-copilot/custom-instructions.md not found"
+          # Check that RTK instructions were injected into copilot-instructions.md
+          if [ ! -f "${HOME}/.github/copilot-instructions.md" ]; then
+            echo "❌ ~/.github/copilot-instructions.md not found"
             exit 1
           fi
-          echo "✅ ~/.github-copilot/custom-instructions.md exists"
+          echo "✅ ~/.github/copilot-instructions.md exists"
 
-          if ! grep -q "BEGIN RTK MANAGED BLOCK" "${HOME}/.github-copilot/custom-instructions.md"; then
-            echo "❌ RTK managed block not found in custom-instructions.md"
+          if ! grep -q "BEGIN RTK MANAGED BLOCK" "${HOME}/.github/copilot-instructions.md"; then
+            echo "❌ RTK managed block not found in copilot-instructions.md"
             exit 1
           fi
-          echo "✅ RTK managed block present in custom-instructions.md"
+          echo "✅ RTK managed block present in copilot-instructions.md"
 
           echo "✅ RTK integration validated successfully"
 
-      - name: Add user content to custom-instructions.md before second run
+      - name: Add user content to copilot-instructions.md before second run
         run: |
-          echo "# My custom instructions" >> "${HOME}/.github-copilot/custom-instructions.md"
-          echo "This user content must survive re-provisioning." >> "${HOME}/.github-copilot/custom-instructions.md"
+          echo "# My custom instructions" >> "${HOME}/.github/copilot-instructions.md"
+          echo "This user content must survive re-provisioning." >> "${HOME}/.github/copilot-instructions.md"
           echo "✅ User content added before second run"
 
       - name: Fix ownership permissions and clean git state before second run
@@ -187,7 +187,7 @@ jobs:
           echo "=== Validating RTK idempotency ==="
 
           # The BEGIN marker must appear exactly once — blockinfile must replace, not append
-          MARKER_COUNT=$(grep -c "BEGIN RTK MANAGED BLOCK" "${HOME}/.github-copilot/custom-instructions.md" || true)
+          MARKER_COUNT=$(grep -c "BEGIN RTK MANAGED BLOCK" "${HOME}/.github/copilot-instructions.md" || true)
           if [ "${MARKER_COUNT}" -ne 1 ]; then
             echo "❌ RTK managed block appears ${MARKER_COUNT} time(s) (expected 1) - idempotency broken"
             exit 1
@@ -195,7 +195,7 @@ jobs:
           echo "✅ RTK managed block appears exactly once — idempotency confirmed"
 
           # User content added before the second run must still be present
-          if ! grep -q "My custom instructions" "${HOME}/.github-copilot/custom-instructions.md"; then
+          if ! grep -q "My custom instructions" "${HOME}/.github/copilot-instructions.md"; then
             echo "❌ User content was lost after re-provisioning"
             exit 1
           fi

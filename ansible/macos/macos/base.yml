@@ -825,7 +825,8 @@
         - name: Initialize RTK for GitHub Copilot in temp directory
           shell: |
             RTK_TMPDIR=$(mktemp -d)
-            HOME="${RTK_TMPDIR}" rtk init -g --copilot --auto-patch
+            cd "${RTK_TMPDIR}"
+            rtk init --copilot --auto-patch
             echo "${RTK_TMPDIR}"
           register: rtk_copilot_tmpdir
           changed_when: true
@@ -833,24 +834,24 @@
 
         - name: Ensure GitHub Copilot hooks directory exists
           file:
-            path: "{{ ansible_facts['env']['HOME'] }}/.github-copilot/hooks"
+            path: "{{ ansible_facts['env']['HOME'] }}/.github/hooks"
             state: directory
             mode: '0755'
           become: false
 
         - name: Copy RTK hooks to GitHub Copilot config
           copy:
-            src: "{{ rtk_copilot_tmpdir.stdout }}/.github-copilot/hooks/"
-            dest: "{{ ansible_facts['env']['HOME'] }}/.github-copilot/hooks/"
+            src: "{{ rtk_copilot_tmpdir.stdout }}/.github/hooks/"
+            dest: "{{ ansible_facts['env']['HOME'] }}/.github/hooks/"
             remote_src: true
           become: false
           ignore_errors: yes
 
-        - name: Inject RTK instructions into Copilot custom-instructions.md
+        - name: Inject RTK instructions into Copilot copilot-instructions.md
           blockinfile:
-            path: "{{ ansible_facts['env']['HOME'] }}/.github-copilot/custom-instructions.md"
+            path: "{{ ansible_facts['env']['HOME'] }}/.github/copilot-instructions.md"
             marker: "<!-- {mark} RTK MANAGED BLOCK -->"
-            block: "{{ lookup('file', rtk_copilot_tmpdir.stdout + '/.github-copilot/custom-instructions.md') }}"
+            block: "{{ lookup('file', rtk_copilot_tmpdir.stdout + '/.github/copilot-instructions.md') }}"
             create: yes
           become: false
 
