@@ -17,8 +17,9 @@ HOMEBREW_PREFIX="/opt/homebrew"
 
 # Ensure ~/.local/bin exists and is on PATH (user-local binaries, XDG convention).
 [[ -d ~/.local/bin ]] || mkdir -p ~/.local/bin
-if [[ ":${PATH}:" != *":${HOME}/.local/bin:"* ]]; then
-  export PATH="${HOME}/.local/bin:${PATH}"
+if (( ! ${path[(Ie)${HOME}/.local/bin]} )); then
+  path=("${HOME}/.local/bin" ${path})
+  export PATH
 fi
 
 # Add local zsh functions directory to fpath (skip if already present).
