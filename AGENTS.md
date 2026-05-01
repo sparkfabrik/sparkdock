@@ -158,6 +158,8 @@ docker run --rm -v "$(pwd):/src" koalaman/shellcheck:stable /src/bin/sparkdock-a
 
 **CHANGELOG.md Conventions**
 
+**MANDATORY**: Every commit that changes user-visible behavior, adds features, fixes bugs, removes functionality, or refactors existing behavior **MUST** include a corresponding `CHANGELOG.md` entry under `## [Unreleased]`. This is not optional — treat a missing changelog entry as a build failure. The only exceptions are pure documentation or test-only changes with zero user-facing impact.
+
 This project uses a daily Slack digest that parses `CHANGELOG.md` to detect and announce new entries. Malformed sections (duplicate headers, wrong categories) **break the digest silently**. Follow these rules strictly:
 
 - Follow [Keep a Changelog](https://keepachangelog.com/) format
