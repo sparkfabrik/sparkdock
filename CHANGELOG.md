@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Extracted bashcompinit-based completions (gcloud) from `sparkdock.zshrc` into dedicated `config/shell/bashcompinit-completions.zsh` file for cleaner separation of concerns and easier addition of future bashcompinit tools (aws, terraform)
 - Replaced tmate with upterm for terminal session sharing (tmate is deprecated in Homebrew), with a transition shell shim that guides users to the new tool
 
 - Menubar app now auto-refreshes subsystem status after upgrade actions complete so the icon updates immediately
