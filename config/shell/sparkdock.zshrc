@@ -49,21 +49,11 @@ if [[ -d "${_sparkdock_site_dir}" ]]; then
 fi
 unset _sparkdock_site_dir
 
-# Source bashcompinit-based completions.
-# Tools like gcloud use bash-style `complete -F` via bashcompinit rather than
-# native zsh completions. These must be sourced explicitly — autoload won't work.
-if command_exists gcloud; then
-  local _gcloud_comp
-  for _gcloud_comp in \
-    /opt/google-cloud-sdk/completion.zsh.inc \
-    /opt/google-cloud-cli/completion.zsh.inc \
-    /opt/homebrew/share/google-cloud-sdk/completion.zsh.inc; do
-    if [[ -f "${_gcloud_comp}" ]]; then
-      source "${_gcloud_comp}"
-      break
-    fi
-  done
-  unset _gcloud_comp
+# Source bashcompinit-based completions (gcloud, aws, etc.).
+# These use bash-style `complete -F` via bashcompinit and must be sourced
+# explicitly after the autoload loop to avoid compinit wipes.
+if [[ -f "${SPARKDOCK_SHELL_DIR}/bashcompinit-completions.zsh" ]]; then
+  source "${SPARKDOCK_SHELL_DIR}/bashcompinit-completions.zsh"
 fi
 
 # Optional: Source user customizations
