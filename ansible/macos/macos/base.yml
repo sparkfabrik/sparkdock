@@ -818,6 +818,84 @@
             - openspec_completion_output is not skipped
             - openspec_completion_output.rc == 0
 
+    - name: Configure RTK for LLM token optimization
+      tags: rtk
+      block:
+        # --- GitHub Copilot ---
+        - name: Initialize RTK for GitHub Copilot in temp directory
+          shell: |
+            RTK_TMPDIR=$(mktemp -d)
+            cd "${RTK_TMPDIR}"
+            rtk init --copilot --auto-patch > /dev/null 2>&1
+            echo "${RTK_TMPDIR}"
+          register: rtk_copilot_tmpdir
+          changed_when: true
+          become: false
+
+        - name: Ensure GitHub Copilot Chat hooks directory exists (VS Code)
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.github/hooks"
+            state: directory
+            mode: '0755'
+          become: false
+
+        - name: Copy RTK hooks to GitHub Copilot Chat config (VS Code)
+          copy:
+            src: "{{ rtk_copilot_tmpdir.stdout }}/.github/hooks/"
+            dest: "{{ ansible_facts['env']['HOME'] }}/.github/hooks/"
+            remote_src: true
+          become: false
+          ignore_errors: yes
+
+        - name: Inject RTK instructions into Copilot copilot-instructions.md (VS Code)
+          blockinfile:
+            path: "{{ ansible_facts['env']['HOME'] }}/.github/copilot-instructions.md"
+            marker: "<!-- {mark} RTK MANAGED BLOCK -->"
+            block: "{{ lookup('file', rtk_copilot_tmpdir.stdout + '/.github/copilot-instructions.md') }}"
+            create: yes
+          become: false
+
+        # --- Copilot CLI paths (~/.copilot/) ---
+        - name: Ensure Copilot CLI hooks directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.copilot/hooks"
+            state: directory
+            mode: '0755'
+          become: false
+
+        - name: Copy RTK hooks to Copilot CLI config
+          copy:
+            src: "{{ rtk_copilot_tmpdir.stdout }}/.github/hooks/"
+            dest: "{{ ansible_facts['env']['HOME'] }}/.copilot/hooks/"
+            remote_src: true
+          become: false
+
+        - name: Inject RTK instructions into Copilot CLI copilot-instructions.md
+          blockinfile:
+            path: "{{ ansible_facts['env']['HOME'] }}/.copilot/copilot-instructions.md"
+            marker: "<!-- {mark} RTK MANAGED BLOCK -->"
+            block: "{{ lookup('file', rtk_copilot_tmpdir.stdout + '/.github/copilot-instructions.md') }}"
+            create: yes
+          become: false
+
+        - name: Cleanup GitHub Copilot temp directory
+          file:
+            path: "{{ rtk_copilot_tmpdir.stdout }}"
+            state: absent
+          become: false
+
+        # --- OpenCode ---
+        - name: Initialize RTK for OpenCode
+          command: rtk init -g --opencode --auto-patch
+          register: rtk_opencode_result
+          changed_when: true
+          failed_when: rtk_opencode_result.rc != 0
+          become: false
+
+        - name: Display RTK initialization status
+          debug:
+            msg: "✅ RTK initialized for GitHub Copilot and OpenCode. Restart your AI coding tools to activate."
+
     - name: Sync AI coding agent resources from upstream repository
       tags:
         - skills
