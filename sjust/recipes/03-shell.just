@@ -1,14 +1,18 @@
 
+# Sparkdock root, resolved from this recipe file's location.
+_sparkdock_root := clean(source_directory() / "../..")
+
 # Enable Sparkdock shell enhancements in your zshrc.
 # Pass "force" as argument to override declined state: sjust shell-enable force
 [group('shell')]
 shell-enable $force="false":
     #!/usr/bin/env bash
     set -euo pipefail
+    export SPARKDOCK_ROOT="{{_sparkdock_root}}"
     source "{{source_directory()}}/../libs/libshell.sh"
 
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_CHECK_LINE="if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
+    SPARKDOCK_CHECK_LINE="if [ -f ${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc ]; then"
     DECLINED_FILE="${HOME}/.config/spark/.shell-enable-declined"
 
     # Create zshrc if it doesn't exist
@@ -80,10 +84,11 @@ shell-enable $force="false":
 shell-disable:
     #!/usr/bin/env bash
     set -euo pipefail
+    export SPARKDOCK_ROOT="{{_sparkdock_root}}"
     source "{{source_directory()}}/../libs/libshell.sh"
 
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_CHECK_LINE="if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
+    SPARKDOCK_CHECK_LINE="if [ -f ${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc ]; then"
 
     if ! grep -qF "${SPARKDOCK_CHECK_LINE}" "${ZSHRC_FILE}"; then
         echo "ℹ️  Sparkdock shell enhancements are not enabled in ${ZSHRC_FILE}"
@@ -108,6 +113,7 @@ shell-disable:
 shell-info:
     #!/usr/bin/env bash
     set -euo pipefail
+    export SPARKDOCK_ROOT="{{_sparkdock_root}}"
     source "{{source_directory()}}/../libs/libshell.sh"
     sparkdock_print_shell_overview "${HOME}/.zshrc" "no"
 
@@ -117,7 +123,8 @@ shell-omz-setup:
     #!/usr/bin/env bash
     set -euo pipefail
 
-    source "/opt/sparkdock/bin/common/logging.sh"
+    SPARKDOCK_ROOT="{{_sparkdock_root}}"
+    source "${SPARKDOCK_ROOT}/bin/common/logging.sh"
     log_section "Setting up oh-my-zsh and zsh plugins"
     echo ""
 
@@ -201,7 +208,7 @@ shell-omz-setup:
     echo "  - ssh-agent (built-in to oh-my-zsh)"
     echo ""
     echo "Plugins are automatically enabled when you source sparkdock.zshrc"
-    echo "Configuration is in: /opt/sparkdock/config/shell/omz-init.zsh"
+    echo "Configuration is in: ${SPARKDOCK_ROOT}/config/shell/omz-init.zsh"
     echo ""
     echo "💡 To update on-my-zsh and plugins in the future, simply re-run 'sjust shell-omz-setup'"
 
@@ -211,7 +218,7 @@ shell-starship-setup:
     @just _shell-config-setup \
         "starship" \
         "${HOME}/.config/starship.toml" \
-        "/opt/sparkdock/config/shell/config/starship/starship.toml" \
+        "{{_sparkdock_root}}/config/shell/config/starship/starship.toml" \
         "config at ~/.config/starship.toml" \
         "See https://starship.rs/config/ for configuration options"
 
@@ -221,13 +228,14 @@ shell-eza-setup:
     @just _shell-config-setup \
         "eza" \
         "${HOME}/.config/eza/theme.yml" \
-        "/opt/sparkdock/config/shell/config/eza/theme.yml" \
+        "{{_sparkdock_root}}/config/shell/config/eza/theme.yml" \
         "theme at ~/.config/eza/theme.yml" \
         "Based on Catppuccin color scheme"
 
 # Generic configuration setup helper.
 _shell-config-setup tool_name config_path sparkdock_path config_description setup_info:
     #!/usr/bin/env bash
+    export SPARKDOCK_ROOT="{{_sparkdock_root}}"
     source "{{source_directory()}}/../libs/libshell.sh"
 
     USER_CONFIG="{{config_path}}"
@@ -252,5 +260,6 @@ _shell-config-setup tool_name config_path sparkdock_path config_description setu
 [group('shell')]
 shell-ghostty-setup:
     #!/usr/bin/env bash
+    export SPARKDOCK_ROOT="{{_sparkdock_root}}"
     source "{{source_directory()}}/../libs/libshell.sh"
     sparkdock_setup_ghostty_config
