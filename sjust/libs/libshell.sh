@@ -6,6 +6,11 @@
 # shellcheck source=../../bin/common/logging.sh
 source "$(dirname "${BASH_SOURCE[0]:-$0}")/../../bin/common/logging.sh"
 
+# Resolve SPARKDOCK_ROOT: honor env override, otherwise derive from this script's location.
+# libshell.sh lives at <sparkdock_root>/sjust/libs/libshell.sh
+: "${SPARKDOCK_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && pwd)}"
+export SPARKDOCK_ROOT
+
 # Check if a user file is symlinked to Sparkdock's default
 # Usage: check_sparkdock_symlink <user_file> <sparkdock_file>
 # Returns:
@@ -192,11 +197,11 @@ sparkdock_write_shell_config() {
     {
         echo ""
         echo "# Sparkdock shell enhancements"
-        echo "if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
+        echo "if [ -f \"${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc\" ]; then"
         printf '    export SPARKDOCK_ENABLE_STARSHIP=%s\n' "${DEFAULT_STARSHIP}"
         printf '    export SPARKDOCK_ENABLE_FZF=%s\n' "${DEFAULT_FZF}"
         printf '    export SPARKDOCK_ENABLE_ATUIN=%s\n' "${DEFAULT_ATUIN}"
-        echo "    source /opt/sparkdock/config/shell/sparkdock.zshrc;"
+        echo "    source \"${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc\""
         echo "fi"
     } >> "${zshrc_file}"
 }
@@ -259,20 +264,20 @@ sparkdock_print_shell_overview() {
 
     echo ""
     echo "📚 Reference files:"
-    echo "   • Primary config: /opt/sparkdock/config/shell/sparkdock.zshrc"
-    echo "   • Documentation:  /opt/sparkdock/config/shell/README.md"
-    echo "   • Alias catalog:  /opt/sparkdock/config/shell/aliases.zsh"
+    echo "   • Primary config: ${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc"
+    echo "   • Documentation:  ${SPARKDOCK_ROOT}/config/shell/README.md"
+    echo "   • Alias catalog:  ${SPARKDOCK_ROOT}/config/shell/aliases.zsh"
     echo ""
     echo "✏️ Personal overrides (auto-sourced after Sparkdock):"
     echo "   ~/.config/spark/shell.zsh  — keep custom aliases and exports here"
     echo ""
     echo "Block to be appended to ${zshrc_file}:"
     echo ""
-    echo "+ if [ -f /opt/sparkdock/config/shell/sparkdock.zshrc ]; then"
+    echo "+ if [ -f \"${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc\" ]; then"
     echo "+     export SPARKDOCK_ENABLE_STARSHIP=${DEFAULT_STARSHIP}"
     echo "+     export SPARKDOCK_ENABLE_FZF=${DEFAULT_FZF}"
     echo "+     export SPARKDOCK_ENABLE_ATUIN=${DEFAULT_ATUIN}"
-    echo "+     source /opt/sparkdock/config/shell/sparkdock.zshrc;"
+    echo "+     source \"${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc\""
     echo "+     # Set SPARKDOCK_ENABLE_* above this block to change defaults"
     echo "+ fi"
     echo ""
@@ -294,7 +299,7 @@ sparkdock_print_shell_overview() {
 sparkdock_setup_ghostty_config() {
     local USER_CONFIG="${HOME}/.config/ghostty/config"
     local USER_OVERRIDES="${HOME}/.config/ghostty/user"
-    local SPARKDOCK_CONFIG="/opt/sparkdock/config/shell/config/ghostty/config"
+    local SPARKDOCK_CONFIG="${SPARKDOCK_ROOT}/config/shell/config/ghostty/config"
 
     # Check if user config already exists and is not empty
     if [[ -f "${USER_CONFIG}" && -s "${USER_CONFIG}" ]]; then
@@ -340,13 +345,13 @@ sparkdock_setup_ghostty_config() {
     echo "📦 Setting up Ghostty configuration with two-file setup..."
     mkdir -p "$(dirname "${USER_CONFIG}")"
 
-    cat > "${USER_CONFIG}" << 'EOF'
+    cat > "${USER_CONFIG}" << EOF
 # Ghostty Configuration
 # This file loads Sparkdock's base configuration and allows you to override settings.
 # Documentation: https://ghostty.org/docs/config
 
 # Load Sparkdock base configuration
-config-file = /opt/sparkdock/config/shell/config/ghostty/config
+config-file = ${SPARKDOCK_CONFIG}
 
 # Load user configuration/overrides (? prefix = optional, no error if missing)
 config-file = ?user

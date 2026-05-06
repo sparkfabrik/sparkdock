@@ -68,6 +68,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved shell recipes (`shell-enable`, `shell-disable`, `shell-info`, `shell-omz-setup`, `shell-starship-setup`, `shell-eza-setup`, `shell-ghostty-setup`) to shared recipes directory for cross-platform reuse via ajust on Linux
+- Extracted bashcompinit-based completions (gcloud) from `sparkdock.zshrc` into dedicated `config/shell/bashcompinit-completions.zsh` file for cleaner separation of concerns and easier addition of future bashcompinit tools (aws, terraform)
 - Replaced tmate with upterm for terminal session sharing (tmate is deprecated in Homebrew), with a transition shell shim that guides users to the new tool
 
 - Menubar app now auto-refreshes subsystem status after upgrade actions complete so the icon updates immediately
@@ -104,6 +106,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed `shell-enable` re-prompting users who already have Sparkdock shell enhancements installed, caused by quoting mismatch in the detection string after the cross-platform refactor
+- Fixed CI failure caused by `neofetch` being removed from Homebrew — dropped it from the `removed_homebrew_packages` list since the formula no longer exists
 - Fixed sjust zsh tab-completion (`_clap_dynamic_completer_sjust` not found) caused by just 1.40+ switching to dynamic clap completions — replaced sed-based renaming with a custom completion file that correctly bridges sjust to just's dynamic completer
 - Fixed Slack notification announcing already-released features by using zero-context git diff (`-U0`) to eliminate context lines that confused Claude AI
 - Fixed zsh completions from `~/.local/share/zsh/site-functions` not being discovered when the user's `.zshrc` calls `compinit` before sourcing sparkdock

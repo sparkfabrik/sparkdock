@@ -22,10 +22,23 @@ if ! whence -w compdef >/dev/null 2>&1; then
   compinit
 fi
 
+# Source shell aliases
+if [[ -f "${SPARKDOCK_SHELL_DIR}/aliases.zsh" ]]; then
+  source "${SPARKDOCK_SHELL_DIR}/aliases.zsh"
+fi
+
+# Generate any missing completion files (fallback for non-Ansible installs).
+# This must run BEFORE the autoload loop so freshly generated files are picked up.
+: "${SPARKDOCK_ENABLE_COMPLETIONS:=1}" # Enabled by default
+if [[ "$SPARKDOCK_ENABLE_COMPLETIONS" == "1" && -f "${SPARKDOCK_SHELL_DIR}/completions.zsh" ]]; then
+  source "${SPARKDOCK_SHELL_DIR}/completions.zsh"
+fi
+
 # Register site-functions completions directly via autoload + compdef.
 # This avoids re-running compinit (which wipes bashcompinit registrations
 # like aws, gcloud) and works regardless of whether the user added
 # site-functions to fpath before or after their own compinit call.
+# Runs AFTER completions.zsh so freshly generated files are included.
 _sparkdock_site_dir="${HOME}/.local/share/zsh/site-functions"
 if [[ -d "${_sparkdock_site_dir}" ]]; then
   for _f in "${_sparkdock_site_dir}"/_*(N); do
@@ -36,15 +49,11 @@ if [[ -d "${_sparkdock_site_dir}" ]]; then
 fi
 unset _sparkdock_site_dir
 
-# Source shell aliases
-if [[ -f "${SPARKDOCK_SHELL_DIR}/aliases.zsh" ]]; then
-  source "${SPARKDOCK_SHELL_DIR}/aliases.zsh"
-fi
-
-# Source tool completions (optional, can be disabled via SPARKDOCK_ENABLE_COMPLETIONS)
-: "${SPARKDOCK_ENABLE_COMPLETIONS:=1}" # Enabled by default
-if [[ "$SPARKDOCK_ENABLE_COMPLETIONS" == "1" && -f "${SPARKDOCK_SHELL_DIR}/completions.zsh" ]]; then
-  source "${SPARKDOCK_SHELL_DIR}/completions.zsh"
+# Source bashcompinit-based completions (gcloud, aws, etc.).
+# These use bash-style `complete -F` via bashcompinit and must be sourced
+# explicitly after the autoload loop to avoid compinit wipes.
+if [[ -f "${SPARKDOCK_SHELL_DIR}/bashcompinit-completions.zsh" ]]; then
+  source "${SPARKDOCK_SHELL_DIR}/bashcompinit-completions.zsh"
 fi
 
 # Optional: Source user customizations
