@@ -14,7 +14,7 @@ shell-enable $force="false":
     source "{{source_directory()}}/../../libs/libshell.sh"
 
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_CHECK_LINE="if [ -f \"${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc\" ]; then"
+    SPARKDOCK_CHECK_STRING="${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc"
     DECLINED_FILE="${HOME}/.config/spark/.shell-enable-declined"
 
     # Create zshrc if it doesn't exist
@@ -34,8 +34,8 @@ shell-enable $force="false":
         echo ""
     fi
 
-    # Check if already enabled
-    if grep -qF "${SPARKDOCK_CHECK_LINE}" "${ZSHRC_FILE}"; then
+    # Check if already enabled (matches both quoted and unquoted path variants)
+    if grep -qF "${SPARKDOCK_CHECK_STRING}" "${ZSHRC_FILE}"; then
         echo "ℹ️  Sparkdock shell enhancements are already enabled in ${ZSHRC_FILE}"
         echo ""
         echo "If you want reinstall again:"
@@ -90,9 +90,9 @@ shell-disable:
     source "{{source_directory()}}/../../libs/libshell.sh"
 
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_CHECK_LINE="if [ -f \"${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc\" ]; then"
+    SPARKDOCK_CHECK_STRING="${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc"
 
-    if ! grep -qF "${SPARKDOCK_CHECK_LINE}" "${ZSHRC_FILE}"; then
+    if ! grep -qF "${SPARKDOCK_CHECK_STRING}" "${ZSHRC_FILE}"; then
         echo "ℹ️  Sparkdock shell enhancements are not enabled in ${ZSHRC_FILE}"
         exit 0
     fi
