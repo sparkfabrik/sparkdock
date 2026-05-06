@@ -1,6 +1,8 @@
+# vim: set ft=make :
 
 # Sparkdock root, resolved from this recipe file's location.
-_sparkdock_root := clean(source_directory() / "../..")
+# shared/05-shell.just lives at <sparkdock_root>/sjust/recipes/shared/
+_sparkdock_root := clean(source_directory() / "../../..")
 
 # Enable Sparkdock shell enhancements in your zshrc.
 # Pass "force" as argument to override declined state: sjust shell-enable force
@@ -9,10 +11,10 @@ shell-enable $force="false":
     #!/usr/bin/env bash
     set -euo pipefail
     export SPARKDOCK_ROOT="{{_sparkdock_root}}"
-    source "{{source_directory()}}/../libs/libshell.sh"
+    source "{{source_directory()}}/../../libs/libshell.sh"
 
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_CHECK_LINE="if [ -f ${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc ]; then"
+    SPARKDOCK_CHECK_LINE="if [ -f \"${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc\" ]; then"
     DECLINED_FILE="${HOME}/.config/spark/.shell-enable-declined"
 
     # Create zshrc if it doesn't exist
@@ -85,10 +87,10 @@ shell-disable:
     #!/usr/bin/env bash
     set -euo pipefail
     export SPARKDOCK_ROOT="{{_sparkdock_root}}"
-    source "{{source_directory()}}/../libs/libshell.sh"
+    source "{{source_directory()}}/../../libs/libshell.sh"
 
     ZSHRC_FILE="${HOME}/.zshrc"
-    SPARKDOCK_CHECK_LINE="if [ -f ${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc ]; then"
+    SPARKDOCK_CHECK_LINE="if [ -f \"${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc\" ]; then"
 
     if ! grep -qF "${SPARKDOCK_CHECK_LINE}" "${ZSHRC_FILE}"; then
         echo "ℹ️  Sparkdock shell enhancements are not enabled in ${ZSHRC_FILE}"
@@ -114,7 +116,7 @@ shell-info:
     #!/usr/bin/env bash
     set -euo pipefail
     export SPARKDOCK_ROOT="{{_sparkdock_root}}"
-    source "{{source_directory()}}/../libs/libshell.sh"
+    source "{{source_directory()}}/../../libs/libshell.sh"
     sparkdock_print_shell_overview "${HOME}/.zshrc" "no"
 
 # Setup oh-my-zsh and zsh plugins.
@@ -236,7 +238,7 @@ shell-eza-setup:
 _shell-config-setup tool_name config_path sparkdock_path config_description setup_info:
     #!/usr/bin/env bash
     export SPARKDOCK_ROOT="{{_sparkdock_root}}"
-    source "{{source_directory()}}/../libs/libshell.sh"
+    source "{{source_directory()}}/../../libs/libshell.sh"
 
     USER_CONFIG="{{config_path}}"
     SPARKDOCK_CONFIG="{{sparkdock_path}}"
@@ -261,5 +263,5 @@ _shell-config-setup tool_name config_path sparkdock_path config_description setu
 shell-ghostty-setup:
     #!/usr/bin/env bash
     export SPARKDOCK_ROOT="{{_sparkdock_root}}"
-    source "{{source_directory()}}/../libs/libshell.sh"
+    source "{{source_directory()}}/../../libs/libshell.sh"
     sparkdock_setup_ghostty_config
