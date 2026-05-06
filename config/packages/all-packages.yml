@@ -94,7 +94,6 @@ linked_packages: []
 removed_homebrew_packages:
   - "node@20"
   - docker-compose
-  - neofetch
   - "php@8.3"
   - tmate
 
