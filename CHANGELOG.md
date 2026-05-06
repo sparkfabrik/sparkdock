@@ -100,6 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed automatic RTK (Rust Token Killer) setup from Ansible provisioning due to security concerns (token manipulation risks); use `sjust sf-rtk-setup` for manual opt-in
 - Removed `sjust sf-skills-refresh` backward-compatible alias (use `sf-agents-refresh` instead)
 - Removed `sjust sf-skills-status` backward-compatible alias (use `sf-agents-status` instead)
 
