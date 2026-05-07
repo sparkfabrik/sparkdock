@@ -796,7 +796,7 @@
           become: yes
           become_method: sudo
 
-        - name: Deploy OpenCode configuration with security permissions and OpenCode provider disabled
+        - name: Deploy base OpenCode configuration
           copy:
             src: "{{ dev_env_dir }}/config/macos/opencode.json"
             dest: "/Library/Application Support/opencode/opencode.json"
@@ -808,7 +808,7 @@
 
         - name: Display OpenCode configuration status
           debug:
-            msg: "✅ OpenCode configuration deployed to /Library/Application Support/opencode/opencode.json (OpenCode provider disabled; 175 permission rules — dangerous commands are blocked or require confirmation)"
+            msg: "✅ OpenCode configuration deployed to /Library/Application Support/opencode/opencode.json (user-writable; OpenCode provider disabled; 175 permission rules — dangerous commands are blocked or require confirmation)"
 
         - name: Ensure zsh site-functions directory exists
           ansible.builtin.file:

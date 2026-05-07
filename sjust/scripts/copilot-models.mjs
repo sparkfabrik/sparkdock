@@ -168,7 +168,20 @@ async function updateLocalConfig(modelsBlock) {
         "Run the sparkdock provisioner to create it: sparkdock",
     );
   }
-  await writeFile(OPENCODE_JSON_PATH, JSON.stringify(config, null, 2) + "\n");
+  try {
+    await writeFile(
+      OPENCODE_JSON_PATH,
+      JSON.stringify(config, null, 2) + "\n",
+    );
+  } catch (err) {
+    if (err.code === "EACCES") {
+      fail(
+        `Permission denied writing to ${OPENCODE_JSON_PATH}.\n` +
+          "Run the sparkdock provisioner to fix file ownership: sparkdock",
+      );
+    }
+    throw err;
+  }
 
   const count = Object.keys(modelsBlock).length;
   if (source !== OPENCODE_JSON_PATH) {
