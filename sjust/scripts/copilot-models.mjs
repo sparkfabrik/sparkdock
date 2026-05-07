@@ -8,7 +8,7 @@
 //   https://github.com/anomalyco/models.dev/issues/1136
 //   https://github.com/anomalyco/opencode/issues/16129
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
+import { readFile, writeFile, access } from "node:fs/promises";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fail, fetchWithAuth, BASE_HEADERS } from "./lib/copilot-auth.mjs";
@@ -158,7 +158,16 @@ async function updateLocalConfig(modelsBlock) {
     config.provider["github-copilot"] = {};
   config.provider["github-copilot"].models = modelsBlock;
 
-  await mkdir(dirname(OPENCODE_JSON_PATH), { recursive: true });
+  // Verify the target directory exists (created by the sparkdock provisioner)
+  const targetDir = dirname(OPENCODE_JSON_PATH);
+  try {
+    await access(targetDir);
+  } catch {
+    fail(
+      `Directory ${targetDir} does not exist.\n` +
+        "Run the sparkdock provisioner to create it: sparkdock",
+    );
+  }
   await writeFile(OPENCODE_JSON_PATH, JSON.stringify(config, null, 2) + "\n");
 
   const count = Object.keys(modelsBlock).length;
