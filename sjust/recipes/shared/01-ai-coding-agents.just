@@ -19,7 +19,6 @@ sf-agents-status:
 
 # Check Copilot model context/output limits against the current opencode.json config.
 # Pass --update to automatically write the correct limits to opencode.json.
-# When --update is used, sudo is required to write to the system-wide config path.
 # Requires GitHub Copilot authentication (gh CLI or OpenCode).
 # Refs: https://github.com/anomalyco/models.dev/issues/1136
 #       https://github.com/anomalyco/opencode/issues/16129
@@ -31,11 +30,7 @@ sf-copilot-model-limits *args='':
         echo "ERROR: Node.js is required but not found."
         exit 1
     fi
-    if [[ " {{args}} " == *" --update "* ]]; then
-        sudo node "{{sparkdock_path}}/sjust/scripts/copilot-models.mjs" {{args}}
-    else
-        node "{{sparkdock_path}}/sjust/scripts/copilot-models.mjs" {{args}}
-    fi
+    node "{{sparkdock_path}}/sjust/scripts/copilot-models.mjs" {{args}}
 
 # List available Copilot model IDs (one per line). Useful for scripting with machine names.
 # Requires GitHub Copilot authentication (gh CLI or OpenCode).
