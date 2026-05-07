@@ -67,10 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved opencode base configuration from `~/.config/opencode/opencode.json` to `/Library/Application Support/opencode/opencode.json` (system-wide, root-owned) to support user-local overrides via `~/.config/opencode/opencode.json`
 - Moved shell recipes (`shell-enable`, `shell-disable`, `shell-info`, `shell-omz-setup`, `shell-starship-setup`, `shell-eza-setup`, `shell-ghostty-setup`) to shared recipes directory for cross-platform reuse via ajust on Linux
 - Extracted bashcompinit-based completions (gcloud) from `sparkdock.zshrc` into dedicated `config/shell/bashcompinit-completions.zsh` file for cleaner separation of concerns and easier addition of future bashcompinit tools (aws, terraform)
 - Replaced tmate with upterm for terminal session sharing (tmate is deprecated in Homebrew), with a transition shell shim that guides users to the new tool
-
 - Menubar app now auto-refreshes subsystem status after upgrade actions complete so the icon updates immediately
 - Changed Copilot API auth to support multiple sources (gh CLI, OpenCode) with automatic fallback on 401/403, removing the hard dependency on OpenCode for `sf-copilot-premium-usage`, `sf-copilot-model-limits`, and `sf-copilot-model-list` recipes
 - Improved `copilot-models.mjs` plain-text table output with proper column alignment when `gum` is not available, use `premium` API field for model grouping, and use unique temp file names for `gum` table rendering

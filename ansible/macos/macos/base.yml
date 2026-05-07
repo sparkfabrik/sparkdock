@@ -739,23 +739,39 @@
     - name: Configure OpenCode settings
       tags: opencode
       block:
-        - name: Ensure OpenCode config directory exists
+        - name: Ensure OpenCode user config directory exists
           file:
             path: "{{ ansible_facts['env']['HOME'] }}/.config/opencode"
             state: directory
             mode: "0755"
           become: no
 
+        - name: Notify user about personal opencode configuration
+          debug:
+            msg: >-
+              You can create ~/.config/opencode/opencode.json for personal
+              customizations. It will be merged with the system-wide configuration
+              shipped in /Library/Application Support/opencode/opencode.json.
+
+        - name: Create system-wide OpenCode config directory
+          file:
+            path: "/Library/Application Support/opencode"
+            state: directory
+            mode: "0755"
+          become: yes
+          become_method: sudo
+
         - name: Deploy OpenCode configuration with security permissions and OpenCode provider disabled
           copy:
             src: "{{ dev_env_dir }}/config/macos/opencode.json"
-            dest: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
+            dest: "/Library/Application Support/opencode/opencode.json"
             mode: "0644"
-          become: no
+          become: yes
+          become_method: sudo
 
         - name: Display OpenCode configuration status
           debug:
-            msg: "✅ OpenCode configuration deployed successfully (OpenCode provider disabled; 175 permission rules — dangerous commands are blocked or require confirmation)"
+            msg: "✅ OpenCode configuration deployed to /Library/Application Support/opencode/opencode.json (OpenCode provider disabled; 175 permission rules — dangerous commands are blocked or require confirmation)"
 
         - name: Ensure zsh site-functions directory exists
           ansible.builtin.file:

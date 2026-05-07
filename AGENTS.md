@@ -13,6 +13,7 @@ Sparkdock is an automated macOS development environment provisioner built with A
 ## Common Commands
 
 ### Running Ansible Provisioning
+
 ```bash
 # Run full system provisioning
 sparkdock
@@ -23,6 +24,7 @@ just run-ansible-playbook "http-proxy"
 ```
 
 ### SparkJust Task Runner (sjust)
+
 ```bash
 # Show available commands and list all tasks
 sjust
@@ -58,6 +60,7 @@ my-recipe $param="default":
 Without the `$` prefix, parameters require `{{param}}` interpolation in recipe lines.
 
 ### HTTP Proxy Management
+
 ```bash
 spark-http-proxy start           # Start proxy services
 spark-http-proxy stop            # Stop proxy services
@@ -65,6 +68,7 @@ spark-http-proxy status          # Check service status
 ```
 
 ### Development Workflow
+
 ```bash
 # Run specific Ansible tasks by tags
 sjust install-tags "docker,keyboard"
@@ -73,6 +77,7 @@ sjust install-tags "docker,keyboard"
 ## Architecture
 
 ### Directory Structure
+
 - `/opt/sparkdock/` - Main installation directory
 - `ansible/` - Ansible playbooks and configuration
 - `sjust/` - SparkJust task runner with recipes
@@ -83,11 +88,13 @@ sjust install-tags "docker,keyboard"
 ### Core Components
 
 **Ansible Provisioning System:**
+
 - Main playbook: `ansible/macos.yml` → `ansible/macos/macos/base.yml`
 - Package definitions: `config/packages/all-packages.yml`
 - Supports tagging for selective installation
 
 **SparkJust Task Runner:**
+
 - Wrapper around Just task runner: `sjust/sjust.sh`
 - Recipe files in `sjust/recipes/` with modular task definitions
 - User customizations via `~/.config/sjust/100-custom.just`
@@ -96,11 +103,13 @@ sjust install-tags "docker,keyboard"
 - Use `source "{{source_directory()}}/../libs/libshell.sh"` to load shared utilities
 
 **HTTP Proxy Integration:**
+
 - Clones SparkFabrik HTTP proxy to `/opt/sparkdock/http-proxy`
 - Configures DNS resolver for `.loc` domains
 - Manages SSL certificates with mkcert
 
 ### Package Management
+
 - Homebrew packages and casks defined in YAML
 - Automatic tap management and cleanup
 - Version-specific packages (Node 20, PHP 8.2)
@@ -109,6 +118,7 @@ sjust install-tags "docker,keyboard"
 ## Shell Script Standards
 
 All shell scripts must:
+
 - Use `#!/usr/bin/env bash` shebang
 - Include `set -euo pipefail` for error handling
 - Use `${variable}` syntax with braces (never bare `$variable`)
@@ -144,9 +154,16 @@ docker run --rm -v "$(pwd):/src" koalaman/shellcheck:stable /src/bin/sparkdock-a
 - Run via Docker: `docker run --rm -v "$(pwd)/src:/src" ghcr.io/astral-sh/ruff:latest format /src`
 - Lint check: `docker run --rm -v "$(pwd)/src:/src" ghcr.io/astral-sh/ruff:latest check /src`
 
+## Markdown Formatting
+
+After creating or editing any Markdown file (`.md`), **always** run the
+formatter before committing. Never format Markdown by hand -- delegate to
+the tool.
+
 ## Code Quality Standards
 
 **CRITICAL: Trailing Whitespace**
+
 - **NEVER** commit trailing whitespace (spaces/tabs at end of lines)
 - Git will warn about trailing whitespace during commits
 - Always clean up trailing whitespace before staging changes
@@ -154,6 +171,7 @@ docker run --rm -v "$(pwd):/src" koalaman/shellcheck:stable /src/bin/sparkdock-a
 - This applies to ALL files: Swift, shell scripts, YAML, Markdown, etc.
 
 **JavaScript Style**
+
 - Always use braces for `if`, `for`, `while`, and similar control statements, even for single-line bodies
 
 **CHANGELOG.md Conventions**
@@ -183,12 +201,14 @@ This project uses a daily Slack digest that parses `CHANGELOG.md` to detect and 
 A Swift-based menu bar application provides battery-efficient visual update notifications using modern async/await patterns:
 
 ### Key Features
+
 - **Event-Driven Updates**: Only checks on system wake and network connectivity changes (no periodic polling)
 - **Modern Swift Concurrency**: Uses structured concurrency with proper cancellation and timeout handling
 - **Battery Efficient**: NWPathMonitor for lightweight network monitoring
 - **Resource Debugging**: Enhanced logging for missing logo/resource troubleshooting
 
 ### Building and Testing
+
 ```bash
 cd src/menubar-app
 make build                    # Build the app
@@ -198,6 +218,7 @@ make uninstall               # Remove installation
 ```
 
 ### Integration
+
 - Built automatically during Ansible provisioning with `menubar` tag
 - Replaces old launchd-based update notifications
 - Auto-starts at login via launch agent (local development only)
@@ -211,27 +232,34 @@ Sparkdock syncs AI coding resources from the upstream `sf-awesome-copilot` repos
 - **Agent profiles**: Per-tool agent configurations (e.g., "The Architect") installed to tool-specific directories (`~/.copilot/agents/`, `~/.config/opencode/agents/`)
 
 ### Key Scripts
+
 - `bin/sparkdock-agents-sync` — Unified sync script with tool registry, skill sync, agent sync, v2 manifest
 - `bin/sparkdock-agents-status` — Status display for both skills and agent profiles
 - `bin/sparkdock-check-updates` — Accepts both `skills` and `agents` subcommands
 
 ### Tool Registry
+
 The sync script uses associative arrays to map each coding tool to its install directory and filename pattern. Adding support for a new tool requires only 2 lines (one in each array). Current tools: `copilot`, `opencode`.
 
 ### Manifest
+
 Located at `~/.cache/sparkdock/sf-skills-manifest.json`. V2 format with `skills` and `agents` top-level keys. V1 manifests upgrade organically (no migration code). Agent entries use composite keys like `the-architect/copilot`.
 
 ### Catalog Metadata
+
 The upstream repo provides `config/catalog.json` with short human-friendly descriptions for each system skill and agent. The status script reads this file from the local cache (`~/.cache/sparkdock/agent-skills/config/catalog.json`) to display a DESCRIPTION column in the table. No sync changes are needed — the file is part of the cloned cache.
 
 ### sjust Recipes (`sjust/recipes/05-ai-coding-agents.just`)
+
 - `sf-agents-refresh [force]` — Sync all resources (skills + agents)
 - `sf-agents-status` — Show status of all resources
 
 ### Ansible Tags
+
 - `ai-coding-agents` (new) and `skills` (kept for backward compat)
 
 ### OpenSpec Change
+
 Full design artifacts at `openspec/changes/unified-agents-sync/` (proposal, design, specs, tasks).
 
 ## Git Workflow

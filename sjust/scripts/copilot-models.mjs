@@ -9,16 +9,13 @@
 //   https://github.com/anomalyco/opencode/issues/16129
 
 import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fail, fetchWithAuth, BASE_HEADERS } from "./lib/copilot-auth.mjs";
 import { printTable } from "./lib/gum.mjs";
 
-const OPENCODE_JSON_PATH = path.join(
-  homedir(),
-  ".config/opencode/opencode.json",
-);
+const OPENCODE_JSON_PATH =
+  "/Library/Application Support/opencode/opencode.json";
 const SOURCE_CONFIG_PATH = path.resolve(
   dirname(fileURLToPath(import.meta.url)),
   "..",
