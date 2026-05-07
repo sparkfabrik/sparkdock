@@ -793,8 +793,6 @@
             path: "/Library/Application Support/opencode"
             state: directory
             mode: "0755"
-            owner: "{{ ansible_facts['user_id'] }}"
-            group: "{{ ansible_facts['user_gid'] }}"
           become: yes
           become_method: sudo
 
