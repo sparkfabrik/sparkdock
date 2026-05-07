@@ -753,6 +753,41 @@
               customizations. It will be merged with the system-wide configuration
               shipped in /Library/Application Support/opencode/opencode.json.
 
+        - name: Check if user-local opencode config exists
+          ansible.builtin.stat:
+            path: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
+          register: user_opencode_config
+
+        - name: Compare user-local opencode config with source
+          ansible.builtin.command:
+            cmd: >-
+              diff -q
+              "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
+              "{{ dev_env_dir }}/config/macos/opencode.json"
+          register: opencode_config_diff
+          changed_when: false
+          failed_when: false
+          when: user_opencode_config.stat.exists
+
+        - name: Remove duplicate user-local opencode config
+          ansible.builtin.file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
+            state: absent
+          when:
+            - user_opencode_config.stat.exists
+            - opencode_config_diff.rc == 0
+
+        - name: Warn user about non-custom opencode config
+          ansible.builtin.debug:
+            msg: >-
+              The file ~/.config/opencode/opencode.json should contain only your
+              personal customizations. Any configuration already present in the
+              system-wide /Library/Application Support/opencode/opencode.json
+              can be safely removed from your local file.
+          when:
+            - user_opencode_config.stat.exists
+            - opencode_config_diff.rc != 0
+
         - name: Create system-wide OpenCode config directory
           file:
             path: "/Library/Application Support/opencode"
