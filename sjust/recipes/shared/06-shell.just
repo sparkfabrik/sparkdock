@@ -1,7 +1,7 @@
 # vim: set ft=make :
 
 # Sparkdock root, resolved from this recipe file's location.
-# shared/05-shell.just lives at <sparkdock_root>/sjust/recipes/shared/
+# shared/06-shell.just lives at <sparkdock_root>/sjust/recipes/shared/
 _sparkdock_root := clean(source_directory() / "../../..")
 
 # Enable Sparkdock shell enhancements in your zshrc.
