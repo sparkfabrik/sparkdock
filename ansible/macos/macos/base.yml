@@ -235,6 +235,13 @@
       when: "'google-cloud-sdk' in all_cask_packages"
       become: false
 
+    - name: Disable gcloud usage reporting
+      shell: source {{ homebrew_prefix }}/share/google-cloud-sdk/path.zsh.inc && gcloud config set core/disable_usage_reporting true
+      args:
+        executable: /bin/zsh
+      when: "'google-cloud-sdk' in all_cask_packages"
+      become: false
+
     - name: Check if npm command is available
       shell: command -v npm >/dev/null 2>&1 && echo "available" || echo "not-available"
       register: npm_available
