@@ -738,24 +738,95 @@
 
     - name: Configure OpenCode settings
       tags: opencode
+      vars:
+        opencode_personal_config_notice: >-
+          You can create ~/.config/opencode/opencode.json for personal
+          customizations. It will be merged with the system-wide configuration
+          shipped in /Library/Application Support/opencode/opencode.json.
       block:
-        - name: Ensure OpenCode config directory exists
+        - name: Ensure OpenCode user config directory exists
           file:
             path: "{{ ansible_facts['env']['HOME'] }}/.config/opencode"
             state: directory
             mode: "0755"
           become: no
 
-        - name: Deploy OpenCode configuration with security permissions and OpenCode provider disabled
+        - name: Check if user-local opencode config exists
+          ansible.builtin.stat:
+            path: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
+          register: user_opencode_config
+
+        - name: Compare user-local opencode config with source
+          ansible.builtin.command:
+            cmd: >-
+              diff -q
+              "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
+              "{{ dev_env_dir }}/config/macos/opencode.json"
+          register: opencode_config_diff
+          changed_when: false
+          failed_when: opencode_config_diff.rc > 1
+          when: user_opencode_config.stat.exists
+
+        - name: Remove duplicate user-local opencode config
+          ansible.builtin.file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
+            state: absent
+          when:
+            - user_opencode_config.stat.exists
+            - opencode_config_diff is defined
+            - opencode_config_diff.rc is defined
+            - opencode_config_diff.rc == 0
+
+        - name: Notify user about personal opencode configuration
+          debug:
+            msg: "{{ opencode_personal_config_notice }}"
+
+        - name: Notify with a system notification.
+          ansible.builtin.command:
+            argv:
+              - osascript
+              - -e
+              - 'display notification "{{ opencode_personal_config_notice }}" with title "OpenCode Configuration"'
+          when:
+            - not is_non_interactive | default(false)
+            - opencode_config_diff is defined
+            - opencode_config_diff.rc is defined
+            - opencode_config_diff.rc == 0
+
+        - name: Warn user about non-custom opencode config
+          ansible.builtin.debug:
+            msg: >-
+              The file ~/.config/opencode/opencode.json should contain only your
+              personal customizations. Any configuration already present in the
+              system-wide /Library/Application Support/opencode/opencode.json
+              can be safely removed from your local file.
+          when:
+            - user_opencode_config.stat.exists
+            - opencode_config_diff is defined
+            - opencode_config_diff.rc is defined
+            - opencode_config_diff.rc != 0
+
+        - name: Create system-wide OpenCode config directory
+          file:
+            path: "/Library/Application Support/opencode"
+            state: directory
+            mode: "0755"
+          become: yes
+          become_method: sudo
+
+        - name: Deploy base OpenCode configuration
           copy:
             src: "{{ dev_env_dir }}/config/macos/opencode.json"
-            dest: "{{ ansible_facts['env']['HOME'] }}/.config/opencode/opencode.json"
+            dest: "/Library/Application Support/opencode/opencode.json"
             mode: "0644"
-          become: no
+            owner: "{{ ansible_facts['user_id'] }}"
+            group: "{{ ansible_facts['user_gid'] }}"
+          become: yes
+          become_method: sudo
 
         - name: Display OpenCode configuration status
           debug:
-            msg: "✅ OpenCode configuration deployed successfully (OpenCode provider disabled; 175 permission rules — dangerous commands are blocked or require confirmation)"
+            msg: "✅ OpenCode configuration deployed to /Library/Application Support/opencode/opencode.json (user-writable; OpenCode provider disabled; 175 permission rules — dangerous commands are blocked or require confirmation)"
 
         - name: Ensure zsh site-functions directory exists
           ansible.builtin.file:

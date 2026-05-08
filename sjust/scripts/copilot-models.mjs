@@ -8,17 +8,14 @@
 //   https://github.com/anomalyco/models.dev/issues/1136
 //   https://github.com/anomalyco/opencode/issues/16129
 
-import { readFile, writeFile, mkdir } from "node:fs/promises";
-import { homedir } from "node:os";
+import { readFile, writeFile, access } from "node:fs/promises";
 import path, { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { fail, fetchWithAuth, BASE_HEADERS } from "./lib/copilot-auth.mjs";
 import { printTable } from "./lib/gum.mjs";
 
-const OPENCODE_JSON_PATH = path.join(
-  homedir(),
-  ".config/opencode/opencode.json",
-);
+const OPENCODE_JSON_PATH =
+  "/Library/Application Support/opencode/opencode.json";
 const SOURCE_CONFIG_PATH = path.resolve(
   dirname(fileURLToPath(import.meta.url)),
   "..",
@@ -161,8 +158,30 @@ async function updateLocalConfig(modelsBlock) {
     config.provider["github-copilot"] = {};
   config.provider["github-copilot"].models = modelsBlock;
 
-  await mkdir(dirname(OPENCODE_JSON_PATH), { recursive: true });
-  await writeFile(OPENCODE_JSON_PATH, JSON.stringify(config, null, 2) + "\n");
+  // Verify the target directory exists (created by the sparkdock provisioner)
+  const targetDir = dirname(OPENCODE_JSON_PATH);
+  try {
+    await access(targetDir);
+  } catch {
+    fail(
+      `Directory ${targetDir} does not exist.\n` +
+        "Run the sparkdock provisioner to create it: sparkdock",
+    );
+  }
+  try {
+    await writeFile(
+      OPENCODE_JSON_PATH,
+      JSON.stringify(config, null, 2) + "\n",
+    );
+  } catch (err) {
+    if (err.code === "EACCES") {
+      fail(
+        `Permission denied writing to ${OPENCODE_JSON_PATH}.\n` +
+          "Run the sparkdock provisioner to fix file ownership: sparkdock",
+      );
+    }
+    throw err;
+  }
 
   const count = Object.keys(modelsBlock).length;
   if (source !== OPENCODE_JSON_PATH) {
