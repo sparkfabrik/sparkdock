@@ -226,6 +226,10 @@ make uninstall               # Remove installation
 - Auto-starts at login via launch agent (local development only)
 - CI environments skip LaunchAgent installation for better automation
 
+## macOS System Defaults
+
+`sjust macos-defaults` applies a curated set of macOS preferences (data: `config/macos/defaults.yml`, code: `sjust/scripts/macos-defaults/`, idempotent, per-key snapshot/undo). **Keep the curated YAML to universally-useful defaults only** — personal preferences (dock, finder layout, smart-quotes, trackpad, …) go in user overrides at `~/.local/spark/macos-defaults/overrides.yml`, not the curated set. Run `sjust macos-defaults-info` to inspect.
+
 ## AI Coding Agents System
 
 Sparkdock syncs AI coding resources from the upstream `sf-awesome-copilot` repository. This covers two resource types managed by a unified sync system:
