@@ -73,6 +73,29 @@ print_setup_complete() {
     fi
 }
 
+# Print dry-run status for a tool config
+# Usage: sparkdock_dry_run_config_status <tool_name> <user_config> <sparkdock_config>
+sparkdock_dry_run_config_status() {
+    local tool_name="${1}"
+    local user_config="${2}"
+    local sparkdock_config="${3}"
+
+    local status=0
+    check_sparkdock_symlink "${user_config}" "${sparkdock_config}" || status=$?
+
+    case ${status} in
+        0)
+            echo "  ✅ ${tool_name}: managed (already symlinked)"
+            ;;
+        1)
+            echo "  ⚠️  ${tool_name}: custom config detected, will skip"
+            ;;
+        2)
+            echo "  📦 ${tool_name}: not configured, will symlink to Sparkdock defaults"
+            ;;
+    esac
+}
+
 # Create a timestamped backup of a file
 # Usage: sparkdock_backup_file <file_path>
 # Returns: The backup file path via stdout

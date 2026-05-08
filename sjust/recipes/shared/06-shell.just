@@ -1,13 +1,13 @@
 # vim: set ft=make :
 
 # Sparkdock root, resolved from this recipe file's location.
-# shared/05-shell.just lives at <sparkdock_root>/sjust/recipes/shared/
+# shared/06-shell.just lives at <sparkdock_root>/sjust/recipes/shared/
 _sparkdock_root := clean(source_directory() / "../../..")
 
 # Enable Sparkdock shell enhancements in your zshrc.
 # Pass "force" as argument to override declined state: sjust shell-enable force
 [group('shell')]
-shell-enable $force="false":
+shell-enable $dry_run="false" $force="false":
     #!/usr/bin/env bash
     set -euo pipefail
     export SPARKDOCK_ROOT="{{_sparkdock_root}}"
@@ -16,6 +16,48 @@ shell-enable $force="false":
     ZSHRC_FILE="${HOME}/.zshrc"
     SPARKDOCK_CHECK_STRING="${SPARKDOCK_ROOT}/config/shell/sparkdock.zshrc"
     DECLINED_FILE="${HOME}/.config/spark/.shell-enable-declined"
+
+    # Handle positional argument swap: just passes args positionally,
+    # so "sjust shell-enable force" sets dry_run="force", and
+    # "sjust shell-enable --dry-run" sets dry_run="--dry-run"
+    if [[ "${dry_run}" == "force" ]]; then
+        dry_run="false"
+        force="force"
+    fi
+
+    # Dry-run mode: show what would happen without making any changes
+    if [[ "${dry_run}" != "false" ]]; then
+        echo "🔍 Dry run mode — no changes will be made"
+        echo ""
+
+        # Check zshrc existence
+        if [[ ! -f "${ZSHRC_FILE}" ]]; then
+            echo "  📝 Would create: ${ZSHRC_FILE}"
+        else
+            echo "  ✅ ${ZSHRC_FILE}: exists"
+        fi
+
+        sparkdock_print_shell_overview "${ZSHRC_FILE}" "no"
+        echo ""
+
+        # Check oh-my-zsh
+        if [[ ! -d "$HOME/.oh-my-zsh" ]]; then
+            echo "  📦 oh-my-zsh: not installed, would be installed"
+        else
+            echo "  ✅ oh-my-zsh: already installed"
+        fi
+
+        # Check tool configs
+        echo ""
+        echo "Tool configurations:"
+        sparkdock_dry_run_config_status "starship" "${HOME}/.config/starship.toml" "${SPARKDOCK_ROOT}/config/shell/config/starship/starship.toml"
+        sparkdock_dry_run_config_status "eza" "${HOME}/.config/eza/theme.yml" "${SPARKDOCK_ROOT}/config/shell/config/eza/theme.yml"
+        sparkdock_dry_run_config_status "ghostty" "${HOME}/.config/ghostty/config" "${SPARKDOCK_ROOT}/config/shell/config/ghostty/config"
+
+        echo ""
+        echo "💡 Run without --dry-run to apply these changes"
+        exit 0
+    fi
 
     # Create zshrc if it doesn't exist
     touch "${ZSHRC_FILE}"
