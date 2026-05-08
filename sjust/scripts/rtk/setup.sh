@@ -46,11 +46,10 @@ setup_copilot() {
     tmpdir=$(mktemp -d)
     (cd "$tmpdir" && rtk init --copilot --auto-patch > /dev/null 2>&1)
 
-    local hooks_src="${tmpdir}/.github/hooks"
     local instructions_src="${tmpdir}/.github/copilot-instructions.md"
 
-    if [[ ! -d "$hooks_src" ]]; then
-        log_error "RTK did not generate hooks in temp directory"
+    if [[ ! -f "$instructions_src" ]]; then
+        log_error "RTK did not generate instructions in temp directory"
         rm -rf "$tmpdir"
         return 1
     fi
@@ -58,20 +57,20 @@ setup_copilot() {
     local instructions_content
     instructions_content=$(cat "$instructions_src")
 
-    # VS Code Copilot Chat — writes to ~/.github/
-    local vscode_hooks_dest="${HOME}/.github/hooks"
-    local vscode_instructions_dest="${HOME}/.github/copilot-instructions.md"
+    # Append safety clause to prevent rtk from bypassing destructive command checks
+    local safety_clause="
 
-    mkdir -p "$vscode_hooks_dest"
-    cp -f "${hooks_src}/"* "$vscode_hooks_dest/"
+Only use the rtk prefix for read-only and build/test/lint commands. Any command that modifies, creates, or deletes files or remote state must run WITHOUT the rtk prefix to preserve safety checks. Examples of commands that must NOT be prefixed: rm, mv, cp, chmod, chown, git push, git commit, git reset, kubectl delete, docker rm. When in doubt, do not use the rtk prefix."
+    instructions_content="${instructions_content}${safety_clause}"
+
+    # VS Code Copilot Chat — writes to ~/.github/
+    local vscode_instructions_dest="${HOME}/.github/copilot-instructions.md"
+    mkdir -p "$(dirname "$vscode_instructions_dest")"
     inject_with_markers "$vscode_instructions_dest" "$instructions_content"
 
     # Copilot CLI — writes to ~/.copilot/
-    local cli_hooks_dest="${HOME}/.copilot/hooks"
     local cli_instructions_dest="${HOME}/.copilot/copilot-instructions.md"
-
-    mkdir -p "$cli_hooks_dest"
-    cp -f "${hooks_src}/"* "$cli_hooks_dest/"
+    mkdir -p "$(dirname "$cli_instructions_dest")"
     inject_with_markers "$cli_instructions_dest" "$instructions_content"
 
     # Cleanup
