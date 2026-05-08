@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 #
-# Restore a snapshot taken by a previous `sjust macos-defaults` apply.
+# Restore a per-key snapshot taken by a previous `sjust macos-defaults` apply.
+# Only the keys sparkdock managed are touched — unrelated user changes in the
+# same preference domain are NOT rolled back.
+#
 # Usage: undo.sh [<action>]
 #   (none)             restore the latest snapshot
 #   list               print available snapshots, no mutation
@@ -19,8 +22,7 @@ if [[ ! -d "${MD_SNAPSHOTS_ROOT}" ]]; then
 fi
 
 mapfile -t snapshots < <(
-    find "${MD_SNAPSHOTS_ROOT}" -mindepth 1 -maxdepth 1 -type d -not -name "latest" \
-        | sort
+    find "${MD_SNAPSHOTS_ROOT}" -mindepth 1 -maxdepth 1 -type d | sort
 )
 
 if [[ ${#snapshots[@]} -eq 0 ]]; then
@@ -32,8 +34,12 @@ if [[ "${action}" == "list" ]]; then
     log_section "Available snapshots (oldest → newest)"
     for s in "${snapshots[@]}"; do
         ts="$(basename "${s}")"
-        domains_count="$(wc -l < "${s}/manifest.txt" 2>/dev/null | tr -d ' ' || printf '?')"
-        printf '  %s  (%s domain(s))\n' "${ts}" "${domains_count}"
+        if [[ -f "${s}/snapshot.tsv" ]]; then
+            keys_count="$(wc -l < "${s}/snapshot.tsv" | tr -d ' ')"
+        else
+            keys_count="?"
+        fi
+        printf '  %s  (%s key(s))\n' "${ts}" "${keys_count}"
     done
     if [[ -L "${MD_SNAPSHOTS_ROOT}/latest" ]]; then
         latest="$(readlink "${MD_SNAPSHOTS_ROOT}/latest" 2>/dev/null || true)"

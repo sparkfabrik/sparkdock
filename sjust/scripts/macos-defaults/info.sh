@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 #
-# Pretty-print the curated macOS defaults profile, grouped by category.
+# Pretty-print the curated macOS defaults profile, grouped by category, with
+# per-setting current-state markers (✓ aligned, ✗ drifted, +. unset).
 # Pipes through `gum format` (and `gum pager` when stdout is a TTY) for color
 # and pagination. Falls back to plain Markdown when gum is unavailable or the
 # output is being captured.
@@ -26,6 +27,26 @@ esac
 
 md_check_yq
 
+# Compute current-state marker for one entry.
+state_marker() {
+    local domain="$1" key="$2" type="$3" desired_raw="$4"
+    local desired desired_norm current
+    if [[ "${type}" == "string" ]]; then
+        desired="$(md_expand_home "${desired_raw}")"
+    else
+        desired="${desired_raw}"
+    fi
+    desired_norm="$(md_normalize "${type}" "${desired}")"
+    current="$(md_read_current "${domain}" "${key}")"
+    if [[ "${current}" == "__UNSET__" ]]; then
+        printf '+'
+    elif [[ "${current}" == "${desired_norm}" || "${current}" == "${desired}" ]]; then
+        printf '✓'
+    else
+        printf '✗'
+    fi
+}
+
 render_markdown() {
     local total cats
     total="$(yq eval '. | length' "${MD_CONFIG_FILE}")"
@@ -34,20 +55,33 @@ render_markdown() {
     cat <<MD
 # Sparkdock — curated macOS defaults
 
-**${total} settings** across **${cats} categories**, applied by \`sjust macos-defaults\`.
+**${total} settings** across **${cats} categories**.
+
+This is a deliberately tiny set: filesystem hygiene (no \`.DS_Store\` on networks/USB), one annoying prompt suppressed (Time Machine), secure keyboard entry in Terminal, UTF-8 in TextEdit, and expanded save / print panels. Personal preferences (dock, Finder layout, smart-quotes, accent picker, trackpad, reduce-motion, etc.) live only in your overrides file.
 
 ## What this command applies
 
 - Every setting below is written via \`defaults write\` only when the current value differs from the desired one — second runs are no-ops.
-- Before any change, the affected preference domains are exported to \`~/.local/spark/macos-defaults/snapshots/<UTC-timestamp>/\`. Run \`sjust macos-defaults-undo\` to roll back.
+- Before any change, the keys sparkdock is about to touch are recorded per-key into a snapshot at \`~/.local/spark/macos-defaults/snapshots/<UTC-timestamp>/\`. \`sjust macos-defaults-undo\` rolls back **only those keys**, leaving any unrelated changes you made in the same preference domain intact.
 - Apps in the **Restarts** column are \`killall\`-ed only when one of their settings actually changed.
+
+## Status legend
+
+- \`✓\` already at the desired value (idempotent — apply will skip)
+- \`✗\` set to a different value (apply will overwrite, undoable)
+- \`+\` not set yet (apply will create it, undoable as delete)
 
 ## How to customise
 
-Sparkdock applies an opinionated-but-conservative default set. Anything you disagree with goes in your personal overrides file (same shape as \`config/macos/defaults.yml\`):
+Sparkdock applies an opinionated-but-conservative default set. Anything you want differently goes in your personal overrides file (same shape as \`config/macos/defaults.yml\`). Bootstrap the file with:
+
+\`\`\`bash
+sjust macos-defaults-init-overrides     # creates ~/.local/spark/macos-defaults/overrides.yml
+\`\`\`
+
+then edit it, e.g. to enable dock auto-hide:
 
 \`\`\`yaml
-# ~/.local/spark/macos-defaults/overrides.yml
 "com.apple.dock.autohide":
   domain: com.apple.dock
   key: autohide
@@ -66,7 +100,7 @@ Overrides are merged by exact key, so you only touch what you care about.
 sjust macos-defaults dry-run         # preview drift, no changes
 sjust macos-defaults dry-run strict  # exit 2 on drift (CI)
 sjust macos-defaults                 # apply
-sjust macos-defaults-undo            # roll back the latest snapshot
+sjust macos-defaults-undo            # roll back the latest snapshot (per-key)
 sjust macos-defaults-undo list       # list available snapshots
 sjust macos-defaults-docs            # print the README table to stdout
 \`\`\`
@@ -85,21 +119,30 @@ MD
     local cat
     for cat in "${cat_list[@]}"; do
         printf '\n### %s\n\n' "${cat}"
-        printf '| Setting | Default | Description |\n'
-        printf '| --- | --- | --- |\n'
-        yq eval "
+        printf '| State | Setting | Default | Description |\n'
+        printf '| --- | --- | --- | --- |\n'
+        # strenv binds $cat as a yq env-var (https://mikefarah.gitbook.io/yq/operators/env-variable-operators)
+        # so a category name with quotes/backslashes wouldn't break the filter.
+        local cat_yq="${cat}"
+        export cat_yq
+        yq eval '
             . | to_entries
-            | map(select(.value.category == \"${cat}\"))
+            | map(select(.value.category == strenv(cat_yq)))
             | sort_by(.value.key) | .[]
             | [
-                (.value.domain + \".\" + .value.key),
+                .value.domain,
+                .value.key,
+                .value.type,
                 (.value.value | tostring),
                 .value.description
               ]
             | @tsv
-        " "${MD_CONFIG_FILE}" | while IFS=$'\t' read -r setting value description; do
+        ' "${MD_CONFIG_FILE}" | while IFS=$'\t' read -r domain key type value description; do
+            local marker
+            marker="$(state_marker "${domain}" "${key}" "${type}" "${value}")"
             # shellcheck disable=SC2016 # backticks are literal Markdown
-            printf '| `%s` | `%s` | %s |\n' "${setting}" "${value}" "${description}"
+            printf '| %s | `%s.%s` | `%s` | %s |\n' \
+                "${marker}" "${domain}" "${key}" "${value}" "${description}"
         done
     done
 }

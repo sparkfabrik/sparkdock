@@ -25,6 +25,25 @@ esac
 
 md_check_yq
 
+# --- Color (honour NO_COLOR https://no-color.org) ----------------------------
+if [[ -n "${NO_COLOR:-}" || ! -t 1 ]]; then
+    c_reset="" c_dim="" c_red="" c_green="" c_yellow=""
+else
+    c_reset=$'\033[0m'; c_dim=$'\033[2m'; c_red=$'\033[31m'; c_green=$'\033[32m'; c_yellow=$'\033[33m'
+fi
+
+# --- Concurrency lock --------------------------------------------------------
+# Apply mutates user state; coordinate with any concurrent run on the same
+# machine via a flock on a sentinel file. Skipped in dry-run.
+if [[ "${mode}" == "apply" ]] && command -v flock >/dev/null 2>&1; then
+    mkdir -p "$(dirname "${MD_LOCK_FILE}")"
+    exec 9>"${MD_LOCK_FILE}"
+    if ! flock -n 9; then
+        log_error "Another macos-defaults run is in progress (lock: ${MD_LOCK_FILE})."
+        exit 1
+    fi
+fi
+
 merged="$(md_load_config)"
 trap 'rm -f "${merged}"' EXIT
 
@@ -36,11 +55,10 @@ mapfile -t rows < <(yq eval '
 ' "${merged}")
 
 declare -a to_write
-declare -A touched_domains
 drift_count=0
 
 for row in "${rows[@]}"; do
-    IFS=$'\t' read -r id domain key type desired_raw requires_csv <<<"${row}"
+    IFS=$'\t' read -r id domain key type desired_raw _requires_csv <<<"${row}"
 
     if [[ "${type}" == "string" ]]; then
         desired="$(md_expand_home "${desired_raw}")"
@@ -48,36 +66,37 @@ for row in "${rows[@]}"; do
         desired="${desired_raw}"
     fi
     desired_norm="$(md_normalize "${type}" "${desired}")"
-
     current="$(md_read_current "${domain}" "${key}")"
 
     if [[ "${current}" == "__UNSET__" ]]; then
         relation="+"
         drift_count=$((drift_count + 1))
         to_write+=("${id}")
-        touched_domains["${domain}"]=1
     elif [[ "${current}" == "${desired_norm}" || "${current}" == "${desired}" ]]; then
         relation="="
     else
         relation="±"
         drift_count=$((drift_count + 1))
         to_write+=("${id}")
-        touched_domains["${domain}"]=1
     fi
 
     case "${relation}" in
         "=")
             if [[ "${verbose}" == "verbose" ]]; then
-                printf '\033[2m=\033[0m  %s: %s\n' "${id}" "${current}"
+                printf '%s=%s  %s: %s\n' "${c_dim}" "${c_reset}" "${id}" "${current}"
             fi
             ;;
         "+")
-            printf '\033[32m+\033[0m  %s: \033[2m<unset>\033[0m → \033[32m%s\033[0m\n' \
-                "${id}" "${desired_norm}"
+            printf '%s+%s  %s: %s<unset>%s → %s%s%s\n' \
+                "${c_green}" "${c_reset}" "${id}" \
+                "${c_dim}" "${c_reset}" \
+                "${c_green}" "${desired_norm}" "${c_reset}"
             ;;
         "±")
-            printf '\033[33m±\033[0m  %s: \033[31m%s\033[0m → \033[32m%s\033[0m\n' \
-                "${id}" "${current}" "${desired_norm}"
+            printf '%s±%s  %s: %s%s%s → %s%s%s\n' \
+                "${c_yellow}" "${c_reset}" "${id}" \
+                "${c_red}" "${current}" "${c_reset}" \
+                "${c_green}" "${desired_norm}" "${c_reset}"
             ;;
     esac
 done
@@ -94,12 +113,12 @@ if [[ "${mode}" == "dry-run" ]]; then
     exit 0
 fi
 
-# Apply path: snapshot, write, restart, prune.
+# --- Apply path: per-key snapshot, write, restart, prune ---------------------
+
 ts="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
 snapshot_dir="${MD_SNAPSHOTS_ROOT}/${ts}"
 mkdir -p "${MD_SNAPSHOTS_ROOT}"
-md_snapshot "${snapshot_dir}" "${!touched_domains[@]}"
-log_info "Snapshot: ${snapshot_dir}"
+md_snapshot_init "${snapshot_dir}"
 
 # Index rows by id for the second pass without re-running yq.
 declare -A row_lookup
@@ -107,6 +126,14 @@ for row in "${rows[@]}"; do
     IFS=$'\t' read -r id _rest <<<"${row}"
     row_lookup["${id}"]="${row}"
 done
+
+# Capture per-key snapshot of every key we're about to touch — value AND type.
+for id in "${to_write[@]}"; do
+    IFS=$'\t' read -r _id domain key _type _desired_raw requires_csv <<<"${row_lookup[${id}]}"
+    md_snapshot_key "${snapshot_dir}" "${id}" "${domain}" "${key}" "${requires_csv}"
+done
+md_snapshot_publish_latest "${snapshot_dir}"
+log_info "Snapshot: ${snapshot_dir}"
 
 declare -A restart_apps=()
 for id in "${to_write[@]}"; do
@@ -118,10 +145,12 @@ for id in "${to_write[@]}"; do
     fi
     md_write "${domain}" "${key}" "${type}" "${desired}" || continue
 
+    # Sanity-check the write actually landed. defaults silently accepts writes
+    # to nonexistent or sandboxed domains (Safari, etc.) without taking effect.
     readback="$(md_read_current "${domain}" "${key}")"
     expected_norm="$(md_normalize "${type}" "${desired}")"
     if [[ "${readback}" != "${expected_norm}" && "${readback}" != "${desired}" ]]; then
-        log_warn "${id}: write succeeded but readback returned '${readback}' (key may be deprecated)"
+        log_warn "${id}: write succeeded but readback returned '${readback}' (sandbox / TCC / wrong domain?)"
     fi
     if [[ -n "${requires_csv}" ]]; then
         IFS=',' read -ra apps <<<"${requires_csv}"
@@ -134,6 +163,7 @@ done
 if [[ ${#restart_apps[@]} -gt 0 ]]; then
     log_section "Restarting affected applications"
     for app in "${!restart_apps[@]}"; do
+        # pgrep -x matches the exact process name including spaces.
         if pgrep -x "${app}" >/dev/null 2>&1; then
             printf '  • %s\n' "${app}"
             killall "${app}" 2>/dev/null || true

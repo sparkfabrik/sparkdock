@@ -81,6 +81,25 @@ jobs:
           fi
           echo "✅ copilot command is available"
 
+          # Confirm the curated macOS defaults actually landed (not just exit-0).
+          # The Ansible task may write to a domain that exists but is not read
+          # (e.g. wrong bundle-ID case) — exit code alone wouldn't catch it.
+          echo "--- macOS defaults sanity-read ---"
+          for pair in \
+            "com.apple.desktopservices DSDontWriteNetworkStores" \
+            "com.apple.desktopservices DSDontWriteUSBStores" \
+            "com.apple.Terminal SecureKeyboardEntry" \
+            "com.apple.TimeMachine DoNotOfferNewDisksForBackup"; do
+              domain="${pair% *}"; key="${pair#* }"
+              val="$(defaults read "${domain}" "${key}" 2>/dev/null || echo MISSING)"
+              if [ "${val}" = "1" ]; then
+                  echo "✅ ${domain} ${key}=${val}"
+              else
+                  echo "❌ ${domain} ${key}=${val} (expected 1)"
+                  exit 1
+              fi
+          done
+
           # Test basic functionality
           echo "✅ First installation completed successfully"
 

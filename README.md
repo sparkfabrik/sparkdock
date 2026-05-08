@@ -130,48 +130,7 @@ sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gc
 
 ### macOS System Defaults
 
-Sparkdock applies a curated set of developer-oriented macOS defaults via the `macos-defaults` sjust recipe. The recipe is **idempotent** (no-op on second run when nothing has drifted) and **snapshots** the affected preference domains before any change so you can roll back.
-
-The curated set is intentionally conservative — security/correctness defaults (`.DS_Store` suppression on networks/USB, secure keyboard entry in Terminal, Safari developer menus, UTF-8 in TextEdit) plus a few developer-leaning preferences (key repeat speed, hidden files, full POSIX paths in Finder titles, sort folders first). Strong personal preferences (dock auto-hide, smart-quotes substitution, tap-to-click, accent-picker disable) are deliberately **left out** — set them in your overrides file if you want them.
-
-```bash
-sjust macos-defaults-info               # show what will be applied + descriptions (recommended first run)
-sjust macos-defaults                    # apply curated defaults (default)
-sjust macos-defaults dry-run            # preview drift, no changes
-sjust macos-defaults dry-run strict     # like dry-run, exits 2 if drift exists (CI)
-sjust macos-defaults dry-run "" verbose # include unchanged settings in output
-sjust macos-defaults-undo               # restore the most recent snapshot
-sjust macos-defaults-undo list          # list available snapshots
-sjust macos-defaults-undo <timestamp>   # restore a specific snapshot
-sjust macos-defaults-docs               # print the settings table to stdout
-sjust macos-defaults-docs check         # verify the README table is fresh
-sjust macos-defaults-docs write         # rewrite the README table from YAML
-```
-
-The same recipe is invoked by Ansible when you run `sparkdock` (or `ansible-playbook ansible/macos.yml --tags macos-defaults`).
-
-**Discover before you apply.** Run `sjust macos-defaults-info` to read every setting with a description before touching the system. The display uses `gum` for color and pagination when interactive, and falls back to plain Markdown otherwise (so it pipes cleanly into `less` or another tool).
-
-**Customizing.** Override individual settings by creating `~/.local/spark/macos-defaults/overrides.yml` with the same shape as `config/macos/defaults.yml`:
-
-```yaml
-"com.apple.dock.autohide":
-  domain: com.apple.dock
-  key: autohide
-  type: bool
-  value: false
-  description: Keep my dock visible
-  category: dock
-  requires: [Dock]
-```
-
-Overrides are merged by exact key, so flipping `com.apple.dock.autohide` only replaces that one setting and leaves the rest of the curated profile alone.
-
-**Snapshots.** The 10 most recent snapshots live under `~/.local/spark/macos-defaults/snapshots/`. Older snapshots are pruned on each apply. `defaults import` is used to restore.
-
-**Requires:** `yq` v4 (installed automatically via Homebrew). Apple Silicon only.
-
-#### Curated settings
+A small, opinion-light set of system defaults (filesystem hygiene, secure keyboard entry, UTF-8 in TextEdit, etc.) is applied by `sjust macos-defaults`. The recipe is idempotent and per-key undoable. Run **`sjust macos-defaults-info`** to see what's in the curated set and how to add personal preferences via an overrides file.
 
 <!-- macos-defaults:start -->
 
@@ -181,43 +140,12 @@ _This table is generated from `config/macos/defaults.yml` by `sjust macos-defaul
 
 | Category | Domain | Key | Type | Default | Description | Restarts |
 | --- | --- | --- | --- | --- | --- | --- |
-| accessibility | `com.apple.universalaccess` | `reduceMotion` | int | `1` | Reduce motion for better focus and performance |  |
-| activity-monitor | `com.apple.ActivityMonitor` | `IconType` | int | `5` | Show CPU usage in dock icon | Activity Monitor |
-| activity-monitor | `com.apple.ActivityMonitor` | `OpenMainWindow` | bool | `true` | Show main window on launch | Activity Monitor |
-| activity-monitor | `com.apple.ActivityMonitor` | `ShowCategory` | int | `0` | Show all processes | Activity Monitor |
-| activity-monitor | `com.apple.ActivityMonitor` | `SortColumn` | string | `CPUUsage` | Sort by CPU usage | Activity Monitor |
-| activity-monitor | `com.apple.ActivityMonitor` | `SortDirection` | int | `0` | Sort descending | Activity Monitor |
-| dock | `com.apple.dock` | `enable-spring-load-actions-on-all-items` | bool | `true` | Enable spring loading for all dock items | Dock |
-| dock | `com.apple.dock` | `minimize-to-application` | bool | `true` | Minimize windows to application icon (cleaner dock) | Dock |
-| dock | `com.apple.dock` | `show-process-indicators` | bool | `true` | Show indicator lights for open applications | Dock |
-| dock | `com.apple.dock` | `show-recents` | bool | `false` | Hide recent applications in dock | Dock |
-| finder | `NSGlobalDomain` | `AppleShowAllExtensions` | bool | `true` | Show all filename extensions | Finder |
-| finder | `com.apple.finder` | `AppleShowAllFiles` | bool | `true` | Show hidden files | Finder |
-| finder | `com.apple.desktopservices` | `DSDontWriteNetworkStores` | bool | `true` | Don't create .DS_Store files on network volumes | Finder |
-| finder | `com.apple.desktopservices` | `DSDontWriteUSBStores` | bool | `true` | Don't create .DS_Store files on USB volumes | Finder |
-| finder | `com.apple.finder` | `FXDefaultSearchScope` | string | `SCcf` | Search current folder by default | Finder |
-| finder | `com.apple.finder` | `FXEnableExtensionChangeWarning` | bool | `false` | Disable warning when changing a file extension | Finder |
-| finder | `com.apple.finder` | `ShowPathbar` | bool | `true` | Show path bar | Finder |
-| finder | `com.apple.finder` | `ShowStatusBar` | bool | `true` | Show status bar | Finder |
-| finder | `com.apple.finder` | `_FXShowPosixPathInTitle` | bool | `true` | Show full POSIX path in title bar | Finder |
-| finder | `com.apple.finder` | `_FXSortFoldersFirst` | bool | `true` | Sort folders before files | Finder |
-| keyboard | `NSGlobalDomain` | `InitialKeyRepeat` | int | `10` | Set initial key repeat delay (shortest practical) |  |
-| keyboard | `NSGlobalDomain` | `KeyRepeat` | int | `1` | Set key repeat rate (fastest) |  |
-| safari | `com.apple.Safari` | `AutoOpenSafeDownloads` | bool | `false` | Disable auto-opening of "safe" downloads (security) | Safari |
-| safari | `com.apple.Safari` | `IncludeDevelopMenu` | bool | `true` | Enable Develop menu (best-effort on Safari 17+) | Safari |
-| safari | `com.apple.Safari` | `IncludeInternalDebugMenu` | bool | `true` | Enable internal debug menu (best-effort on Safari 17+) | Safari |
-| safari | `com.apple.Safari` | `ShowFullURLInSmartSearchField` | bool | `true` | Show full URL in address bar | Safari |
-| safari | `com.apple.Safari` | `ShowStatusBar` | bool | `true` | Show status bar | Safari |
-| safari | `com.apple.Safari` | `WebKitDeveloperExtras` | bool | `true` | Enable web inspector | Safari |
-| safari | `com.apple.Safari` | `WebKitDeveloperExtrasEnabledPreferenceKey` | bool | `true` | Enable WebKit developer extras | Safari |
-| screenshots | `com.apple.screencapture` | `location` | string | `${HOME}/Desktop` | Save screenshots to Desktop | SystemUIServer |
-| screenshots | `com.apple.screencapture` | `type` | string | `png` | Save screenshots as PNG | SystemUIServer |
-| terminal | `com.apple.terminal` | `SecureKeyboardEntry` | bool | `true` | Enable secure keyboard entry (applies on next Terminal launch) | Terminal |
-| textedit | `com.apple.TextEdit` | `PlainTextEncoding` | int | `4` | Read files as UTF-8 | TextEdit |
-| textedit | `com.apple.TextEdit` | `PlainTextEncodingForWrite` | int | `4` | Write files as UTF-8 | TextEdit |
-| textedit | `com.apple.TextEdit` | `RichText` | int | `0` | Use plain text by default | TextEdit |
+| filesystem | `com.apple.desktopservices` | `DSDontWriteNetworkStores` | bool | `true` | Don't create .DS_Store files on network volumes | Finder |
+| filesystem | `com.apple.desktopservices` | `DSDontWriteUSBStores` | bool | `true` | Don't create .DS_Store files on USB volumes | Finder |
+| terminal | `com.apple.Terminal` | `SecureKeyboardEntry` | bool | `true` | Enable secure keyboard entry (applies on next Terminal launch) | Terminal |
+| textedit | `com.apple.TextEdit` | `PlainTextEncoding` | int | `4` | Read plain-text files as UTF-8 | TextEdit |
+| textedit | `com.apple.TextEdit` | `PlainTextEncodingForWrite` | int | `4` | Write plain-text files as UTF-8 | TextEdit |
 | time-machine | `com.apple.TimeMachine` | `DoNotOfferNewDisksForBackup` | bool | `true` | Don't prompt to use new disks as Time Machine backup |  |
-| trackpad | `com.apple.driver.AppleBluetoothMultitouch.trackpad` | `TrackpadRightClick` | bool | `true` | Enable secondary (right) click on trackpad |  |
 | ui-ux | `NSGlobalDomain` | `NSNavPanelExpandedStateForSaveMode` | bool | `true` | Expand save panel by default |  |
 | ui-ux | `NSGlobalDomain` | `PMPrintingExpandedStateForPrint` | bool | `true` | Expand print panel by default |  |
 

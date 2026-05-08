@@ -39,3 +39,9 @@ macos-defaults-undo $action="":
 [doc('Generate / verify the macOS defaults Markdown table embedded in README.md.')]
 macos-defaults-docs $mode="print":
     @{{ sparkdock_path }}/sjust/scripts/macos-defaults/docs.sh "${mode}"
+
+# Drop a commented overrides template at ~/.local/spark/macos-defaults/overrides.yml.
+[group('macos')]
+[doc('Bootstrap a personal overrides file with commented examples of common preferences.')]
+macos-defaults-init-overrides:
+    @{{ sparkdock_path }}/sjust/scripts/macos-defaults/init-overrides.sh
