@@ -22,6 +22,12 @@ if (( ! ${path[(Ie)${HOME}/.local/bin]} )); then
   export PATH
 fi
 
+# Google Cloud SDK PATH integration (Linux: tarball install to /opt).
+if [[ -d /opt/google-cloud-sdk/bin ]] && (( ! ${path[(Ie)/opt/google-cloud-sdk/bin]} )); then
+  path=("/opt/google-cloud-sdk/bin" ${path})
+  export PATH
+fi
+
 # Add local zsh functions directory to fpath (skip if already present).
 if [[ -d ~/.local/share/zsh/site-functions ]] && (( ! ${fpath[(Ie)${HOME}/.local/share/zsh/site-functions]} )); then
   fpath+=~/.local/share/zsh/site-functions
