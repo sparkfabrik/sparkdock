@@ -1,0 +1,540 @@
+# macOS System Defaults — sparkdock curated profile
+#
+# Schema (one entry per setting, top-level key is "<domain>.<key>"):
+#
+#   "<domain>.<key>":
+#     domain:      <CFBundleIdentifier or NSGlobalDomain>
+#     key:         <preference key>
+#     type:        bool | int | float | string
+#     value:       <typed value; ${HOME} is expanded in string values>
+#     description: <short human-readable description>
+#     category:    <grouping for the docs table; free-form, kebab-case>
+#     requires:    <list of process names to killall when this value changes; may be empty>
+#
+# User overrides:
+#   ~/.local/spark/macos-defaults/overrides.yml is merged on top using the same shape.
+#   Top-level keys are merged by name, so an override on "com.apple.dock.autohide"
+#   replaces the curated value for that exact setting and leaves every other
+#   entry untouched.
+#
+# Apple Silicon only (per AGENTS.md). Keys deprecated or no-op on supported
+# macOS versions are intentionally absent.
+
+# ----- UI / UX (text input, save panels) ---------------------------------------
+
+"NSGlobalDomain.NSNavPanelExpandedStateForSaveMode":
+  domain: NSGlobalDomain
+  key: NSNavPanelExpandedStateForSaveMode
+  type: bool
+  value: true
+  description: Expand save panel by default
+  category: ui-ux
+  requires: []
+
+"NSGlobalDomain.PMPrintingExpandedStateForPrint":
+  domain: NSGlobalDomain
+  key: PMPrintingExpandedStateForPrint
+  type: bool
+  value: true
+  description: Expand print panel by default
+  category: ui-ux
+  requires: []
+
+"NSGlobalDomain.NSDocumentSaveNewDocumentsToCloud":
+  domain: NSGlobalDomain
+  key: NSDocumentSaveNewDocumentsToCloud
+  type: bool
+  value: false
+  description: Save to disk (not iCloud) by default
+  category: ui-ux
+  requires: []
+
+"NSGlobalDomain.NSAutomaticCapitalizationEnabled":
+  domain: NSGlobalDomain
+  key: NSAutomaticCapitalizationEnabled
+  type: bool
+  value: false
+  description: Disable automatic capitalization
+  category: ui-ux
+  requires: []
+
+"NSGlobalDomain.NSAutomaticDashSubstitutionEnabled":
+  domain: NSGlobalDomain
+  key: NSAutomaticDashSubstitutionEnabled
+  type: bool
+  value: false
+  description: Disable automatic dash substitution
+  category: ui-ux
+  requires: []
+
+"NSGlobalDomain.NSAutomaticPeriodSubstitutionEnabled":
+  domain: NSGlobalDomain
+  key: NSAutomaticPeriodSubstitutionEnabled
+  type: bool
+  value: false
+  description: Disable automatic period substitution
+  category: ui-ux
+  requires: []
+
+"NSGlobalDomain.NSAutomaticQuoteSubstitutionEnabled":
+  domain: NSGlobalDomain
+  key: NSAutomaticQuoteSubstitutionEnabled
+  type: bool
+  value: false
+  description: Disable smart quotes
+  category: ui-ux
+  requires: []
+
+"NSGlobalDomain.NSAutomaticSpellingCorrectionEnabled":
+  domain: NSGlobalDomain
+  key: NSAutomaticSpellingCorrectionEnabled
+  type: bool
+  value: false
+  description: Disable automatic spelling correction
+  category: ui-ux
+  requires: []
+
+# ----- Keyboard ----------------------------------------------------------------
+
+"NSGlobalDomain.KeyRepeat":
+  domain: NSGlobalDomain
+  key: KeyRepeat
+  type: int
+  value: 1
+  description: Set key repeat rate (fastest)
+  category: keyboard
+  requires: []
+
+"NSGlobalDomain.InitialKeyRepeat":
+  domain: NSGlobalDomain
+  key: InitialKeyRepeat
+  type: int
+  value: 10
+  description: Set initial key repeat delay (shortest practical)
+  category: keyboard
+  requires: []
+
+"NSGlobalDomain.ApplePressAndHoldEnabled":
+  domain: NSGlobalDomain
+  key: ApplePressAndHoldEnabled
+  type: bool
+  value: false
+  description: Disable press-and-hold accent picker (use key repeat)
+  category: keyboard
+  requires: []
+
+# ----- Accessibility -----------------------------------------------------------
+
+"com.apple.universalaccess.reduceMotion":
+  domain: com.apple.universalaccess
+  key: reduceMotion
+  type: int
+  value: 1
+  description: Reduce motion for better focus and performance
+  category: accessibility
+  requires: []
+
+# ----- Trackpad ----------------------------------------------------------------
+
+"com.apple.driver.AppleBluetoothMultitouch.trackpad.Clicking":
+  domain: com.apple.driver.AppleBluetoothMultitouch.trackpad
+  key: Clicking
+  type: bool
+  value: true
+  description: Enable tap to click
+  category: trackpad
+  requires: []
+
+"com.apple.driver.AppleBluetoothMultitouch.trackpad.TrackpadRightClick":
+  domain: com.apple.driver.AppleBluetoothMultitouch.trackpad
+  key: TrackpadRightClick
+  type: bool
+  value: true
+  description: Enable secondary (right) click
+  category: trackpad
+  requires: []
+
+"com.apple.driver.AppleBluetoothMultitouch.trackpad.TrackpadCornerSecondaryClick":
+  domain: com.apple.driver.AppleBluetoothMultitouch.trackpad
+  key: TrackpadCornerSecondaryClick
+  type: int
+  value: 2
+  description: Right-click in bottom-right corner
+  category: trackpad
+  requires: []
+
+# ----- Finder ------------------------------------------------------------------
+
+"NSGlobalDomain.AppleShowAllExtensions":
+  domain: NSGlobalDomain
+  key: AppleShowAllExtensions
+  type: bool
+  value: true
+  description: Show all filename extensions
+  category: finder
+  requires: [Finder]
+
+"com.apple.finder.AppleShowAllFiles":
+  domain: com.apple.finder
+  key: AppleShowAllFiles
+  type: bool
+  value: true
+  description: Show hidden files
+  category: finder
+  requires: [Finder]
+
+"com.apple.finder.ShowStatusBar":
+  domain: com.apple.finder
+  key: ShowStatusBar
+  type: bool
+  value: true
+  description: Show status bar
+  category: finder
+  requires: [Finder]
+
+"com.apple.finder.ShowPathbar":
+  domain: com.apple.finder
+  key: ShowPathbar
+  type: bool
+  value: true
+  description: Show path bar
+  category: finder
+  requires: [Finder]
+
+"com.apple.finder._FXShowPosixPathInTitle":
+  domain: com.apple.finder
+  key: _FXShowPosixPathInTitle
+  type: bool
+  value: true
+  description: Show full POSIX path in title bar
+  category: finder
+  requires: [Finder]
+
+"com.apple.finder._FXSortFoldersFirst":
+  domain: com.apple.finder
+  key: _FXSortFoldersFirst
+  type: bool
+  value: true
+  description: Sort folders before files
+  category: finder
+  requires: [Finder]
+
+"com.apple.finder.FXDefaultSearchScope":
+  domain: com.apple.finder
+  key: FXDefaultSearchScope
+  type: string
+  value: SCcf
+  description: Search current folder by default
+  category: finder
+  requires: [Finder]
+
+"com.apple.finder.FXEnableExtensionChangeWarning":
+  domain: com.apple.finder
+  key: FXEnableExtensionChangeWarning
+  type: bool
+  value: false
+  description: Disable warning when changing a file extension
+  category: finder
+  requires: [Finder]
+
+"com.apple.finder.FXPreferredViewStyle":
+  domain: com.apple.finder
+  key: FXPreferredViewStyle
+  type: string
+  value: Nlsv
+  description: Use list view by default
+  category: finder
+  requires: [Finder]
+
+"com.apple.desktopservices.DSDontWriteNetworkStores":
+  domain: com.apple.desktopservices
+  key: DSDontWriteNetworkStores
+  type: bool
+  value: true
+  description: Don't create .DS_Store files on network volumes
+  category: finder
+  requires: [Finder]
+
+"com.apple.desktopservices.DSDontWriteUSBStores":
+  domain: com.apple.desktopservices
+  key: DSDontWriteUSBStores
+  type: bool
+  value: true
+  description: Don't create .DS_Store files on USB volumes
+  category: finder
+  requires: [Finder]
+
+# ----- Dock --------------------------------------------------------------------
+
+"com.apple.dock.tilesize":
+  domain: com.apple.dock
+  key: tilesize
+  type: float
+  value: 48
+  description: Dock tile size
+  category: dock
+  requires: [Dock]
+
+"com.apple.dock.mineffect":
+  domain: com.apple.dock
+  key: mineffect
+  type: string
+  value: scale
+  description: Use scale effect for minimizing
+  category: dock
+  requires: [Dock]
+
+"com.apple.dock.minimize-to-application":
+  domain: com.apple.dock
+  key: minimize-to-application
+  type: bool
+  value: true
+  description: Minimize windows to application icon
+  category: dock
+  requires: [Dock]
+
+"com.apple.dock.enable-spring-load-actions-on-all-items":
+  domain: com.apple.dock
+  key: enable-spring-load-actions-on-all-items
+  type: bool
+  value: true
+  description: Enable spring loading for all dock items
+  category: dock
+  requires: [Dock]
+
+"com.apple.dock.show-process-indicators":
+  domain: com.apple.dock
+  key: show-process-indicators
+  type: bool
+  value: true
+  description: Show indicator lights for open applications
+  category: dock
+  requires: [Dock]
+
+"com.apple.dock.autohide":
+  domain: com.apple.dock
+  key: autohide
+  type: bool
+  value: true
+  description: Auto-hide dock
+  category: dock
+  requires: [Dock]
+
+"com.apple.dock.autohide-delay":
+  domain: com.apple.dock
+  key: autohide-delay
+  type: float
+  value: 0
+  description: Remove auto-hide reveal delay
+  category: dock
+  requires: [Dock]
+
+"com.apple.dock.autohide-time-modifier":
+  domain: com.apple.dock
+  key: autohide-time-modifier
+  type: float
+  value: 0
+  description: Remove auto-hide animation
+  category: dock
+  requires: [Dock]
+
+"com.apple.dock.show-recents":
+  domain: com.apple.dock
+  key: show-recents
+  type: bool
+  value: false
+  description: Hide recent applications in dock
+  category: dock
+  requires: [Dock]
+
+# ----- Safari ------------------------------------------------------------------
+
+"com.apple.Safari.IncludeInternalDebugMenu":
+  domain: com.apple.Safari
+  key: IncludeInternalDebugMenu
+  type: bool
+  value: true
+  description: Enable internal debug menu (best-effort on Safari 17+)
+  category: safari
+  requires: [Safari]
+
+"com.apple.Safari.IncludeDevelopMenu":
+  domain: com.apple.Safari
+  key: IncludeDevelopMenu
+  type: bool
+  value: true
+  description: Enable Develop menu (best-effort on Safari 17+)
+  category: safari
+  requires: [Safari]
+
+"com.apple.Safari.WebKitDeveloperExtrasEnabledPreferenceKey":
+  domain: com.apple.Safari
+  key: WebKitDeveloperExtrasEnabledPreferenceKey
+  type: bool
+  value: true
+  description: Enable WebKit developer extras
+  category: safari
+  requires: [Safari]
+
+"com.apple.Safari.WebKitDeveloperExtras":
+  domain: com.apple.Safari
+  key: WebKitDeveloperExtras
+  type: bool
+  value: true
+  description: Enable web inspector
+  category: safari
+  requires: [Safari]
+
+"com.apple.Safari.ShowFullURLInSmartSearchField":
+  domain: com.apple.Safari
+  key: ShowFullURLInSmartSearchField
+  type: bool
+  value: true
+  description: Show full URL in address bar
+  category: safari
+  requires: [Safari]
+
+"com.apple.Safari.AutoOpenSafeDownloads":
+  domain: com.apple.Safari
+  key: AutoOpenSafeDownloads
+  type: bool
+  value: false
+  description: Disable auto-opening of "safe" downloads
+  category: safari
+  requires: [Safari]
+
+"com.apple.Safari.ShowStatusBar":
+  domain: com.apple.Safari
+  key: ShowStatusBar
+  type: bool
+  value: true
+  description: Show status bar
+  category: safari
+  requires: [Safari]
+
+# ----- Terminal ----------------------------------------------------------------
+
+"com.apple.terminal.SecureKeyboardEntry":
+  domain: com.apple.terminal
+  key: SecureKeyboardEntry
+  type: bool
+  value: true
+  description: Enable secure keyboard entry (applies on next Terminal launch)
+  category: terminal
+  requires: [Terminal]
+
+# ----- TextEdit ----------------------------------------------------------------
+
+"com.apple.TextEdit.RichText":
+  domain: com.apple.TextEdit
+  key: RichText
+  type: int
+  value: 0
+  description: Use plain text by default
+  category: textedit
+  requires: [TextEdit]
+
+"com.apple.TextEdit.PlainTextEncoding":
+  domain: com.apple.TextEdit
+  key: PlainTextEncoding
+  type: int
+  value: 4
+  description: Read files as UTF-8
+  category: textedit
+  requires: [TextEdit]
+
+"com.apple.TextEdit.PlainTextEncodingForWrite":
+  domain: com.apple.TextEdit
+  key: PlainTextEncodingForWrite
+  type: int
+  value: 4
+  description: Write files as UTF-8
+  category: textedit
+  requires: [TextEdit]
+
+# ----- Activity Monitor --------------------------------------------------------
+
+"com.apple.ActivityMonitor.OpenMainWindow":
+  domain: com.apple.ActivityMonitor
+  key: OpenMainWindow
+  type: bool
+  value: true
+  description: Show main window on launch
+  category: activity-monitor
+  requires: [Activity Monitor]
+
+"com.apple.ActivityMonitor.IconType":
+  domain: com.apple.ActivityMonitor
+  key: IconType
+  type: int
+  value: 5
+  description: Show CPU usage in dock icon
+  category: activity-monitor
+  requires: [Activity Monitor]
+
+"com.apple.ActivityMonitor.ShowCategory":
+  domain: com.apple.ActivityMonitor
+  key: ShowCategory
+  type: int
+  value: 0
+  description: Show all processes
+  category: activity-monitor
+  requires: [Activity Monitor]
+
+"com.apple.ActivityMonitor.SortColumn":
+  domain: com.apple.ActivityMonitor
+  key: SortColumn
+  type: string
+  value: CPUUsage
+  description: Sort by CPU usage
+  category: activity-monitor
+  requires: [Activity Monitor]
+
+"com.apple.ActivityMonitor.SortDirection":
+  domain: com.apple.ActivityMonitor
+  key: SortDirection
+  type: int
+  value: 0
+  description: Sort descending
+  category: activity-monitor
+  requires: [Activity Monitor]
+
+# ----- Screenshots -------------------------------------------------------------
+
+"com.apple.screencapture.location":
+  domain: com.apple.screencapture
+  key: location
+  type: string
+  value: ${HOME}/Desktop
+  description: Save screenshots to Desktop
+  category: screenshots
+  requires: [SystemUIServer]
+
+"com.apple.screencapture.type":
+  domain: com.apple.screencapture
+  key: type
+  type: string
+  value: png
+  description: Save screenshots as PNG
+  category: screenshots
+  requires: [SystemUIServer]
+
+"com.apple.screencapture.disable-shadow":
+  domain: com.apple.screencapture
+  key: disable-shadow
+  type: bool
+  value: true
+  description: Disable window-screenshot drop shadow
+  category: screenshots
+  requires: [SystemUIServer]
+
+# ----- Time Machine ------------------------------------------------------------
+
+"com.apple.TimeMachine.DoNotOfferNewDisksForBackup":
+  domain: com.apple.TimeMachine
+  key: DoNotOfferNewDisksForBackup
+  type: bool
+  value: true
+  description: Don't prompt to use new disks as Time Machine backup
+  category: time-machine
+  requires: []

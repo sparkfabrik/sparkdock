@@ -48,6 +48,7 @@ Integrated [SparkFabrik HTTP Proxy](https://github.com/sparkfabrik/http-proxy) p
 - HTTP proxy control
 - System updates and maintenance
 - Package management
+- Idempotent macOS system defaults (`sjust macos-defaults`) with snapshot/undo
 
 ## Installation
 
@@ -60,19 +61,23 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 ### System Requirements
 
 **Operating System:**
+
 - macOS Sequoia (15.x) or macOS Tahoe (26.x)
 - Apple Silicon only
 
 **Hardware Requirements:**
+
 - At least 8GB RAM recommended (16GB for heavy development workloads)
 - Minimum 10GB free disk space (20GB+ recommended for full development environment)
 - Stable internet connection for package downloads
 
 **User Requirements:**
+
 - Administrator privileges (required for system-level configurations)
 - Command line familiarity (basic terminal usage)
 
 **Network Requirements:**
+
 - Access to GitHub, Homebrew, and Docker Hub repositories
 
 ### What Gets Installed
@@ -85,7 +90,8 @@ The installation process:
 4. **Applications & Tools**: All packages from the configuration
 5. **HTTP Proxy System**: Configured and ready to use
 6. **Task Runner**: sjust command available system-wide
-7. **Update Service**: Automatic update checking via launchd
+7. **macOS System Defaults**: Curated developer-oriented preferences (idempotent, snapshot/undo)
+8. **Update Service**: Automatic update checking via launchd
 
 ## Usage
 
@@ -122,6 +128,114 @@ sjust system-upgrade     # Update system packages
 sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gcloud-auth-plugin
 ```
 
+### macOS System Defaults
+
+Sparkdock applies a curated set of developer-oriented macOS defaults via the `macos-defaults` sjust recipe. The recipe is **idempotent** (no-op on second run when nothing has drifted) and **snapshots** the affected preference domains before any change so you can roll back.
+
+```bash
+sjust macos-defaults                    # apply curated defaults (default)
+sjust macos-defaults dry-run            # preview drift, no changes
+sjust macos-defaults dry-run strict     # like dry-run, exits 2 if drift exists (CI)
+sjust macos-defaults dry-run "" verbose # include unchanged settings in output
+sjust macos-defaults-undo               # restore the most recent snapshot
+sjust macos-defaults-undo list          # list available snapshots
+sjust macos-defaults-undo <timestamp>   # restore a specific snapshot
+sjust macos-defaults-docs               # print the settings table to stdout
+sjust macos-defaults-docs check         # verify the README table is fresh
+sjust macos-defaults-docs write         # rewrite the README table from YAML
+```
+
+The same recipe is invoked by Ansible when you run `sparkdock` (or `ansible-playbook ansible/macos.yml --tags macos-defaults`).
+
+**Customizing.** Override individual settings by creating `~/.local/spark/macos-defaults/overrides.yml` with the same shape as `config/macos/defaults.yml`:
+
+```yaml
+"com.apple.dock.autohide":
+  domain: com.apple.dock
+  key: autohide
+  type: bool
+  value: false
+  description: Keep my dock visible
+  category: dock
+  requires: [Dock]
+```
+
+Overrides are merged by exact key, so flipping `com.apple.dock.autohide` only replaces that one setting and leaves the rest of the curated profile alone.
+
+**Snapshots.** The 10 most recent snapshots live under `~/.local/spark/macos-defaults/snapshots/`. Older snapshots are pruned on each apply. `defaults import` is used to restore.
+
+**Requires:** `yq` v4 (installed automatically via Homebrew). Apple Silicon only.
+
+#### Curated settings
+
+<!-- macos-defaults:start -->
+
+<!-- prettier-ignore-start -->
+
+_This table is generated from `config/macos/defaults.yml` by `sjust macos-defaults-docs write`. Do not edit by hand._
+
+| Category | Domain | Key | Type | Default | Description | Restarts |
+| --- | --- | --- | --- | --- | --- | --- |
+| accessibility | `com.apple.universalaccess` | `reduceMotion` | int | `1` | Reduce motion for better focus and performance |  |
+| activity-monitor | `com.apple.ActivityMonitor` | `IconType` | int | `5` | Show CPU usage in dock icon | Activity Monitor |
+| activity-monitor | `com.apple.ActivityMonitor` | `OpenMainWindow` | bool | `true` | Show main window on launch | Activity Monitor |
+| activity-monitor | `com.apple.ActivityMonitor` | `ShowCategory` | int | `0` | Show all processes | Activity Monitor |
+| activity-monitor | `com.apple.ActivityMonitor` | `SortColumn` | string | `CPUUsage` | Sort by CPU usage | Activity Monitor |
+| activity-monitor | `com.apple.ActivityMonitor` | `SortDirection` | int | `0` | Sort descending | Activity Monitor |
+| dock | `com.apple.dock` | `autohide` | bool | `true` | Auto-hide dock | Dock |
+| dock | `com.apple.dock` | `autohide-delay` | float | `0` | Remove auto-hide reveal delay | Dock |
+| dock | `com.apple.dock` | `autohide-time-modifier` | float | `0` | Remove auto-hide animation | Dock |
+| dock | `com.apple.dock` | `enable-spring-load-actions-on-all-items` | bool | `true` | Enable spring loading for all dock items | Dock |
+| dock | `com.apple.dock` | `mineffect` | string | `scale` | Use scale effect for minimizing | Dock |
+| dock | `com.apple.dock` | `minimize-to-application` | bool | `true` | Minimize windows to application icon | Dock |
+| dock | `com.apple.dock` | `show-process-indicators` | bool | `true` | Show indicator lights for open applications | Dock |
+| dock | `com.apple.dock` | `show-recents` | bool | `false` | Hide recent applications in dock | Dock |
+| dock | `com.apple.dock` | `tilesize` | float | `48` | Dock tile size | Dock |
+| finder | `NSGlobalDomain` | `AppleShowAllExtensions` | bool | `true` | Show all filename extensions | Finder |
+| finder | `com.apple.finder` | `AppleShowAllFiles` | bool | `true` | Show hidden files | Finder |
+| finder | `com.apple.desktopservices` | `DSDontWriteNetworkStores` | bool | `true` | Don't create .DS_Store files on network volumes | Finder |
+| finder | `com.apple.desktopservices` | `DSDontWriteUSBStores` | bool | `true` | Don't create .DS_Store files on USB volumes | Finder |
+| finder | `com.apple.finder` | `FXDefaultSearchScope` | string | `SCcf` | Search current folder by default | Finder |
+| finder | `com.apple.finder` | `FXEnableExtensionChangeWarning` | bool | `false` | Disable warning when changing a file extension | Finder |
+| finder | `com.apple.finder` | `FXPreferredViewStyle` | string | `Nlsv` | Use list view by default | Finder |
+| finder | `com.apple.finder` | `ShowPathbar` | bool | `true` | Show path bar | Finder |
+| finder | `com.apple.finder` | `ShowStatusBar` | bool | `true` | Show status bar | Finder |
+| finder | `com.apple.finder` | `_FXShowPosixPathInTitle` | bool | `true` | Show full POSIX path in title bar | Finder |
+| finder | `com.apple.finder` | `_FXSortFoldersFirst` | bool | `true` | Sort folders before files | Finder |
+| keyboard | `NSGlobalDomain` | `ApplePressAndHoldEnabled` | bool | `false` | Disable press-and-hold accent picker (use key repeat) |  |
+| keyboard | `NSGlobalDomain` | `InitialKeyRepeat` | int | `10` | Set initial key repeat delay (shortest practical) |  |
+| keyboard | `NSGlobalDomain` | `KeyRepeat` | int | `1` | Set key repeat rate (fastest) |  |
+| safari | `com.apple.Safari` | `AutoOpenSafeDownloads` | bool | `false` | Disable auto-opening of "safe" downloads | Safari |
+| safari | `com.apple.Safari` | `IncludeDevelopMenu` | bool | `true` | Enable Develop menu (best-effort on Safari 17+) | Safari |
+| safari | `com.apple.Safari` | `IncludeInternalDebugMenu` | bool | `true` | Enable internal debug menu (best-effort on Safari 17+) | Safari |
+| safari | `com.apple.Safari` | `ShowFullURLInSmartSearchField` | bool | `true` | Show full URL in address bar | Safari |
+| safari | `com.apple.Safari` | `ShowStatusBar` | bool | `true` | Show status bar | Safari |
+| safari | `com.apple.Safari` | `WebKitDeveloperExtras` | bool | `true` | Enable web inspector | Safari |
+| safari | `com.apple.Safari` | `WebKitDeveloperExtrasEnabledPreferenceKey` | bool | `true` | Enable WebKit developer extras | Safari |
+| screenshots | `com.apple.screencapture` | `disable-shadow` | bool | `true` | Disable window-screenshot drop shadow | SystemUIServer |
+| screenshots | `com.apple.screencapture` | `location` | string | `${HOME}/Desktop` | Save screenshots to Desktop | SystemUIServer |
+| screenshots | `com.apple.screencapture` | `type` | string | `png` | Save screenshots as PNG | SystemUIServer |
+| terminal | `com.apple.terminal` | `SecureKeyboardEntry` | bool | `true` | Enable secure keyboard entry (applies on next Terminal launch) | Terminal |
+| textedit | `com.apple.TextEdit` | `PlainTextEncoding` | int | `4` | Read files as UTF-8 | TextEdit |
+| textedit | `com.apple.TextEdit` | `PlainTextEncodingForWrite` | int | `4` | Write files as UTF-8 | TextEdit |
+| textedit | `com.apple.TextEdit` | `RichText` | int | `0` | Use plain text by default | TextEdit |
+| time-machine | `com.apple.TimeMachine` | `DoNotOfferNewDisksForBackup` | bool | `true` | Don't prompt to use new disks as Time Machine backup |  |
+| trackpad | `com.apple.driver.AppleBluetoothMultitouch.trackpad` | `Clicking` | bool | `true` | Enable tap to click |  |
+| trackpad | `com.apple.driver.AppleBluetoothMultitouch.trackpad` | `TrackpadCornerSecondaryClick` | int | `2` | Right-click in bottom-right corner |  |
+| trackpad | `com.apple.driver.AppleBluetoothMultitouch.trackpad` | `TrackpadRightClick` | bool | `true` | Enable secondary (right) click |  |
+| ui-ux | `NSGlobalDomain` | `NSAutomaticCapitalizationEnabled` | bool | `false` | Disable automatic capitalization |  |
+| ui-ux | `NSGlobalDomain` | `NSAutomaticDashSubstitutionEnabled` | bool | `false` | Disable automatic dash substitution |  |
+| ui-ux | `NSGlobalDomain` | `NSAutomaticPeriodSubstitutionEnabled` | bool | `false` | Disable automatic period substitution |  |
+| ui-ux | `NSGlobalDomain` | `NSAutomaticQuoteSubstitutionEnabled` | bool | `false` | Disable smart quotes |  |
+| ui-ux | `NSGlobalDomain` | `NSAutomaticSpellingCorrectionEnabled` | bool | `false` | Disable automatic spelling correction |  |
+| ui-ux | `NSGlobalDomain` | `NSDocumentSaveNewDocumentsToCloud` | bool | `false` | Save to disk (not iCloud) by default |  |
+| ui-ux | `NSGlobalDomain` | `NSNavPanelExpandedStateForSaveMode` | bool | `true` | Expand save panel by default |  |
+| ui-ux | `NSGlobalDomain` | `PMPrintingExpandedStateForPrint` | bool | `true` | Expand print panel by default |  |
+
+<!-- prettier-ignore-end -->
+
+<!-- macos-defaults:end -->
+
 ### Google Cloud SDK Configuration
 
 Sparkdock automatically installs and configures Google Cloud SDK during provisioning, including the `gke-gcloud-auth-plugin` component required for GKE authentication.
@@ -133,6 +247,7 @@ sjust system-gcloud-reconfigure
 ```
 
 This command will:
+
 - Install Google Cloud SDK via Homebrew (if not present)
 - Install the `gke-gcloud-auth-plugin` component
 - Disable survey prompts and usage reporting
@@ -221,6 +336,7 @@ Sparkdock includes a native macOS menu bar application that provides quick acces
 ![Sparkdock Menu Bar](static/menubar.png)
 
 **Features:**
+
 - Real-time system status with colored indicators
 - Quick access to development tools and dashboards
 - Battery-efficient event-driven updates
@@ -258,6 +374,7 @@ The app is automatically installed as a LaunchAgent (`com.sparkfabrik.sparkdock.
 For detailed troubleshooting information, see our [troubleshooting guide](TROUBLESHOOTING.md) or visit the [company playbook](http://playbook.sparkfabrik.com/guides/local-development-environment-configuration).
 
 If you are still blocked after trying the steps above:
+
 - Reach out on Slack in `#sparkdock-support` with a short summary plus any relevant logs (for example `~/.config/spark/sparkdock/ai.log`).
 - Or open an issue on the Sparkdock repository so the team can track the fix.
 

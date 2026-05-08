@@ -14,7 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `config/rtk/exclude-commands.toml` and RTK setup logic that bootstraps RTK's own `config.toml` when needed, then rewrites only `exclude_commands` with Sparkdock's destructive shortlist (including `k`, `tf`, and `d` alias assumptions) so dangerous commands bypass RTK rewrite
 - Added `~/.local/bin/rtk-run`, a small helper that runs `rtk rewrite` first and otherwise falls back to the original raw command, so Copilot instructions can use one command for safe high-output local workflows
 - Added a GitHub Actions workflow that verifies Sparkdock RTK setup installs the expected files, merges `exclude_commands` into RTK's config, and can run basic `rtk` commands end to end
-
+- Added `sjust macos-defaults` recipe applying a curated, idempotent profile of developer-oriented macOS system defaults; reads `config/macos/defaults.yml` and merges per-key user overrides from `~/.local/spark/macos-defaults/overrides.yml`
+- Added `sjust macos-defaults` modes `dry-run` (preview drift), `dry-run strict` (exit 2 on drift, CI-friendly), and `dry-run "" verbose` (also list unchanged settings)
+- Added `sjust macos-defaults-undo` recipe to restore the most recent snapshot taken before each apply, with `list` and `<timestamp>` selectors
+- Added `sjust macos-defaults-docs` recipe to print, check, or rewrite the macOS defaults table embedded in `README.md`
+- Added Ansible `macos-defaults` tag (in `ansible/macos/macos/base.yml`) that invokes the sjust recipe when `/usr/local/bin/sjust` is present
 - Added `bash` (Homebrew formula, 5.x) to `config/packages/all-packages.yml` so Sparkdock scripts can rely on bash 4+ idioms (`declare -A`, `mapfile`, `${arr[-1]}`, etc.); macOS's stock `/bin/bash` is 3.2.57 and several existing scripts (`bin/common/skills-symlink-shim.sh`, `bin/sparkdock-agents-sync`) already required this implicitly via Homebrew's `PATH` ordering — this commit makes the dependency explicit
 - Added `~/.local/bin` to default zsh PATH for user-local binaries (XDG convention), auto-creating the directory if missing
 - Added automatic disabling of gcloud usage reporting during Google Cloud SDK configuration (both in Ansible provisioning and `sjust system-gcloud-reconfigure`)
