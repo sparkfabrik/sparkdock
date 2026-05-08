@@ -20,6 +20,7 @@ macos-defaults $mode="apply" $strict="" $verbose="":
     #!/usr/bin/env bash
     set -euo pipefail
     source "{{ sparkdock_path }}/sjust/libs/libcolors.sh"
+    source "{{ sparkdock_path }}/sjust/libs/libformatting.sh"
 
     config_file="{{ config_file }}"
     user_overrides="{{ user_overrides }}"
@@ -228,6 +229,7 @@ macos-defaults-undo $action="":
     #!/usr/bin/env bash
     set -euo pipefail
     source "{{ sparkdock_path }}/sjust/libs/libcolors.sh"
+    source "{{ sparkdock_path }}/sjust/libs/libformatting.sh"
 
     snapshots_root="{{ snapshots_root }}"
 
@@ -326,6 +328,7 @@ macos-defaults-docs $mode="print":
     #!/usr/bin/env bash
     set -euo pipefail
     source "{{ sparkdock_path }}/sjust/libs/libcolors.sh"
+    source "{{ sparkdock_path }}/sjust/libs/libformatting.sh"
 
     config_file="{{ config_file }}"
     readme="{{ sparkdock_path }}/README.md"
