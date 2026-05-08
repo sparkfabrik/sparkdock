@@ -18,9 +18,12 @@
 #   entry untouched.
 #
 # Apple Silicon only (per AGENTS.md). Keys deprecated or no-op on supported
-# macOS versions are intentionally absent.
+# macOS versions are intentionally absent. The curated set deliberately leaves
+# out "preference" toggles (autohide, tap-to-click, smart-quotes, etc.) that
+# are user choices rather than developer-correctness defaults — set them in
+# your overrides.yml if you want them.
 
-# ----- UI / UX (text input, save panels) ---------------------------------------
+# ----- UI / UX (panels) --------------------------------------------------------
 
 "NSGlobalDomain.NSNavPanelExpandedStateForSaveMode":
   domain: NSGlobalDomain
@@ -37,60 +40,6 @@
   type: bool
   value: true
   description: Expand print panel by default
-  category: ui-ux
-  requires: []
-
-"NSGlobalDomain.NSDocumentSaveNewDocumentsToCloud":
-  domain: NSGlobalDomain
-  key: NSDocumentSaveNewDocumentsToCloud
-  type: bool
-  value: false
-  description: Save to disk (not iCloud) by default
-  category: ui-ux
-  requires: []
-
-"NSGlobalDomain.NSAutomaticCapitalizationEnabled":
-  domain: NSGlobalDomain
-  key: NSAutomaticCapitalizationEnabled
-  type: bool
-  value: false
-  description: Disable automatic capitalization
-  category: ui-ux
-  requires: []
-
-"NSGlobalDomain.NSAutomaticDashSubstitutionEnabled":
-  domain: NSGlobalDomain
-  key: NSAutomaticDashSubstitutionEnabled
-  type: bool
-  value: false
-  description: Disable automatic dash substitution
-  category: ui-ux
-  requires: []
-
-"NSGlobalDomain.NSAutomaticPeriodSubstitutionEnabled":
-  domain: NSGlobalDomain
-  key: NSAutomaticPeriodSubstitutionEnabled
-  type: bool
-  value: false
-  description: Disable automatic period substitution
-  category: ui-ux
-  requires: []
-
-"NSGlobalDomain.NSAutomaticQuoteSubstitutionEnabled":
-  domain: NSGlobalDomain
-  key: NSAutomaticQuoteSubstitutionEnabled
-  type: bool
-  value: false
-  description: Disable smart quotes
-  category: ui-ux
-  requires: []
-
-"NSGlobalDomain.NSAutomaticSpellingCorrectionEnabled":
-  domain: NSGlobalDomain
-  key: NSAutomaticSpellingCorrectionEnabled
-  type: bool
-  value: false
-  description: Disable automatic spelling correction
   category: ui-ux
   requires: []
 
@@ -114,15 +63,6 @@
   category: keyboard
   requires: []
 
-"NSGlobalDomain.ApplePressAndHoldEnabled":
-  domain: NSGlobalDomain
-  key: ApplePressAndHoldEnabled
-  type: bool
-  value: false
-  description: Disable press-and-hold accent picker (use key repeat)
-  category: keyboard
-  requires: []
-
 # ----- Accessibility -----------------------------------------------------------
 
 "com.apple.universalaccess.reduceMotion":
@@ -136,30 +76,12 @@
 
 # ----- Trackpad ----------------------------------------------------------------
 
-"com.apple.driver.AppleBluetoothMultitouch.trackpad.Clicking":
-  domain: com.apple.driver.AppleBluetoothMultitouch.trackpad
-  key: Clicking
-  type: bool
-  value: true
-  description: Enable tap to click
-  category: trackpad
-  requires: []
-
 "com.apple.driver.AppleBluetoothMultitouch.trackpad.TrackpadRightClick":
   domain: com.apple.driver.AppleBluetoothMultitouch.trackpad
   key: TrackpadRightClick
   type: bool
   value: true
-  description: Enable secondary (right) click
-  category: trackpad
-  requires: []
-
-"com.apple.driver.AppleBluetoothMultitouch.trackpad.TrackpadCornerSecondaryClick":
-  domain: com.apple.driver.AppleBluetoothMultitouch.trackpad
-  key: TrackpadCornerSecondaryClick
-  type: int
-  value: 2
-  description: Right-click in bottom-right corner
+  description: Enable secondary (right) click on trackpad
   category: trackpad
   requires: []
 
@@ -237,15 +159,6 @@
   category: finder
   requires: [Finder]
 
-"com.apple.finder.FXPreferredViewStyle":
-  domain: com.apple.finder
-  key: FXPreferredViewStyle
-  type: string
-  value: Nlsv
-  description: Use list view by default
-  category: finder
-  requires: [Finder]
-
 "com.apple.desktopservices.DSDontWriteNetworkStores":
   domain: com.apple.desktopservices
   key: DSDontWriteNetworkStores
@@ -266,30 +179,12 @@
 
 # ----- Dock --------------------------------------------------------------------
 
-"com.apple.dock.tilesize":
-  domain: com.apple.dock
-  key: tilesize
-  type: float
-  value: 48
-  description: Dock tile size
-  category: dock
-  requires: [Dock]
-
-"com.apple.dock.mineffect":
-  domain: com.apple.dock
-  key: mineffect
-  type: string
-  value: scale
-  description: Use scale effect for minimizing
-  category: dock
-  requires: [Dock]
-
 "com.apple.dock.minimize-to-application":
   domain: com.apple.dock
   key: minimize-to-application
   type: bool
   value: true
-  description: Minimize windows to application icon
+  description: Minimize windows to application icon (cleaner dock)
   category: dock
   requires: [Dock]
 
@@ -308,33 +203,6 @@
   type: bool
   value: true
   description: Show indicator lights for open applications
-  category: dock
-  requires: [Dock]
-
-"com.apple.dock.autohide":
-  domain: com.apple.dock
-  key: autohide
-  type: bool
-  value: true
-  description: Auto-hide dock
-  category: dock
-  requires: [Dock]
-
-"com.apple.dock.autohide-delay":
-  domain: com.apple.dock
-  key: autohide-delay
-  type: float
-  value: 0
-  description: Remove auto-hide reveal delay
-  category: dock
-  requires: [Dock]
-
-"com.apple.dock.autohide-time-modifier":
-  domain: com.apple.dock
-  key: autohide-time-modifier
-  type: float
-  value: 0
-  description: Remove auto-hide animation
   category: dock
   requires: [Dock]
 
@@ -399,7 +267,7 @@
   key: AutoOpenSafeDownloads
   type: bool
   value: false
-  description: Disable auto-opening of "safe" downloads
+  description: Disable auto-opening of "safe" downloads (security)
   category: safari
   requires: [Safari]
 
@@ -516,15 +384,6 @@
   type: string
   value: png
   description: Save screenshots as PNG
-  category: screenshots
-  requires: [SystemUIServer]
-
-"com.apple.screencapture.disable-shadow":
-  domain: com.apple.screencapture
-  key: disable-shadow
-  type: bool
-  value: true
-  description: Disable window-screenshot drop shadow
   category: screenshots
   requires: [SystemUIServer]
 
