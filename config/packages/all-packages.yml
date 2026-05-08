@@ -27,6 +27,10 @@ cask_packages:
   - copilot-cli
 
 homebrew_packages:
+  # Modern bash (5.x). macOS still ships /bin/bash 3.2 because bash 4+ is GPLv3.
+  # Several sparkdock scripts use bash-4 idioms (declare -A, mapfile) and rely
+  # on Homebrew's bash being first on PATH; making the dependency explicit here.
+  - bash
   # Cloud Tools
   - awscli
   - chafa
