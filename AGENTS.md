@@ -117,6 +117,8 @@ sjust install-tags "docker,keyboard"
 
 ## Shell Script Standards
 
+**Bash version.** Sparkdock targets **bash 5.x** (Homebrew's `bash` formula, listed in `config/packages/all-packages.yml`). macOS ships `/bin/bash` 3.2, but `#!/usr/bin/env bash` resolves to the Homebrew interpreter on sparkdock-provisioned machines. You can use `declare -A`, `mapfile` / `readarray`, `${arr[-1]}`, `[[ -v var ]]`, and other bash 4+ idioms freely — no need for 3.2-compat workarounds.
+
 All shell scripts must:
 
 - Use `#!/usr/bin/env bash` shebang
