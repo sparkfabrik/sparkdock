@@ -738,6 +738,11 @@
 
     - name: Configure OpenCode settings
       tags: opencode
+      vars:
+        opencode_personal_config_notice: >-
+          You can create ~/.config/opencode/opencode.json for personal
+          customizations. It will be merged with the system-wide configuration
+          shipped in /Library/Application Support/opencode/opencode.json.
       block:
         - name: Ensure OpenCode user config directory exists
           file:
@@ -745,13 +750,6 @@
             state: directory
             mode: "0755"
           become: no
-
-        - name: Notify user about personal opencode configuration
-          debug:
-            msg: >-
-              You can create ~/.config/opencode/opencode.json for personal
-              customizations. It will be merged with the system-wide configuration
-              shipped in /Library/Application Support/opencode/opencode.json.
 
         - name: Check if user-local opencode config exists
           ansible.builtin.stat:
@@ -776,6 +774,23 @@
           when:
             - user_opencode_config.stat.exists
             - opencode_config_diff is defined
+            - opencode_config_diff.rc is defined
+            - opencode_config_diff.rc == 0
+
+        - name: Notify user about personal opencode configuration
+          debug:
+            msg: "{{ opencode_personal_config_notice }}"
+
+        - name: Notify with a system notification.
+          ansible.builtin.command:
+            argv:
+              - osascript
+              - -e
+              - 'display notification "{{ opencode_personal_config_notice }}" with title "OpenCode Configuration"'
+          when:
+            - not is_non_interactive | default(false)
+            - opencode_config_diff is defined
+            - opencode_config_diff.rc is defined
             - opencode_config_diff.rc == 0
 
         - name: Warn user about non-custom opencode config
@@ -788,6 +803,7 @@
           when:
             - user_opencode_config.stat.exists
             - opencode_config_diff is defined
+            - opencode_config_diff.rc is defined
             - opencode_config_diff.rc != 0
 
         - name: Create system-wide OpenCode config directory
