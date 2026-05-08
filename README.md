@@ -135,6 +135,7 @@ sjust system-gcloud-reconfigure
 This command will:
 - Install Google Cloud SDK via Homebrew (if not present)
 - Install the `gke-gcloud-auth-plugin` component
+- Disable survey prompts and usage reporting
 - Configure shell completion in your `.zshrc`
 - Verify the installation
 
