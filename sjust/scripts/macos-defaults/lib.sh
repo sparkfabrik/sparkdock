@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
+# shellcheck disable=SC2034
+# (SC2034 = "appears unused": this file is sourced by apply.sh / undo.sh /
+# info.sh / docs.sh / init-overrides.sh. The MD_* variables below ARE used —
+# but only in those sourcing scripts, which shellcheck cannot see across files.
+# Disabling at the file level keeps the variable declarations clean.)
+#
 # sjust/scripts/macos-defaults/lib.sh — shared helpers for the macos-defaults scripts.
 #
 # Sourced by apply.sh, undo.sh, docs.sh, info.sh. Provides:
@@ -41,17 +47,11 @@ fi
 # shellcheck source=../../libs/libshell.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/sjust/libs/libshell.sh"
 
-# Canonical paths used by all scripts (read by sourcing scripts — shellcheck
-# can't see cross-file usage so we disable the unused-variable warning here).
-# shellcheck disable=SC2034
+# Canonical paths and tunables used by all scripts that source this lib.
 MD_CONFIG_FILE="${SPARKDOCK_ROOT}/config/macos/defaults.yml"
-# shellcheck disable=SC2034
 MD_USER_OVERRIDES="${HOME}/.local/spark/macos-defaults/overrides.yml"
-# shellcheck disable=SC2034
 MD_SNAPSHOTS_ROOT="${HOME}/.local/spark/macos-defaults/snapshots"
-# shellcheck disable=SC2034
 MD_SNAPSHOT_RETENTION=10
-# shellcheck disable=SC2034
 MD_LOCK_FILE="${HOME}/.local/spark/macos-defaults/.lock"
 
 # --- yq detection ------------------------------------------------------------
