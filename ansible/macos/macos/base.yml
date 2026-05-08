@@ -649,7 +649,11 @@
         - name: Apply curated macOS defaults
           ansible.builtin.command: /usr/local/bin/sjust macos-defaults
           register: macos_defaults_result
-          changed_when: "'No drift' not in macos_defaults_result.stdout"
+          # The recipe prints `MACOS_DEFAULTS_STATUS: aligned …` to stdout when
+          # nothing changed, and `MACOS_DEFAULTS_STATUS: applied …` when it
+          # wrote at least one key. Anchor on that machine-readable line so
+          # this stays correct regardless of where logs are routed.
+          changed_when: "'MACOS_DEFAULTS_STATUS: applied' in macos_defaults_result.stdout"
           when: sjust_binary.stat.exists
           become: false
 

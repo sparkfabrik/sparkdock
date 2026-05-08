@@ -56,6 +56,7 @@ mapfile -t rows < <(yq eval '
 
 declare -a to_write
 drift_count=0
+skipped_count=0
 
 for row in "${rows[@]}"; do
     IFS=$'\t' read -r id domain key type desired_raw _requires_csv <<<"${row}"
@@ -66,6 +67,23 @@ for row in "${rows[@]}"; do
         desired="${desired_raw}"
     fi
     desired_norm="$(md_normalize "${type}" "${desired}")"
+
+    # Refuse to overwrite a non-scalar existing value. If the user already has
+    # this key set as an array / dictionary / data blob, we cannot represent it
+    # in the snapshot's per-key TSV (which only handles scalars), and clobbering
+    # it with a bool/int/float/string would lose the original data without a
+    # sound undo path. Skip with a clear warning instead.
+    existing_type="$(md_read_type "${domain}" "${key}")"
+    case "${existing_type}" in
+        bool|int|float|string|__UNSET__)
+            ;;  # supported; fall through to drift detection
+        array|dict|data|unknown)
+            log_warn "${id}: existing value has type '${existing_type}'; skipping (would clobber non-scalar user data)"
+            skipped_count=$((skipped_count + 1))
+            continue
+            ;;
+    esac
+
     current="$(md_read_current "${domain}" "${key}")"
 
     if [[ "${current}" == "__UNSET__" ]]; then
@@ -104,11 +122,15 @@ done
 echo
 if [[ ${drift_count} -eq 0 ]]; then
     log_success "No drift — nothing to do."
+    # Machine-readable status on stdout so Ansible's `changed_when` can see it
+    # regardless of whether logs are routed to stdout or stderr.
+    printf 'MACOS_DEFAULTS_STATUS: aligned (skipped=%d)\n' "${skipped_count}"
     exit 0
 fi
 log_info "${drift_count} setting(s) drifted from desired."
 
 if [[ "${mode}" == "dry-run" ]]; then
+    printf 'MACOS_DEFAULTS_STATUS: drift drift=%d skipped=%d\n' "${drift_count}" "${skipped_count}"
     [[ "${strict}" == "strict" ]] && exit 2
     exit 0
 fi
@@ -175,3 +197,4 @@ md_prune_snapshots
 
 echo
 log_success "Applied ${drift_count} setting(s). Some changes may require logout/restart to fully take effect."
+printf 'MACOS_DEFAULTS_STATUS: applied applied=%d skipped=%d\n' "${drift_count}" "${skipped_count}"

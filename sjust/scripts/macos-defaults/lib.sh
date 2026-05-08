@@ -37,13 +37,6 @@ if [[ "${_SPARKDOCK_MACOS_DEFAULTS_LIB_LOADED:-}" = "1" ]]; then
 fi
 _SPARKDOCK_MACOS_DEFAULTS_LIB_LOADED=1
 
-# Bash 4+ is required (associative arrays, mapfile). Apple ships /bin/bash 3.2;
-# Sparkdock relies on Homebrew's bash being on PATH (installed by brew + sparkdock provisioning).
-if (( BASH_VERSINFO[0] < 4 )); then
-    echo "Error: bash >= 4 required (you have ${BASH_VERSION}). Install with: brew install bash" >&2
-    exit 1
-fi
-
 # shellcheck source=../../libs/libshell.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)/sjust/libs/libshell.sh"
 
@@ -116,7 +109,14 @@ md_read_current() {
 }
 
 # defaults read-type returns "Type is boolean|integer|float|string|array|dictionary|data".
-# We map it to our own type vocabulary; unknown / unset returns __UNSET__.
+# We map it to our own vocabulary, distinguishing unset from non-scalar types so
+# callers can refuse to overwrite array/dictionary/data values rather than
+# silently clobbering them. Returns:
+#   bool | int | float | string         — scalar types we can write/restore
+#   array | dict | data                 — existing non-scalar value: do not touch
+#   unknown                             — defaults read-type succeeded but with
+#                                         an unrecognised type description
+#   __UNSET__                           — key is not set in this domain
 md_read_type() {
     local out
     out="$(defaults read-type "$1" "$2" 2>/dev/null)" || { printf '__UNSET__'; return 0; }
@@ -125,7 +125,10 @@ md_read_type() {
         *integer*)    printf 'int' ;;
         *float*)      printf 'float' ;;
         *string*)     printf 'string' ;;
-        *)            printf '__UNSET__' ;;
+        *array*)      printf 'array' ;;
+        *dictionary*) printf 'dict' ;;
+        *data*)       printf 'data' ;;
+        *)            printf 'unknown' ;;
     esac
 }
 
