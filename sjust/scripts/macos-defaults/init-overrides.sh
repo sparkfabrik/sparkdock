@@ -10,6 +10,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
 source "${SCRIPT_DIR}/lib.sh"
+md_require_macos_version
 
 if [[ -f "${MD_USER_OVERRIDES}" ]]; then
     log_info "Overrides file already exists at ${MD_USER_OVERRIDES} — leaving it alone."

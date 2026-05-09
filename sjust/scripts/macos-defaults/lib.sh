@@ -47,6 +47,18 @@ MD_SNAPSHOTS_ROOT="${HOME}/.local/spark/macos-defaults/snapshots"
 MD_SNAPSHOT_RETENTION=10
 MD_LOCK_FILE="${HOME}/.local/spark/macos-defaults/.lock"
 
+# --- macOS version guard -----------------------------------------------------
+
+md_require_macos_version() {
+    local version major
+    version="$(sw_vers -productVersion)"
+    major="${version%%.*}"
+    if [[ "${major}" -lt 26 ]]; then
+        log_warn "macos-defaults requires macOS 26 (Tahoe) or later (detected: ${version}). Skipping."
+        exit 0
+    fi
+}
+
 # --- yq detection ------------------------------------------------------------
 
 md_check_yq() {
