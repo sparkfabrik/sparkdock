@@ -58,7 +58,9 @@ jobs:
           echo "Testing individual recipe files..."
           just --justfile sjust/recipes/00-default.just --dry-run --list > /dev/null
           just --justfile sjust/recipes/01-lima.just --dry-run --list > /dev/null
-          just --justfile sjust/recipes/03-macos-defaults.just --dry-run --list > /dev/null
+          # 03-macos-defaults.just intentionally consumes `sparkdock_path` from
+          # 00-default.just and so cannot be parsed standalone. It is exercised
+          # via the unified justfile a few lines above and `--evaluate` below.
 
       - name: Test make install-sjust with git check disabled
         run: |
