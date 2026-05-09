@@ -158,6 +158,7 @@ md_snapshot_publish_latest "${snapshot_dir}"
 log_info "Snapshot: ${snapshot_dir}"
 
 declare -A restart_apps=()
+declare -a no_restart_keys=()
 for id in "${to_write[@]}"; do
     IFS=$'\t' read -r _id domain key type desired_raw requires_csv <<<"${row_lookup[${id}]}"
     if [[ "${type}" == "string" ]]; then
@@ -179,6 +180,8 @@ for id in "${to_write[@]}"; do
         for app in "${apps[@]}"; do
             [[ -n "${app}" ]] && restart_apps["${app}"]=1
         done
+    else
+        no_restart_keys+=("${id}")
     fi
 done
 
@@ -196,5 +199,9 @@ fi
 md_prune_snapshots
 
 echo
-log_success "Applied ${drift_count} setting(s). Some changes may require logout/restart to fully take effect."
+log_success "Applied ${drift_count} setting(s)."
+if [[ ${#no_restart_keys[@]} -gt 0 ]]; then
+    log_info "The following settings take effect at next use (no app restart needed):"
+    printf '  • %s\n' "${no_restart_keys[@]}"
+fi
 printf 'MACOS_DEFAULTS_STATUS: applied applied=%d skipped=%d\n' "${drift_count}" "${skipped_count}"

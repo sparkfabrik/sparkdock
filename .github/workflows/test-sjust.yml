@@ -182,7 +182,9 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::macos-defaults-docs print"
-          sjust macos-defaults-docs print | grep -q "macos-defaults:start"
+          out=$(sjust macos-defaults-docs print)
+          echo "$out" | head -20
+          echo "$out" | grep -q "macos-defaults:start"
           echo "::endgroup::"
 
           echo "::group::macos-defaults-docs check (README must be in sync)"
