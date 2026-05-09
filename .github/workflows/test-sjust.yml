@@ -36,8 +36,13 @@ jobs:
           echo "Installing Just command runner..."
           brew install just
 
-      - name: Install yq (mikefarah/yq) for macos-defaults recipes
-        run: brew install yq
+      - name: Install Homebrew bash and yq required by sjust recipes
+        run: |
+          # macOS ships /bin/bash 3.2; sjust scripts use bash 4+ idioms
+          # (declare -A, mapfile). The full provisioner installs `bash` via
+          # homebrew_packages.yml, but this lighter test job runs sjust directly
+          # and so must pull bash and yq in itself.
+          brew install bash yq
 
       - name: Test sjust library files syntax
         run: |
