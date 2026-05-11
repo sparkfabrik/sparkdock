@@ -148,7 +148,7 @@ setup_copilot() {
     read -r -d '' instructions_content <<'EOF' || true
 Use `rtk` for high-output local development commands such as build, test, lint, search, status, diff, log, list/get/show, and package manager operations.
 
-Do not manually prefix destructive commands or commands that change infrastructure, cloud, cluster, or remote repository state with `rtk` (for example: `rm -rf`, `git push`, `kubectl apply`, `helm upgrade`, `terraform apply`, `gh pr merge`).
+Do not manually prefix destructive commands or commands that change infrastructure, cloud, cluster, or remote repository state with `rtk` (for example: `rm -rf`, `git push --force`, `kubectl apply`, `terraform destroy`, `gcloud ... destroy`, `gh pr merge`).
 
 If a project contains `.github/hooks/rtk-rewrite.json`, use normal shell commands and let the hook rewrite safe ones automatically. If unsure, use the raw command.
 EOF
