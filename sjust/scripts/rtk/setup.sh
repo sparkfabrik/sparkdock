@@ -71,6 +71,10 @@ generate_config() {
     # Create default config if it doesn't exist
     if [[ ! -f "${config_file}" ]]; then
         rtk config --create > /dev/null 2>&1 || true
+        if [[ ! -f "${config_file}" ]]; then
+            log_error "rtk config --create did not produce ${config_file}"
+            return 1
+        fi
     fi
 
     # Skip if exclude_commands is already configured (non-empty)
@@ -107,7 +111,7 @@ setup_claude() {
 # Copilot CLI does not support global hooks — only project-scoped hooks in
 # .github/hooks/. The global setup is instructions-only, which tells Copilot
 # to prefix read-only commands with rtk. This is a prompt-based safety measure,
-# not a mechanical one. For per-project hooks, use the sf-rtk-project-init recipe.
+# not a mechanical one. For per-project hooks, use the sf-rtk-copilot-project-init recipe.
 #
 # Upstream issue for proper hook support: rtk-ai/rtk#1839
 setup_copilot() {

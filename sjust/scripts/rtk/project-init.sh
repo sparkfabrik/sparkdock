@@ -13,7 +13,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../../libs/libshell.sh"
 
-if [[ ! -d .git ]]; then
+if ! git rev-parse --is-inside-work-tree > /dev/null 2>&1; then
     log_error "Not a git repository. Run this from a project root."
     exit 1
 fi
