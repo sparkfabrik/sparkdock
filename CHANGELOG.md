@@ -73,7 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Rewrote RTK setup script to support Claude Code (global hook), OpenCode (plugin), and Copilot (instructions-only using RTK-generated instructions via temp-dir extraction, removing the contradictory appended safety clause)
+- Rewrote RTK setup script to support Claude Code (global hook), OpenCode (plugin), and Copilot (instructions-only with a minimal Sparkdock-owned policy: broad RTK use for high-output local dev commands, but raw commands for destructive, infrastructure, and remote-state actions)
 - Added `--force` flag to `sjust sf-rtk-setup` to allow overwriting existing `exclude_commands` config when the exclusion list is updated
 
 - Moved opencode base configuration from `~/.config/opencode/opencode.json` to `/Library/Application Support/opencode/opencode.json` (system-wide path, user-writable) to support user-local overrides via `~/.config/opencode/opencode.json`

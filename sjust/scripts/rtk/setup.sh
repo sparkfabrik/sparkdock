@@ -135,33 +135,23 @@ setup_claude() {
 # --- GitHub Copilot ---
 
 # Copilot CLI does not support global hooks — only project-scoped hooks in
-# .github/hooks/. The global setup is instructions-only, which tells Copilot
-# to prefix read-only commands with rtk. This is a prompt-based safety measure,
-# not a mechanical one.
+# .github/hooks/. The global setup is instructions-only. Keep the policy small:
+# use rtk broadly for high-output local dev commands, but do not manually prefix
+# destructive, infra, or remote-state commands. This is a prompt-based safety
+# measure, not a mechanical one.
 #
 # Upstream issue for proper hook support: rtk-ai/rtk#1839
 setup_copilot() {
     log_info "Setting up RTK for GitHub Copilot (instructions only)..."
 
-    # Generate instructions in a temp dir to avoid overwriting the user's file
-    local tmpdir
-    tmpdir=$(mktemp -d)
-    if ! (cd "${tmpdir}" && rtk init --copilot --auto-patch > /dev/null); then
-        log_error "rtk init --copilot failed"
-        rm -rf "${tmpdir}"
-        return 1
-    fi
-
-    local instructions_src="${tmpdir}/.github/copilot-instructions.md"
-    if [[ ! -f "${instructions_src}" ]]; then
-        log_error "rtk init --copilot did not generate instructions"
-        rm -rf "${tmpdir}"
-        return 1
-    fi
-
     local instructions_content
-    instructions_content=$(<"${instructions_src}")
-    rm -rf "${tmpdir}"
+    read -r -d '' instructions_content <<'EOF' || true
+Use `rtk` for high-output local development commands such as build, test, lint, search, status, diff, log, list/get/show, and package manager operations.
+
+Do not manually prefix destructive commands or commands that change infrastructure, cloud, cluster, or remote repository state with `rtk`.
+
+If a project contains `.github/hooks/rtk-rewrite.json`, use normal shell commands and let the hook rewrite safe ones automatically. If unsure, use the raw command.
+EOF
 
     # VS Code Copilot Chat — writes to ~/.github/
     local vscode_dest="${HOME}/.github/copilot-instructions.md"
