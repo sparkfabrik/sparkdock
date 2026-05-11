@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Setup RTK (Rust Token Killer) for Claude Code, GitHub Copilot, and OpenCode.
-# Installs hooks, instructions, and generates config.toml with exclude_commands.
+# Installs hooks, instructions, and rewrites Sparkdock-managed exclude_commands.
 #
 # Usage: setup.sh
 
@@ -57,21 +57,15 @@ rtk_config_dir() {
 
 # --- Config Generation ---
 
-# Generate config.toml with exclude_commands to prevent RTK from rewriting
-# dangerous commands. This is the mechanical safety gate for tools that use
-# hooks (OpenCode, Claude Code). When RTK receives one of these commands via
-# rtk rewrite or a hook, it returns "no rewrite" so the raw command goes
-# through the tool's own safety system (deny/ask patterns, permission prompts).
-#
-# Pass "force" as first argument to overwrite existing exclude_commands.
+# RTK owns config.toml defaults. Sparkdock only bootstraps the file when missing
+# and always rewrites exclude_commands from config/rtk/exclude-commands.toml.
 generate_config() {
-    local force="${1:-}"
-    log_info "Generating RTK config with exclude_commands..."
-
     local config_dir
     config_dir="$(rtk_config_dir)"
     local config_file="${config_dir}/config.toml"
     local exclude_src="${SPARKDOCK_ROOT}/config/rtk/exclude-commands.toml"
+
+    log_info "Ensuring RTK config exists and updating exclude_commands..."
 
     if [[ ! -f "${exclude_src}" ]]; then
         log_error "exclude-commands.toml not found: ${exclude_src}"
@@ -80,7 +74,6 @@ generate_config() {
 
     mkdir -p "${config_dir}"
 
-    # Create default config if it doesn't exist
     if [[ ! -f "${config_file}" ]]; then
         rtk config --create > /dev/null 2>&1 || true
         if [[ ! -f "${config_file}" ]]; then
@@ -89,40 +82,33 @@ generate_config() {
         fi
     fi
 
-    # Skip if exclude_commands is already configured (non-empty), unless forced
-    if [[ "${force}" != "force" ]] \
-       && grep -q 'exclude_commands' "${config_file}" 2>/dev/null \
-       && ! grep -q 'exclude_commands = \[\]' "${config_file}" 2>/dev/null; then
-        log_info "RTK config.toml already has exclude_commands, skipping (use --force to overwrite)"
-        return 0
-    fi
-
-    # Replace only the exclude_commands value under [hooks], preserving other keys.
-    # Reads the desired value from exclude_src and splices it into config_file.
     local tmpfile
     tmpfile=$(mktemp)
     local exclude_value
     exclude_value=$(awk '/^exclude_commands/ { found=1 } found { print } /\]/ && found { exit }' "${exclude_src}")
 
     awk -v replacement="${exclude_value}" '
-        /^exclude_commands/ { replacing=1 }
-        replacing && /\]/ { print replacement; replacing=0; next }
+        /^exclude_commands/ { replacing=1; print replacement; next }
+        replacing && /\]/ { replacing=0; next }
         replacing { next }
         { print }
     ' "${config_file}" > "${tmpfile}"
 
-    # If exclude_commands didn't exist yet, append it under [hooks]
-    if ! grep -q 'exclude_commands' "${tmpfile}"; then
-        awk -v insertion="${exclude_value}" '
-            { print }
-            /^\[hooks\]/ { print insertion }
-        ' "${tmpfile}" > "${tmpfile}.2"
-        mv "${tmpfile}.2" "${tmpfile}"
+    if ! grep -q '^exclude_commands' "${tmpfile}"; then
+        if grep -q '^\[hooks\]' "${tmpfile}"; then
+            awk -v insertion="${exclude_value}" '
+                { print }
+                /^\[hooks\]/ { print insertion }
+            ' "${tmpfile}" > "${tmpfile}.hooks"
+            mv "${tmpfile}.hooks" "${tmpfile}"
+        else
+            printf '\n%s\n' "$(awk '1' "${exclude_src}")" >> "${tmpfile}"
+        fi
     fi
 
     mv "${tmpfile}" "${config_file}"
 
-    log_success "RTK config generated: ${config_file}"
+    log_success "RTK config updated: ${config_file}"
 }
 
 # --- Claude Code ---
@@ -181,17 +167,12 @@ setup_opencode() {
 
 # --- Main ---
 
-FORCE=""
-if [[ "${1:-}" == "--force" || "${1:-}" == "force" ]]; then
-    FORCE="force"
-fi
-
 if ! command -v rtk &> /dev/null; then
     log_error "rtk is not installed. Run 'brew install rtk' first."
     exit 1
 fi
 
-generate_config "${FORCE}"
+generate_config
 setup_claude
 setup_copilot
 setup_opencode

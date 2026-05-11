@@ -896,6 +896,14 @@
             - openspec_completion_output is not skipped
             - openspec_completion_output.rc == 0
 
+    - name: Configure RTK for AI coding tools
+      tags: rtk
+      block:
+        - name: Run RTK setup script
+          command: "{{ dev_env_dir }}/sjust/scripts/rtk/setup.sh"
+          changed_when: true
+          become: false
+
     - name: Sync AI coding agent resources from upstream repository
       tags:
         - skills

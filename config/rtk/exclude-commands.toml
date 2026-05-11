@@ -2,10 +2,13 @@
 exclude_commands = [
   "^git push(?: .*)?(?: --force| -f)(?:$| )",
   "git reset --hard",
-  "^kubectl (?:apply|delete|patch|replace)(?:$| )",
-  "^helm (?:uninstall|delete|rollback)(?:$| )",
-  "terraform destroy",
-  "terraform state rm",
+  "^(?:kubectl|k)(?: .*)? (?:apply|delete|patch|replace)(?:$| )",
+  "^helm(?: .*)? (?:uninstall|delete|rollback)(?:$| )",
+  "^(?:terraform|tf)(?: .*)? destroy(?:$| )",
+  "^(?:terraform|tf)(?: .*)? state rm(?:$| )",
+  "^(?:docker|d) (?:stop|rm|rmi)(?:$| )",
+  "^(?:docker|d) (?:system prune|volume rm|volume prune|network rm|network prune|container prune|image prune)(?:$| )",
+  "^(?:docker|d) compose (?:rm|down(?: .*)? -v)(?:$| )",
   "^gcloud(?: .*)? destroy(?:$| )",
   "^gcloud (?:projects delete|sql instances delete|storage rm|storage buckets delete)(?:$| )",
 ]
