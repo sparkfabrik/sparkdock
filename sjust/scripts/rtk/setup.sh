@@ -58,13 +58,21 @@ rtk_config_dir() {
 # hooks (OpenCode, Claude Code). When RTK receives one of these commands via
 # rtk rewrite or a hook, it returns "no rewrite" so the raw command goes
 # through the tool's own safety system (deny/ask patterns, permission prompts).
+#
+# Pass "force" as first argument to overwrite existing exclude_commands.
 generate_config() {
+    local force="${1:-}"
     log_info "Generating RTK config with exclude_commands..."
 
     local config_dir
     config_dir="$(rtk_config_dir)"
     local config_file="${config_dir}/config.toml"
     local exclude_src="${SPARKDOCK_ROOT}/config/rtk/exclude-commands.toml"
+
+    if [[ ! -f "${exclude_src}" ]]; then
+        log_error "exclude-commands.toml not found: ${exclude_src}"
+        return 1
+    fi
 
     mkdir -p "${config_dir}"
 
@@ -77,22 +85,37 @@ generate_config() {
         fi
     fi
 
-    # Skip if exclude_commands is already configured (non-empty)
-    if grep -q 'exclude_commands' "${config_file}" 2>/dev/null \
+    # Skip if exclude_commands is already configured (non-empty), unless forced
+    if [[ "${force}" != "force" ]] \
+       && grep -q 'exclude_commands' "${config_file}" 2>/dev/null \
        && ! grep -q 'exclude_commands = \[\]' "${config_file}" 2>/dev/null; then
-        log_info "RTK config.toml already has exclude_commands, skipping"
+        log_info "RTK config.toml already has exclude_commands, skipping (use --force to overwrite)"
         return 0
     fi
 
-    # Replace the [hooks] section with our managed exclude list
+    # Replace only the exclude_commands value under [hooks], preserving other keys.
+    # Reads the desired value from exclude_src and splices it into config_file.
     local tmpfile
     tmpfile=$(mktemp)
-    awk '
-        /^\[hooks\]/ { skip=1; next }
-        /^\[/        { if (skip) skip=0 }
-        !skip
+    local exclude_value
+    exclude_value=$(awk '/^exclude_commands/ { found=1 } found { print } /\]/ && found { exit }' "${exclude_src}")
+
+    awk -v replacement="${exclude_value}" '
+        /^exclude_commands/ { replacing=1 }
+        replacing && /\]/ { print replacement; replacing=0; next }
+        replacing { next }
+        { print }
     ' "${config_file}" > "${tmpfile}"
-    cat "${exclude_src}" >> "${tmpfile}"
+
+    # If exclude_commands didn't exist yet, append it under [hooks]
+    if ! grep -q 'exclude_commands' "${tmpfile}"; then
+        awk -v insertion="${exclude_value}" '
+            { print }
+            /^\[hooks\]/ { print insertion }
+        ' "${tmpfile}" > "${tmpfile}.2"
+        mv "${tmpfile}.2" "${tmpfile}"
+    fi
+
     mv "${tmpfile}" "${config_file}"
 
     log_success "RTK config generated: ${config_file}"
@@ -102,7 +125,10 @@ generate_config() {
 
 setup_claude() {
     log_info "Setting up RTK for Claude Code..."
-    rtk init -g --auto-patch > /dev/null 2>&1
+    if ! rtk init -g --auto-patch > /dev/null; then
+        log_error "rtk init -g --auto-patch failed"
+        return 1
+    fi
     log_success "RTK configured for Claude Code (global hook + RTK.md)"
 }
 
@@ -111,46 +137,38 @@ setup_claude() {
 # Copilot CLI does not support global hooks — only project-scoped hooks in
 # .github/hooks/. The global setup is instructions-only, which tells Copilot
 # to prefix read-only commands with rtk. This is a prompt-based safety measure,
-# not a mechanical one. For per-project hooks, use the sf-rtk-copilot-project-init recipe.
+# not a mechanical one.
 #
 # Upstream issue for proper hook support: rtk-ai/rtk#1839
 setup_copilot() {
     log_info "Setting up RTK for GitHub Copilot (instructions only)..."
 
+    # Generate instructions in a temp dir to avoid overwriting the user's file
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    if ! (cd "${tmpdir}" && rtk init --copilot --auto-patch > /dev/null); then
+        log_error "rtk init --copilot failed"
+        rm -rf "${tmpdir}"
+        return 1
+    fi
+
+    local instructions_src="${tmpdir}/.github/copilot-instructions.md"
+    if [[ ! -f "${instructions_src}" ]]; then
+        log_error "rtk init --copilot did not generate instructions"
+        rm -rf "${tmpdir}"
+        return 1
+    fi
+
     local instructions_content
-    read -r -d '' instructions_content << 'INSTRUCTIONS' || true
-# RTK — Token-Optimized CLI
-
-rtk is a CLI proxy that compresses command output, saving 60-90% tokens.
-
-## Rule
-
-Prefix read-only and build/test/lint commands with `rtk`:
-
-```bash
-rtk git status          rtk cargo test
-rtk git log -10         rtk docker ps
-rtk kubectl get pods    rtk ls -la
-```
-
-Never prefix commands that modify state (git push, rm, kubectl apply, helm install, etc).
-
-## Meta commands
-
-```bash
-rtk gain              # Token savings dashboard
-rtk discover          # Find missed rtk opportunities
-```
-INSTRUCTIONS
+    instructions_content=$(<"${instructions_src}")
+    rm -rf "${tmpdir}"
 
     # VS Code Copilot Chat — writes to ~/.github/
     local vscode_dest="${HOME}/.github/copilot-instructions.md"
-    mkdir -p "$(dirname "${vscode_dest}")"
     inject_with_markers "${vscode_dest}" "${instructions_content}"
 
     # Copilot CLI — writes to ~/.copilot/
     local cli_dest="${HOME}/.copilot/copilot-instructions.md"
-    mkdir -p "$(dirname "${cli_dest}")"
     inject_with_markers "${cli_dest}" "${instructions_content}"
 
     log_success "RTK configured for GitHub Copilot (instructions only, no global hooks)"
@@ -160,18 +178,26 @@ INSTRUCTIONS
 
 setup_opencode() {
     log_info "Setting up RTK for OpenCode..."
-    rtk init -g --opencode --auto-patch > /dev/null 2>&1
+    if ! rtk init -g --opencode --auto-patch > /dev/null; then
+        log_error "rtk init -g --opencode --auto-patch failed"
+        return 1
+    fi
     log_success "RTK configured for OpenCode (global plugin)"
 }
 
 # --- Main ---
+
+FORCE=""
+if [[ "${1:-}" == "--force" || "${1:-}" == "force" ]]; then
+    FORCE="force"
+fi
 
 if ! command -v rtk &> /dev/null; then
     log_error "rtk is not installed. Run 'brew install rtk' first."
     exit 1
 fi
 
-generate_config
+generate_config "${FORCE}"
 setup_claude
 setup_copilot
 setup_opencode
