@@ -84,11 +84,18 @@ generate_config() {
 
     local tmpfile
     tmpfile=$(mktemp)
-    local exclude_value
-    exclude_value=$(awk '/^exclude_commands/ { found=1 } found { print } /\]/ && found { exit }' "${exclude_src}")
+    local exclude_tmpfile
+    exclude_tmpfile=$(mktemp)
+    awk '/^exclude_commands/ { found=1 } found { print } /\]/ && found { exit }' "${exclude_src}" > "${exclude_tmpfile}"
 
-    awk -v replacement="${exclude_value}" '
-        /^exclude_commands/ { replacing=1; print replacement; next }
+    awk -v exclude_file="${exclude_tmpfile}" '
+        BEGIN {
+            while ((getline line < exclude_file) > 0) {
+                replacement = replacement line "\n"
+            }
+            close(exclude_file)
+        }
+        /^exclude_commands/ { replacing=1; printf "%s", replacement; next }
         replacing && /\]/ { replacing=0; next }
         replacing { next }
         { print }
@@ -96,15 +103,27 @@ generate_config() {
 
     if ! grep -q '^exclude_commands' "${tmpfile}"; then
         if grep -q '^\[hooks\]' "${tmpfile}"; then
-            awk -v insertion="${exclude_value}" '
+            awk -v exclude_file="${exclude_tmpfile}" '
+                BEGIN {
+                    while ((getline line < exclude_file) > 0) {
+                        insertion = insertion line "\n"
+                    }
+                    close(exclude_file)
+                }
                 { print }
-                /^\[hooks\]/ { print insertion }
+                /^\[hooks\]/ { printf "%s", insertion }
             ' "${tmpfile}" > "${tmpfile}.hooks"
             mv "${tmpfile}.hooks" "${tmpfile}"
         else
-            printf '\n%s\n' "$(awk '1' "${exclude_src}")" >> "${tmpfile}"
+            {
+                printf '\n'
+                cat "${exclude_src}"
+                printf '\n'
+            } >> "${tmpfile}"
         fi
     fi
+
+    rm -f "${exclude_tmpfile}"
 
     mv "${tmpfile}" "${config_file}"
 
