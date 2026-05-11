@@ -64,63 +64,32 @@ generate_config() {
     local config_dir
     config_dir="$(rtk_config_dir)"
     local config_file="${config_dir}/config.toml"
+    local exclude_src="${SPARKDOCK_ROOT}/config/rtk/exclude-commands.toml"
 
     mkdir -p "${config_dir}"
 
-    # If config.toml already exists, only update the [hooks] section
-    if [[ -f "${config_file}" ]]; then
-        # Check if exclude_commands is already configured
-        if grep -q 'exclude_commands' "${config_file}" 2>/dev/null; then
-            log_info "RTK config.toml already has exclude_commands, skipping"
-            return 0
-        fi
-    else
-        # Create default config first, then append our overrides
+    # Create default config if it doesn't exist
+    if [[ ! -f "${config_file}" ]]; then
         rtk config --create > /dev/null 2>&1 || true
     fi
 
-    # Replace the empty exclude_commands with our safety list
-    if grep -q 'exclude_commands = \[\]' "${config_file}" 2>/dev/null; then
-        local tmpfile
-        tmpfile=$(mktemp)
-        awk '
-            /^exclude_commands = \[\]/ {
-                print "exclude_commands = ["
-                print "  \"git push\","
-                print "  \"git branch -D\","
-                print "  \"git reset --hard\","
-                print "  \"git clean\","
-                print "  \"kubectl apply\","
-                print "  \"kubectl create\","
-                print "  \"kubectl delete\","
-                print "  \"kubectl drain\","
-                print "  \"kubectl patch\","
-                print "  \"kubectl replace\","
-                print "  \"helm install\","
-                print "  \"helm upgrade\","
-                print "  \"helm uninstall\","
-                print "  \"helm delete\","
-                print "  \"helm rollback\","
-                print "  \"terraform apply\","
-                print "  \"terraform destroy\","
-                print "  \"terraform state rm\","
-                print "  \"aws ec2 terminate-instances\","
-                print "  \"aws s3 rm\","
-                print "  \"aws s3 rb\","
-                print "  \"aws rds delete-db-instance\","
-                print "  \"aws rds delete-db-cluster\","
-                print "  \"aws cloudformation delete-stack\","
-                print "  \"gcloud projects delete\","
-                print "  \"gcloud sql instances delete\","
-                print "  \"gcloud storage rm\","
-                print "  \"gcloud storage buckets delete\","
-                print "]"
-                next
-            }
-            { print }
-        ' "${config_file}" > "${tmpfile}"
-        mv "${tmpfile}" "${config_file}"
+    # Skip if exclude_commands is already configured (non-empty)
+    if grep -q 'exclude_commands' "${config_file}" 2>/dev/null \
+       && ! grep -q 'exclude_commands = \[\]' "${config_file}" 2>/dev/null; then
+        log_info "RTK config.toml already has exclude_commands, skipping"
+        return 0
     fi
+
+    # Replace the [hooks] section with our managed exclude list
+    local tmpfile
+    tmpfile=$(mktemp)
+    awk '
+        /^\[hooks\]/ { skip=1; next }
+        /^\[/        { if (skip) skip=0 }
+        !skip
+    ' "${config_file}" > "${tmpfile}"
+    cat "${exclude_src}" >> "${tmpfile}"
+    mv "${tmpfile}" "${config_file}"
 
     log_success "RTK config generated: ${config_file}"
 }

@@ -9,5 +9,5 @@ sf-rtk-setup:
 # Initialize RTK Copilot hooks for the current project.
 # Run this from the root of a git repository.
 [group('ai-coding-agents')]
-sf-rtk-copilot:
+sf-rtk-copilot-project-init:
     {{sparkdock_path}}/sjust/scripts/rtk/project-init.sh

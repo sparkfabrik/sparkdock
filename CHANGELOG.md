@@ -12,7 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Claude Code (`claude-code` brew cask) to default provisioned packages
 - Added `setup_claude()` to RTK setup for Claude Code global hook integration via `rtk init -g --auto-patch`
 - Added `generate_config()` to RTK setup to create `config.toml` with `exclude_commands` for dangerous commands (git push, kubectl apply, helm install, terraform apply, aws/gcloud destructive operations), preventing RTK from rewriting commands that should go through each tool's own safety system
-- Added `sjust sf-rtk-copilot` recipe to install per-project RTK hooks for Copilot in the current git repository
+- Added `sjust sf-rtk-copilot-project-init` recipe to install per-project RTK hooks for Copilot in the current git repository
 
 - Added `bash` (Homebrew formula, 5.x) to `config/packages/all-packages.yml` so Sparkdock scripts can rely on bash 4+ idioms (`declare -A`, `mapfile`, `${arr[-1]}`, etc.); macOS's stock `/bin/bash` is 3.2.57 and several existing scripts (`bin/common/skills-symlink-shim.sh`, `bin/sparkdock-agents-sync`) already required this implicitly via Homebrew's `PATH` ordering — this commit makes the dependency explicit
 - Added `~/.local/bin` to default zsh PATH for user-local binaries (XDG convention), auto-creating the directory if missing
