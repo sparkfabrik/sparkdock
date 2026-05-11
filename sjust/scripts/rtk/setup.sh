@@ -134,6 +134,7 @@ generate_config() {
 
 setup_claude() {
     log_info "Setting up RTK for Claude Code..."
+    mkdir -p "${HOME}/.claude"
     if ! rtk init -g --auto-patch > /dev/null; then
         log_error "rtk init -g --auto-patch failed"
         return 1
