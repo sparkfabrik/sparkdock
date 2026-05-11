@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Setup RTK (Rust Token Killer) for GitHub Copilot and OpenCode.
-# Handles the temp-dir workaround for Copilot (upstream bug rtk-ai/rtk#1512)
-# and direct init for OpenCode.
+# Setup RTK (Rust Token Killer) for Claude Code, GitHub Copilot, and OpenCode.
+# Installs hooks, instructions, and generates config.toml with exclude_commands.
 #
 # Usage: setup.sh
 
@@ -22,61 +21,166 @@ inject_with_markers() {
     local marker_end="<!-- END RTK MANAGED BLOCK -->"
 
     # Create file if it doesn't exist
-    if [[ ! -f "$file" ]]; then
-        mkdir -p "$(dirname "$file")"
-        touch "$file"
+    if [[ ! -f "${file}" ]]; then
+        mkdir -p "$(dirname "${file}")"
+        touch "${file}"
     fi
 
-    # Remove existing block if present
-    if grep -q "$marker_begin" "$file" 2>/dev/null; then
-        sed -i '' "/$marker_begin/,/$marker_end/d" "$file"
+    # Remove existing block if present (portable sed: no -i flag differences)
+    if grep -q "${marker_begin}" "${file}" 2>/dev/null; then
+        local tmpfile
+        tmpfile=$(mktemp)
+        awk -v begin="${marker_begin}" -v end="${marker_end}" '
+            $0 ~ begin { skip=1; next }
+            $0 ~ end   { skip=0; next }
+            !skip
+        ' "${file}" > "${tmpfile}"
+        mv "${tmpfile}" "${file}"
     fi
 
     # Append new block
-    printf '\n%s\n%s\n%s\n' "$marker_begin" "$content" "$marker_end" >> "$file"
+    printf '\n%s\n%s\n%s\n' "${marker_begin}" "${content}" "${marker_end}" >> "${file}"
+}
+
+# Detect RTK config directory (XDG on Linux, Application Support on macOS)
+rtk_config_dir() {
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        echo "${HOME}/Library/Application Support/rtk"
+    else
+        echo "${XDG_CONFIG_HOME:-${HOME}/.config}/rtk"
+    fi
+}
+
+# --- Config Generation ---
+
+# Generate config.toml with exclude_commands to prevent RTK from rewriting
+# dangerous commands. This is the mechanical safety gate for tools that use
+# hooks (OpenCode, Claude Code). When RTK receives one of these commands via
+# rtk rewrite or a hook, it returns "no rewrite" so the raw command goes
+# through the tool's own safety system (deny/ask patterns, permission prompts).
+generate_config() {
+    log_info "Generating RTK config with exclude_commands..."
+
+    local config_dir
+    config_dir="$(rtk_config_dir)"
+    local config_file="${config_dir}/config.toml"
+
+    mkdir -p "${config_dir}"
+
+    # If config.toml already exists, only update the [hooks] section
+    if [[ -f "${config_file}" ]]; then
+        # Check if exclude_commands is already configured
+        if grep -q 'exclude_commands' "${config_file}" 2>/dev/null; then
+            log_info "RTK config.toml already has exclude_commands, skipping"
+            return 0
+        fi
+    else
+        # Create default config first, then append our overrides
+        rtk config --create > /dev/null 2>&1 || true
+    fi
+
+    # Replace the empty exclude_commands with our safety list
+    if grep -q 'exclude_commands = \[\]' "${config_file}" 2>/dev/null; then
+        local tmpfile
+        tmpfile=$(mktemp)
+        awk '
+            /^exclude_commands = \[\]/ {
+                print "exclude_commands = ["
+                print "  \"git push\","
+                print "  \"git branch -D\","
+                print "  \"git reset --hard\","
+                print "  \"git clean\","
+                print "  \"kubectl apply\","
+                print "  \"kubectl create\","
+                print "  \"kubectl delete\","
+                print "  \"kubectl drain\","
+                print "  \"kubectl patch\","
+                print "  \"kubectl replace\","
+                print "  \"helm install\","
+                print "  \"helm upgrade\","
+                print "  \"helm uninstall\","
+                print "  \"helm delete\","
+                print "  \"helm rollback\","
+                print "  \"terraform apply\","
+                print "  \"terraform destroy\","
+                print "  \"terraform state rm\","
+                print "  \"aws ec2 terminate-instances\","
+                print "  \"aws s3 rm\","
+                print "  \"aws s3 rb\","
+                print "  \"aws rds delete-db-instance\","
+                print "  \"aws rds delete-db-cluster\","
+                print "  \"aws cloudformation delete-stack\","
+                print "  \"gcloud projects delete\","
+                print "  \"gcloud sql instances delete\","
+                print "  \"gcloud storage rm\","
+                print "  \"gcloud storage buckets delete\","
+                print "]"
+                next
+            }
+            { print }
+        ' "${config_file}" > "${tmpfile}"
+        mv "${tmpfile}" "${config_file}"
+    fi
+
+    log_success "RTK config generated: ${config_file}"
+}
+
+# --- Claude Code ---
+
+setup_claude() {
+    log_info "Setting up RTK for Claude Code..."
+    rtk init -g --auto-patch > /dev/null 2>&1
+    log_success "RTK configured for Claude Code (global hook + RTK.md)"
 }
 
 # --- GitHub Copilot ---
 
+# Copilot CLI does not support global hooks — only project-scoped hooks in
+# .github/hooks/. The global setup is instructions-only, which tells Copilot
+# to prefix read-only commands with rtk. This is a prompt-based safety measure,
+# not a mechanical one. For per-project hooks, use the sf-rtk-project-init recipe.
+#
+# Upstream issue for proper hook support: rtk-ai/rtk#1839
 setup_copilot() {
-    log_info "Setting up RTK for GitHub Copilot..."
-
-    # Run rtk init in a temp directory to avoid overwriting user files
-    local tmpdir
-    tmpdir=$(mktemp -d)
-    (cd "$tmpdir" && rtk init --copilot --auto-patch > /dev/null 2>&1)
-
-    local instructions_src="${tmpdir}/.github/copilot-instructions.md"
-
-    if [[ ! -f "$instructions_src" ]]; then
-        log_error "RTK did not generate instructions in temp directory"
-        rm -rf "$tmpdir"
-        return 1
-    fi
+    log_info "Setting up RTK for GitHub Copilot (instructions only)..."
 
     local instructions_content
-    instructions_content=$(cat "$instructions_src")
+    read -r -d '' instructions_content << 'INSTRUCTIONS' || true
+# RTK — Token-Optimized CLI
 
-    # Append safety clause to prevent rtk from bypassing destructive command checks
-    local safety_clause="
+rtk is a CLI proxy that compresses command output, saving 60-90% tokens.
 
-Only use the rtk prefix for read-only and build/test/lint commands. Any command that modifies, creates, or deletes files or remote state must run WITHOUT the rtk prefix to preserve safety checks. Examples of commands that must NOT be prefixed: rm, mv, cp, chmod, chown, git push, git commit, git reset, kubectl delete, docker rm. When in doubt, do not use the rtk prefix."
-    instructions_content="${instructions_content}${safety_clause}"
+## Rule
+
+Prefix read-only and build/test/lint commands with `rtk`:
+
+```bash
+rtk git status          rtk cargo test
+rtk git log -10         rtk docker ps
+rtk kubectl get pods    rtk ls -la
+```
+
+Never prefix commands that modify state (git push, rm, kubectl apply, helm install, etc).
+
+## Meta commands
+
+```bash
+rtk gain              # Token savings dashboard
+rtk discover          # Find missed rtk opportunities
+```
+INSTRUCTIONS
 
     # VS Code Copilot Chat — writes to ~/.github/
-    local vscode_instructions_dest="${HOME}/.github/copilot-instructions.md"
-    mkdir -p "$(dirname "$vscode_instructions_dest")"
-    inject_with_markers "$vscode_instructions_dest" "$instructions_content"
+    local vscode_dest="${HOME}/.github/copilot-instructions.md"
+    mkdir -p "$(dirname "${vscode_dest}")"
+    inject_with_markers "${vscode_dest}" "${instructions_content}"
 
     # Copilot CLI — writes to ~/.copilot/
-    local cli_instructions_dest="${HOME}/.copilot/copilot-instructions.md"
-    mkdir -p "$(dirname "$cli_instructions_dest")"
-    inject_with_markers "$cli_instructions_dest" "$instructions_content"
+    local cli_dest="${HOME}/.copilot/copilot-instructions.md"
+    mkdir -p "$(dirname "${cli_dest}")"
+    inject_with_markers "${cli_dest}" "${instructions_content}"
 
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    log_success "RTK configured for GitHub Copilot (VS Code + CLI)"
+    log_success "RTK configured for GitHub Copilot (instructions only, no global hooks)"
 }
 
 # --- OpenCode ---
@@ -84,7 +188,7 @@ Only use the rtk prefix for read-only and build/test/lint commands. Any command 
 setup_opencode() {
     log_info "Setting up RTK for OpenCode..."
     rtk init -g --opencode --auto-patch > /dev/null 2>&1
-    log_success "RTK configured for OpenCode"
+    log_success "RTK configured for OpenCode (global plugin)"
 }
 
 # --- Main ---
@@ -94,6 +198,8 @@ if ! command -v rtk &> /dev/null; then
     exit 1
 fi
 
+generate_config
+setup_claude
 setup_copilot
 setup_opencode
 

@@ -24,6 +24,7 @@ cask_packages:
   - slack
   - zoom
   - monitorcontrol
+  - claude-code
   - copilot-cli
 
 homebrew_packages:

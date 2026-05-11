@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added Claude Code (`claude-code` brew cask) to default provisioned packages
+- Added `setup_claude()` to RTK setup for Claude Code global hook integration via `rtk init -g --auto-patch`
+- Added `generate_config()` to RTK setup to create `config.toml` with `exclude_commands` for dangerous commands (git push, kubectl apply, helm install, terraform apply, aws/gcloud destructive operations), preventing RTK from rewriting commands that should go through each tool's own safety system
+- Added `sjust sf-rtk-copilot` recipe to install per-project RTK hooks for Copilot in the current git repository
+
 - Added `bash` (Homebrew formula, 5.x) to `config/packages/all-packages.yml` so Sparkdock scripts can rely on bash 4+ idioms (`declare -A`, `mapfile`, `${arr[-1]}`, etc.); macOS's stock `/bin/bash` is 3.2.57 and several existing scripts (`bin/common/skills-symlink-shim.sh`, `bin/sparkdock-agents-sync`) already required this implicitly via Homebrew's `PATH` ordering — this commit makes the dependency explicit
 - Added `~/.local/bin` to default zsh PATH for user-local binaries (XDG convention), auto-creating the directory if missing
 - Added automatic disabling of gcloud usage reporting during Google Cloud SDK configuration (both in Ansible provisioning and `sjust system-gcloud-reconfigure`)
@@ -68,6 +73,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `docker-desktop-install-version-4412` task to download Docker Desktop 4.41.2 to work around network issues
 
 ### Changed
+
+- Rewrote RTK setup script to support Claude Code (global hook), OpenCode (plugin), and Copilot (instructions-only with coherent safety guidance replacing the contradictory "always prefix" + "never prefix destructive" instructions)
+- Added leading `*` wildcard to all 113 OpenCode permission patterns that lacked it, preventing command prefix bypass (e.g., `rtk git push --force`, `env rm -rf /`, `time kubectl delete`) from evading deny/ask rules
 
 - Moved opencode base configuration from `~/.config/opencode/opencode.json` to `/Library/Application Support/opencode/opencode.json` (system-wide path, user-writable) to support user-local overrides via `~/.config/opencode/opencode.json`
 - Added automatic cleanup of duplicate `~/.config/opencode/opencode.json` when identical to the shipped source, with a warning when the file contains non-custom content
