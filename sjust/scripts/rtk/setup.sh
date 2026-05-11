@@ -29,7 +29,11 @@ inject_with_markers() {
     # Remove existing block if present (portable sed: no -i flag differences)
     if grep -q "${marker_begin}" "${file}" 2>/dev/null; then
         local tmpfile
-        tmpfile=$(mktemp)
+        tmpfile="$(mktemp "${TMPDIR:-/tmp}/rtk-setup.XXXXXX")"
+        if [[ -z "${tmpfile}" || ! -f "${tmpfile}" ]]; then
+            echo "Failed to create temporary file" >&2
+            return 1
+        fi
         awk -v begin="${marker_begin}" -v end="${marker_end}" '
             $0 ~ begin { skip=1; next }
             $0 ~ end   { skip=0; next }
