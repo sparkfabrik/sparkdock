@@ -174,7 +174,7 @@ Use `rtk-run` for high-output local development commands such as build, test, li
 
 If the command contains shell operators such as `|`, `&&`, `||`, `;`, or redirects, pass the full command as one quoted string to `rtk-run`.
 
-Do not use `rtk-run` for destructive commands or commands that change infrastructure, cloud, cluster, or remote repository state (for example: `rm -rf`, `git push --force`, `kubectl apply`, `terraform destroy`, `gcloud ... destroy`, `gh pr merge`, `glab mr merge`). Run those raw.
+Commands listed in `${XDG_CONFIG_HOME:-~/.config}/rtk/config.toml` under `[hooks].exclude_commands` are the source of truth for commands that must stay raw instead of being rewritten. If a command is excluded there, run it raw.
 
 If a project contains `.github/hooks/rtk-rewrite.json`, use normal shell commands and let the hook rewrite safe ones automatically. If unsure, use the raw command.
 EOF

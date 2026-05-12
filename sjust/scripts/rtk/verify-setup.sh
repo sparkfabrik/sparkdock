@@ -78,7 +78,7 @@ main() {
     assert_file_contains "${claude_settings}" "rtk hook claude"
     assert_file_contains "${claude_md}" "@RTK.md"
     assert_file_contains "${vscode_instructions}" "Use \`rtk-run\` for high-output local development commands"
-    assert_file_contains "${cli_instructions}" "Do not use \`rtk-run\` for destructive commands"
+    assert_file_contains "${cli_instructions}" "exclude_commands"
 
     log_info "Checking merged RTK config..."
     assert_file_contains "${rtk_config}" 'transparent_prefixes = ["direnv exec ."]'
