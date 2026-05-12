@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `coreutils` (GNU core utilities) to default Homebrew packages
 - Added "AI Development - Where We Are" playbook link to menu bar app Company section
 - Added Claude Code (`claude-code` brew cask) to default provisioned packages
 - Added `setup_claude()` to RTK setup for Claude Code global hook integration via `rtk init -g --auto-patch`
@@ -119,6 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Removed `*dd *` permission pattern from OpenCode config — the wildcard prefix caused false positives on any command containing `dd ` (e.g., `git add`) by matching the substring, effectively blocking all `git add` operations
 - Fixed all 113 OpenCode deny/ask permission patterns missing leading `*` wildcard, preventing command prefix bypass (e.g., `rtk git push --force`, `env rm -rf /`, `time kubectl delete`) from evading safety rules
 - Fixed `shell-enable` re-prompting users who already have Sparkdock shell enhancements installed, caused by quoting mismatch in the detection string after the cross-platform refactor
 - Fixed CI failure caused by `neofetch` being removed from Homebrew — dropped it from the `removed_homebrew_packages` list since the formula no longer exists

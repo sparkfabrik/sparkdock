@@ -111,7 +111,6 @@
       "*halt*": "deny",
       "*poweroff*": "deny",
 
-      "*dd *": "deny",
       "*mkfs*": "deny",
       "*fdisk*": "deny",
       "*parted*": "deny",

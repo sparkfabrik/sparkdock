@@ -32,6 +32,7 @@ homebrew_packages:
   # Several sparkdock scripts use bash-4 idioms (declare -A, mapfile) and rely
   # on Homebrew's bash being first on PATH; making the dependency explicit here.
   - bash
+  - coreutils
   # Cloud Tools
   - awscli
   - chafa
