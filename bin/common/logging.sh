@@ -36,11 +36,15 @@ fi
 
 # --- Logging functions ---
 
+# Logging output is sent to stderr in both gum and fallback modes so that
+# `var="$(some_function)"` capture patterns are not contaminated by log lines.
+# `gum log` writes to stderr by default; the printf fallbacks now match.
+
 log_info() {
     if [[ "${HAS_GUM}" = true ]]; then
         gum log --level info "$*"
     else
-        printf "${BOLD}${BLUE}[INFO]${NC} %s\n" "$*"
+        printf "${BOLD}${BLUE}[INFO]${NC} %s\n" "$*" >&2
     fi
 }
 
@@ -48,7 +52,7 @@ log_success() {
     if [[ "${HAS_GUM}" = true ]]; then
         gum log --level info --prefix "  OK" "$*"
     else
-        printf "${BOLD}${GREEN}[ OK ]${NC} %s\n" "$*"
+        printf "${BOLD}${GREEN}[ OK ]${NC} %s\n" "$*" >&2
     fi
 }
 
@@ -56,7 +60,7 @@ log_warn() {
     if [[ "${HAS_GUM}" = true ]]; then
         gum log --level warn "$*"
     else
-        printf "${BOLD}${YELLOW}[WARN]${NC} %s\n" "$*"
+        printf "${BOLD}${YELLOW}[WARN]${NC} %s\n" "$*" >&2
     fi
 }
 
@@ -64,16 +68,16 @@ log_error() {
     if [[ "${HAS_GUM}" = true ]]; then
         gum log --level error "$*"
     else
-        printf "${BOLD}${RED}[FAIL]${NC} %s\n" "$*"
+        printf "${BOLD}${RED}[FAIL]${NC} %s\n" "$*" >&2
     fi
 }
 
 log_section() {
     if [[ "${HAS_GUM}" = true ]]; then
-        echo ""
-        gum style --border double --border-foreground 99 --bold --padding "0 2" --margin "0 0 1 0" "$*"
+        echo "" >&2
+        gum style --border double --border-foreground 99 --bold --padding "0 2" --margin "0 0 1 0" "$*" >&2
     else
-        echo ""
-        printf "${BOLD}${BLUE}=== %s ===${NC}\n" "$*"
+        echo "" >&2
+        printf "${BOLD}${BLUE}=== %s ===${NC}\n" "$*" >&2
     fi
 }

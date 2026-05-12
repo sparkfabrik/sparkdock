@@ -1,0 +1,88 @@
+# macOS System Defaults — sparkdock curated profile
+#
+# A deliberately tiny set of system defaults that are universally nice to have:
+# improvements to network/USB hygiene, an annoying prompt suppressed, and secure
+# keyboard entry in Terminal. Anything that's a
+# personal preference (dock, finder layout, smart-quotes, accent picker,
+# trackpad, reduce-motion, etc.) lives only in your overrides file.
+#
+# Schema (one entry per setting, top-level key is "<domain>.<key>"):
+#
+#   "<domain>.<key>":
+#     domain:      <CFBundleIdentifier or NSGlobalDomain>
+#     key:         <preference key>
+#     type:        bool | int | float | string
+#     value:       <typed value; ${HOME} is expanded in string values>
+#     description: <short human-readable description>
+#     category:    <grouping for the docs table; free-form, kebab-case>
+#     requires:    <list of process names to killall when this value changes>
+#
+# User overrides:
+#   ~/.local/spark/macos-defaults/overrides.yml is merged on top using the
+#   same shape. Top-level keys are merged by name, so an override on
+#   "com.apple.dock.autohide" replaces the curated value for that exact
+#   setting and leaves every other entry untouched.
+#
+# Apple Silicon, macOS Sequoia (15) or Tahoe (26) per AGENTS.md.
+
+# ----- UX (universally nicer save/print panels) --------------------------------
+
+"NSGlobalDomain.NSNavPanelExpandedStateForSaveMode":
+  domain: NSGlobalDomain
+  key: NSNavPanelExpandedStateForSaveMode
+  type: bool
+  value: true
+  description: Expand save panel by default
+  category: ui-ux
+  requires: []
+
+"NSGlobalDomain.PMPrintingExpandedStateForPrint":
+  domain: NSGlobalDomain
+  key: PMPrintingExpandedStateForPrint
+  type: bool
+  value: true
+  description: Expand print panel by default
+  category: ui-ux
+  requires: []
+
+# ----- Filesystem hygiene ------------------------------------------------------
+
+"com.apple.desktopservices.DSDontWriteNetworkStores":
+  domain: com.apple.desktopservices
+  key: DSDontWriteNetworkStores
+  type: bool
+  value: true
+  description: Don't create .DS_Store files on network volumes
+  category: filesystem
+  requires: [Finder]
+
+"com.apple.desktopservices.DSDontWriteUSBStores":
+  domain: com.apple.desktopservices
+  key: DSDontWriteUSBStores
+  type: bool
+  value: true
+  description: Don't create .DS_Store files on USB volumes
+  category: filesystem
+  requires: [Finder]
+
+# ----- Terminal (security) -----------------------------------------------------
+
+"com.apple.Terminal.SecureKeyboardEntry":
+  domain: com.apple.Terminal
+  key: SecureKeyboardEntry
+  type: bool
+  value: true
+  description: Enable secure keyboard entry (applies on next Terminal launch)
+  category: terminal
+  requires: [Terminal]
+
+# ----- Time Machine (annoying prompt) ------------------------------------------
+
+"com.apple.TimeMachine.DoNotOfferNewDisksForBackup":
+  domain: com.apple.TimeMachine
+  key: DoNotOfferNewDisksForBackup
+  type: bool
+  value: true
+  description: Don't prompt to use new disks as Time Machine backup
+  category: time-machine
+  requires: []

@@ -48,6 +48,7 @@ Integrated [SparkFabrik HTTP Proxy](https://github.com/sparkfabrik/http-proxy) p
 - HTTP proxy control
 - System updates and maintenance
 - Package management
+- Idempotent macOS system defaults (`sjust macos-defaults`) with snapshot/undo
 
 ## Installation
 
@@ -60,19 +61,23 @@ bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master
 ### System Requirements
 
 **Operating System:**
+
 - macOS Sequoia (15.x) or macOS Tahoe (26.x)
 - Apple Silicon only
 
 **Hardware Requirements:**
+
 - At least 8GB RAM recommended (16GB for heavy development workloads)
 - Minimum 10GB free disk space (20GB+ recommended for full development environment)
 - Stable internet connection for package downloads
 
 **User Requirements:**
+
 - Administrator privileges (required for system-level configurations)
 - Command line familiarity (basic terminal usage)
 
 **Network Requirements:**
+
 - Access to GitHub, Homebrew, and Docker Hub repositories
 
 ### What Gets Installed
@@ -85,7 +90,8 @@ The installation process:
 4. **Applications & Tools**: All packages from the configuration
 5. **HTTP Proxy System**: Configured and ready to use
 6. **Task Runner**: sjust command available system-wide
-7. **Update Service**: Automatic update checking via launchd
+7. **macOS System Defaults**: Curated developer-oriented preferences (idempotent, snapshot/undo)
+8. **Update Service**: Automatic update checking via launchd
 
 ## Usage
 
@@ -122,6 +128,10 @@ sjust system-upgrade     # Update system packages
 sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gcloud-auth-plugin
 ```
 
+### macOS System Defaults
+
+A small, opinion-light set of system defaults (filesystem hygiene, secure keyboard entry, expanded save/print panels, etc.) is applied by `sjust macos-defaults`. The recipe is idempotent and per-key undoable. Run **`sjust macos-defaults-info`** to see what's in the curated set and how to add personal preferences via an overrides file.
+
 ### Google Cloud SDK Configuration
 
 Sparkdock automatically installs and configures Google Cloud SDK during provisioning, including the `gke-gcloud-auth-plugin` component required for GKE authentication.
@@ -133,6 +143,7 @@ sjust system-gcloud-reconfigure
 ```
 
 This command will:
+
 - Install Google Cloud SDK via Homebrew (if not present)
 - Install the `gke-gcloud-auth-plugin` component
 - Disable survey prompts and usage reporting
@@ -221,6 +232,7 @@ Sparkdock includes a native macOS menu bar application that provides quick acces
 ![Sparkdock Menu Bar](static/menubar.png)
 
 **Features:**
+
 - Real-time system status with colored indicators
 - Quick access to development tools and dashboards
 - Battery-efficient event-driven updates
@@ -258,6 +270,7 @@ The app is automatically installed as a LaunchAgent (`com.sparkfabrik.sparkdock.
 For detailed troubleshooting information, see our [troubleshooting guide](TROUBLESHOOTING.md) or visit the [company playbook](http://playbook.sparkfabrik.com/guides/local-development-environment-configuration).
 
 If you are still blocked after trying the steps above:
+
 - Reach out on Slack in `#sparkdock-support` with a short summary plus any relevant logs (for example `~/.config/spark/sparkdock/ai.log`).
 - Or open an issue on the Sparkdock repository so the team can track the fix.
 

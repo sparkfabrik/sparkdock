@@ -36,6 +36,14 @@ jobs:
           echo "Installing Just command runner..."
           brew install just
 
+      - name: Install Homebrew bash and yq required by sjust recipes
+        run: |
+          # macOS ships /bin/bash 3.2; sjust scripts use bash 4+ idioms
+          # (declare -A, mapfile). The full provisioner installs `bash` via
+          # homebrew_packages.yml, but this lighter test job runs sjust directly
+          # and so must pull bash and yq in itself.
+          brew install bash yq
+
       - name: Test sjust library files syntax
         run: |
           echo "Testing libcolors.sh syntax..."
@@ -55,6 +63,9 @@ jobs:
           echo "Testing individual recipe files..."
           just --justfile sjust/recipes/00-default.just --dry-run --list > /dev/null
           just --justfile sjust/recipes/01-lima.just --dry-run --list > /dev/null
+          # 03-macos-defaults.just intentionally consumes `sparkdock_path` from
+          # 00-default.just and so cannot be parsed standalone. It is exercised
+          # via the unified justfile a few lines above and `--evaluate` below.
 
       - name: Test make install-sjust with git check disabled
         run: |
@@ -153,6 +164,75 @@ jobs:
           just --justfile sjust/justfile --evaluate > /dev/null
 
           echo "✅ All recipe imports work correctly"
+
+      - name: Test macos-defaults sjust commands
+        run: |
+          set -euo pipefail
+          macos_major=$(sw_vers -productVersion | cut -d. -f1)
+          if [[ "${macos_major}" -lt 26 ]]; then
+            echo "macOS ${macos_major} detected — skipping macos-defaults lifecycle test (requires 26+)"
+            exit 0
+          fi
+
+          probe_domain="com.apple.desktopservices"
+          probe_key="DSDontWriteNetworkStores"
+
+          # Reset to a known un-applied state.
+          defaults delete "${probe_domain}" "${probe_key}" 2>/dev/null || true
+          rm -rf "${HOME}/.local/spark/macos-defaults"
+
+          echo "::group::macos-defaults-info raw"
+          out=$(sjust macos-defaults-info raw)
+          echo "$out" | head -20
+          echo "$out" | grep -q "Sparkdock — curated macOS defaults"
+          echo "::endgroup::"
+
+          echo "::group::macos-defaults-init-overrides (creates file, idempotent)"
+          sjust macos-defaults-init-overrides
+          test -f "${HOME}/.local/spark/macos-defaults/overrides.yml"
+          sjust macos-defaults-init-overrides  # idempotent — must not clobber
+          echo "::endgroup::"
+
+          echo "::group::dry-run on un-applied system reports drift"
+          out=$(sjust macos-defaults dry-run)
+          echo "$out"
+          echo "$out" | grep -q "MACOS_DEFAULTS_STATUS: drift"
+          echo "::endgroup::"
+
+          echo "::group::dry-run strict on un-applied system exits 2"
+          rc=0; sjust macos-defaults dry-run strict || rc=$?
+          test "$rc" = "2"
+          echo "::endgroup::"
+
+          echo "::group::apply writes the curated defaults"
+          out=$(sjust macos-defaults)
+          echo "$out"
+          echo "$out" | grep -q "MACOS_DEFAULTS_STATUS: applied"
+          test "$(defaults read "${probe_domain}" "${probe_key}")" = "1"
+          echo "::endgroup::"
+
+          echo "::group::second apply is idempotent (no drift, status aligned)"
+          out=$(sjust macos-defaults)
+          echo "$out"
+          echo "$out" | grep -q "MACOS_DEFAULTS_STATUS: aligned"
+          echo "::endgroup::"
+
+          echo "::group::dry-run strict after apply exits 0 (no drift)"
+          sjust macos-defaults dry-run strict
+          echo "::endgroup::"
+
+          echo "::group::undo list shows the snapshot"
+          out=$(sjust macos-defaults-undo)
+          echo "$out"
+          echo "$out" | grep -qE 'Available snapshots|^[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}T'
+          echo "::endgroup::"
+
+          echo "::group::undo restores the un-applied state"
+          sjust macos-defaults-undo restore
+          test "$(defaults read "${probe_domain}" "${probe_key}" 2>/dev/null || echo unset)" = "unset"
+          echo "::endgroup::"
+
+          echo "✅ macos-defaults full lifecycle (info / init-overrides / apply / dry-run / undo) verified"
 
       - name: Clean up test installations
         if: always()

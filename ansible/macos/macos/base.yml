@@ -635,6 +635,13 @@
           become: yes
           become_method: sudo
 
+    - name: Apply curated macOS defaults
+      ansible.builtin.command: "{{ dev_env_dir }}/sjust/sjust.sh macos-defaults"
+      register: macos_defaults_result
+      changed_when: "'MACOS_DEFAULTS_STATUS: applied' in macos_defaults_result.stdout"
+      become: false
+      tags: macos-defaults
+
     - name: Remove unwanted cask packages
       community.general.homebrew_cask:
         name: "{{ item }}"
