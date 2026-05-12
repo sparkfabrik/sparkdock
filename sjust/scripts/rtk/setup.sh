@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Setup RTK (Rust Token Killer) for GitHub Copilot and OpenCode.
-# Handles the temp-dir workaround for Copilot (upstream bug rtk-ai/rtk#1512)
-# and direct init for OpenCode.
+# Setup RTK (Rust Token Killer) for Claude Code, GitHub Copilot, and OpenCode.
+# Installs hooks, helper scripts, instructions, and rewrites exclude_commands.
 #
 # Usage: setup.sh
 
@@ -22,69 +21,182 @@ inject_with_markers() {
     local marker_end="<!-- END RTK MANAGED BLOCK -->"
 
     # Create file if it doesn't exist
-    if [[ ! -f "$file" ]]; then
-        mkdir -p "$(dirname "$file")"
-        touch "$file"
+    if [[ ! -f "${file}" ]]; then
+        mkdir -p "$(dirname "${file}")"
+        touch "${file}"
     fi
 
-    # Remove existing block if present
-    if grep -q "$marker_begin" "$file" 2>/dev/null; then
-        sed -i '' "/$marker_begin/,/$marker_end/d" "$file"
+    # Remove existing block if present (portable sed: no -i flag differences)
+    if grep -q "${marker_begin}" "${file}" 2>/dev/null; then
+        local tmpfile
+        tmpfile="$(mktemp "${TMPDIR:-/tmp}/rtk-setup.XXXXXX")"
+        if [[ -z "${tmpfile}" || ! -f "${tmpfile}" ]]; then
+            echo "Failed to create temporary file" >&2
+            return 1
+        fi
+        awk -v begin="${marker_begin}" -v end="${marker_end}" '
+            $0 ~ begin { skip=1; next }
+            $0 ~ end   { skip=0; next }
+            !skip
+        ' "${file}" > "${tmpfile}"
+        mv "${tmpfile}" "${file}"
     fi
 
     # Append new block
-    printf '\n%s\n%s\n%s\n' "$marker_begin" "$content" "$marker_end" >> "$file"
+    printf '\n%s\n%s\n%s\n' "${marker_begin}" "${content}" "${marker_end}" >> "${file}"
+}
+
+# Detect RTK config directory (XDG on Linux, Application Support on macOS)
+rtk_config_dir() {
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        echo "${HOME}/Library/Application Support/rtk"
+    else
+        echo "${XDG_CONFIG_HOME:-${HOME}/.config}/rtk"
+    fi
+}
+
+install_rtk_run() {
+    local source_file="${SCRIPT_DIR}/rtk-run"
+    local target_dir="${HOME}/.local/bin"
+    local target_file="${target_dir}/rtk-run"
+
+    if [[ ! -f "${source_file}" ]]; then
+        log_error "rtk-run helper not found: ${source_file}"
+        return 1
+    fi
+
+    mkdir -p "${target_dir}"
+    cp "${source_file}" "${target_file}"
+    chmod 0755 "${target_file}"
+
+    log_success "RTK helper installed: ${target_file}"
+}
+
+# --- Config Generation ---
+
+# RTK owns config.toml defaults. Sparkdock only bootstraps the file when missing
+# and always rewrites exclude_commands from config/rtk/exclude-commands.toml.
+generate_config() {
+    local config_dir
+    config_dir="$(rtk_config_dir)"
+    local config_file="${config_dir}/config.toml"
+    local exclude_src="${SPARKDOCK_ROOT}/config/rtk/exclude-commands.toml"
+
+    log_info "Ensuring RTK config exists and updating exclude_commands..."
+
+    if [[ ! -f "${exclude_src}" ]]; then
+        log_error "exclude-commands.toml not found: ${exclude_src}"
+        return 1
+    fi
+
+    mkdir -p "${config_dir}"
+
+    if [[ ! -f "${config_file}" ]]; then
+        rtk config --create > /dev/null 2>&1 || true
+        if [[ ! -f "${config_file}" ]]; then
+            log_error "rtk config --create did not produce ${config_file}"
+            return 1
+        fi
+    fi
+
+    local tmpfile
+    tmpfile=$(mktemp)
+    local exclude_tmpfile
+    exclude_tmpfile=$(mktemp)
+    awk '/^exclude_commands/ { found=1 } found { print } /\]/ && found { exit }' "${exclude_src}" > "${exclude_tmpfile}"
+
+    awk -v exclude_file="${exclude_tmpfile}" '
+        BEGIN {
+            while ((getline line < exclude_file) > 0) {
+                replacement = replacement line "\n"
+            }
+            close(exclude_file)
+        }
+        /^exclude_commands/ { replacing=1; printf "%s", replacement; next }
+        replacing && /\]/ { replacing=0; next }
+        replacing { next }
+        { print }
+    ' "${config_file}" > "${tmpfile}"
+
+    if ! grep -q '^exclude_commands' "${tmpfile}"; then
+        if grep -q '^\[hooks\]' "${tmpfile}"; then
+            awk -v exclude_file="${exclude_tmpfile}" '
+                BEGIN {
+                    while ((getline line < exclude_file) > 0) {
+                        insertion = insertion line "\n"
+                    }
+                    close(exclude_file)
+                }
+                { print }
+                /^\[hooks\]/ { printf "%s", insertion }
+            ' "${tmpfile}" > "${tmpfile}.hooks"
+            mv "${tmpfile}.hooks" "${tmpfile}"
+        else
+            {
+                printf '\n'
+                cat "${exclude_src}"
+                printf '\n'
+            } >> "${tmpfile}"
+        fi
+    fi
+
+    rm -f "${exclude_tmpfile}"
+
+    mv "${tmpfile}" "${config_file}"
+
+    log_success "RTK config updated: ${config_file}"
+}
+
+# --- Claude Code ---
+
+setup_claude() {
+    log_info "Setting up RTK for Claude Code..."
+    mkdir -p "${HOME}/.claude"
+    if ! rtk init -g --auto-patch > /dev/null; then
+        log_error "rtk init -g --auto-patch failed"
+        return 1
+    fi
+    log_success "RTK configured for Claude Code (global hook + RTK.md)"
 }
 
 # --- GitHub Copilot ---
 
+# Copilot CLI does not support global hooks — only project-scoped hooks in
+# .github/hooks/. The global setup is helper + instructions only.
+#
+# Upstream issue for proper hook support: rtk-ai/rtk#1839
 setup_copilot() {
-    log_info "Setting up RTK for GitHub Copilot..."
-
-    # Run rtk init in a temp directory to avoid overwriting user files
-    local tmpdir
-    tmpdir=$(mktemp -d)
-    (cd "$tmpdir" && rtk init --copilot --auto-patch > /dev/null 2>&1)
-
-    local instructions_src="${tmpdir}/.github/copilot-instructions.md"
-
-    if [[ ! -f "$instructions_src" ]]; then
-        log_error "RTK did not generate instructions in temp directory"
-        rm -rf "$tmpdir"
-        return 1
-    fi
+    log_info "Setting up RTK for GitHub Copilot (helper + instructions only)..."
 
     local instructions_content
-    instructions_content=$(cat "$instructions_src")
+    read -r -d '' instructions_content <<'EOF' || true
+Use `rtk-run` for high-output local shell commands such as build, test, lint, search, status, diff, log, and package manager commands.
 
-    # Append safety clause to prevent rtk from bypassing destructive command checks
-    local safety_clause="
+For commands with pipes, chains, or redirects, pass the whole command as one quoted string to `rtk-run`.
 
-Only use the rtk prefix for read-only and build/test/lint commands. Any command that modifies, creates, or deletes files or remote state must run WITHOUT the rtk prefix to preserve safety checks. Examples of commands that must NOT be prefixed: rm, mv, cp, chmod, chown, git push, git commit, git reset, kubectl delete, docker rm. When in doubt, do not use the rtk prefix."
-    instructions_content="${instructions_content}${safety_clause}"
+If unsure, run the raw command.
+EOF
 
     # VS Code Copilot Chat — writes to ~/.github/
-    local vscode_instructions_dest="${HOME}/.github/copilot-instructions.md"
-    mkdir -p "$(dirname "$vscode_instructions_dest")"
-    inject_with_markers "$vscode_instructions_dest" "$instructions_content"
+    local vscode_dest="${HOME}/.github/copilot-instructions.md"
+    inject_with_markers "${vscode_dest}" "${instructions_content}"
 
     # Copilot CLI — writes to ~/.copilot/
-    local cli_instructions_dest="${HOME}/.copilot/copilot-instructions.md"
-    mkdir -p "$(dirname "$cli_instructions_dest")"
-    inject_with_markers "$cli_instructions_dest" "$instructions_content"
+    local cli_dest="${HOME}/.copilot/copilot-instructions.md"
+    inject_with_markers "${cli_dest}" "${instructions_content}"
 
-    # Cleanup
-    rm -rf "$tmpdir"
-
-    log_success "RTK configured for GitHub Copilot (VS Code + CLI)"
+    log_success "RTK configured for GitHub Copilot (helper + instructions only, no global hooks)"
 }
 
 # --- OpenCode ---
 
 setup_opencode() {
     log_info "Setting up RTK for OpenCode..."
-    rtk init -g --opencode --auto-patch > /dev/null 2>&1
-    log_success "RTK configured for OpenCode"
+    if ! rtk init -g --opencode --auto-patch > /dev/null; then
+        log_error "rtk init -g --opencode --auto-patch failed"
+        return 1
+    fi
+    log_success "RTK configured for OpenCode (global plugin)"
 }
 
 # --- Main ---
@@ -94,6 +206,9 @@ if ! command -v rtk &> /dev/null; then
     exit 1
 fi
 
+generate_config
+install_rtk_run
+setup_claude
 setup_copilot
 setup_opencode
 

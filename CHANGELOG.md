@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added Claude Code (`claude-code` brew cask) to default provisioned packages
+- Added `setup_claude()` to RTK setup for Claude Code global hook integration via `rtk init -g --auto-patch`
+- Added `config/rtk/exclude-commands.toml` and RTK setup logic that bootstraps RTK's own `config.toml` when needed, then rewrites only `exclude_commands` with Sparkdock's destructive shortlist (including `k`, `tf`, and `d` alias assumptions) so dangerous commands bypass RTK rewrite
+- Added `~/.local/bin/rtk-run`, a small helper that runs `rtk rewrite` first and otherwise falls back to the original raw command, so Copilot instructions can use one command for safe high-output local workflows
+- Added a GitHub Actions workflow that verifies Sparkdock RTK setup installs the expected files, merges `exclude_commands` into RTK's config, and can run basic `rtk` commands end to end
+
 - Added `bash` (Homebrew formula, 5.x) to `config/packages/all-packages.yml` so Sparkdock scripts can rely on bash 4+ idioms (`declare -A`, `mapfile`, `${arr[-1]}`, etc.); macOS's stock `/bin/bash` is 3.2.57 and several existing scripts (`bin/common/skills-symlink-shim.sh`, `bin/sparkdock-agents-sync`) already required this implicitly via Homebrew's `PATH` ordering — this commit makes the dependency explicit
 - Added `~/.local/bin` to default zsh PATH for user-local binaries (XDG convention), auto-creating the directory if missing
 - Added automatic disabling of gcloud usage reporting during Google Cloud SDK configuration (both in Ansible provisioning and `sjust system-gcloud-reconfigure`)
@@ -69,6 +75,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Simplified Copilot RTK helper instructions to focus on `rtk-run`, concise command examples, quoted shell operators, and raw-command fallback
+- Reworked RTK setup to support Claude Code (global hook), OpenCode (plugin), and Copilot (helper + instructions with `rtk-run` for high-output local commands, but raw commands for destructive, infrastructure, and remote-state actions) while preserving RTK's base config and always rewriting Sparkdock-managed `exclude_commands`
+- Restored automatic RTK setup in macOS provisioning now that Sparkdock only rewrites `exclude_commands` and verifies the integration in CI
+
 - Moved opencode base configuration from `~/.config/opencode/opencode.json` to `/Library/Application Support/opencode/opencode.json` (system-wide path, user-writable) to support user-local overrides via `~/.config/opencode/opencode.json`
 - Added automatic cleanup of duplicate `~/.config/opencode/opencode.json` when identical to the shipped source, with a warning when the file contains non-custom content
 - Moved shell recipes (`shell-enable`, `shell-disable`, `shell-info`, `shell-omz-setup`, `shell-starship-setup`, `shell-eza-setup`, `shell-ghostty-setup`) to shared recipes directory for cross-platform reuse via ajust on Linux
@@ -103,12 +113,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- Removed automatic RTK (Rust Token Killer) setup from Ansible provisioning due to security concerns (token manipulation risks); use `sjust sf-rtk-setup` for manual opt-in
 - Removed `sjust sf-skills-refresh` backward-compatible alias (use `sf-agents-refresh` instead)
 - Removed `sjust sf-skills-status` backward-compatible alias (use `sf-agents-status` instead)
 
 ### Fixed
 
+- Fixed all 113 OpenCode deny/ask permission patterns missing leading `*` wildcard, preventing command prefix bypass (e.g., `rtk git push --force`, `env rm -rf /`, `time kubectl delete`) from evading safety rules
 - Fixed `shell-enable` re-prompting users who already have Sparkdock shell enhancements installed, caused by quoting mismatch in the detection string after the cross-platform refactor
 - Fixed CI failure caused by `neofetch` being removed from Homebrew — dropped it from the `removed_homebrew_packages` list since the formula no longer exists
 - Fixed sjust zsh tab-completion (`_clap_dynamic_completer_sjust` not found) caused by just 1.40+ switching to dynamic clap completions — replaced sed-based renaming with a custom completion file that correctly bridges sjust to just's dynamic completer

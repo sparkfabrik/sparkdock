@@ -1,0 +1,15 @@
+[hooks]
+exclude_commands = [
+  "^git push(?: .*)?(?: --force| -f)(?:$| )",
+  "git reset --hard",
+  "^(?:kubectl|k)(?: .*)? (?:apply|delete|patch|replace)(?:$| )",
+  "^helm(?: .*)? (?:uninstall|delete|rollback)(?:$| )",
+  "^(?:terraform|tf)(?: .*)? destroy(?:$| )",
+  "^(?:terraform|tf)(?: .*)? state rm(?:$| )",
+  "^(?:docker|d) (?:stop|rm|rmi)(?:$| )",
+  "^(?:docker|d) (?:system prune|volume rm|volume prune|network rm|network prune|container prune|image prune)(?:$| )",
+  "^(?:docker|d) compose (?:rm|down(?: .*)? -v)(?:$| )",
+  "^(?:gh|glab)(?: .*)? (?:merge|close|delete|destroy|cancel|disable)(?:$| )",
+  "^gcloud(?: .*)? destroy(?:$| )",
+  "^gcloud (?:projects delete|sql instances delete|storage rm|storage buckets delete)(?:$| )",
+]

@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" || $# -eq 0 ]]; then
+    cat <<'EOF'
+Usage: rtk-run <command...>
+
+Runs `rtk rewrite` first and executes the rewritten command when RTK returns one.
+Otherwise executes the original raw command.
+
+If the command contains shell operators like |, &&, ||, ;, or redirects,
+pass the whole command as a single quoted string.
+EOF
+    if [[ $# -eq 0 ]]; then
+        exit 2
+    fi
+    exit 0
+fi
+
+if ! command -v rtk > /dev/null 2>&1; then
+    echo "rtk-run: rtk not found in PATH" >&2
+    exit 127
+fi
+
+if [[ $# -eq 1 ]]; then
+    raw="$1"
+else
+    printf -v raw '%q ' "$@"
+    raw="${raw% }"
+fi
+
+rewritten="$(rtk rewrite "${raw}" 2> /dev/null || true)"
+final="${raw}"
+
+if [[ -n "${rewritten}" && "${rewritten}" != "${raw}" ]]; then
+    final="${rewritten}"
+fi
+
+exec "${SHELL:-/bin/bash}" -lc "${final}"
