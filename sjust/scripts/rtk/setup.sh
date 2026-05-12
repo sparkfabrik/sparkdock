@@ -170,13 +170,11 @@ setup_copilot() {
 
     local instructions_content
     read -r -d '' instructions_content <<'EOF' || true
-Use `rtk-run` for high-output local development commands such as build, test, lint, search, status, diff, log, list/get/show, and package manager operations. `rtk-run` asks RTK whether to rewrite the command and otherwise runs the original raw command.
+Use `rtk-run` for high-output local shell commands.
 
-If the command contains shell operators such as `|`, `&&`, `||`, `;`, or redirects, pass the full command as one quoted string to `rtk-run`.
+For commands with pipes, chains, or redirects, pass the whole command as one quoted string to `rtk-run`.
 
-Commands listed in `${XDG_CONFIG_HOME:-~/.config}/rtk/config.toml` under `[hooks].exclude_commands` are the source of truth for commands that must stay raw instead of being rewritten. If a command is excluded there, run it raw.
-
-If a project contains `.github/hooks/rtk-rewrite.json`, use normal shell commands and let the hook rewrite safe ones automatically. If unsure, use the raw command.
+If unsure, run the raw command.
 EOF
 
     # VS Code Copilot Chat — writes to ~/.github/
