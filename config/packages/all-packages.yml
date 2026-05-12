@@ -65,6 +65,7 @@ homebrew_packages:
   - fzf
   - navi
   - jq
+  - yq
   - yadm
   - upterm
   - tmux
