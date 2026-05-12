@@ -5,3 +5,4 @@
 [group('ai-coding-agents')]
 sf-rtk-setup:
     {{sparkdock_path}}/sjust/scripts/rtk/setup.sh
+

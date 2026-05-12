@@ -77,6 +77,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Expanded RTK `exclude_commands` to cover informationally critical commands (`git diff`, `git log`, `git status`, `tsc`, `helm template`, `ls`, `pip list`) where RTK's output filtering silently loses or rewrites data that AI agents rely on — upstream fixes filed (rtk-ai/rtk#1852, #1853, #1854), remove patterns as they're released
 - Simplified Copilot RTK helper instructions to focus on `rtk-run`, concise command examples, quoted shell operators, and raw-command fallback
 - Reworked RTK setup to support Claude Code (global hook), OpenCode (plugin), and Copilot (helper + instructions with `rtk-run` for high-output local commands, but raw commands for destructive, infrastructure, and remote-state actions) while preserving RTK's base config and always rewriting Sparkdock-managed `exclude_commands`
 - Restored automatic RTK setup in macOS provisioning now that Sparkdock only rewrites `exclude_commands` and verifies the integration in CI

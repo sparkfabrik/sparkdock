@@ -1,5 +1,6 @@
 [hooks]
 exclude_commands = [
+  # --- Destructive operations (prevent accidental data loss) ---
   "^git push(?: .*)?(?: --force| -f)(?:$| )",
   "git reset --hard",
   "^(?:kubectl|k)(?: .*)? (?:apply|delete|patch|replace)(?:$| )",
@@ -12,4 +13,24 @@ exclude_commands = [
   "^(?:gh|glab)(?: .*)? (?:merge|close|delete|destroy|cancel|disable)(?:$| )",
   "^gcloud(?: .*)? destroy(?:$| )",
   "^gcloud (?:projects delete|sql instances delete|storage rm|storage buckets delete)(?:$| )",
+  # --- Informationally critical (wrong output worse than verbose output) ---
+  # RTK's output filters for these commands silently lose or rewrite data that
+  # AI agents rely on for decision-making. Verified on RTK v0.39.0.
+  # Upstream fixes filed — remove patterns as PRs are merged and released.
+  # Tracking issue: sparkfabrik/sparkdock#460
+  #
+  # git diff: drops context lines before first change (rtk-ai/rtk#1852, PR #1855)
+  "^git(?: .*)? diff(?:$| )",
+  # git log: injects --no-merges, hides merge commits (rtk-ai/rtk#1853, PR #1856)
+  "^git(?: .*)? log(?:$| )",
+  # git status: loses detached HEAD commit SHA (rtk-ai/rtk#1854, PR #1857)
+  "^git(?: .*)? status(?:$| )",
+  # tsc: can print "No errors found" when errors exist (rtk-ai/rtk#1772)
+  "^(?:npx )?tsc(?:$| )",
+  # helm template: TOML filter caps at 40 lines, silently drops manifests (rtk-ai/rtk#1626)
+  "^helm(?: .*)? template(?:$| )",
+  # ls: filters .env and 20+ dirs via NOISE_DIRS list in ls.rs
+  "^ls(?:$| )",
+  # pip list: groups by letter, shows max 10 per group, hides most of the environment
+  "^pip list(?:$| )",
 ]

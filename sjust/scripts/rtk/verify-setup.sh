@@ -94,8 +94,9 @@ main() {
     fi
 
     log_info "Running RTK smoke tests..."
-    rtk git status > /dev/null
-    "${rtk_run}" git status > /dev/null
+    # Use git branch (not git status) because git status is in exclude_commands
+    rtk git branch > /dev/null
+    "${rtk_run}" git branch > /dev/null
 
     local raw_output
     raw_output=$("${rtk_run}" printf hello)
@@ -114,11 +115,11 @@ main() {
     local rewrite_output
     local rewrite_rc
     set +e
-    rewrite_output=$(rtk rewrite "git status" 2> /dev/null)
+    rewrite_output=$(rtk rewrite "git branch" 2> /dev/null)
     rewrite_rc=$?
     set -e
 
-    if [[ "${rewrite_output}" != "rtk git status" ]]; then
+    if [[ "${rewrite_output}" != "rtk git branch" ]]; then
         log_error "Unexpected rewrite output: ${rewrite_output}"
         exit 1
     fi
@@ -159,6 +160,23 @@ main() {
 
     if [[ "${gh_rc}" -ne 1 ]]; then
         log_error "Expected gh exclusion to exit 1, got ${gh_rc}"
+        exit 1
+    fi
+
+    local git_status_output
+    local git_status_rc
+    set +e
+    git_status_output=$(rtk rewrite "git status" 2> /dev/null)
+    git_status_rc=$?
+    set -e
+
+    if [[ -n "${git_status_output}" ]]; then
+        log_error "Excluded git status was rewritten: ${git_status_output}"
+        exit 1
+    fi
+
+    if [[ "${git_status_rc}" -ne 1 ]]; then
+        log_error "Expected git status exclusion to exit 1, got ${git_status_rc}"
         exit 1
     fi
 
