@@ -170,7 +170,7 @@ setup_copilot() {
 
     local instructions_content
     read -r -d '' instructions_content <<'EOF' || true
-Use `rtk-run` for high-output local shell commands.
+Use `rtk-run` for high-output local shell commands such as build, test, lint, search, status, diff, log, and package manager commands.
 
 For commands with pipes, chains, or redirects, pass the whole command as one quoted string to `rtk-run`.
 
