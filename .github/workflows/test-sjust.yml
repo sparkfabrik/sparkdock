@@ -187,16 +187,6 @@ jobs:
           echo "$out" | grep -q "Sparkdock — curated macOS defaults"
           echo "::endgroup::"
 
-          echo "::group::macos-defaults-docs print"
-          out=$(sjust macos-defaults-docs print)
-          echo "$out" | head -20
-          echo "$out" | grep -q "macos-defaults:start"
-          echo "::endgroup::"
-
-          echo "::group::macos-defaults-docs check (README must be in sync)"
-          sjust macos-defaults-docs check
-          echo "::endgroup::"
-
           echo "::group::macos-defaults-init-overrides (creates file, idempotent)"
           sjust macos-defaults-init-overrides
           test -f "${HOME}/.local/spark/macos-defaults/overrides.yml"
@@ -232,17 +222,17 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::undo list shows the snapshot"
-          out=$(sjust macos-defaults-undo list)
+          out=$(sjust macos-defaults-undo)
           echo "$out"
           echo "$out" | grep -qE 'Available snapshots|^[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}T'
           echo "::endgroup::"
 
           echo "::group::undo restores the un-applied state"
-          sjust macos-defaults-undo
+          sjust macos-defaults-undo restore
           test "$(defaults read "${probe_domain}" "${probe_key}" 2>/dev/null || echo unset)" = "unset"
           echo "::endgroup::"
 
-          echo "✅ macos-defaults full lifecycle (info / docs / init-overrides / apply / dry-run / undo) verified"
+          echo "✅ macos-defaults full lifecycle (info / init-overrides / apply / dry-run / undo) verified"
 
       - name: Clean up test installations
         if: always()

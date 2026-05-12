@@ -6,8 +6,8 @@ set -euo pipefail
 # same preference domain are NOT rolled back.
 #
 # Usage: undo.sh [<action>]
-#   (none)             restore the latest snapshot
-#   list               print available snapshots, no mutation
+#   (none)             list available snapshots (safe, no mutation)
+#   restore            restore the latest snapshot
 #   <timestamp>        restore the snapshot directory matching this name
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -31,7 +31,7 @@ if [[ ${#snapshots[@]} -eq 0 ]]; then
     exit 1
 fi
 
-if [[ "${action}" == "list" ]]; then
+if [[ -z "${action}" || "${action}" == "list" ]]; then
     log_section "Available snapshots (oldest → newest)"
     for s in "${snapshots[@]}"; do
         ts="$(basename "${s}")"
@@ -40,23 +40,27 @@ if [[ "${action}" == "list" ]]; then
         else
             keys_count="?"
         fi
-        printf '  %s  (%s key(s))\n' "${ts}" "${keys_count}"
+        printf '  %s  (%s key(s))  %s\n' "${ts}" "${keys_count}" "${s}"
     done
     if [[ -L "${MD_SNAPSHOTS_ROOT}/latest" ]]; then
         latest="$(readlink "${MD_SNAPSHOTS_ROOT}/latest" 2>/dev/null || true)"
         [[ -n "${latest}" ]] && printf '\nlatest → %s\n' "${latest}"
     fi
+    echo
+    log_info "To restore a snapshot run:"
+    echo "  sjust macos-defaults-undo restore            # restore latest"
+    echo "  sjust macos-defaults-undo <timestamp>         # restore a specific one"
     exit 0
 fi
 
-if [[ -n "${action}" ]]; then
+if [[ "${action}" == "restore" ]]; then
+    target="${snapshots[-1]}"
+else
     target="${MD_SNAPSHOTS_ROOT}/${action}"
     if [[ ! -d "${target}" ]]; then
         log_error "No snapshot directory named '${action}' under ${MD_SNAPSHOTS_ROOT}"
         exit 1
     fi
-else
-    target="${snapshots[-1]}"
 fi
 
 target_name="$(basename "${target}")"

@@ -130,28 +130,7 @@ sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gc
 
 ### macOS System Defaults
 
-A small, opinion-light set of system defaults (filesystem hygiene, secure keyboard entry, UTF-8 in TextEdit, etc.) is applied by `sjust macos-defaults`. The recipe is idempotent and per-key undoable. Run **`sjust macos-defaults-info`** to see what's in the curated set and how to add personal preferences via an overrides file.
-
-<!-- macos-defaults:start -->
-
-<!-- prettier-ignore-start -->
-
-_This table is generated from `config/macos/defaults.yml` by `sjust macos-defaults-docs write`. Do not edit by hand._
-
-| Category | Domain | Key | Type | Default | Description | Restarts |
-| --- | --- | --- | --- | --- | --- | --- |
-| filesystem | `com.apple.desktopservices` | `DSDontWriteNetworkStores` | bool | `true` | Don't create .DS_Store files on network volumes | Finder |
-| filesystem | `com.apple.desktopservices` | `DSDontWriteUSBStores` | bool | `true` | Don't create .DS_Store files on USB volumes | Finder |
-| terminal | `com.apple.Terminal` | `SecureKeyboardEntry` | bool | `true` | Enable secure keyboard entry (applies on next Terminal launch) | Terminal |
-| textedit | `com.apple.TextEdit` | `PlainTextEncoding` | int | `4` | Read plain-text files as UTF-8 | TextEdit |
-| textedit | `com.apple.TextEdit` | `PlainTextEncodingForWrite` | int | `4` | Write plain-text files as UTF-8 | TextEdit |
-| time-machine | `com.apple.TimeMachine` | `DoNotOfferNewDisksForBackup` | bool | `true` | Don't prompt to use new disks as Time Machine backup |  |
-| ui-ux | `NSGlobalDomain` | `NSNavPanelExpandedStateForSaveMode` | bool | `true` | Expand save panel by default |  |
-| ui-ux | `NSGlobalDomain` | `PMPrintingExpandedStateForPrint` | bool | `true` | Expand print panel by default |  |
-
-<!-- prettier-ignore-end -->
-
-<!-- macos-defaults:end -->
+A small, opinion-light set of system defaults (filesystem hygiene, secure keyboard entry, expanded save/print panels, etc.) is applied by `sjust macos-defaults`. The recipe is idempotent and per-key undoable. Run **`sjust macos-defaults-info`** to see what's in the curated set and how to add personal preferences via an overrides file.
 
 ### Google Cloud SDK Configuration
 

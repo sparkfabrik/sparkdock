@@ -1,8 +1,8 @@
 # macOS System Defaults — sparkdock curated profile
 #
 # A deliberately tiny set of system defaults that are universally nice to have:
-# improvements to network/USB hygiene, an annoying prompt suppressed, secure
-# keyboard entry in Terminal, and forced UTF-8 in TextEdit. Anything that's a
+# improvements to network/USB hygiene, an annoying prompt suppressed, and secure
+# keyboard entry in Terminal. Anything that's a
 # personal preference (dock, finder layout, smart-quotes, accent picker,
 # trackpad, reduce-motion, etc.) lives only in your overrides file.
 #
@@ -75,26 +75,6 @@
   description: Enable secure keyboard entry (applies on next Terminal launch)
   category: terminal
   requires: [Terminal]
-
-# ----- TextEdit (UTF-8 everywhere) --------------------------------------------
-
-"com.apple.TextEdit.PlainTextEncoding":
-  domain: com.apple.TextEdit
-  key: PlainTextEncoding
-  type: int
-  value: 4
-  description: Read plain-text files as UTF-8
-  category: textedit
-  requires: [TextEdit]
-
-"com.apple.TextEdit.PlainTextEncodingForWrite":
-  domain: com.apple.TextEdit
-  key: PlainTextEncodingForWrite
-  type: int
-  value: 4
-  description: Write plain-text files as UTF-8
-  category: textedit
-  requires: [TextEdit]
 
 # ----- Time Machine (annoying prompt) ------------------------------------------
 

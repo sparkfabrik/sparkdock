@@ -22,23 +22,15 @@ macos-defaults-info $mode="pretty":
 macos-defaults $mode="apply" $strict="" $verbose="":
     @{{ sparkdock_path }}/sjust/scripts/macos-defaults/apply.sh "${mode}" "${strict}" "${verbose}"
 
-# Restore the latest snapshot, list snapshots, or restore a specific one.
-#   macos-defaults-undo                  # restore latest
-#   macos-defaults-undo list             # list snapshots, no mutation
-#   macos-defaults-undo <timestamp>      # restore a specific snapshot directory
+# List snapshots or restore one. Each apply creates a per-key snapshot so
+# you can safely roll back only the settings sparkdock changed.
+#   macos-defaults-undo                  # list available snapshots (default)
+#   macos-defaults-undo restore          # restore the latest snapshot
+#   macos-defaults-undo <timestamp>      # restore a specific snapshot
 [group('macos')]
-[doc('Restore a snapshot from a previous macos-defaults apply.')]
+[doc('List or restore per-key snapshots from previous macos-defaults applies.')]
 macos-defaults-undo $action="":
     @{{ sparkdock_path }}/sjust/scripts/macos-defaults/undo.sh "${action}"
-
-# Print, check, or write the macOS defaults docs table embedded in README.md.
-#   macos-defaults-docs                  # print Markdown table to stdout
-#   macos-defaults-docs check            # exit non-zero if README block is stale
-#   macos-defaults-docs write            # rewrite README block with fresh table
-[group('macos')]
-[doc('Generate / verify the macOS defaults Markdown table embedded in README.md.')]
-macos-defaults-docs $mode="print":
-    @{{ sparkdock_path }}/sjust/scripts/macos-defaults/docs.sh "${mode}"
 
 # Drop a commented overrides template at ~/.local/spark/macos-defaults/overrides.yml.
 [group('macos')]
