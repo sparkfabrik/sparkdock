@@ -52,6 +52,7 @@ main() {
     local vscode_instructions="${HOME}/.github/copilot-instructions.md"
     local cli_instructions="${HOME}/.copilot/copilot-instructions.md"
     local opencode_plugin="${HOME}/.config/opencode/plugins/rtk.ts"
+    local rtk_run="${HOME}/.local/bin/rtk-run"
 
     log_info "Bootstrapping RTK base config in ${HOME}..."
     mkdir -p "${HOME}/.claude" "${HOME}/.github" "${HOME}/.copilot"
@@ -72,17 +73,19 @@ main() {
     assert_file_exists "${vscode_instructions}"
     assert_file_exists "${cli_instructions}"
     assert_file_exists "${opencode_plugin}"
+    assert_file_exists "${rtk_run}"
 
     assert_file_contains "${claude_settings}" "rtk hook claude"
     assert_file_contains "${claude_md}" "@RTK.md"
-    assert_file_contains "${vscode_instructions}" "Use \`rtk\` for high-output local development commands"
-    assert_file_contains "${cli_instructions}" "Do not manually prefix destructive commands"
+    assert_file_contains "${vscode_instructions}" "Use \`rtk-run\` for high-output local development commands"
+    assert_file_contains "${cli_instructions}" "Do not use \`rtk-run\` for destructive commands"
 
     log_info "Checking merged RTK config..."
     assert_file_contains "${rtk_config}" 'transparent_prefixes = ["direnv exec ."]'
     assert_file_contains "${rtk_config}" '^git push(?: .*)?(?: --force| -f)(?:$| )'
     assert_file_contains "${rtk_config}" '^(?:kubectl|k)(?: .*)? (?:apply|delete|patch|replace)(?:$| )'
     assert_file_contains "${rtk_config}" '^(?:terraform|tf)(?: .*)? destroy(?:$| )'
+    assert_file_contains "${rtk_config}" '^(?:gh|glab)(?: .*)? (?:merge|close|delete|destroy|cancel|disable)(?:$| )'
 
     if grep -Fq 'exclude_commands = ["curl"]' "${rtk_config}"; then
         log_error "Old exclude_commands value was not replaced"
@@ -91,6 +94,21 @@ main() {
 
     log_info "Running RTK smoke tests..."
     rtk git status > /dev/null
+    "${rtk_run}" git status > /dev/null
+
+    local raw_output
+    raw_output=$("${rtk_run}" printf hello)
+    if [[ "${raw_output}" != "hello" ]]; then
+        log_error "Unexpected rtk-run raw output: ${raw_output}"
+        exit 1
+    fi
+
+    local pipe_output
+    pipe_output=$("${rtk_run}" 'printf hello | tr a-z A-Z')
+    if [[ "${pipe_output}" != "HELLO" ]]; then
+        log_error "Unexpected rtk-run quoted command output: ${pipe_output}"
+        exit 1
+    fi
 
     local rewrite_output
     local rewrite_rc
@@ -123,6 +141,23 @@ main() {
 
     if [[ "${excluded_rc}" -ne 1 ]]; then
         log_error "Expected excluded command to exit 1, got ${excluded_rc}"
+        exit 1
+    fi
+
+    local gh_output
+    local gh_rc
+    set +e
+    gh_output=$(rtk rewrite "gh pr merge 123" 2> /dev/null)
+    gh_rc=$?
+    set -e
+
+    if [[ -n "${gh_output}" ]]; then
+        log_error "Excluded gh command was rewritten: ${gh_output}"
+        exit 1
+    fi
+
+    if [[ "${gh_rc}" -ne 1 ]]; then
+        log_error "Expected gh exclusion to exit 1, got ${gh_rc}"
         exit 1
     fi
 

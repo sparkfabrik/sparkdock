@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Claude Code (`claude-code` brew cask) to default provisioned packages
 - Added `setup_claude()` to RTK setup for Claude Code global hook integration via `rtk init -g --auto-patch`
 - Added `config/rtk/exclude-commands.toml` and RTK setup logic that bootstraps RTK's own `config.toml` when needed, then rewrites only `exclude_commands` with Sparkdock's destructive shortlist (including `k`, `tf`, and `d` alias assumptions) so dangerous commands bypass RTK rewrite
+- Added `~/.local/bin/rtk-run`, a small helper that runs `rtk rewrite` first and otherwise falls back to the original raw command, so Copilot instructions can use one command for safe high-output local workflows
 - Added a GitHub Actions workflow that verifies Sparkdock RTK setup installs the expected files, merges `exclude_commands` into RTK's config, and can run basic `rtk` commands end to end
 
 - Added `bash` (Homebrew formula, 5.x) to `config/packages/all-packages.yml` so Sparkdock scripts can rely on bash 4+ idioms (`declare -A`, `mapfile`, `${arr[-1]}`, etc.); macOS's stock `/bin/bash` is 3.2.57 and several existing scripts (`bin/common/skills-symlink-shim.sh`, `bin/sparkdock-agents-sync`) already required this implicitly via Homebrew's `PATH` ordering — this commit makes the dependency explicit
@@ -74,7 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Reworked RTK setup to support Claude Code (global hook), OpenCode (plugin), and Copilot (instructions-only with a minimal Sparkdock-owned policy: broad RTK use for high-output local dev commands, but raw commands for destructive, infrastructure, and remote-state actions) while preserving RTK's base config and always rewriting Sparkdock-managed `exclude_commands`
+- Reworked RTK setup to support Claude Code (global hook), OpenCode (plugin), and Copilot (helper + instructions with `rtk-run` for high-output local commands, but raw commands for destructive, infrastructure, and remote-state actions) while preserving RTK's base config and always rewriting Sparkdock-managed `exclude_commands`
 - Restored automatic RTK setup in macOS provisioning now that Sparkdock only rewrites `exclude_commands` and verifies the integration in CI
 
 - Moved opencode base configuration from `~/.config/opencode/opencode.json` to `/Library/Application Support/opencode/opencode.json` (system-wide path, user-writable) to support user-local overrides via `~/.config/opencode/opencode.json`

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Setup RTK (Rust Token Killer) for Claude Code, GitHub Copilot, and OpenCode.
-# Installs hooks, instructions, and rewrites Sparkdock-managed exclude_commands.
+# Installs hooks, helper scripts, instructions, and rewrites exclude_commands.
 #
 # Usage: setup.sh
 
@@ -53,6 +53,23 @@ rtk_config_dir() {
     else
         echo "${XDG_CONFIG_HOME:-${HOME}/.config}/rtk"
     fi
+}
+
+install_rtk_run() {
+    local source_file="${SCRIPT_DIR}/rtk-run"
+    local target_dir="${HOME}/.local/bin"
+    local target_file="${target_dir}/rtk-run"
+
+    if [[ ! -f "${source_file}" ]]; then
+        log_error "rtk-run helper not found: ${source_file}"
+        return 1
+    fi
+
+    mkdir -p "${target_dir}"
+    cp "${source_file}" "${target_file}"
+    chmod 0755 "${target_file}"
+
+    log_success "RTK helper installed: ${target_file}"
 }
 
 # --- Config Generation ---
@@ -145,20 +162,19 @@ setup_claude() {
 # --- GitHub Copilot ---
 
 # Copilot CLI does not support global hooks — only project-scoped hooks in
-# .github/hooks/. The global setup is instructions-only. Keep the policy small:
-# use rtk broadly for high-output local dev commands, but do not manually prefix
-# destructive, infra, or remote-state commands. This is a prompt-based safety
-# measure, not a mechanical one.
+# .github/hooks/. The global setup is helper + instructions only.
 #
 # Upstream issue for proper hook support: rtk-ai/rtk#1839
 setup_copilot() {
-    log_info "Setting up RTK for GitHub Copilot (instructions only)..."
+    log_info "Setting up RTK for GitHub Copilot (helper + instructions only)..."
 
     local instructions_content
     read -r -d '' instructions_content <<'EOF' || true
-Use `rtk` for high-output local development commands such as build, test, lint, search, status, diff, log, list/get/show, and package manager operations.
+Use `rtk-run` for high-output local development commands such as build, test, lint, search, status, diff, log, list/get/show, and package manager operations. `rtk-run` asks RTK whether to rewrite the command and otherwise runs the original raw command.
 
-Do not manually prefix destructive commands or commands that change infrastructure, cloud, cluster, or remote repository state with `rtk` (for example: `rm -rf`, `git push --force`, `kubectl apply`, `terraform destroy`, `gcloud ... destroy`, `gh pr merge`).
+If the command contains shell operators such as `|`, `&&`, `||`, `;`, or redirects, pass the full command as one quoted string to `rtk-run`.
+
+Do not use `rtk-run` for destructive commands or commands that change infrastructure, cloud, cluster, or remote repository state (for example: `rm -rf`, `git push --force`, `kubectl apply`, `terraform destroy`, `gcloud ... destroy`, `gh pr merge`, `glab mr merge`). Run those raw.
 
 If a project contains `.github/hooks/rtk-rewrite.json`, use normal shell commands and let the hook rewrite safe ones automatically. If unsure, use the raw command.
 EOF
@@ -171,7 +187,7 @@ EOF
     local cli_dest="${HOME}/.copilot/copilot-instructions.md"
     inject_with_markers "${cli_dest}" "${instructions_content}"
 
-    log_success "RTK configured for GitHub Copilot (instructions only, no global hooks)"
+    log_success "RTK configured for GitHub Copilot (helper + instructions only, no global hooks)"
 }
 
 # --- OpenCode ---
@@ -193,6 +209,7 @@ if ! command -v rtk &> /dev/null; then
 fi
 
 generate_config
+install_rtk_run
 setup_claude
 setup_copilot
 setup_opencode
