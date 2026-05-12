@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added "AI Development - Where We Are" playbook link to menu bar app Company section
 - Added Claude Code (`claude-code` brew cask) to default provisioned packages
 - Added `setup_claude()` to RTK setup for Claude Code global hook integration via `rtk init -g --auto-patch`
 - Added `config/rtk/exclude-commands.toml` and RTK setup logic that bootstraps RTK's own `config.toml` when needed, then rewrites only `exclude_commands` with Sparkdock's destructive shortlist (including `k`, `tf`, and `d` alias assumptions) so dangerous commands bypass RTK rewrite

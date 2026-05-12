@@ -34,6 +34,11 @@
             "title": "Universal Definition of Done",
             "type": "url",
             "url": "https://playbook.sparkfabrik.com/tools-and-policies/universal-dod"
+          },
+          {
+            "title": "AI Development - Where We Are",
+            "type": "url",
+            "url": "https://playbook.sparkfabrik.com/ai-development/where-we-are"
           }
         ]
       }
