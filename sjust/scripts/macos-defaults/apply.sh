@@ -136,6 +136,17 @@ if [[ "${mode}" == "dry-run" ]]; then
     exit 0
 fi
 
+# --- Confirmation prompt (skip when non-interactive, e.g. CI / Ansible) ------
+if [[ -t 0 ]]; then
+    echo
+    echo -n "Apply these changes? [y/N]: "
+    read -r response
+    if [[ ! "${response}" =~ ^[Yy]$ ]]; then
+        echo "Cancelled."
+        exit 0
+    fi
+fi
+
 # --- Apply path: per-key snapshot, write, restart, prune ---------------------
 
 ts="$(date -u +%Y-%m-%dT%H-%M-%SZ)"
