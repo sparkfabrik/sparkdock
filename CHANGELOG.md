@@ -123,6 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed caveman setup breaking OpenCode startup by removing incompatible `cavecrew-*.md` agent files that use a YAML `tools` array instead of the `permission` object OpenCode expects ([caveman#386](https://github.com/JuliusBrussee/caveman/issues/386))
 - Removed `*dd *` permission pattern from OpenCode config — the wildcard prefix caused false positives on any command containing `dd ` (e.g., `git add`) by matching the substring, effectively blocking all `git add` operations
 - Fixed all 113 OpenCode deny/ask permission patterns missing leading `*` wildcard, preventing command prefix bypass (e.g., `rtk git push --force`, `env rm -rf /`, `time kubectl delete`) from evading safety rules
 - Fixed `shell-enable` re-prompting users who already have Sparkdock shell enhancements installed, caused by quoting mismatch in the detection string after the cross-platform refactor

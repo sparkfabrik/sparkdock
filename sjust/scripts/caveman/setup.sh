@@ -119,7 +119,6 @@ STUB
 # --- Config ---
 
 write_default_config() {
-    log_info "Writing caveman config..."
     mkdir -p "${CAVEMAN_CONFIG_DIR}"
     printf '{"defaultMode": "%s"}\n' "${CAVEMAN_DEFAULT_MODE}" > "${CAVEMAN_CONFIG_FILE}"
     log_success "Caveman config written: ${CAVEMAN_CONFIG_FILE} (mode: ${CAVEMAN_DEFAULT_MODE})"
@@ -156,6 +155,20 @@ setup_opencode() {
         log_error "Caveman installer failed for OpenCode"
         return 1
     fi
+    # The native installer copies agents/cavecrew-*.md into
+    # ~/.config/opencode/agents/.  Those files use a `tools` YAML array
+    # that OpenCode rejects ("Expected object | undefined"), breaking
+    # startup entirely.  Remove them until upstream fixes the schema.
+    # Tracked: https://github.com/JuliusBrussee/caveman/issues/386
+    local opencode_agents_dir="${HOME}/.config/opencode/agents"
+    local -a bad_agents=(cavecrew-investigator.md cavecrew-builder.md cavecrew-reviewer.md)
+    for f in "${bad_agents[@]}"; do
+        if [[ -f "${opencode_agents_dir}/${f}" ]]; then
+            rm -f "${opencode_agents_dir}/${f}"
+            log_warn "Removed incompatible agent file: ${opencode_agents_dir}/${f}"
+        fi
+    done
+
     log_success "Caveman configured for OpenCode (plugin + skills + commands)"
 }
 
