@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added caveman output compression integration for Claude Code, OpenCode, and GitHub Copilot (`sjust sf-caveman-install`) — reduces AI response tokens ~50% using structured terse-output rules (default mode: full); includes `sf-caveman-uninstall` recipe, Ansible `caveman` tag, and per-agent guard clauses for easy addition/removal of agents
 - Added `coreutils` (GNU core utilities) to default Homebrew packages
 - Added "AI Development - Where We Are" playbook link to menu bar app Company section
 - Added Claude Code (`claude-code` brew cask) to default provisioned packages
@@ -77,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Copilot custom instructions now write only to `~/.copilot/copilot-instructions.md` (official Copilot CLI local instructions path per GitHub docs); dropped undocumented `~/.github/copilot-instructions.md`. Applies to both RTK and caveman setup scripts. Existing orphaned blocks in `~/.github/copilot-instructions.md` are cleaned up automatically on next run
 - Simplified Copilot RTK helper instructions to focus on `rtk-run`, concise command examples, quoted shell operators, and raw-command fallback
 - Reworked RTK setup to support Claude Code (global hook), OpenCode (plugin), and Copilot (helper + instructions with `rtk-run` for high-output local commands, but raw commands for destructive, infrastructure, and remote-state actions) while preserving RTK's base config and always rewriting Sparkdock-managed `exclude_commands`
 - Restored automatic RTK setup in macOS provisioning now that Sparkdock only rewrites `exclude_commands` and verifies the integration in CI
@@ -121,6 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed caveman setup breaking OpenCode startup by removing incompatible `cavecrew-*.md` agent files that use a YAML `tools` array instead of the `permission` object OpenCode expects ([caveman#386](https://github.com/JuliusBrussee/caveman/issues/386))
 - Removed `*dd *` permission pattern from OpenCode config — the wildcard prefix caused false positives on any command containing `dd ` (e.g., `git add`) by matching the substring, effectively blocking all `git add` operations
 - Fixed all 113 OpenCode deny/ask permission patterns missing leading `*` wildcard, preventing command prefix bypass (e.g., `rtk git push --force`, `env rm -rf /`, `time kubectl delete`) from evading safety rules
 - Fixed `shell-enable` re-prompting users who already have Sparkdock shell enhancements installed, caused by quoting mismatch in the detection string after the cross-platform refactor
