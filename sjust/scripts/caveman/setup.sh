@@ -180,13 +180,15 @@ setup_copilot() {
     local skill_src="${CAVEMAN_CACHE_DIR}/skills/caveman"
     local skill_dest="${SKILLS_DIR}/caveman"
 
-    # 1. Copy skill files to shared skills directory
+    # 1. Copy skill files to shared skills directory (clean copy to remove stale files)
     if [[ -d "${skill_src}" ]]; then
+        rm -rf "${skill_dest}"
         mkdir -p "${skill_dest}"
         cp -r "${skill_src}/." "${skill_dest}/"
         log_success "Caveman skill installed: ${skill_dest}"
     else
-        log_warn "Caveman skill source not found: ${skill_src}"
+        log_warn "Caveman skill source not found: ${skill_src} — skipping Copilot setup"
+        return 0
     fi
 
     # 2. Create symlinks for tool discovery (same pattern as skills-symlink-shim)
@@ -197,8 +199,13 @@ setup_copilot() {
 
     for tool_id in "${!tool_skills_dirs[@]}"; do
         local tool_dir="${tool_skills_dirs[${tool_id}]}"
+        local link="${tool_dir}/caveman"
         mkdir -p "${tool_dir}"
-        ln -sfn "${skill_dest}" "${tool_dir}/caveman"
+        # Remove existing real directory before symlinking
+        if [[ -d "${link}" && ! -L "${link}" ]]; then
+            rm -rf "${link}"
+        fi
+        ln -sfn "${skill_dest}" "${link}"
     done
 
     # 3. Inject always-on caveman rules into Copilot instruction files
