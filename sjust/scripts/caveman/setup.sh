@@ -61,6 +61,27 @@ inject_with_markers() {
     printf '\n%s\n%s\n%s\n' "${marker_begin}" "${content}" "${marker_end}" >> "${file}"
 }
 
+# Remove a marker-delimited block from a file (no-op if file or block missing).
+# Usage: _remove_block <file> <begin_marker> <end_marker>
+_remove_block() {
+    local file="$1"
+    local begin="$2"
+    local end="$3"
+
+    [[ -f "${file}" ]] || return 0
+    grep -q "${begin}" "${file}" 2>/dev/null || return 0
+
+    local tmpfile
+    tmpfile="$(mktemp "${TMPDIR:-/tmp}/caveman-cleanup.XXXXXX")"
+    awk -v b="${begin}" -v e="${end}" '
+        $0 ~ b { skip=1; next }
+        $0 ~ e { skip=0; next }
+        !skip
+    ' "${file}" > "${tmpfile}"
+    mv "${tmpfile}" "${file}"
+    log_info "Removed stale block from ${file}"
+}
+
 # --- Repository ---
 
 ensure_caveman_repo() {
@@ -179,13 +200,25 @@ setup_copilot() {
     local marker_begin="<!-- BEGIN CAVEMAN MANAGED BLOCK -->"
     local marker_end="<!-- END CAVEMAN MANAGED BLOCK -->"
 
-    # VS Code Copilot Chat
-    inject_with_markers "${HOME}/.github/copilot-instructions.md" \
-        "${marker_begin}" "${marker_end}" "${rule_content}"
+    # Copilot CLI (official user-level instructions path per GitHub docs).
+    local copilot_file="${HOME}/.copilot/copilot-instructions.md"
 
-    # Copilot CLI
-    inject_with_markers "${HOME}/.copilot/copilot-instructions.md" \
-        "${marker_begin}" "${marker_end}" "${rule_content}"
+    if [[ -L "${copilot_file}" ]]; then
+        log_info "Copilot instructions is a symlink ($(readlink "${copilot_file}")) — skipping (managed externally)"
+    else
+        inject_with_markers "${copilot_file}" \
+            "${marker_begin}" "${marker_end}" "${rule_content}"
+        # Remove stale native-installer block from this file (we own it)
+        _remove_block "${copilot_file}" "<!-- caveman-begin -->" "<!-- caveman-end -->"
+    fi
+
+    # Clean up stale managed blocks from files we don't own (non-symlink only)
+    if [[ ! -L "${HOME}/.config/opencode/AGENTS.md" ]]; then
+        _remove_block "${HOME}/.config/opencode/AGENTS.md" "${marker_begin}" "${marker_end}"
+    fi
+    if [[ ! -L "${HOME}/.github/copilot-instructions.md" ]]; then
+        _remove_block "${HOME}/.github/copilot-instructions.md" "${marker_begin}" "${marker_end}"
+    fi
 
     log_success "Caveman configured for GitHub Copilot (skill + always-on instructions)"
 }
@@ -204,7 +237,6 @@ uninstall() {
     local marker_begin="<!-- BEGIN CAVEMAN MANAGED BLOCK -->"
     local marker_end="<!-- END CAVEMAN MANAGED BLOCK -->"
     local files=(
-        "${HOME}/.github/copilot-instructions.md"
         "${HOME}/.copilot/copilot-instructions.md"
     )
 
