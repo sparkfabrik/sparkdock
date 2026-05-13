@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added caveman output compression integration for Claude Code, OpenCode, and GitHub Copilot (`sjust sf-caveman-install`) — reduces AI response tokens ~50% using structured terse-output rules (default mode: full); includes `sf-caveman-uninstall` recipe, Ansible `caveman` tag, and per-agent guard clauses for easy addition/removal of agents
 - Added `coreutils` (GNU core utilities) to default Homebrew packages
 - Added "AI Development - Where We Are" playbook link to menu bar app Company section
 - Added Claude Code (`claude-code` brew cask) to default provisioned packages

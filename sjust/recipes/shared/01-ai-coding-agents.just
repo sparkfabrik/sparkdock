@@ -56,3 +56,15 @@ sf-copilot-premium-usage *args='':
         exit 1
     fi
     node "{{sparkdock_path}}/sjust/scripts/copilot-usage.mjs" {{args}}
+
+# Install/update caveman output compression for Claude Code, OpenCode, and Copilot.
+# Clones (or updates) the caveman repo, writes default config, then installs
+# hooks/plugins/skills per agent. Safe to re-run — always deploys latest.
+[group('ai-coding-agents')]
+sf-caveman-install:
+    @{{sparkdock_path}}/sjust/scripts/caveman/setup.sh install
+
+# Remove caveman from all AI coding tools.
+[group('ai-coding-agents')]
+sf-caveman-uninstall:
+    @{{sparkdock_path}}/sjust/scripts/caveman/setup.sh uninstall
