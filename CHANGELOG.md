@@ -123,6 +123,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed caveman OpenCode plugin hooks never firing — upstream uses non-existent `session.created` and `tui.prompt.append` hooks; patched to use `chat.message` + `experimental.chat.system.transform` ([caveman#418](https://github.com/JuliusBrussee/caveman/issues/418))
 - Added a "done" banner to the GitHub Copilot section of `sf-caveman-install` mirroring the native installer output for Claude Code and OpenCode, so the Copilot install step has matching visual weight instead of finishing on a single log line
 - Improved `sf-caveman-install` log message when Copilot instructions file is a symlink — now reports whether the symlink target already contains caveman rules instead of a misleading "skipping (managed externally)" message
 - Fixed caveman setup breaking OpenCode startup by removing incompatible `cavecrew-*.md` agent files that use a YAML `tools` array instead of the `permission` object OpenCode expects ([caveman#386](https://github.com/JuliusBrussee/caveman/issues/386))

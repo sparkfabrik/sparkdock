@@ -169,6 +169,22 @@ setup_opencode() {
         fi
     done
 
+    # Patch: upstream plugin.js uses non-existent opencode hooks
+    # (session.created, tui.prompt.append). Replace with our fixed version
+    # that uses chat.message + experimental.chat.system.transform.
+    # Tracked: https://github.com/JuliusBrussee/caveman/issues/418
+    local plugin_patch
+    plugin_patch="$(dirname "${BASH_SOURCE[0]}")/patches/opencode-plugin.js"
+    local plugin_dest="${HOME}/.config/opencode/plugins/caveman/plugin.js"
+    if [[ -f "${plugin_patch}" ]]; then
+        if [[ -f "${plugin_dest}" ]]; then
+            cp "${plugin_patch}" "${plugin_dest}"
+            log_success "Applied opencode plugin.js patch (issue #418)"
+        else
+            log_warn "Cannot apply plugin.js patch: destination not found (${plugin_dest})"
+        fi
+    fi
+
     log_success "Caveman configured for OpenCode (plugin + skills + commands)"
 }
 
