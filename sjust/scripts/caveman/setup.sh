@@ -224,7 +224,13 @@ setup_copilot() {
     local copilot_file="${HOME}/.copilot/copilot-instructions.md"
 
     if [[ -L "${copilot_file}" ]]; then
-        log_info "Copilot instructions is a symlink ($(readlink "${copilot_file}")) — skipping (managed externally)"
+        local symlink_target
+        symlink_target="$(readlink -f "${copilot_file}")"
+        if [[ -f "${symlink_target}" ]] && grep -q "caveman" "${symlink_target}" 2>/dev/null; then
+            log_info "Copilot instructions is a symlink ($(readlink "${copilot_file}")) — target already contains caveman rules"
+        else
+            log_warn "Copilot instructions is a symlink ($(readlink "${copilot_file}")) — target does NOT contain caveman rules; inject manually or remove the symlink"
+        fi
     else
         inject_with_markers "${copilot_file}" \
             "${marker_begin}" "${marker_end}" "${rule_content}"
