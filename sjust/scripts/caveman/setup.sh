@@ -247,6 +247,22 @@ setup_copilot() {
     fi
 
     log_success "Caveman configured for GitHub Copilot (skill + always-on instructions)"
+
+    # Mirror the native installer's "done" banner (same orange/green/dim
+    # palette) so the Copilot section has the same visual weight as the
+    # Claude/OpenCode output above.
+    local orange='' green='' dim='' reset=''
+    if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+        orange=$'\033[38;5;172m'
+        green=$'\033[32m'
+        dim=$'\033[2m'
+        reset=$'\033[0m'
+    fi
+    printf '\n%s🪨 done%s\n%s  installed:%s\n    • copilot\n\n%s  start any Copilot session and say '\''caveman mode'\'', or run /caveman%s\n%s  uninstall: sjust sf-caveman-uninstall%s\n\n' \
+        "${orange}" "${reset}" \
+        "${green}" "${reset}" \
+        "${dim}" "${reset}" \
+        "${dim}" "${reset}"
 }
 
 # --- Uninstall ---
