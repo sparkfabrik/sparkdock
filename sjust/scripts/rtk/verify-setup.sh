@@ -49,13 +49,12 @@ main() {
     local claude_settings="${HOME}/.claude/settings.json"
     local claude_md="${HOME}/.claude/CLAUDE.md"
     local rtk_md="${HOME}/.claude/RTK.md"
-    local vscode_instructions="${HOME}/.github/copilot-instructions.md"
     local cli_instructions="${HOME}/.copilot/copilot-instructions.md"
     local opencode_plugin="${HOME}/.config/opencode/plugins/rtk.ts"
     local rtk_run="${HOME}/.local/bin/rtk-run"
 
     log_info "Bootstrapping RTK base config in ${HOME}..."
-    mkdir -p "${HOME}/.claude" "${HOME}/.github" "${HOME}/.copilot"
+    mkdir -p "${HOME}/.claude" "${HOME}/.copilot"
     rtk config --create > /dev/null 2>&1
     assert_file_exists "${rtk_config}"
 
@@ -70,14 +69,13 @@ main() {
     assert_file_exists "${claude_settings}"
     assert_file_exists "${claude_md}"
     assert_file_exists "${rtk_md}"
-    assert_file_exists "${vscode_instructions}"
     assert_file_exists "${cli_instructions}"
     assert_file_exists "${opencode_plugin}"
     assert_file_exists "${rtk_run}"
 
     assert_file_contains "${claude_settings}" "rtk hook claude"
     assert_file_contains "${claude_md}" "@RTK.md"
-    assert_file_contains "${vscode_instructions}" "Use \`rtk-run\` for high-output local shell commands such as build, test, lint, search, status, diff, log, and package manager commands"
+    assert_file_contains "${cli_instructions}" "Use \`rtk-run\` for high-output local shell commands such as build, test, lint, search, status, diff, log, and package manager commands"
     assert_file_contains "${cli_instructions}" "For commands with pipes, chains, or redirects"
     assert_file_contains "${cli_instructions}" "If unsure, run the raw command"
 

@@ -177,13 +177,33 @@ For commands with pipes, chains, or redirects, pass the whole command as one quo
 If unsure, run the raw command.
 EOF
 
-    # VS Code Copilot Chat — writes to ~/.github/
-    local vscode_dest="${HOME}/.github/copilot-instructions.md"
-    inject_with_markers "${vscode_dest}" "${instructions_content}"
+    # Copilot CLI — official user-level instructions path per GitHub docs.
+    local copilot_file="${HOME}/.copilot/copilot-instructions.md"
 
-    # Copilot CLI — writes to ~/.copilot/
-    local cli_dest="${HOME}/.copilot/copilot-instructions.md"
-    inject_with_markers "${cli_dest}" "${instructions_content}"
+    if [[ -L "${copilot_file}" ]]; then
+        log_info "Copilot instructions is a symlink ($(readlink "${copilot_file}")) — skipping (managed externally)"
+    else
+        inject_with_markers "${copilot_file}" "${instructions_content}"
+    fi
+
+    # Clean up orphaned ~/.github/copilot-instructions.md from previous runs
+    # (that path was never documented by GitHub; only ~/.copilot/ is official).
+    local orphan="${HOME}/.github/copilot-instructions.md"
+    if [[ -f "${orphan}" && ! -L "${orphan}" ]]; then
+        local marker_begin="<!-- BEGIN RTK MANAGED BLOCK -->"
+        local marker_end="<!-- END RTK MANAGED BLOCK -->"
+        if grep -q "${marker_begin}" "${orphan}" 2>/dev/null; then
+            local tmpfile
+            tmpfile="$(mktemp "${TMPDIR:-/tmp}/rtk-cleanup.XXXXXX")"
+            awk -v begin="${marker_begin}" -v end="${marker_end}" '
+                $0 ~ begin { skip=1; next }
+                $0 ~ end   { skip=0; next }
+                !skip
+            ' "${orphan}" > "${tmpfile}"
+            mv "${tmpfile}" "${orphan}"
+            log_info "Removed RTK block from orphaned ${orphan}"
+        fi
+    fi
 
     log_success "RTK configured for GitHub Copilot (helper + instructions only, no global hooks)"
 }
