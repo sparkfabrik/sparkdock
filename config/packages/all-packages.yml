@@ -83,6 +83,7 @@ homebrew_packages:
   - "php@8.2"
   - golang
   - gitleaks
+  - pre-commit
   - uv
   - llm
   - anomalyco/tap/opencode
