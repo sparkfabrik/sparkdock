@@ -202,7 +202,7 @@
       tags: cask
       community.general.homebrew_cask:
         name: "{{ item }}"
-        state: latest
+        state: present
         install_options: force
         sudo_password: "{{ ansible_become_pass | default(omit) }}"
       loop: "{{ all_cask_packages }}"

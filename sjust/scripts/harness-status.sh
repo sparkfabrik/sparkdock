@@ -116,7 +116,7 @@ _caveman_gain() {
     fi
 
     local mode
-    mode="$(python3 -c "import json; print(json.load(open('${config}')).get('defaultMode', 'unknown'))" 2>/dev/null)" || mode="unknown"
+    mode="$(python3 -c "import json,sys; print(json.load(sys.stdin).get('defaultMode', 'unknown'))" < "${config}" 2>/dev/null)" || mode="unknown"
 
     local estimate=""
     case "${mode}" in
@@ -196,10 +196,10 @@ _render_tool_table() {
     local any_installed=false
 
     for tool in "${HARNESS_TOOLS[@]}"; do
-        local version layer status agent_cols
+        local version type status agent_cols
 
         version="$("_${tool}_version")"
-        layer="$("_${tool}_type")"
+        type="$("_${tool}_type")"
 
         if [[ -z "${version}" ]]; then
             status="✗ not installed"
@@ -224,7 +224,7 @@ _render_tool_table() {
             done
         fi
 
-        rows+="${tool}${SEP}${layer}${SEP}${version}${SEP}${status}${agent_cols}"$'\n'
+        rows+="${tool}${SEP}${type}${SEP}${version}${SEP}${status}${agent_cols}"$'\n'
     done
 
     local csv_data="${header}"$'\n'"${rows%$'\n'}"
