@@ -59,6 +59,18 @@ my-recipe $param="default":
 
 Without the `$` prefix, parameters require `{{param}}` interpolation in recipe lines.
 
+**Deprecated Command Aliases:**
+
+When renaming commands, use `[private] alias` to route old names to new ones without body duplication. Private aliases are hidden from `--list` but still callable:
+
+```just
+# Deprecated aliases (hidden from --list, silently route to new names)
+[private]
+alias old-name := new-name
+```
+
+This avoids tech debt from duplicated recipe bodies. Old names work silently — users discover new names naturally from `sjust --list`. Never duplicate full recipe bodies for backward compatibility; always use this pattern instead.
+
 ### HTTP Proxy Management
 
 ```bash

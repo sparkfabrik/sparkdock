@@ -31,49 +31,15 @@ sf-harness-upgrade $force="":
 sf-harness-status:
     @{{sparkdock_path}}/sjust/scripts/harness-status.sh
 
-# Deprecated: use sf-harness-sync instead.
-[group('ai-coding-harness')]
-sf-agents-sync $force="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "NOTE: sf-agents-sync is deprecated, use sf-harness-sync instead." >&2
-    if [[ "${force}" == "force" || "${force}" == "--force" ]]; then
-        {{sparkdock_path}}/bin/sparkdock-agents-sync --force
-    else
-        {{sparkdock_path}}/bin/sparkdock-agents-sync
-    fi
-
-# Deprecated: use sf-harness-upgrade instead.
-[group('ai-coding-harness')]
-sf-agents-upgrade $force="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "NOTE: sf-agents-upgrade is deprecated, use sf-harness-upgrade instead." >&2
-    if [[ "${force}" == "force" || "${force}" == "--force" ]]; then
-        export SPARKDOCK_AGENTS_FORCE=true
-    fi
-    ansible-playbook -i "{{sparkdock_path}}/ansible/inventory.ini" \
-        "{{sparkdock_path}}/ansible/macos/macos/base.yml" \
-        -v --tags "ai-harness-sync"
-
-# Deprecated: use sf-harness-status instead.
-[group('ai-coding-harness')]
-sf-agents-status:
-    #!/usr/bin/env bash
-    echo "NOTE: sf-agents-status is deprecated, use sf-harness-status instead." >&2
-    {{sparkdock_path}}/sjust/scripts/harness-status.sh
-
-# Deprecated: use sf-harness-sync instead.
-[group('ai-coding-harness')]
-sf-agents-refresh $force="":
-    #!/usr/bin/env bash
-    set -euo pipefail
-    echo "NOTE: sf-agents-refresh is deprecated, use sf-harness-sync instead." >&2
-    if [[ "${force}" == "force" || "${force}" == "--force" ]]; then
-        {{sparkdock_path}}/bin/sparkdock-agents-sync --force
-    else
-        {{sparkdock_path}}/bin/sparkdock-agents-sync
-    fi
+# Deprecated aliases (hidden from --list, silently route to new names)
+[private]
+alias sf-agents-sync := sf-harness-sync
+[private]
+alias sf-agents-upgrade := sf-harness-upgrade
+[private]
+alias sf-agents-status := sf-harness-status
+[private]
+alias sf-agents-refresh := sf-harness-sync
 
 # Check Copilot model context/output limits against the current opencode.json config.
 # Pass --update to automatically write the correct limits to opencode.json.
