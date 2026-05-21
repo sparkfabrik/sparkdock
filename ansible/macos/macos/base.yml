@@ -925,10 +925,10 @@
           changed_when: true
           become: false
 
-    - name: Provision AI coding agent directories and permissions
+    - name: Provision AI coding harness directories and permissions
       tags:
         - skills
-        - ai-coding-agents
+        - ai-coding-harness
         - ai-harness
         - ai-harness-provision
       block:
@@ -988,10 +988,10 @@
           become: yes
           become_method: sudo
 
-    - name: Sync AI coding agent resources from upstream repository
+    - name: Sync AI coding harness resources from upstream repository
       tags:
         - skills
-        - ai-coding-agents
+        - ai-coding-harness
         - ai-harness
         - ai-harness-sync
       block:

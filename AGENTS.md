@@ -255,14 +255,19 @@ Located at `~/.cache/sparkdock/sf-skills-manifest.json`. V2 format with `skills`
 
 The upstream repo provides `config/catalog.json` with short human-friendly descriptions for each system skill and agent. The status script reads this file from the local cache (`~/.cache/sparkdock/agent-skills/config/catalog.json`) to display a DESCRIPTION column in the table. No sync changes are needed — the file is part of the cloned cache.
 
-### sjust Recipes (`sjust/recipes/05-ai-coding-agents.just`)
+### sjust Recipes (`sjust/recipes/shared/01-ai-coding-harness.just`)
 
-- `sf-agents-refresh [force]` — Sync all resources (skills + agents)
-- `sf-agents-status` — Show status of all resources
+- `sf-harness-status` — Show full AI coding harness status (tools + skills + profiles)
+- `sf-harness-sync [force]` — Fast sync: skills + agent profiles from upstream
+- `sf-harness-upgrade [force]` — Full upgrade via Ansible (RTK + caveman + skills)
 
 ### Ansible Tags
 
-- `ai-coding-agents` (new) and `skills` (kept for backward compat)
+- `ai-coding-harness` — umbrella tag for AI coding harness tasks
+- `ai-harness` — alternate umbrella (includes sync + provision)
+- `ai-harness-sync` — no-sudo tasks (RTK + caveman + skills sync)
+- `ai-harness-provision` — sudo tasks (directory creation + chmod)
+- `skills` — backward-compat alias
 
 ### OpenSpec Change
 

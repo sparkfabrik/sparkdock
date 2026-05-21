@@ -391,20 +391,20 @@ echo ""
 if [[ -f "${MANIFEST_PATH}" ]]; then
     print_faint "Manifest: ${MANIFEST_PATH}"
 else
-    log_warn "No manifest found. Run 'sjust sf-agents-refresh' to sync."
+    log_warn "No manifest found. Run 'sjust sf-harness-sync' to sync."
 fi
 if [[ "${CACHE_AVAILABLE}" == "false" ]]; then
-    log_warn "No upstream cache found. Run 'sjust sf-agents-refresh' to enable update checks."
+    log_warn "No upstream cache found. Run 'sjust sf-harness-sync' to enable update checks."
 fi
 if [[ "${CONFLICTS_FOUND}" == "true" ]]; then
-    log_warn "Some user resources conflict with upstream. Run 'sjust sf-agents-refresh force' to overwrite."
+    log_warn "Some user resources conflict with upstream. Run 'sjust sf-harness-sync force' to overwrite."
 fi
 if [[ "${ORPHANS_FOUND}" == "true" ]]; then
-    log_warn "Orphaned resources detected (removed from upstream). Run 'sjust sf-agents-refresh' to clean up."
+    log_warn "Orphaned resources detected (removed from upstream). Run 'sjust sf-harness-sync' to clean up."
 fi
 if [[ "${UPDATES_AVAILABLE}" == "true" ]]; then
-    log_warn "Updates available. Run 'sjust sf-agents-refresh' to update."
+    log_warn "Updates available. Run 'sjust sf-harness-sync' to update."
 fi
 if [[ "${NEW_RESOURCES_AVAILABLE}" == "true" ]]; then
-    log_warn "New resources available. Run 'sjust sf-agents-refresh' to install."
+    log_warn "New resources available. Run 'sjust sf-harness-sync' to install."
 fi
