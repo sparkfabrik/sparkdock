@@ -11,6 +11,24 @@ source "$(dirname "${BASH_SOURCE[0]:-$0}")/../../bin/common/logging.sh"
 : "${SPARKDOCK_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")/../.." && pwd)}"
 export SPARKDOCK_ROOT
 
+# Render tab-separated data as a formatted table.
+# Reads TSV from stdin, outputs formatted table to stdout.
+# Uses gum table when available, falls back to column(1).
+# Note: gum table leaks \e[1m on the first data row; we strip it here.
+# Usage: render_table <<< "${tsv_data}"
+render_table() {
+    local data
+    data="$(cat)"
+
+    if [[ "${HAS_GUM}" = true ]]; then
+        printf '%s\n' "${data}" | gum table --print \
+            --separator=$'\t' \
+            --border.foreground 240 | sed $'s/\033\\[1m//g'
+    else
+        printf '%s\n' "${data}" | column -t -s $'\t'
+    fi
+}
+
 # Check if a user file is symlinked to Sparkdock's default
 # Usage: check_sparkdock_symlink <user_file> <sparkdock_file>
 # Returns:
