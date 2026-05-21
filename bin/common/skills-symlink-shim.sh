@@ -33,12 +33,17 @@ _SPARKDOCK_SKILLS_SHIM_LOADED=1
 declare -A TOOL_SKILLS_DIR=(
     [copilot]="${HOME}/.copilot/skills"
     [claude]="${HOME}/.claude/skills"
+    [opencode]="${HOME}/.config/opencode/skills"
 )
 
 declare -A TOOL_LABEL=(
     [copilot]="Copilot CLI"
     [claude]="Claude Code"
+    [opencode]="OpenCode"
 )
+
+# Tools that discover ~/.agents/skills/ natively (no symlinks needed).
+TOOLS_NATIVE_DISCOVERY=(opencode)
 
 # ============================================================================
 # Used by sparkdock-agents-sync
@@ -75,6 +80,14 @@ ensure_tool_symlinks() {
     local managed_names="${2:-}"
     local tool_label="${TOOL_LABEL[${tool_id}]}"
     local tool_skills_dir="${TOOL_SKILLS_DIR[${tool_id}]}"
+
+    # Skip tools that discover ~/.agents/skills/ natively.
+    local native
+    for native in "${TOOLS_NATIVE_DISCOVERY[@]}"; do
+        if [[ "${tool_id}" == "${native}" ]]; then
+            return
+        fi
+    done
 
     mkdir -p "${tool_skills_dir}"
 
@@ -167,6 +180,20 @@ TOOL_AVAILABLE=""
 check_tool_availability() {
     local tool_id="$1"
     local skill_name="$2"
+
+    # Tools with native discovery read ~/.agents/skills/ directly — no symlink needed.
+    local native
+    for native in "${TOOLS_NATIVE_DISCOVERY[@]}"; do
+        if [[ "${tool_id}" == "${native}" ]]; then
+            if [[ -f "${SKILLS_DIR}/${skill_name}/SKILL.md" ]]; then
+                TOOL_AVAILABLE="ok"
+            else
+                TOOL_AVAILABLE="partial"
+            fi
+            return
+        fi
+    done
+
     local tool_target="${TOOL_SKILLS_DIR[${tool_id}]}/${skill_name}"
 
     if [[ -L "${tool_target}" ]]; then

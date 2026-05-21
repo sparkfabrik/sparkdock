@@ -179,7 +179,7 @@ render_table() {
 
 # --- Upstream cache ---
 
-log_section "Agent Resources Status"
+log_section "Skills & Agent Profiles"
 
 CACHE_AVAILABLE=false
 CONFLICTS_FOUND=false
