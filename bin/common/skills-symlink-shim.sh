@@ -243,7 +243,7 @@ print_tool_issues() {
         lines+=("  • ${issue}")
     done
     lines+=("")
-    lines+=("Run 'sjust sf-agents-refresh force' to fix.")
+    lines+=("Run 'sjust sf-harness-sync force' to fix.")
 
     local body
     body="$(printf '%s\n' "${lines[@]}")"
