@@ -43,10 +43,15 @@ _rtk_gain() {
     local json
     json="$(rtk gain --format json 2>/dev/null)" || { echo "gain data unavailable"; return; }
 
+    if ! command -v python3 &>/dev/null; then
+        echo "gain data unavailable (python3 not found)"
+        return
+    fi
+
     local tokens_saved reduction_pct commands_count
-    tokens_saved="$(echo "${json}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tokens_saved', d.get('total_tokens_saved', 0)))" 2>/dev/null)" || tokens_saved="0"
-    reduction_pct="$(echo "${json}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('reduction_pct', d.get('total_reduction_pct', 0)))" 2>/dev/null)" || reduction_pct="0"
-    commands_count="$(echo "${json}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('commands_count', d.get('total_commands', 0)))" 2>/dev/null)" || commands_count="0"
+    tokens_saved="$(printf '%s' "${json}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('tokens_saved', d.get('total_tokens_saved', 0)))" 2>/dev/null)" || tokens_saved="0"
+    reduction_pct="$(printf '%s' "${json}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('reduction_pct', d.get('total_reduction_pct', 0)))" 2>/dev/null)" || reduction_pct="0"
+    commands_count="$(printf '%s' "${json}" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d.get('commands_count', d.get('total_commands', 0)))" 2>/dev/null)" || commands_count="0"
 
     if [[ "${tokens_saved}" == "0" || -z "${tokens_saved}" ]]; then
         echo "No data yet — run some rtk commands to start tracking"
@@ -121,7 +126,11 @@ _caveman_gain() {
     fi
 
     local mode
-    mode="$(python3 -c "import json,sys; print(json.load(sys.stdin).get('defaultMode', 'unknown'))" < "${config}" 2>/dev/null)" || mode="unknown"
+    if command -v python3 &>/dev/null; then
+        mode="$(python3 -c "import json,sys; print(json.load(sys.stdin).get('defaultMode', 'unknown'))" < "${config}" 2>/dev/null)" || mode="unknown"
+    else
+        mode="unknown"
+    fi
 
     local estimate=""
     case "${mode}" in
@@ -240,15 +249,14 @@ _render_tool_table() {
 
     # Colorize status markers
     if command -v perl &>/dev/null; then
-        echo "${table_output}" | perl -pe '
-            s/\e\[1m//g;
+        printf '%s\n' "${table_output}" | perl -pe '
             s/✓ active/\e[38;5;40m✓ active\e[0m/g;
             s/✗ not installed/\e[2m✗ not installed\e[0m/g;
             s/✗ inactive/\e[38;5;220m✗ inactive\e[0m/g;
             s/\bok\b/\e[38;5;40mok\e[0m/g;
         '
     else
-        echo "${table_output}"
+        printf '%s\n' "${table_output}"
     fi
 
     if [[ "${any_present}" = false ]]; then
