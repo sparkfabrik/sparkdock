@@ -904,7 +904,10 @@
             - openspec_completion_output.rc == 0
 
     - name: Configure RTK for AI coding tools
-      tags: rtk
+      tags:
+        - rtk
+        - ai-harness
+        - ai-harness-sync
       block:
         - name: Run RTK setup script
           command: "{{ dev_env_dir }}/sjust/scripts/rtk/setup.sh"
@@ -912,17 +915,22 @@
           become: false
 
     - name: Install caveman output compression for AI coding tools
-      tags: caveman
+      tags:
+        - caveman
+        - ai-harness
+        - ai-harness-sync
       block:
         - name: Run caveman setup script
           command: "{{ dev_env_dir }}/sjust/scripts/caveman/setup.sh"
           changed_when: true
           become: false
 
-    - name: Sync AI coding agent resources from upstream repository
+    - name: Provision AI coding agent directories and permissions
       tags:
         - skills
         - ai-coding-agents
+        - ai-harness
+        - ai-harness-provision
       block:
         - name: Ensure agent cache directory exists
           file:
@@ -980,11 +988,20 @@
           become: yes
           become_method: sudo
 
+    - name: Sync AI coding agent resources from upstream repository
+      tags:
+        - skills
+        - ai-coding-agents
+        - ai-harness
+        - ai-harness-sync
+      block:
         - name: Run agent resources sync
           command: "{{ dev_env_dir }}/bin/sparkdock-agents-sync"
           become: no
           register: agents_sync_output
           changed_when: "'added' in agents_sync_output.stdout or 'updated' in agents_sync_output.stdout"
+          environment:
+            SPARKDOCK_AGENTS_FORCE: "{{ sparkdock_agents_force | default('') }}"
 
         - name: Show agent resources sync output
           debug:

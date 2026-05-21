@@ -22,6 +22,11 @@ CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
 FORCE=false
 
+# Support SPARKDOCK_AGENTS_FORCE env var (used by Ansible integration)
+if [[ "${SPARKDOCK_AGENTS_FORCE:-}" == "true" ]]; then
+    FORCE=true
+fi
+
 # --- Skills configuration ---
 SKILLS_TARGET_DIR="${HOME}/.agents/skills"
 SYSTEM_SKILLS_SUBDIR="skills/system"

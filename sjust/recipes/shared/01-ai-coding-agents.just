@@ -1,6 +1,6 @@
 # vim: set ft=make :
 
-# Sync all AI coding agent resources: skills, agent profiles, RTK hooks, and caveman.
+# Sync AI coding agent skills and profiles from upstream (fast, no sudo).
 # Pass "force" or "--force" to overwrite local modifications.
 [group('ai-coding-agents')]
 sf-agents-sync $force="":
@@ -11,8 +11,20 @@ sf-agents-sync $force="":
     else
         {{sparkdock_path}}/bin/sparkdock-agents-sync
     fi
-    {{sparkdock_path}}/sjust/scripts/rtk/setup.sh
-    {{sparkdock_path}}/sjust/scripts/caveman/setup.sh install
+
+# Upgrade the full AI agent harness: brew formulae, skills, agent profiles,
+# RTK hooks, and caveman. Runs via Ansible (no sudo required).
+# Pass "force" or "--force" to overwrite locally modified resources.
+[group('ai-coding-agents')]
+sf-agents-upgrade $force="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [[ "${force}" == "force" || "${force}" == "--force" ]]; then
+        export SPARKDOCK_AGENTS_FORCE=true
+    fi
+    ansible-playbook -i "{{sparkdock_path}}/ansible/inventory.ini" \
+        "{{sparkdock_path}}/ansible/macos/macos/base.yml" \
+        -v --tags "ai-harness-sync"
 
 # Backward-compatible alias for sf-agents-sync.
 [group('ai-coding-agents')]
@@ -25,8 +37,6 @@ sf-agents-refresh $force="":
     else
         {{sparkdock_path}}/bin/sparkdock-agents-sync
     fi
-    {{sparkdock_path}}/sjust/scripts/rtk/setup.sh
-    {{sparkdock_path}}/sjust/scripts/caveman/setup.sh install
 
 # Show full AI agent harness status: token optimization tools, skills, and agent profiles.
 [group('ai-coding-agents')]
