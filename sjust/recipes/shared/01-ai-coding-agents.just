@@ -1,9 +1,9 @@
 # vim: set ft=make :
 
-# Refresh AI coding agent resources (skills + agent profiles) from upstream.
+# Sync all AI coding agent resources: skills, agent profiles, RTK hooks, and caveman.
 # Pass "force" or "--force" to overwrite local modifications.
 [group('ai-coding-agents')]
-sf-agents-refresh $force="":
+sf-agents-sync $force="":
     #!/usr/bin/env bash
     set -euo pipefail
     if [[ "${force}" == "force" || "${force}" == "--force" ]]; then
@@ -11,11 +11,27 @@ sf-agents-refresh $force="":
     else
         {{sparkdock_path}}/bin/sparkdock-agents-sync
     fi
+    {{sparkdock_path}}/sjust/scripts/rtk/setup.sh
+    {{sparkdock_path}}/sjust/scripts/caveman/setup.sh install
 
-# Show status of AI coding agent resources (skills + agent profiles).
+# Backward-compatible alias for sf-agents-sync.
+[group('ai-coding-agents')]
+sf-agents-refresh $force="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    echo "NOTE: sf-agents-refresh is deprecated, use sf-agents-sync instead." >&2
+    if [[ "${force}" == "force" || "${force}" == "--force" ]]; then
+        {{sparkdock_path}}/bin/sparkdock-agents-sync --force
+    else
+        {{sparkdock_path}}/bin/sparkdock-agents-sync
+    fi
+    {{sparkdock_path}}/sjust/scripts/rtk/setup.sh
+    {{sparkdock_path}}/sjust/scripts/caveman/setup.sh install
+
+# Show full AI agent harness status: token optimization tools, skills, and agent profiles.
 [group('ai-coding-agents')]
 sf-agents-status:
-    @{{sparkdock_path}}/bin/sparkdock-agents-status
+    @{{sparkdock_path}}/sjust/scripts/harness-status.sh
 
 # Check Copilot model context/output limits against the current opencode.json config.
 # Pass --update to automatically write the correct limits to opencode.json.
