@@ -6,8 +6,8 @@ set -euo pipefail
 # Displays a unified dashboard of installed harness tools (RTK, caveman, etc.),
 # their per-agent integration status, and token savings metrics.
 #
-# Extensible: to add a new tool, define _<tool>_version, _<tool>_active,
-# _<tool>_gain, _<tool>_agents functions and append to HARNESS_TOOLS.
+# Extensible: to add a new tool, define _<tool>_type, _<tool>_version,
+# _<tool>_active, _<tool>_gain, _<tool>_agents functions and append to HARNESS_TOOLS.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../libs/libshell.sh
@@ -98,10 +98,15 @@ _caveman_type() { echo "output"; }
 _caveman_version() {
     local caveman_dir="${HOME}/.cache/sparkdock/caveman"
     if [[ -d "${caveman_dir}/.git" ]]; then
-        git -C "${caveman_dir}" log -1 --format="%h" 2>/dev/null || echo ""
-    else
-        echo ""
+        git -C "${caveman_dir}" log -1 --format="%h" 2>/dev/null || echo "unknown"
+        return
     fi
+    # Caveman may be configured without the git cache present
+    if [[ -f "${HOME}/.config/caveman/config.json" ]]; then
+        echo "unknown"
+        return
+    fi
+    echo ""
 }
 
 _caveman_active() {
@@ -193,7 +198,7 @@ _render_tool_table() {
     done
 
     local rows=""
-    local any_installed=false
+    local any_present=false
 
     for tool in "${HARNESS_TOOLS[@]}"; do
         local version type status agent_cols
@@ -209,17 +214,18 @@ _render_tool_table() {
                 agent_cols+="${SEP}—"
             done
         else
+            any_present=true
             if "_${tool}_active"; then
                 status="✓ active"
-                any_installed=true
             else
                 status="✗ inactive"
             fi
 
-            local agent_values
-            agent_values="$("_${tool}_agents")"
+            local agent_values_str agent_arr
+            agent_values_str="$("_${tool}_agents")"
+            IFS=' ' read -ra agent_arr <<< "${agent_values_str}"
             agent_cols=""
-            for val in ${agent_values}; do
+            for val in "${agent_arr[@]}"; do
                 agent_cols+="${SEP}${val}"
             done
         fi
@@ -229,22 +235,23 @@ _render_tool_table() {
 
     local csv_data="${header}"$'\n'"${rows%$'\n'}"
 
-    if [[ "${HAS_GUM}" = true ]]; then
-        echo "${csv_data}" | gum table --print \
-            --separator=$'\t' \
-            --border.foreground 240 \
-            | perl -pe '
-                s/\e\[1m//g;
-                s/✓ active/\e[38;5;40m✓ active\e[0m/g;
-                s/✗ not installed/\e[2m✗ not installed\e[0m/g;
-                s/✗ inactive/\e[38;5;220m✗ inactive\e[0m/g;
-                s/\bok\b/\e[38;5;40mok\e[0m/g;
-            '
+    local table_output
+    table_output="$(render_table <<< "${csv_data}")"
+
+    # Colorize status markers
+    if command -v perl &>/dev/null; then
+        echo "${table_output}" | perl -pe '
+            s/\e\[1m//g;
+            s/✓ active/\e[38;5;40m✓ active\e[0m/g;
+            s/✗ not installed/\e[2m✗ not installed\e[0m/g;
+            s/✗ inactive/\e[38;5;220m✗ inactive\e[0m/g;
+            s/\bok\b/\e[38;5;40mok\e[0m/g;
+        '
     else
-        echo "${csv_data}" | column -t -s $'\t'
+        echo "${table_output}"
     fi
 
-    if [[ "${any_installed}" = false ]]; then
+    if [[ "${any_present}" = false ]]; then
         echo ""
         log_warn "No harness tools detected. Install with:"
         log_info "  RTK:     brew install rtk && sjust sf-rtk-setup"
