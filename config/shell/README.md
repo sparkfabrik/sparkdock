@@ -153,6 +153,7 @@ See [EXAMPLES.md](EXAMPLES.md) for comprehensive usage examples.
    - **atuin** (history - DISABLED BY DEFAULT, requires SPARKDOCK_ENABLE_ATUIN=1)
 3. aliases.zsh (command aliases)
 4. ~/.config/spark/shell.zsh (user customizations)
+5. ~/.config/spark/shell.d/*.zsh (drop-in snippets, lexicographic order)
 
 **Why This Order Matters:**
 

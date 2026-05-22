@@ -64,8 +64,8 @@ fi
 # Source drop-in snippets deployed by MDM, package installers, or other tools.
 # Each owner manages its own file so there is no shared edit surface; this is
 # the standard Unix .d/ convention (cron.d, profile.d, tmpfiles.d, ...).
-# Files are sourced in lexicographic order, after shell.zsh, so user
-# customizations still win for conflicting settings.
+# Files are sourced in lexicographic order, AFTER shell.zsh, so drop-ins
+# override conflicting settings from shell.zsh (later source wins).
 # The (N) glob qualifier silently no-ops when the directory is empty.
 if [[ -d "${HOME}/.config/spark/shell.d" ]]; then
   for _sparkdock_snippet in "${HOME}/.config/spark/shell.d"/*.zsh(N); do
