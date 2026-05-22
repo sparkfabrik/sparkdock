@@ -108,6 +108,23 @@ zstyle :omz:plugins:ssh-agent lifetime 4h
 
 Sparkdock sources this file after its own defaults, so keep personal aliases, exports, and overrides here.
 
+### Drop-in snippets — `~/.config/spark/shell.d/*.zsh`
+
+After sourcing `~/.config/spark/shell.zsh`, Sparkdock also sources every `*.zsh` file in `~/.config/spark/shell.d/` (lexicographic order). Use this directory for snippets owned by **MDM, package installers, or other tools**, not for personal aliases — those still belong in `shell.zsh`.
+
+The convention follows the standard Unix `.d/` pattern (`/etc/profile.d/`, `/etc/cron.d/`, `/usr/lib/tmpfiles.d/`): each owner manages its own file, no shared edit surface, idempotent re-runs are safe.
+
+Example — an MDM-deployed snippet that exports an env var from a secret file on disk:
+
+```bash
+# ~/.config/spark/shell.d/00-mycorp-otel.zsh — managed by MDM
+if [ -r "$HOME/.config/mycorp/otel/token" ]; then
+    export OTEL_EXPORTER_OTLP_HEADERS="Authorization=Bearer $(cat "$HOME/.config/mycorp/otel/token")"
+fi
+```
+
+Files are sourced **after** `shell.zsh`, so a user override in `shell.zsh` cannot win against a drop-in. If you need a personal value to override an MDM-pushed one, write your override in a drop-in file with a higher lexicographic name (e.g. `99-overrides.zsh`).
+
 ## Usage Examples
 
 See [EXAMPLES.md](EXAMPLES.md) for comprehensive usage examples.
