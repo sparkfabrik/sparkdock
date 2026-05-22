@@ -124,6 +124,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed `sf-harness-upgrade` failing on non-macOS hosts (e.g. ajust on Arch Linux) with `module interpreter '/opt/homebrew/bin/python3' was not found` — `ansible/inventory.ini` now uses `ansible_python_interpreter=auto_silent` so Ansible discovers a working Python on any host, and `sf-harness-upgrade` passes `-e dev_env_dir={{sparkdock_path}}` so the playbook tracks the real sparkdock location instead of the hardcoded `/opt/sparkdock`. Same Ansible flow on macOS and Linux.
 - Fixed caveman OpenCode plugin hooks never firing — upstream uses non-existent `session.created` and `tui.prompt.append` hooks; patched to use `chat.message` + `experimental.chat.system.transform` ([caveman#418](https://github.com/JuliusBrussee/caveman/issues/418))
 - Added a "done" banner to the GitHub Copilot section of `sf-caveman-install` mirroring the native installer output for Claude Code and OpenCode, so the Copilot install step has matching visual weight instead of finishing on a single log line
 - Improved `sf-caveman-install` log message when Copilot instructions file is a symlink — now reports whether the symlink target already contains caveman rules instead of a misleading "skipping (managed externally)" message

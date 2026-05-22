@@ -24,6 +24,7 @@ sf-harness-upgrade $force="":
     fi
     ansible-playbook -i "{{sparkdock_path}}/ansible/inventory.ini" \
         "{{sparkdock_path}}/ansible/macos/macos/base.yml" \
+        -e "dev_env_dir={{sparkdock_path}}" \
         -v --tags "ai-harness-sync"
 
 # Show full AI coding harness status: token optimization tools, skills, and agent profiles.
