@@ -85,6 +85,7 @@ main() {
     assert_file_contains "${rtk_config}" '^(?:kubectl|k)(?: .*)? (?:apply|delete|patch|replace)(?:$| )'
     assert_file_contains "${rtk_config}" '^(?:terraform|tf)(?: .*)? destroy(?:$| )'
     assert_file_contains "${rtk_config}" '^(?:gh|glab)(?: .*)? (?:merge|close|delete|destroy|cancel|disable)(?:$| )'
+    assert_file_contains "${rtk_config}" '^yadm(?:$| )'
 
     if grep -Fq 'exclude_commands = ["curl"]' "${rtk_config}"; then
         log_error "Old exclude_commands value was not replaced"
@@ -157,6 +158,23 @@ main() {
 
     if [[ "${gh_rc}" -ne 1 ]]; then
         log_error "Expected gh exclusion to exit 1, got ${gh_rc}"
+        exit 1
+    fi
+
+    local yadm_output
+    local yadm_rc
+    set +e
+    yadm_output=$(rtk rewrite "yadm status" 2> /dev/null)
+    yadm_rc=$?
+    set -e
+
+    if [[ -n "${yadm_output}" ]]; then
+        log_error "Excluded yadm command was rewritten: ${yadm_output}"
+        exit 1
+    fi
+
+    if [[ "${yadm_rc}" -ne 1 ]]; then
+        log_error "Expected yadm exclusion to exit 1, got ${yadm_rc}"
         exit 1
     fi
 
