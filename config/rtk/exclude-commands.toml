@@ -1,5 +1,6 @@
 [hooks]
 exclude_commands = [
+  "^yadm(?:$| )",
   "^git push(?: .*)?(?: --force| -f)(?:$| )",
   "git reset --hard",
   "^(?:kubectl|k)(?: .*)? (?:apply|delete|patch|replace)(?:$| )",
