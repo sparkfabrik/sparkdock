@@ -468,6 +468,10 @@
                 src: "{{ dev_env_dir }}/config/macos/bin/ayse-get-sm",
                 dest: "/usr/local/bin/ayse-get-sm",
               }
+            - {
+                src: "{{ dev_env_dir }}/config/bin/sparkfabrik-claude-code-otel-headers",
+                dest: "/usr/local/bin/sparkfabrik-claude-code-otel-headers",
+              }
       become: yes
       become_method: sudo
 
