@@ -225,6 +225,18 @@ if command_exists copilot; then
   cores() { copilot --allow-all-tools --resume "${@}"; }
 fi
 
+# Claude Code with a separate personal profile.
+# `claude-personal` runs Claude Code against its own config dir (~/.claude_personal),
+# giving it a separate login, usage pool and no org-managed policy.
+# The default `claude` command is left untouched and stays on the work/org account.
+if command_exists claude; then
+  claude-personal() {
+    local config_dir="${HOME}/.claude_personal"
+    [[ -d "${config_dir}" ]] || mkdir -p "${config_dir}"
+    CLAUDE_CONFIG_DIR="${config_dir}" command claude "$@"
+  }
+fi
+
 # Add some opencode aliases.
 if command_exists opencode; then
   alias c='opencode'
