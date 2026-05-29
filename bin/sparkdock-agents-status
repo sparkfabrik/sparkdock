@@ -27,6 +27,7 @@ SEP=$'\t'
 
 # Tool registry (must mirror sparkdock-agents-sync)
 declare -A AGENT_TOOL_INSTALL_DIR=(
+    [claude]="${HOME}/.claude/agents"
     [copilot]="${HOME}/.copilot/agents"
     [opencode]="${HOME}/.config/opencode/agents"
 )

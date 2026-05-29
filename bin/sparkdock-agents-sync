@@ -38,10 +38,12 @@ SYSTEM_AGENTS_SUBDIR="agents/system"
 # Adding a new tool = 2 lines (one per array).
 # Filename pattern uses printf format: %s is replaced with the agent name.
 declare -A AGENT_TOOL_INSTALL_DIR=(
+    [claude]="${HOME}/.claude/agents"
     [copilot]="${HOME}/.copilot/agents"
     [opencode]="${HOME}/.config/opencode/agents"
 )
 declare -A AGENT_TOOL_FILENAME=(
+    [claude]="%s.md"
     [copilot]="%s.agent.md"
     [opencode]="%s.md"
 )

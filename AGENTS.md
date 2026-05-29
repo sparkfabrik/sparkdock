@@ -257,7 +257,7 @@ Sparkdock syncs AI coding resources from the upstream `sf-awesome-copilot` repos
 
 ### Tool Registry
 
-The sync script uses associative arrays to map each coding tool to its install directory and filename pattern. Adding support for a new tool requires only 2 lines (one in each array). Current tools: `copilot`, `opencode`.
+The sync script uses associative arrays to map each coding tool to its install directory and filename pattern. Adding support for a new tool requires only 2 lines (one in each array). Current tools: `claude`, `copilot`, `opencode`.
 
 ### Manifest
 
