@@ -43,10 +43,19 @@ if command -v jq >/dev/null 2>&1; then
   cur_dir=$(printf '%s' "$INPUT" | jq -r '.workspace.current_dir // .cwd // empty')
   model=$(printf '%s'   "$INPUT" | jq -r '.model.display_name // empty')
   over200=$(printf '%s' "$INPUT" | jq -r '.exceeds_200k_tokens // false')
-  cost=$(printf '%s'    "$INPUT" | jq -r '.cost.total_cost_usd // empty')
+  five_pct=$(printf '%s'  "$INPUT" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+  seven_pct=$(printf '%s' "$INPUT" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 else
-  cur_dir="$PWD"; model=""; over200="false"; cost=""
+  cur_dir="$PWD"; model=""; over200="false"; five_pct=""; seven_pct=""
 fi
+
+# Color an integer usage percentage: cyan < 70, amber 70–89, red ≥ 90.
+pct_color() {
+  if   [ "$1" -ge 90 ]; then printf '196'
+  elif [ "$1" -ge 70 ]; then printf '178'
+  else                       printf '117'
+  fi
+}
 
 # --- dir ----------------------------------------------------------------------
 if [ -n "$cur_dir" ]; then
@@ -67,13 +76,16 @@ fi
 # --- context warning ----------------------------------------------------------
 [ "$over200" = "true" ] && append "$(printf '\033[31m\xe2\x9a\xa0 200k+\033[0m')"
 
-# --- session cost -------------------------------------------------------------
-if [ -n "$cost" ] && [ "$cost" != "null" ]; then
-  if formatted=$(printf '%.2f' "$cost" 2>/dev/null); then
-    append "$(printf '\033[32m$%s\033[0m' "$formatted")"
-  else
-    append "$(printf '\033[32m$%s\033[0m' "$(clean "$cost")")"
-  fi
+# --- usage (rate limits) ------------------------------------------------------
+# Mirrors `/usage`: five_hour = current session, seven_day = current week.
+usage=""
+if printf '%s' "$five_pct" | grep -Eq '^[0-9]+$'; then
+  usage="$(printf '5h \033[38;5;%sm%s%%\033[0m' "$(pct_color "$five_pct")" "$five_pct")"
 fi
+if printf '%s' "$seven_pct" | grep -Eq '^[0-9]+$'; then
+  week="$(printf '7d \033[38;5;%sm%s%%\033[0m' "$(pct_color "$seven_pct")" "$seven_pct")"
+  if [ -n "$usage" ]; then usage="$usage $week"; else usage="$week"; fi
+fi
+[ -n "$usage" ] && append "$usage"
 
 printf '%s' "$out"
