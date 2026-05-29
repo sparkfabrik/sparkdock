@@ -934,7 +934,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         // Allow refresh when agent resources have updates OR are not configured (initial setup)
         let agentsConfigured = isAgentsConfigured()
         guard hasAgentUpdates || !agentsConfigured else { return }
-        executeTerminalCommand("sjust sf-agents-refresh", recheckNotification: RecheckNotification.agents)
+        executeTerminalCommand("sjust sf-harness-sync", recheckNotification: RecheckNotification.agents)
     }
 
 

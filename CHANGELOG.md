@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added `cask_latest_packages` list in `config/packages/all-packages.yml` for Homebrew cask packages that should be upgraded to latest on every provisioning run; moved `claude-code` and `copilot-cli` into this list so they stay current automatically
+- Added `/usr/local/bin/sparkfabrik-claude-code-otel-headers` — Claude Code OTLP `otelHeadersHelper` script. Reads the bearer from Secret Manager via the user's gcloud session.
+- Added drop-in snippet support: `~/.config/spark/shell.d/*.zsh` files are now sourced automatically (lexicographic order) after `~/.config/spark/shell.zsh`, enabling MDM tools and package installers to deploy isolated shell snippets without sharing an edit surface with the user's personal `shell.zsh`
 - Added caveman output compression integration for Claude Code, OpenCode, and GitHub Copilot (`sjust sf-caveman-install`) — reduces AI response tokens ~50% using structured terse-output rules (default mode: full); includes `sf-caveman-uninstall` recipe, Ansible `caveman` tag, and per-agent guard clauses for easy addition/removal of agents
 - Added `coreutils` (GNU core utilities) to default Homebrew packages
 - Added "AI Development - Where We Are" playbook link to menu bar app Company section
@@ -79,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Renamed sjust group `ai-coding-agents` → `ai-coding-harness` and commands `sf-agents-status` → `sf-harness-status`, `sf-agents-sync` → `sf-harness-sync`, `sf-agents-upgrade` → `sf-harness-upgrade`; old names kept as deprecated aliases with notice. Recipe file renamed `01-ai-coding-agents.just` → `01-ai-coding-harness.just`. Ansible tag updated to `ai-coding-harness` (keeping `skills` for backward compat)
 - Copilot custom instructions now write only to `~/.copilot/copilot-instructions.md` (official Copilot CLI local instructions path per GitHub docs); dropped undocumented `~/.github/copilot-instructions.md`. Applies to both RTK and caveman setup scripts. Existing orphaned blocks in `~/.github/copilot-instructions.md` are cleaned up automatically on next run
 - Simplified Copilot RTK helper instructions to focus on `rtk-run`, concise command examples, quoted shell operators, and raw-command fallback
 - Reworked RTK setup to support Claude Code (global hook), OpenCode (plugin), and Copilot (helper + instructions with `rtk-run` for high-output local commands, but raw commands for destructive, infrastructure, and remote-state actions) while preserving RTK's base config and always rewriting Sparkdock-managed `exclude_commands`
@@ -124,6 +127,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed RTK rewriting `yadm` commands to `rtk git` (breaking dotfile management) by adding `^yadm` to `exclude_commands` in `config/rtk/exclude-commands.toml` — upstream bug tracked at [rtk-ai/rtk#TBD](https://github.com/rtk-ai/rtk)
+- Fixed `sf-harness-upgrade` failing on non-macOS hosts (e.g. ajust on Arch Linux) with `module interpreter '/opt/homebrew/bin/python3' was not found` — `ansible/inventory.ini` now uses `ansible_python_interpreter=auto_silent` so Ansible discovers a working Python on any host, and `sf-harness-upgrade` passes `-e dev_env_dir={{sparkdock_path}}` so the playbook tracks the real sparkdock location instead of the hardcoded `/opt/sparkdock`. Same Ansible flow on macOS and Linux.
 - Fixed caveman OpenCode plugin hooks never firing — upstream uses non-existent `session.created` and `tui.prompt.append` hooks; patched to use `chat.message` + `experimental.chat.system.transform` ([caveman#418](https://github.com/JuliusBrussee/caveman/issues/418))
 - Added a "done" banner to the GitHub Copilot section of `sf-caveman-install` mirroring the native installer output for Claude Code and OpenCode, so the Copilot install step has matching visual weight instead of finishing on a single log line
 - Improved `sf-caveman-install` log message when Copilot instructions file is a symlink — now reports whether the symlink target already contains caveman rules instead of a misleading "skipping (managed externally)" message

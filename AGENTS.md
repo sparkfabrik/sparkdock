@@ -59,6 +59,18 @@ my-recipe $param="default":
 
 Without the `$` prefix, parameters require `{{param}}` interpolation in recipe lines.
 
+**Deprecated Command Aliases:**
+
+When renaming commands, use `[private] alias` to route old names to new ones without body duplication. Private aliases are hidden from `--list` but still callable:
+
+```just
+# Deprecated aliases (hidden from --list, silently route to new names)
+[private]
+alias old-name := new-name
+```
+
+This avoids tech debt from duplicated recipe bodies. Old names work silently — users discover new names naturally from `sjust --list`. Never duplicate full recipe bodies for backward compatibility; always use this pattern instead.
+
 ### HTTP Proxy Management
 
 ```bash
@@ -245,7 +257,7 @@ Sparkdock syncs AI coding resources from the upstream `sf-awesome-copilot` repos
 
 ### Tool Registry
 
-The sync script uses associative arrays to map each coding tool to its install directory and filename pattern. Adding support for a new tool requires only 2 lines (one in each array). Current tools: `copilot`, `opencode`.
+The sync script uses associative arrays to map each coding tool to its install directory and filename pattern. Adding support for a new tool requires only 2 lines (one in each array). Current tools: `claude`, `copilot`, `opencode`.
 
 ### Manifest
 
@@ -255,14 +267,19 @@ Located at `~/.cache/sparkdock/sf-skills-manifest.json`. V2 format with `skills`
 
 The upstream repo provides `config/catalog.json` with short human-friendly descriptions for each system skill and agent. The status script reads this file from the local cache (`~/.cache/sparkdock/agent-skills/config/catalog.json`) to display a DESCRIPTION column in the table. No sync changes are needed — the file is part of the cloned cache.
 
-### sjust Recipes (`sjust/recipes/05-ai-coding-agents.just`)
+### sjust Recipes (`sjust/recipes/shared/01-ai-coding-harness.just`)
 
-- `sf-agents-refresh [force]` — Sync all resources (skills + agents)
-- `sf-agents-status` — Show status of all resources
+- `sf-harness-status` — Show full AI coding harness status (tools + skills + profiles)
+- `sf-harness-sync [force]` — Fast sync: skills + agent profiles from upstream
+- `sf-harness-upgrade [force]` — Full upgrade via Ansible (RTK + caveman + skills)
 
 ### Ansible Tags
 
-- `ai-coding-agents` (new) and `skills` (kept for backward compat)
+- `ai-coding-harness` — umbrella tag for AI coding harness tasks
+- `ai-harness` — alternate umbrella (includes sync + provision)
+- `ai-harness-sync` — no-sudo tasks (RTK + caveman + skills sync)
+- `ai-harness-provision` — sudo tasks (directory creation + chmod)
+- `skills` — backward-compat alias
 
 ### OpenSpec Change
 
