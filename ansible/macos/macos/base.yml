@@ -283,6 +283,27 @@
         - npm_available.stdout == "available"
         - all_removed_npm_packages | length > 0
 
+    - name: Fix ownership of Homebrew Python files (prevents "apply2files Permission denied" on brew install)
+      tags: brew_packages
+      ansible.builtin.shell: |
+        set -uo pipefail
+        owner="{{ ansible_facts['user_id'] }}"
+        fixed=0
+        for base in "{{ homebrew_prefix }}/lib" "{{ homebrew_prefix }}/Cellar"; do
+          [ -d "${base}" ] || continue
+          for dir in "${base}"/python*; do
+            [ -d "${dir}" ] || continue
+            count=$(find "${dir}" ! -user "${owner}" -print -exec chown "${owner}:admin" {} + 2>/dev/null | wc -l | tr -d ' ')
+            fixed=$((fixed + count))
+          done
+        done
+        echo "fixed=${fixed}"
+      args:
+        executable: /bin/bash
+      register: brew_python_perms
+      changed_when: "'fixed=0' not in brew_python_perms.stdout"
+      when: not is_non_interactive
+
     - name: Install homebrew packages
       tags: brew_packages
       community.general.homebrew:

@@ -128,6 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed intermittent `apply2files - Permission denied` failures during `brew install` (e.g. `gopls`) caused by root-owned `.pyc`/files under `{{ homebrew_prefix }}/lib/python*` and `Cellar/python*` — a new `become`-elevated task chowns mis-owned Python files back to the invoking user before the Homebrew package step (idempotent, no-op when ownership is already correct, skipped in non-interactive/CI runs)
 - Fixed RTK rewriting `yadm` commands to `rtk git` (breaking dotfile management) by adding `^yadm` to `exclude_commands` in `config/rtk/exclude-commands.toml` — upstream bug tracked at [rtk-ai/rtk#TBD](https://github.com/rtk-ai/rtk)
 - Fixed `sf-harness-upgrade` failing on non-macOS hosts (e.g. ajust on Arch Linux) with `module interpreter '/opt/homebrew/bin/python3' was not found` — `ansible/inventory.ini` now uses `ansible_python_interpreter=auto_silent` so Ansible discovers a working Python on any host, and `sf-harness-upgrade` passes `-e dev_env_dir={{sparkdock_path}}` so the playbook tracks the real sparkdock location instead of the hardcoded `/opt/sparkdock`. Same Ansible flow on macOS and Linux.
 - Fixed caveman OpenCode plugin hooks never firing — upstream uses non-existent `session.created` and `tui.prompt.append` hooks; patched to use `chat.message` + `experimental.chat.system.transform` ([caveman#418](https://github.com/JuliusBrussee/caveman/issues/418))
