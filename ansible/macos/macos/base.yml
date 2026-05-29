@@ -199,6 +199,15 @@
           become: false
           ignore_errors: true
 
+    # Migration: uninstall claude-code (stable) before installing claude-code@latest
+    - name: Remove claude-code stable cask (replaced by claude-code@latest)
+      tags: cask
+      community.general.homebrew_cask:
+        name: claude-code
+        state: absent
+      become: false
+      ignore_errors: true
+
     - name: Install cask packages
       tags: cask
       community.general.homebrew_cask:
