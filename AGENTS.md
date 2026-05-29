@@ -105,6 +105,8 @@ sjust install-tags "docker,keyboard"
 - Package definitions: `config/packages/all-packages.yml`
 - Supports tagging for selective installation
 
+**Privilege escalation (`become`/sudo).** The play in `ansible/macos.yml` runs with `become: true` / `become_user: root`; the sudo password comes from the `ANSIBLE_BECOME_PASS` env var, which the `just run-ansible-playbook` recipe reads interactively (`read -rsp`) and exports (empty string in CI, gated by `CI`/`GITHUB_ACTIONS`). Because Homebrew refuses to run as root, the brew/cask/npm tasks individually opt out with `become: false`; cask tasks instead pass `sudo_password: "{{ ansible_become_pass | default(omit) }}"` to the module. **To run a task as root, simply omit `become: false`** (it inherits `become: true` from the play) — no need to re-declare it. Guard root tasks that must not run in CI with `when: not is_non_interactive`.
+
 **SparkJust Task Runner:**
 
 - Wrapper around Just task runner: `sjust/sjust.sh`
