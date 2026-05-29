@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added language server binaries for Claude Code's official code-intelligence plugins so org-level `enabledPlugins` can wire them in without per-machine setup: `intelephense`, `typescript`, `typescript-language-server`, `pyright` to `npm_packages` (covers `php-lsp`, `typescript-lsp`, `pyright-lsp` plugins) and `gopls` to `homebrew_packages` (covers `gopls-lsp` plugin). LSP processes only spawn when matching file extensions are present in the workspace, so devs not working in a given language pay no runtime cost.
 - Added `cask_latest_packages` list in `config/packages/all-packages.yml` for Homebrew cask packages that should be upgraded to latest on every provisioning run; switched `claude-code` to `claude-code@latest` cask (tracks latest releases instead of stable) and moved it along with `copilot-cli` into this list so they stay current automatically
 - Added `/usr/local/bin/sparkfabrik-claude-code-otel-headers` — Claude Code OTLP `otelHeadersHelper` script. Reads the bearer from Secret Manager via the user's gcloud session.
 - Added drop-in snippet support: `~/.config/spark/shell.d/*.zsh` files are now sourced automatically (lexicographic order) after `~/.config/spark/shell.zsh`, enabling MDM tools and package installers to deploy isolated shell snippets without sharing an edit surface with the user's personal `shell.zsh`
