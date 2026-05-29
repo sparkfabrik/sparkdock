@@ -24,6 +24,9 @@ cask_packages:
   - slack
   - zoom
   - monitorcontrol
+
+# Cask packages upgraded to latest on every provisioning run
+cask_latest_packages:
   - claude-code
   - copilot-cli
 
