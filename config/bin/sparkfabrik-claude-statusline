@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# SparkFabrik managed statusline for Claude Code.
+#
+# Opt-in. Enable/disable via the shared recipe (single source, cross-platform):
+#   sjust claude-statusline-enable     # macOS
+#   ajust claude-statusline-enable     # Arch (imports the same shared recipe)
+# or wire it manually in ~/.claude/settings.json:
+#   "statusLine": { "type": "command",
+#     "command": "bash /opt/sparkdock/config/bin/sparkfabrik-claude-statusline" }
+#
+# Claude Code pipes a JSON blob on stdin each render and shows whatever this
+# prints on stdout. Portable across macOS (bash 3.2) and Linux. Requires jq
+# (shipped by sparkdock); degrades to a minimal bar if jq is absent.
+#
+# Security: the output is rendered to the terminal on every render, so every
+# value we emit is stripped of control/escape bytes — git branch names, paths,
+# and model strings can otherwise carry ANSI escapes or OSC hyperlink spoofs.
+set -uo pipefail
+
+INPUT=$(cat)
+SEP=$' \033[38;5;240m|\033[0m '   # dim pipe separator
+out=""
+
+append() {
+  [ -n "$1" ] || return 0
+  if [ -n "$out" ]; then out="$out$SEP$1"; else out="$1"; fi
+}
+
+# Strip C0 control bytes (incl. ESC) from any value before rendering it.
+clean() { printf '%s' "$1" | tr -d '\000-\037'; }
+
+# --- caveman badge (compose, never duplicate) --------------------------------
+# Single source of truth: exec the plugin's own hardened badge script if it is
+# present. Its output already self-sanitizes. `-f` follows symlinks (dotfile
+# managers commonly symlink ~/.claude/hooks); planting a malicious target would
+# require write access to that dir, at which point the file is replaceable anyway.
+CAVEMAN="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/caveman-statusline.sh"
+if [ -f "$CAVEMAN" ]; then
+  badge=$(bash "$CAVEMAN" 2>/dev/null) || badge=""
+  [ -n "$badge" ] && out="$badge"
+fi
+
+# --- parse Claude Code's JSON -------------------------------------------------
+if command -v jq >/dev/null 2>&1; then
+  cur_dir=$(printf '%s' "$INPUT" | jq -r '.workspace.current_dir // .cwd // empty')
+  model=$(printf '%s'   "$INPUT" | jq -r '.model.display_name // empty')
+  over200=$(printf '%s' "$INPUT" | jq -r '.exceeds_200k_tokens // false')
+  five_pct=$(printf '%s'  "$INPUT" | jq -r '.rate_limits.five_hour.used_percentage // empty')
+  seven_pct=$(printf '%s' "$INPUT" | jq -r '.rate_limits.seven_day.used_percentage // empty')
+else
+  cur_dir="$PWD"; model=""; over200="false"; five_pct=""; seven_pct=""
+fi
+
+# Color an integer usage percentage: cyan < 70, amber 70–89, red ≥ 90.
+pct_color() {
+  if   [ "$1" -ge 90 ]; then printf '196'
+  elif [ "$1" -ge 70 ]; then printf '178'
+  else                       printf '117'
+  fi
+}
+
+# --- dir ----------------------------------------------------------------------
+if [ -n "$cur_dir" ]; then
+  append "$(printf '\033[36m%s\033[0m' "$(clean "$(basename "$cur_dir")")")"
+fi
+
+# --- git branch ---------------------------------------------------------------
+if [ -n "$cur_dir" ]; then
+  branch=$(git -C "$cur_dir" rev-parse --abbrev-ref HEAD 2>/dev/null) || branch=""
+  if [ -n "$branch" ]; then
+    append "$(printf '\033[35m\xee\x82\xa0 %s\033[0m' "$(clean "$branch")")"
+  fi
+fi
+
+# --- model --------------------------------------------------------------------
+[ -n "$model" ] && append "$(printf '\033[33m%s\033[0m' "$(clean "$model")")"
+
+# --- context warning ----------------------------------------------------------
+[ "$over200" = "true" ] && append "$(printf '\033[31m\xe2\x9a\xa0 200k+\033[0m')"
+
+# --- usage (rate limits) ------------------------------------------------------
+# Mirrors `/usage`: five_hour = current session, seven_day = current week.
+usage=""
+if printf '%s' "$five_pct" | grep -Eq '^[0-9]+$'; then
+  usage="$(printf '5h \033[38;5;%sm%s%%\033[0m' "$(pct_color "$five_pct")" "$five_pct")"
+fi
+if printf '%s' "$seven_pct" | grep -Eq '^[0-9]+$'; then
+  week="$(printf '7d \033[38;5;%sm%s%%\033[0m' "$(pct_color "$seven_pct")" "$seven_pct")"
+  if [ -n "$usage" ]; then usage="$usage $week"; else usage="$week"; fi
+fi
+[ -n "$usage" ] && append "$usage"
+
+printf '%s' "$out"
