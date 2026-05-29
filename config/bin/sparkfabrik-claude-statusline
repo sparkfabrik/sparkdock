@@ -31,9 +31,11 @@ clean() { printf '%s' "$1" | tr -d '\000-\037'; }
 
 # --- caveman badge (compose, never duplicate) --------------------------------
 # Single source of truth: exec the plugin's own hardened badge script if it is
-# present and not a symlink. Its output already self-sanitizes.
+# present. Its output already self-sanitizes. `-f` follows symlinks (dotfile
+# managers commonly symlink ~/.claude/hooks); planting a malicious target would
+# require write access to that dir, at which point the file is replaceable anyway.
 CAVEMAN="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/caveman-statusline.sh"
-if [ -f "$CAVEMAN" ] && [ ! -L "$CAVEMAN" ]; then
+if [ -f "$CAVEMAN" ]; then
   badge=$(bash "$CAVEMAN" 2>/dev/null) || badge=""
   [ -n "$badge" ] && out="$badge"
 fi
