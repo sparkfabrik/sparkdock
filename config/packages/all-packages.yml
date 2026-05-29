@@ -86,6 +86,7 @@ homebrew_packages:
   - "node"
   - "php@8.2"
   - golang
+  - gopls
   - gitleaks
   - pre-commit
   - uv
@@ -99,7 +100,11 @@ homebrew_packages:
   - yarn-completion
 
 # NPM Global Packages
-npm_packages: []
+npm_packages:
+  - intelephense
+  - typescript
+  - typescript-language-server
+  - pyright
 
 linked_packages: []
 
