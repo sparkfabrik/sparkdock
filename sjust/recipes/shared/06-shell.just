@@ -139,9 +139,13 @@ shell-omz-setup:
         echo "📥 Downloading oh-my-zsh installer..."
         curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh -o "${OMZ_INSTALL_SCRIPT}"
 
-        # Show checksum for verification
+        # Show checksum for verification (shasum or sha256sum, whichever exists)
         echo "🔐 Installer SHA256 checksum:"
-        shasum -a 256 "${OMZ_INSTALL_SCRIPT}"
+        if command -v shasum >/dev/null 2>&1; then
+            shasum -a 256 "${OMZ_INSTALL_SCRIPT}"
+        else
+            sha256sum "${OMZ_INSTALL_SCRIPT}"
+        fi
         echo ""
         echo "💡 You can verify this checksum at: https://github.com/ohmyzsh/ohmyzsh"
         echo ""
