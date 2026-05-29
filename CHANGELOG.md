@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `cask_latest_packages` list in `config/packages/all-packages.yml` for Homebrew cask packages that should be upgraded to latest on every provisioning run; moved `claude-code` and `copilot-cli` into this list so they stay current automatically
 - Added `/usr/local/bin/sparkfabrik-claude-code-otel-headers` — Claude Code OTLP `otelHeadersHelper` script. Reads the bearer from Secret Manager via the user's gcloud session.
 - Added drop-in snippet support: `~/.config/spark/shell.d/*.zsh` files are now sourced automatically (lexicographic order) after `~/.config/spark/shell.zsh`, enabling MDM tools and package installers to deploy isolated shell snippets without sharing an edit surface with the user's personal `shell.zsh`
 - Added caveman output compression integration for Claude Code, OpenCode, and GitHub Copilot (`sjust sf-caveman-install`) — reduces AI response tokens ~50% using structured terse-output rules (default mode: full); includes `sf-caveman-uninstall` recipe, Ansible `caveman` tag, and per-agent guard clauses for easy addition/removal of agents

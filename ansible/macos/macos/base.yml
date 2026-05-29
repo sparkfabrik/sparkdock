@@ -30,6 +30,7 @@
         - always
       set_fact:
         all_cask_packages: "{{ all_packages.cask_packages | default([]) }}"
+        all_cask_latest_packages: "{{ all_packages.cask_latest_packages | default([]) }}"
         all_homebrew_packages: "{{ all_packages.homebrew_packages | default([]) }}"
         all_linked_packages: "{{ all_packages.linked_packages | default([]) }}"
         all_removed_homebrew: "{{ all_packages.removed_homebrew_packages | default([]) }}"
@@ -209,10 +210,20 @@
       when: all_cask_packages | length > 0
       become: false
 
+    - name: Upgrade cask packages to latest
+      tags: cask
+      community.general.homebrew_cask:
+        name: "{{ item }}"
+        state: upgraded
+        sudo_password: "{{ ansible_become_pass | default(omit) }}"
+      loop: "{{ all_cask_latest_packages }}"
+      when: all_cask_latest_packages | length > 0
+      become: false
+
     - name: Assert cask packages installed
       shell: |
         missing=0
-        for pkg in {{ all_cask_packages | map('quote') | join(' ') }}; do
+        for pkg in {{ (all_cask_packages + all_cask_latest_packages) | map('quote') | join(' ') }}; do
           brew list --cask "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
         done
         exit $missing
