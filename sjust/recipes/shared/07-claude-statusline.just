@@ -18,3 +18,8 @@ claude-statusline-disable:
 [group('claude')]
 claude-statusline-info:
     @bash "{{_claude_statusline_sh}}" info
+
+# Render a live preview of the statusline bar (runs the real renderer).
+[group('claude')]
+claude-statusline-preview:
+    @bash "{{_claude_statusline_sh}}" preview

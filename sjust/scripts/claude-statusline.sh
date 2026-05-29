@@ -19,7 +19,7 @@ COMMAND="bash \"${STATUSLINE_SCRIPT}\""
 SETTINGS="${HOME}/.claude/settings.json"
 
 usage() {
-    echo "Usage: claude-statusline.sh {enable|disable|info}" >&2
+    echo "Usage: claude-statusline.sh {enable|disable|info|preview}" >&2
     exit 2
 }
 
@@ -38,6 +38,26 @@ if not isinstance(data, dict):
     print(""); sys.exit(0)
 sl = data.get("statusLine")
 print(sl.get("command", "") if isinstance(sl, dict) else "")
+PY
+}
+
+# Render a live preview by feeding the real renderer a representative payload.
+# Nothing here is a hardcoded copy of the bar — it runs STATUSLINE_SCRIPT, so any
+# change to the script is reflected automatically. The caveman badge reflects the
+# real on-disk mode flag; dir/branch come from the sparkdock checkout.
+_preview() {
+    [[ -x "${STATUSLINE_SCRIPT}" ]] || { echo "(unavailable — script missing)"; return; }
+    python3 - "${SPARKDOCK_ROOT}" <<'PY' | bash "${STATUSLINE_SCRIPT}"
+import json, sys
+print(json.dumps({
+    "workspace": {"current_dir": sys.argv[1]},
+    "model": {"display_name": "Opus 4.8 (1M context)"},
+    "exceeds_200k_tokens": False,
+    "rate_limits": {
+        "five_hour": {"used_percentage": 18},
+        "seven_day": {"used_percentage": 3},
+    },
+}))
 PY
 }
 
@@ -95,6 +115,10 @@ PY
 
     echo "✅ SparkFabrik statusline enabled in ${SETTINGS}"
     echo "💡 Backup saved to ${backup}"
+    echo
+    echo "Preview:"
+    echo "  $(_preview)"
+    echo
     echo "💡 Start a new Claude Code session (or it refreshes on next render)."
     echo "💡 Disable anytime with: claude-statusline-disable"
 }
@@ -161,11 +185,15 @@ cmd_info() {
     else
         echo "Configured: custom statusLine → ${current}"
     fi
+    echo
+    echo "Preview:"
+    echo "  $(_preview)"
 }
 
 case "${1:-}" in
     enable)  cmd_enable ;;
     disable) cmd_disable ;;
     info)    cmd_info ;;
+    preview) _preview; echo ;;
     *)       usage ;;
 esac
