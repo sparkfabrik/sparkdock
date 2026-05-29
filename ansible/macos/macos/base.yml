@@ -293,7 +293,7 @@
           [ -d "${base}" ] || continue
           for dir in "${base}"/python*; do
             [ -d "${dir}" ] || continue
-            count=$(find "${dir}" ! -user "${owner}" -print -exec chown "${owner}:admin" {} + 2>/dev/null | wc -l | tr -d ' ')
+            count=$(find "${dir}" ! -user "${owner}" -print -exec chown "${owner}" {} + 2>/dev/null | wc -l | tr -d ' ')
             fixed=$((fixed + count))
           done
         done
