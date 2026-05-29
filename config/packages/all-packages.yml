@@ -28,7 +28,7 @@ cask_packages:
 
 # Cask packages upgraded to latest on every provisioning run
 cask_latest_packages:
-  - claude-code
+  - claude-code@latest
   - copilot-cli
 
 homebrew_packages:
