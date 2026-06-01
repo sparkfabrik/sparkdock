@@ -82,7 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Claude Code statusline context warning is now dynamic against the active model's context window: shows `ctx NN%/1M` (or `/200k`), colored cyan/amber/red by usage, using Claude Code's `context_window.used_percentage` and `context_window_size`. Falls back to the fixed `⚠ 200k+` flag on older builds that don't emit `context_window`
+- Claude Code statusline context warning is now dynamic against the active model's context window: shows `ctx NN%/1M` (or `/200k`), colored cyan/amber/red by usage, using Claude Code's `context_window.used_percentage` and `context_window.context_window_size`. Falls back to the fixed `⚠ 200k+` flag on older builds that don't emit `context_window`
 - Renamed sjust group `ai-coding-agents` → `ai-coding-harness` and commands `sf-agents-status` → `sf-harness-status`, `sf-agents-sync` → `sf-harness-sync`, `sf-agents-upgrade` → `sf-harness-upgrade`; old names kept as deprecated aliases with notice. Recipe file renamed `01-ai-coding-agents.just` → `01-ai-coding-harness.just`. Ansible tag updated to `ai-coding-harness` (keeping `skills` for backward compat)
 - Copilot custom instructions now write only to `~/.copilot/copilot-instructions.md` (official Copilot CLI local instructions path per GitHub docs); dropped undocumented `~/.github/copilot-instructions.md`. Applies to both RTK and caveman setup scripts. Existing orphaned blocks in `~/.github/copilot-instructions.md` are cleaned up automatically on next run
 - Simplified Copilot RTK helper instructions to focus on `rtk-run`, concise command examples, quoted shell operators, and raw-command fallback
