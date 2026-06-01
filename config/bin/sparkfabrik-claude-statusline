@@ -45,10 +45,12 @@ if command -v jq >/dev/null 2>&1; then
   cur_dir=$(printf '%s' "$INPUT" | jq -r '.workspace.current_dir // .cwd // empty')
   model=$(printf '%s'   "$INPUT" | jq -r '.model.display_name // empty')
   over200=$(printf '%s' "$INPUT" | jq -r '.exceeds_200k_tokens // false')
+  ctx_pct=$(printf '%s' "$INPUT" | jq -r '.context_window.used_percentage // empty')
+  ctx_size=$(printf '%s' "$INPUT" | jq -r '.context_window.context_window_size // empty')
   five_pct=$(printf '%s'  "$INPUT" | jq -r '.rate_limits.five_hour.used_percentage // empty')
   seven_pct=$(printf '%s' "$INPUT" | jq -r '.rate_limits.seven_day.used_percentage // empty')
 else
-  cur_dir="$PWD"; model=""; over200="false"; five_pct=""; seven_pct=""
+  cur_dir="$PWD"; model=""; over200="false"; ctx_pct=""; ctx_size=""; five_pct=""; seven_pct=""
 fi
 
 # Color an integer usage percentage: cyan < 70, amber 70–89, red ≥ 90.
@@ -75,8 +77,23 @@ fi
 # --- model --------------------------------------------------------------------
 [ -n "$model" ] && append "$(printf '\033[33m%s\033[0m' "$(clean "$model")")"
 
-# --- context warning ----------------------------------------------------------
-[ "$over200" = "true" ] && append "$(printf '\033[31m\xe2\x9a\xa0 200k+\033[0m')"
+# --- context window usage -----------------------------------------------------
+# Dynamic: percentage of the *current model's* context window (200k or 1M when
+# extended), not a fixed 200k threshold. Falls back to the exceeds_200k_tokens
+# flag on older Claude Code builds that don't emit `context_window`.
+ctx_int=$(printf '%s' "$ctx_pct" | cut -d. -f1)
+if printf '%s' "$ctx_int" | grep -Eq '^[0-9]+$'; then
+  case "$ctx_size" in
+    1000000) win="1M" ;;
+    200000)  win="200k" ;;
+    *)       win="" ;;
+  esac
+  label="ctx ${ctx_int}%"
+  [ -n "$win" ] && label="${label}/${win}"
+  append "$(printf '\033[38;5;%sm%s\033[0m' "$(pct_color "$ctx_int")" "$label")"
+elif [ "$over200" = "true" ]; then
+  append "$(printf '\033[31m\xe2\x9a\xa0 200k+\033[0m')"
+fi
 
 # --- usage (rate limits) ------------------------------------------------------
 # Mirrors `/usage`: five_hour = current session, seven_day = current week.
