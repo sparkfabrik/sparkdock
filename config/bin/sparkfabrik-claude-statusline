@@ -49,8 +49,16 @@ if command -v jq >/dev/null 2>&1; then
   ctx_size=$(printf '%s' "$INPUT" | jq -r '.context_window.context_window_size // empty')
   five_pct=$(printf '%s'  "$INPUT" | jq -r '.rate_limits.five_hour.used_percentage // empty')
   seven_pct=$(printf '%s' "$INPUT" | jq -r '.rate_limits.seven_day.used_percentage // empty')
+  effort=$(printf '%s'   "$INPUT" | jq -r '.effortLevel // .effort // empty')
 else
-  cur_dir="$PWD"; model=""; over200="false"; ctx_pct=""; ctx_size=""; five_pct=""; seven_pct=""
+  cur_dir="$PWD"; model=""; over200="false"; ctx_pct=""; ctx_size=""; five_pct=""; seven_pct=""; effort=""
+fi
+
+# Claude Code doesn't (yet) emit the effort level on stdin, so fall back to the
+# persisted default in settings.json. Tolerates jq absence and a corrupt file.
+if [ -z "$effort" ] && command -v jq >/dev/null 2>&1; then
+  settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
+  [ -f "$settings" ] && effort=$(jq -r '.effortLevel // empty' "$settings" 2>/dev/null) || effort="${effort:-}"
 fi
 
 # Color an integer usage percentage: cyan < 70, amber 70–89, red ≥ 90.
@@ -76,6 +84,18 @@ fi
 
 # --- model --------------------------------------------------------------------
 [ -n "$model" ] && append "$(printf '\033[33m%s\033[0m' "$(clean "$model")")"
+
+# --- effort -------------------------------------------------------------------
+# Reasoning effort level. `high` is the Opus 4.8 default (calm green); `max` is
+# boosted (magenta); `low`/`medium` are downgrades worth flagging (amber).
+if [ -n "$effort" ]; then
+  case "$effort" in
+    max)         ecolor=201 ;;
+    low|medium)  ecolor=178 ;;
+    *)           ecolor=114 ;;
+  esac
+  append "$(printf '\033[38;5;%sm\xe2\x9a\xa1 %s\033[0m' "$ecolor" "$(clean "$effort")")"
+fi
 
 # --- context window usage -----------------------------------------------------
 # Dynamic: percentage of the *current model's* context window (200k or 1M when
