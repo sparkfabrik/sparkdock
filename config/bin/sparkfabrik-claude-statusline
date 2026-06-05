@@ -49,17 +49,18 @@ if command -v jq >/dev/null 2>&1; then
   ctx_size=$(printf '%s' "$INPUT" | jq -r '.context_window.context_window_size // empty')
   five_pct=$(printf '%s'  "$INPUT" | jq -r '.rate_limits.five_hour.used_percentage // empty')
   seven_pct=$(printf '%s' "$INPUT" | jq -r '.rate_limits.seven_day.used_percentage // empty')
-  effort=$(printf '%s'   "$INPUT" | jq -r '(.effortLevel.level? // .effortLevel? // .effort?) // empty')
+  effort=$(printf '%s'   "$INPUT" | jq -r '(.effort.level? // .effortLevel.level? // (.effort? | strings) // (.effortLevel? | strings)) // empty')
 else
   cur_dir="$PWD"; model=""; over200="false"; ctx_pct=""; ctx_size=""; five_pct=""; seven_pct=""; effort=""
 fi
 
 # Fall back to the persisted default in settings.json when stdin omits it.
-# settings.json stores effortLevel as a bare string; stdin uses an object — the
-# extraction below handles both. Tolerates jq absence and a corrupt file.
+# Claude Code's stdin uses `.effort` (object {"level": ...}); settings.json
+# stores `.effortLevel` as a bare string. Extraction handles both shapes.
+# Tolerates jq absence and a corrupt file.
 if [ -z "$effort" ] && command -v jq >/dev/null 2>&1; then
   settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-  [ -f "$settings" ] && effort=$(jq -r '(.effortLevel.level? // .effortLevel?) // empty' "$settings" 2>/dev/null) || effort="${effort:-}"
+  [ -f "$settings" ] && effort=$(jq -r '(.effortLevel.level? // (.effortLevel? | strings) // .effort.level? // (.effort? | strings)) // empty' "$settings" 2>/dev/null) || effort="${effort:-}"
 fi
 
 # Color an integer usage percentage: cyan < 70, amber 70–89, red ≥ 90.
