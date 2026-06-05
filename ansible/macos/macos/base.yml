@@ -765,21 +765,12 @@
           when: not is_non_interactive
 
       rescue:
-        - name: Display compilation failure message
+        - name: Report which task actually failed
           debug:
             msg:
-              - "❌ Sparkdock Menu Bar App compilation failed!"
-              - ""
-              - "This is often caused by issues with Xcode command line tools."
-              - "Common symptoms include Swift compiler errors or missing headers."
-              - ""
-              - "🔧 To fix this issue, run the following command:"
-              - "   sjust sparkdock-menubar-reinstall"
-              - ""
-              - "This command will:"
-              - "  1. Remove existing Xcode command line tools"
-              - "  2. Reinstall them properly"
-              - "  3. Retry the menubar app installation"
+              - "❌ Sparkdock Menu Bar App installation failed!"
+              - "Failed task: {{ ansible_failed_task.name | default('unknown') }}"
+              - "Error: {{ ansible_failed_result.msg | default(ansible_failed_result) | default('see output above') }}"
 
         - name: Show build error output
           debug:
@@ -790,10 +781,22 @@
               - "{{ build_result.stderr_lines | default(['No stderr']) }}"
           when: build_result is defined
 
-        - name: Fail with helpful message
+        - name: Show Xcode command line tools hint (compilation failures only)
+          debug:
+            msg:
+              - "This looks like a Swift compilation problem (build returned rc={{ build_result.rc }})."
+              - "Common causes: broken Xcode command line tools, missing headers."
+              - ""
+              - "🔧 To fix, run:"
+              - "   sjust sparkdock-menubar-reinstall"
+              - ""
+              - "This will remove and reinstall the Xcode command line tools, then retry the install."
+          when: build_result is defined and build_result.rc != 0
+
+        - name: Fail with context-aware message
           fail:
-            msg: |
-              Menubar app compilation failed. Run 'sjust sparkdock-menubar-reinstall' to fix Xcode command line tools and retry installation.
+            msg: >-
+              {% if build_result is defined and build_result.rc != 0 %}Menubar app compilation failed. Run 'sjust sparkdock-menubar-reinstall' to fix Xcode command line tools and retry installation.{% else %}Menubar app install failed at task '{{ ansible_failed_task.name | default('unknown') }}': {{ ansible_failed_result.msg | default('see output above') }}{% endif %}
 
     - name: Configure OpenCode settings
       tags: opencode
