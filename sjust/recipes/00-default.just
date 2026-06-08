@@ -346,11 +346,23 @@ sparkdock-menubar-install:
     cd {{ sparkdock_path }}
     echo "🔧 Running ansible with menubar tag to rebuild and install..."
     # Check if running in CI/non-interactive mode (detect based on common CI environment variables)
-    if [[ -n "$CI" || -n "$GITHUB_ACTIONS" || -n "$NON_INTERACTIVE" ]]; then
+    if [[ -n "${CI:-}" || -n "${GITHUB_ACTIONS:-}" || -n "${NON_INTERACTIVE:-}" ]]; then
         echo "🤖 Detected non-interactive environment, running without password prompt..."
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e "ansible_become_password=" --become
+        if ! ANSIBLE_BECOME_PASS="" ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become; then
+            echo ""
+            echo "❌ Sparkdock menu bar app installation failed!"
+            exit 1
+        fi
     else
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass
+        trap 'unset ANSIBLE_BECOME_PASS' EXIT
+        read -rsp "BECOME password: " ANSIBLE_BECOME_PASS
+        export ANSIBLE_BECOME_PASS
+        echo
+        if ! ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become; then
+            echo ""
+            echo "❌ Sparkdock menu bar app installation failed!"
+            exit 1
+        fi
     fi
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
@@ -405,8 +417,13 @@ sparkdock-menubar-reinstall:
     echo "🔧 Now attempting to rebuild and install the menubar application..."
     cd {{ sparkdock_path }}
 
+    trap 'unset ANSIBLE_BECOME_PASS' EXIT
+    read -rsp "BECOME password: " ANSIBLE_BECOME_PASS
+    export ANSIBLE_BECOME_PASS
+    echo
+
     # Try to build the menubar app
-    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
+    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --become; then
         echo ""
         echo "🎉 Success! Sparkdock menu bar app has been rebuilt and installed!"
         echo "💡 The app should now be running via LaunchAgent"
