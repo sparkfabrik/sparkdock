@@ -12,10 +12,10 @@ dev:
 	@echo "Running in development mode..."
 	./.build/debug/sparkdock-manager
 
-# Install the application (requires sudo for /usr/local/bin)
+# Install the application (user-owned /opt/homebrew/bin, no sudo)
 install: build
-	sudo cp .build/release/sparkdock-manager /usr/local/bin/
-	sudo chmod 755 /usr/local/bin/sparkdock-manager
+	cp .build/release/sparkdock-manager /opt/homebrew/bin/
+	chmod 755 /opt/homebrew/bin/sparkdock-manager
 	cp com.sparkfabrik.sparkdock.menubar.plist ~/Library/LaunchAgents/
 	launchctl unload ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist 2>/dev/null || true
 	launchctl load ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist
@@ -24,7 +24,7 @@ install: build
 uninstall:
 	launchctl unload ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist 2>/dev/null || true
 	rm -f ~/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist
-	sudo rm -f /usr/local/bin/sparkdock-manager
+	rm -f /opt/homebrew/bin/sparkdock-manager
 
 # Clean build artifacts
 clean:

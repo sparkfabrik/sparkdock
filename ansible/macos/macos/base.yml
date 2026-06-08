@@ -10,10 +10,11 @@
     homebrew_prefix: "{{ (ansible_facts['machine'] == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
     homebrew_install_path: "{{ homebrew_prefix }}/Homebrew"
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
-    ansible_become_pass: "{{ lookup('env', 'ANSIBLE_BECOME_PASS') }}"
+    ansible_become_pass: "{{ lookup('env', 'ANSIBLE_BECOME_PASS') | default(omit, true) }}"
 
   tasks:
     - name: Check if running in non-interactive environment
+      tags: always
       set_fact:
         is_non_interactive: "{{ ansible_facts['env'].CI is defined or ansible_facts['env'].GITHUB_ACTIONS is defined or ansible_facts['env'].RUNNER_OS is defined or ansible_facts['env'].HOME == '/var/root' or ansible_facts['env'].ANSIBLE_SUDO_PASSWORD is defined }}"
 
@@ -714,14 +715,12 @@
         - name: Install menu bar app binary
           copy:
             src: "{{ dev_env_dir }}/src/menubar-app/.build/release/sparkdock-manager"
-            dest: "/usr/local/bin/sparkdock-manager"
+            dest: "{{ homebrew_brew_bin_path }}/sparkdock-manager"
             mode: "0755"
             remote_src: true
-          become: yes
-          become_method: sudo
 
         - name: Verify menu bar app works
-          command: /usr/local/bin/sparkdock-manager --status
+          command: "{{ homebrew_brew_bin_path }}/sparkdock-manager --status"
           register: sparkdock_status
           changed_when: false
 

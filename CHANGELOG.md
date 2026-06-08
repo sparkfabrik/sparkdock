@@ -84,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Menu bar app binary now installs to user-owned `/opt/homebrew/bin/sparkdock-manager` instead of root-owned `/usr/local/bin`, so `sjust sparkdock-menubar-install` no longer needs sudo or a become password (build and LaunchAgent were already user-level)
 - Claude Code statusline context warning is now dynamic against the active model's context window: shows `ctx NN%/1M` (or `/200k`), colored cyan/amber/red by usage, using Claude Code's `context_window.used_percentage` and `context_window.context_window_size`. Falls back to the fixed `⚠ 200k+` flag on older builds that don't emit `context_window`
 - Renamed sjust group `ai-coding-agents` → `ai-coding-harness` and commands `sf-agents-status` → `sf-harness-status`, `sf-agents-sync` → `sf-harness-sync`, `sf-agents-upgrade` → `sf-harness-upgrade`; old names kept as deprecated aliases with notice. Recipe file renamed `01-ai-coding-agents.just` → `01-ai-coding-harness.just`. Ansible tag updated to `ai-coding-harness` (keeping `skills` for backward compat)
 - Copilot custom instructions now write only to `~/.copilot/copilot-instructions.md` (official Copilot CLI local instructions path per GitHub docs); dropped undocumented `~/.github/copilot-instructions.md`. Applies to both RTK and caveman setup scripts. Existing orphaned blocks in `~/.github/copilot-instructions.md` are cleaned up automatically on next run
@@ -131,6 +132,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed an empty `ANSIBLE_BECOME_PASS` env var silently clobbering `--ask-become-pass`: the play-level `ansible_become_pass` is now only set when the env var is non-empty (`| default(omit, true)`), so interactive become prompts (e.g. `sjust sparkdock-install-tags`) are honored instead of failing with `sudo: a password is required`
 - Fixed intermittent `apply2files - Permission denied` failures during `brew install` (e.g. `gopls`) caused by root-owned `.pyc`/files under `{{ homebrew_prefix }}/lib/python*` and `Cellar/python*` — a new `become`-elevated task chowns mis-owned Python files back to the invoking user before the Homebrew package step (idempotent, no-op when ownership is already correct, skipped in non-interactive/CI runs)
 - Fixed RTK rewriting `yadm` commands to `rtk git` (breaking dotfile management) by adding `^yadm` to `exclude_commands` in `config/rtk/exclude-commands.toml` — upstream bug tracked at [rtk-ai/rtk#TBD](https://github.com/rtk-ai/rtk)
 - Fixed `sf-harness-upgrade` failing on non-macOS hosts (e.g. ajust on Arch Linux) with `module interpreter '/opt/homebrew/bin/python3' was not found` — `ansible/inventory.ini` now uses `ansible_python_interpreter=auto_silent` so Ansible discovers a working Python on any host, and `sf-harness-upgrade` passes `-e dev_env_dir={{sparkdock_path}}` so the playbook tracks the real sparkdock location instead of the hardcoded `/opt/sparkdock`. Same Ansible flow on macOS and Linux.
