@@ -1,8 +1,9 @@
 ---
+# Fact-gathering play: facts feed the import_playbook `when` below.
+# Runs unprivileged — root work is elevated per-task in base.yml, so this
+# must not force a sudo password for the whole run.
 - hosts: 127.0.0.1
   connection: local
-  become: true
-  become_user: root
 
 - name: Import playbook for macOS
   import_playbook: macos/macos/base.yml

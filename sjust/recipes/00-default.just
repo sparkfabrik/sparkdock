@@ -342,16 +342,13 @@ sparkdock-upgrade:
 [group('sparkdock')]
 sparkdock-menubar-install:
     #!/usr/bin/env bash
+    set -euo pipefail
     echo "Rebuilding and installing Sparkdock menu bar application..."
     cd {{ sparkdock_path }}
     echo "🔧 Running ansible with menubar tag to rebuild and install..."
-    # Check if running in CI/non-interactive mode (detect based on common CI environment variables)
-    if [[ -n "$CI" || -n "$GITHUB_ACTIONS" || -n "$NON_INTERACTIVE" ]]; then
-        echo "🤖 Detected non-interactive environment, running without password prompt..."
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e "ansible_become_password=" --become
-    else
-        ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass
-    fi
+    # No sudo needed: binary installs to user-owned /opt/homebrew/bin and the
+    # LaunchAgent is user-level, so no become password is required.
+    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar"
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
 

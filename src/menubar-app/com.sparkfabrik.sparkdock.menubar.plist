@@ -6,7 +6,7 @@
     <string>com.sparkfabrik.sparkdock.menubar</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/sparkdock-manager</string>
+        <string>/opt/homebrew/bin/sparkdock-manager</string>
     </array>
     <key>RunAtLoad</key>
     <true/>
