@@ -281,6 +281,23 @@ setup_copilot() {
         "${dim}" "${reset}"
 }
 
+# --- Claude settings repair ---
+
+# Normalize sparkdock-managed Claude Code hooks after the native installer runs.
+# The caveman installer bakes a version-pinned node path into the hook commands
+# (breaks on node upgrades); the shared fixer rewrites it to a stable Homebrew
+# symlink and also strips the claude-usage session hooks. Runs on macOS and
+# Linux, since both provisioners invoke this script.
+normalize_claude_settings() {
+    local fixer="${SCRIPT_DIR}/../claude-fix-settings.sh"
+    if [[ ! -f "${fixer}" ]]; then
+        log_warn "Claude settings fixer not found: ${fixer} — skipping"
+        return 0
+    fi
+    log_info "Normalizing Claude Code hook settings..."
+    bash "${fixer}" fix
+}
+
 # --- Uninstall ---
 
 uninstall() {
@@ -344,11 +361,19 @@ main() {
                 log_error "Node.js is required but not found"
                 exit 1
             fi
+            # Claude Code's official installer lives in ~/.local/bin, which is
+            # not always on PATH during non-interactive provisioning (notably
+            # the Linux sf-toolbox ansible run, which runs as root with the
+            # user's ~/.local/bin absent). Without this, setup_claude's
+            # `command -v claude` guard fails and the Claude plugin + hooks are
+            # silently skipped.
+            export PATH="${HOME}/.local/bin:${PATH}"
             ensure_caveman_repo
             write_default_config
             setup_claude
             setup_opencode
             setup_copilot
+            normalize_claude_settings
             log_success "Caveman setup complete. Restart your AI coding tools to activate."
             ;;
         uninstall)
