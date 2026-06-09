@@ -281,6 +281,28 @@ setup_copilot() {
         "${dim}" "${reset}"
 }
 
+# --- Claude settings repair ---
+
+# Normalize sparkdock-managed Claude Code hooks after the native installer runs.
+# The caveman installer bakes a version-pinned node path into the hook commands
+# (breaks on node upgrades); the shared fixer rewrites it to a stable Homebrew
+# symlink. Runs on macOS and Linux, since both provisioners invoke this script.
+# Note: claude-usage hook removal is intentionally NOT requested here — that is
+# opt-in via `sjust claude-fix-settings`, so we never strip hooks a user added
+# deliberately during automatic provisioning.
+normalize_claude_settings() {
+    local fixer="${SCRIPT_DIR}/../claude-fix-settings.sh"
+    if [[ ! -f "${fixer}" ]]; then
+        log_warn "Claude settings fixer not found: ${fixer} — skipping"
+        return 0
+    fi
+    log_info "Normalizing Claude Code hook settings..."
+    # Best-effort: this is a self-healing repair, so a failure here (missing
+    # python3, transient IO error, ...) must not abort the whole provisioning
+    # run under the caller's `set -euo pipefail`.
+    bash "${fixer}" fix || log_warn "Claude Code hook normalization failed (non-fatal); continuing"
+}
+
 # --- Uninstall ---
 
 uninstall() {
@@ -344,11 +366,26 @@ main() {
                 log_error "Node.js is required but not found"
                 exit 1
             fi
+            # Claude Code's official installer lives in <user>/.local/bin, which
+            # is not always on PATH during non-interactive provisioning. Without
+            # it, setup_claude's `command -v claude` guard fails and the Claude
+            # plugin + hooks are silently skipped. Under sudo/become (the Linux
+            # sf-toolbox run) $HOME may not be the invoking user's home, so
+            # resolve the home of the *effective* user (the account this process
+            # actually runs as) via getent when available, falling back to $HOME.
+            local user_home="${HOME}"
+            if command -v getent &> /dev/null; then
+                local resolved_home
+                resolved_home="$(getent passwd "$(id -un)" 2> /dev/null | cut -d: -f6 || true)"
+                [[ -n "${resolved_home}" ]] && user_home="${resolved_home}"
+            fi
+            export PATH="${user_home}/.local/bin:${PATH}"
             ensure_caveman_repo
             write_default_config
             setup_claude
             setup_opencode
             setup_copilot
+            normalize_claude_settings
             log_success "Caveman setup complete. Restart your AI coding tools to activate."
             ;;
         uninstall)
