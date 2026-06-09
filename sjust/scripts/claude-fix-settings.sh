@@ -19,11 +19,23 @@ usage() {
     exit 2
 }
 
-# Resolve a stable node path: prefer the Homebrew prefix symlink (survives node
-# version bumps), fall back to the PATH entry. We deliberately do NOT readlink
-# the result, so we never re-bake a version-pinned Cellar path.
+# Resolve the most stable node path for the caveman hook commands. The caveman
+# installer bakes an absolute, version-pinned path (process.execPath) that
+# vanishes when node is upgraded. Prefer a version-independent value, in order:
+#
+#   1. Homebrew symlink ($(brew --prefix)/bin/node) — covers macOS Homebrew and
+#      Linux linuxbrew (e.g. .../Cellar/node/X/bin/node -> .../bin/node); stable
+#      across node bumps.
+#   2. A non-versioned absolute path already on PATH (e.g. /usr/bin/node from a
+#      distro package) — already stable, so keep it.
+#   3. Otherwise the path is version-pinned with no stable symlink (nvm,
+#      .../.nvm/versions/node/vX/bin/node, or a bare Cellar path) — fall back to
+#      the bare `node` command so the hook resolves via PATH instead of a path
+#      that disappears on the next upgrade.
+#
+# We deliberately do NOT readlink the result, so we never re-bake a version dir.
 _stable_node_path() {
-    local prefix
+    local prefix n
     if command -v brew >/dev/null 2>&1; then
         prefix="$(brew --prefix 2>/dev/null || true)"
         if [[ -n "${prefix}" && -x "${prefix}/bin/node" ]]; then
@@ -31,11 +43,19 @@ _stable_node_path() {
             return 0
         fi
     fi
-    if command -v node >/dev/null 2>&1; then
-        command -v node
-        return 0
+    n="$(command -v node 2>/dev/null || true)"
+    if [[ -z "${n}" ]]; then
+        return 1
     fi
-    return 1
+    case "${n}" in
+        */Cellar/* | */.nvm/* | */versions/node/*)
+            # Version-pinned with no stable symlink — use PATH-relative `node`.
+            printf 'node\n'
+            ;;
+        *)
+            printf '%s\n' "${n}"
+            ;;
+    esac
 }
 
 main() {

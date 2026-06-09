@@ -297,7 +297,10 @@ normalize_claude_settings() {
         return 0
     fi
     log_info "Normalizing Claude Code hook settings..."
-    bash "${fixer}" fix
+    # Best-effort: this is a self-healing repair, so a failure here (missing
+    # python3, transient IO error, ...) must not abort the whole provisioning
+    # run under the caller's `set -euo pipefail`.
+    bash "${fixer}" fix || log_warn "Claude Code hook normalization failed (non-fatal); continuing"
 }
 
 # --- Uninstall ---
@@ -363,13 +366,20 @@ main() {
                 log_error "Node.js is required but not found"
                 exit 1
             fi
-            # Claude Code's official installer lives in ~/.local/bin, which is
-            # not always on PATH during non-interactive provisioning (notably
-            # the Linux sf-toolbox ansible run, which runs as root with the
-            # user's ~/.local/bin absent). Without this, setup_claude's
-            # `command -v claude` guard fails and the Claude plugin + hooks are
-            # silently skipped.
-            export PATH="${HOME}/.local/bin:${PATH}"
+            # Claude Code's official installer lives in <user>/.local/bin, which
+            # is not always on PATH during non-interactive provisioning. Without
+            # it, setup_claude's `command -v claude` guard fails and the Claude
+            # plugin + hooks are silently skipped. Under sudo/become (the Linux
+            # sf-toolbox run) $HOME may not be the invoking user's home, so
+            # resolve the home of the *effective* user (the account this process
+            # actually runs as) via getent when available, falling back to $HOME.
+            local user_home="${HOME}"
+            if command -v getent &> /dev/null; then
+                local resolved_home
+                resolved_home="$(getent passwd "$(id -un)" 2> /dev/null | cut -d: -f6 || true)"
+                [[ -n "${resolved_home}" ]] && user_home="${resolved_home}"
+            fi
+            export PATH="${user_home}/.local/bin:${PATH}"
             ensure_caveman_repo
             write_default_config
             setup_claude

@@ -159,7 +159,8 @@ def main():
 
     if dry:
         print(
-            f"\nℹ️  {len(changes)} change(s) pending. Run 'claude-fix-settings' to apply."
+            f"\nℹ️  {len(changes)} change(s) pending. "
+            "Run the claude-fix-settings recipe (sjust on macOS, ajust on Linux) to apply."
         )
         return 0
 
