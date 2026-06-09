@@ -2,14 +2,17 @@
 """Repair sparkdock-managed Claude Code hooks in ~/.claude/settings.json.
 
 Invoked by claude-fix-settings.sh (which resolves the stable node path and the
-settings location). Two idempotent fixes are applied:
+settings location). Two idempotent fixes are available:
 
-  1. Caveman hook node path — the caveman installer bakes the *resolved* node
-     binary (e.g. /opt/homebrew/Cellar/node/26.0.0/bin/node) into the
-     SessionStart/UserPromptSubmit hook commands, which breaks on every node
-     version bump. Rewrite it to the stable Homebrew symlink passed via --node.
-  2. claude-usage hooks — remove the SessionStart/SessionEnd hooks that the
-     upstream claude-usage installer wires in.
+  1. Caveman hook node path (always) — the caveman installer bakes the
+     *resolved* node binary (e.g. /opt/homebrew/Cellar/node/26.0.0/bin/node)
+     into the SessionStart/UserPromptSubmit hook commands, which breaks on every
+     node version bump. Rewrite it to the stable Homebrew symlink passed via
+     --node.
+  2. claude-usage hooks (opt-in, --remove-claude-usage) — remove the
+     SessionStart/SessionEnd hooks that the upstream claude-usage installer
+     wires in. Opt-in because users may have installed them deliberately, so the
+     automatic provisioning pass leaves them alone.
 
 All JSON work happens here (no jq dependency); writes are atomic (temp file +
 os.replace) with a timestamped backup, and a missing/corrupt/non-object
@@ -47,8 +50,14 @@ def normalize_node_path(cmd, node):
     return f'"{node}"{m.group("rest")}', True
 
 
-def repair(data, node):
-    """Apply both fixes to ``data`` in place. Returns a list of change strings."""
+def repair(data, node, remove_claude_usage):
+    """Apply the enabled fixes to ``data`` in place. Returns a list of change strings.
+
+    The caveman node-path normalization always runs. claude-usage hook removal
+    only runs when ``remove_claude_usage`` is true; it is opt-in because users
+    may have installed those hooks deliberately, so the automatic provisioning
+    pass must not strip them.
+    """
     changes = []
     hooks = data.get("hooks")
     if not isinstance(hooks, dict):
@@ -67,8 +76,8 @@ def repair(data, node):
             for entry in group["hooks"]:
                 if isinstance(entry, dict) and isinstance(entry.get("command"), str):
                     cmd = entry["command"]
-                    # Op 2: drop claude-usage hooks entirely.
-                    if "claude-usage" in cmd:
+                    # Op 2 (opt-in): drop claude-usage hooks entirely.
+                    if remove_claude_usage and "claude-usage" in cmd:
                         changes.append(f"removed claude-usage hook from {event}")
                         continue
                     # Op 1: normalize the caveman hook node path.
@@ -117,6 +126,11 @@ def main():
     parser.add_argument("settings", help="path to ~/.claude/settings.json")
     parser.add_argument("--mode", choices=("fix", "info"), default="info")
     parser.add_argument("--node", default="", help="stable node path for caveman hooks")
+    parser.add_argument(
+        "--remove-claude-usage",
+        action="store_true",
+        help="also remove claude-usage session hooks (opt-in; not run automatically)",
+    )
     args = parser.parse_args()
 
     path, dry = args.settings, args.mode == "info"
@@ -134,7 +148,7 @@ def main():
         print(f"⚠️  {path} is not a JSON object — skipping.")
         return 0
 
-    changes = repair(data, args.node)
+    changes = repair(data, args.node, args.remove_claude_usage)
 
     if not changes:
         print("✅ Already clean — no changes needed.")

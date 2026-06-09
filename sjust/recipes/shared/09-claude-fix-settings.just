@@ -7,12 +7,13 @@ _claude_fix_settings_sh := clean(source_directory() / "../../..") / "sjust/scrip
 # Repair sparkdock-managed Claude Code hooks in ~/.claude/settings.json: rewrite
 # the caveman hook node path to a stable Homebrew symlink (survives node version
 # bumps) and remove the claude-usage session hooks. Idempotent; backs up before
-# writing.
+# writing. The caveman node-path fix also runs automatically during provisioning;
+# claude-usage hook removal is opt-in and only happens via this recipe.
 [group('claude')]
 claude-fix-settings:
-    @bash "{{_claude_fix_settings_sh}}" fix
+    @bash "{{_claude_fix_settings_sh}}" fix --remove-claude-usage
 
 # Show what claude-fix-settings would change, without writing.
 [group('claude')]
 claude-fix-settings-info:
-    @bash "{{_claude_fix_settings_sh}}" info
+    @bash "{{_claude_fix_settings_sh}}" info --remove-claude-usage

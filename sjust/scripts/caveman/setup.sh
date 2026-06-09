@@ -286,8 +286,10 @@ setup_copilot() {
 # Normalize sparkdock-managed Claude Code hooks after the native installer runs.
 # The caveman installer bakes a version-pinned node path into the hook commands
 # (breaks on node upgrades); the shared fixer rewrites it to a stable Homebrew
-# symlink and also strips the claude-usage session hooks. Runs on macOS and
-# Linux, since both provisioners invoke this script.
+# symlink. Runs on macOS and Linux, since both provisioners invoke this script.
+# Note: claude-usage hook removal is intentionally NOT requested here — that is
+# opt-in via `sjust claude-fix-settings`, so we never strip hooks a user added
+# deliberately during automatic provisioning.
 normalize_claude_settings() {
     local fixer="${SCRIPT_DIR}/../claude-fix-settings.sh"
     if [[ ! -f "${fixer}" ]]; then

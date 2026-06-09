@@ -44,6 +44,7 @@ main() {
         fix | info) ;;
         *) usage ;;
     esac
+    shift || true
 
     local node=""
     if ! node="$(_stable_node_path)"; then
@@ -51,7 +52,9 @@ main() {
         echo "⚠️  node not found on PATH — skipping caveman node-path normalization."
     fi
 
-    python3 "${PYSCRIPT}" "${SETTINGS}" --mode "${mode}" --node "${node}"
+    # Any extra args (e.g. --remove-claude-usage) are forwarded to the python
+    # script. The automatic caveman setup omits them; the sjust recipe opts in.
+    python3 "${PYSCRIPT}" "${SETTINGS}" --mode "${mode}" --node "${node}" "$@"
 }
 
 main "$@"
