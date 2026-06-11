@@ -409,3 +409,11 @@ fi
 if [[ "${NEW_RESOURCES_AVAILABLE}" == "true" ]]; then
     log_warn "New resources available. Run 'sjust sf-harness-sync' to install."
 fi
+ # --- Provisioners status ---
+PROVISIONERS_DIR="${CACHE_DIR}/provisioners"
+if [[ -d "${PROVISIONERS_DIR}" ]]; then
+    for p in "${PROVISIONERS_DIR}"/*.sh; do
+        [[ -x "${p}" ]] || continue
+        "${p}" status || true
+    done
+fi

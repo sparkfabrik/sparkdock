@@ -610,6 +610,27 @@ print_summary() {
     fi
 }
 
+
+#--- Provisioners ---
+
+# Run executable provisioner scripts shipped in the upstream repo.
+# Each generates a CLI-based integration that cannot ship as static files.
+# Tool-agnostic: dropping a new .sh in provisioners/ needs no change here.
+
+run_provisioners() {
+    local verb="$1"
+    local provisioners_dir="${CACHE_DIR}/provisioners"
+    [[ -d "${provisioners_dir}" ]] || return 0
+
+    local p
+    for p in "${provisioners_dir}"/*.sh; do
+        [[ -x "${p}" ]] || continue
+        log_info "Running provisioner: $(basename "${p}") ${verb}"
+        # Never let one provisioner abort the whole sync (set -e).
+        "${p}" "${verb}" || log_warn "Provisioner failed: $(basename "${p}")"
+    done
+}
+
 # --- Main ---
 
 usage() {
@@ -669,6 +690,8 @@ main() {
     done
 
     print_summary
+    # Run provisioners after the file-copy phase.
+    run_provisioners sync
 }
 
 main "$@"
