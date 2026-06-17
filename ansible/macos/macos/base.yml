@@ -50,6 +50,23 @@
       when: all_taps | length > 0
       become: false
 
+    - name: Trust third-party homebrew taps (Homebrew >= 6, HOMEBREW_REQUIRE_TAP_TRUST)
+      tags: brew_packages
+      ansible.builtin.shell: |
+        set -uo pipefail
+        if ! brew commands | tr ' ' '\n' | grep -qx trust; then
+          echo "skip: brew trust unavailable"
+          exit 0
+        fi
+        brew trust --tap "{{ item }}"
+      args:
+        executable: /bin/bash
+      loop: "{{ all_taps }}"
+      become: false
+      register: brew_trust
+      changed_when: "'Trusted tap' in brew_trust.stdout"
+      when: all_taps | length > 0
+
     - name: Debug loaded variables
       debug:
         msg:

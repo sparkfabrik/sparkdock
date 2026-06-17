@@ -133,6 +133,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed third-party Homebrew tap installs failing on Homebrew 6.x (`HOMEBREW_REQUIRE_TAP_TRUST`) by trusting each configured tap during provisioning; guarded to no-op on Homebrew < 6
 - Fixed `skhd` install failing after its upstream GitHub owner renamed `koekeishiya` → `asmvik`: repointed the tap and package to `asmvik/formulae` and added `koekeishiya/formulae` to `removed_taps`
 - Fixed caveman setup silently skipping Claude Code on Linux: the official Claude installer puts `claude` in `~/.local/bin`, which is absent from the PATH during non-interactive provisioning (the sf-toolbox ansible run executes as root), so `setup_claude`'s `command -v claude` guard failed and the plugin + hooks were never wired. The caveman setup now prepends `~/.local/bin` to PATH before detecting Claude
 - Fixed the caveman installer baking a version-pinned node path (e.g. `/opt/homebrew/Cellar/node/26.0.0/bin/node`) into the `~/.claude/settings.json` SessionStart/UserPromptSubmit hook commands, which broke the hooks on every node upgrade: the caveman setup now rewrites it to a version-independent value on every provisioning pass — the Homebrew symlink (`/opt/homebrew/bin/node` on macOS, `/home/linuxbrew/.linuxbrew/bin/node` for linuxbrew), a non-versioned distro path such as `/usr/bin/node` when already stable, or the bare `node` command (PATH-resolved) for version-pinned setups with no stable symlink such as nvm
