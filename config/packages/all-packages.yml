@@ -1,5 +1,5 @@
 taps:
-  - koekeishiya/formulae
+  - asmvik/formulae
   - charmbracelet/tap
   - anomalyco/tap
 
@@ -77,7 +77,7 @@ homebrew_packages:
   - zoxide
   - starship
   - openssl@3
-  - koekeishiya/formulae/skhd
+  - asmvik/formulae/skhd
   - imagemagick
   - mas
   - gh
@@ -116,6 +116,7 @@ removed_homebrew_packages:
   - tmate
 
 removed_taps:
+  - koekeishiya/formulae
   - homebrew/cask-versions
   - homebrew/cask-fonts
   - homebrew/homebrew-cask-fonts
