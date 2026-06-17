@@ -332,6 +332,23 @@
       when: all_homebrew_packages | length > 0
       become: false
 
+    - name: Re-bind skhd to the renamed asmvik tap (migration from koekeishiya)
+      tags: brew_packages
+      ansible.builtin.shell: |
+        set -uo pipefail
+        # skhd installed before the rename keeps koekeishiya/formulae in its install
+        # receipt; `state: latest` is a no-op on the bare name and never rebinds it, so
+        # the tap-qualified assert below fails. Reinstall to rebind the receipt to asmvik.
+        if brew list skhd >/dev/null 2>&1 && ! brew list asmvik/formulae/skhd >/dev/null 2>&1; then
+          brew reinstall asmvik/formulae/skhd
+          echo "rebound"
+        fi
+      args:
+        executable: /bin/bash
+      become: false
+      register: skhd_rebind
+      changed_when: "'rebound' in skhd_rebind.stdout"
+
     - name: Assert homebrew packages installed
       tags: brew_packages
       shell: |
