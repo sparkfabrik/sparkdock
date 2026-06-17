@@ -133,6 +133,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed provisioning failing on machines that installed a package before its Homebrew tap was renamed (e.g. `skhd` pinned to `koekeishiya/formulae`): added a generic step that reinstalls any tap-qualified package whose install receipt no longer matches its declared tap, rebinding it; driven by the existing package list, no-op for fresh installs and already-correct packages
 - Fixed third-party Homebrew tap installs failing on Homebrew 6.x (`HOMEBREW_REQUIRE_TAP_TRUST`) by trusting each configured tap during provisioning; guarded to no-op on Homebrew < 6
 - Fixed `skhd` install failing after its upstream GitHub owner renamed `koekeishiya` → `asmvik`: repointed the tap and package to `asmvik/formulae` and added `koekeishiya/formulae` to `removed_taps`
 - Fixed caveman setup silently skipping Claude Code on Linux: the official Claude installer puts `claude` in `~/.local/bin`, which is absent from the PATH during non-interactive provisioning (the sf-toolbox ansible run executes as root), so `setup_claude`'s `command -v claude` guard failed and the plugin + hooks were never wired. The caveman setup now prepends `~/.local/bin` to PATH before detecting Claude

@@ -332,6 +332,27 @@
       when: all_homebrew_packages | length > 0
       become: false
 
+    - name: Re-bind tap-qualified packages whose install receipt points at a renamed tap
+      tags: brew_packages
+      ansible.builtin.shell: |
+        set -euo pipefail
+        # A package installed before its tap was renamed keeps the old tap in its install
+        # receipt; `state: latest` is a no-op on the bare name and never rebinds it, so the
+        # tap-qualified assert below fails. If the bare formula is installed but the
+        # tap-qualified name is not, reinstall to rebind the receipt to the declared tap.
+        name="{{ item.split('/') | last }}"
+        if brew list "${name}" >/dev/null 2>&1 && ! brew list "{{ item }}" >/dev/null 2>&1; then
+          brew reinstall "{{ item }}"
+          echo "rebound"
+        fi
+      args:
+        executable: /bin/bash
+      loop: "{{ all_homebrew_packages | select('search', '/') | list }}"
+      become: false
+      register: tap_rebind
+      changed_when: "'rebound' in tap_rebind.stdout"
+      when: all_homebrew_packages | length > 0
+
     - name: Assert homebrew packages installed
       tags: brew_packages
       shell: |
