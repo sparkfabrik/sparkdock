@@ -31,10 +31,20 @@ class GateHookTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
+        # A controlled PATH so the gate's `shutil.which("gh")` guard is
+        # deterministic regardless of whether the host has gh installed.
+        self.bindir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.bindir.cleanup)
+        gh = Path(self.bindir.name) / "gh"
+        gh.write_text("#!/bin/sh\n")
+        gh.chmod(0o755)
+        self.empty_path = tempfile.TemporaryDirectory()
+        self.addCleanup(self.empty_path.cleanup)
 
-    def run_hook(self, payload, extra_env=None):
+    def run_hook(self, payload, extra_env=None, gh_on_path=True):
         env = dict(os.environ)
         env["TMPDIR"] = self.tmp.name
+        env["PATH"] = self.bindir.name if gh_on_path else self.empty_path.name
         env.pop("SPARKDOCK_GH_GATE", None)
         if extra_env:
             env.update(extra_env)
@@ -66,6 +76,11 @@ class GateHookTest(unittest.TestCase):
         r = self.run_hook(self.bash("gh pr create"))
         self.assertEqual(r.returncode, 2)
         self.assertIn("gh", r.stderr.lower())
+
+    def test_not_gated_when_gh_not_installed(self):
+        # With no gh on PATH, gating would only delay a doomed command; allow it.
+        r = self.run_hook(self.bash("gh pr create"), gh_on_path=False)
+        self.assertEqual(r.returncode, 0)
 
     def test_bare_gh_is_gated(self):
         # Regression: regex must match `gh` with no args (end-of-string), else

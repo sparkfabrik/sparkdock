@@ -39,6 +39,7 @@ future gates can share the same plumbing.
 import json
 import os
 import re
+import shutil
 import sys
 from pathlib import Path
 
@@ -122,6 +123,10 @@ def run_hook() -> int:
         if not isinstance(command, str) or not _GH_RE.search(command):
             return 0
         if sentinel.exists():
+            return 0
+        if shutil.which("gh") is None:
+            # gh is not installed; gating would only delay a command that is
+            # going to fail anyway. Let it run and fail on its own.
             return 0
         sys.stderr.write(
             "Load the gh (GitHub CLI) skill before running this command.\n"
