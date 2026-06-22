@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import claude_settings as cs  # noqa: E402
 
-MARKER = "/opt/sparkdock/sjust/scripts/claude-gh-glab-gate.py"
+MARKER = "/opt/sparkdock/sjust/scripts/claude-gh-gate.py"
 COMMAND = f'python3 "{MARKER}" --hook'
 OTHER = {"matcher": "Bash", "hooks": [{"type": "command", "command": "rtk-run-hook"}]}
 
@@ -85,6 +85,19 @@ class BackupTest(unittest.TestCase):
         self.assertTrue(os.path.exists(backup))
         self.assertTrue(backup.startswith(f"{path}.bak."))
         self.assertEqual(Path(backup).read_text(), '{"model": "opus"}\n')
+
+    def test_backup_preserves_mode(self):
+        path = Path(self.tmp.name) / "settings.json"
+        path.write_text("{}\n")
+        os.chmod(path, 0o600)
+        backup = cs.backup(path)
+        self.assertEqual(os.stat(backup).st_mode & 0o777, 0o600)
+
+    def test_backups_in_quick_succession_do_not_collide(self):
+        path = Path(self.tmp.name) / "settings.json"
+        path.write_text("{}\n")
+        names = {cs.backup(path) for _ in range(5)}
+        self.assertEqual(len(names), 5)
 
 
 class SettingsPathTest(unittest.TestCase):

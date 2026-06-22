@@ -19,6 +19,7 @@ Typical use::
 
 import json
 import os
+import shutil
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -41,11 +42,16 @@ def load(path=None) -> dict:
 
 
 def backup(path=None) -> str:
-    """Copy settings.json to a timestamped .bak file; return the backup path."""
+    """Copy settings.json to a timestamped .bak file; return the backup path.
+
+    Uses ``shutil.copy2`` so the backup inherits the source mode and metadata
+    (``settings.json`` is often mode 600 and may reference secrets, so a
+    broader-permission copy would leak it). The timestamp includes microseconds
+    so two backups in the same second do not collide.
+    """
     path = Path(path) if path else settings_path()
-    dst = f"{path}.bak.{datetime.now().strftime('%Y%m%d%H%M%S')}"
-    with open(path) as src, open(dst, "w") as out:
-        out.write(src.read())
+    dst = f"{path}.bak.{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+    shutil.copy2(path, dst)
     return dst
 
 

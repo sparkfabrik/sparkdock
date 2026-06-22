@@ -1010,16 +1010,16 @@
           changed_when: true
           become: false
 
-    - name: Enable gh/glab skill gate for Claude Code
+    - name: Enable gh skill gate for Claude Code
       tags:
-        - claude-gh-glab-gate
+        - claude-gh-gate
         - ai-harness
         - ai-harness-sync
       block:
-        - name: Register gh/glab skill gate PreToolUse hook
-          command: "python3 {{ dev_env_dir }}/sjust/scripts/claude-gh-glab-gate.py enable"
-          register: gh_glab_gate_output
-          changed_when: "'already enabled' not in gh_glab_gate_output.stdout"
+        - name: Register gh skill gate PreToolUse hook
+          command: "python3 {{ dev_env_dir }}/sjust/scripts/claude-gh-gate.py enable"
+          register: gh_gate_output
+          changed_when: "'already enabled' not in gh_gate_output.stdout"
           become: false
 
     - name: Provision AI coding harness directories and permissions

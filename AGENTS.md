@@ -274,15 +274,15 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 
 - `sf-harness-status` — Show full AI coding harness status (tools + skills + profiles)
 - `sf-harness-sync [force]` — Fast sync: skills + agent profiles from upstream
-- `sf-harness-upgrade [force]` — Full upgrade via Ansible (RTK + caveman + gh/glab gate + skills)
-- `claude-gh-glab-gate-{enable,disable,info}` — manage the Claude Code gh/glab skill gate (blocks `gh`/`glab` until the matching skill loads; bypass at runtime with `SPARKDOCK_GHGLAB_GATE=0`)
+- `sf-harness-upgrade [force]` — Full upgrade via Ansible (RTK + caveman + gh gate + skills)
+- `claude-gh-gate-{enable,disable,info}` — manage the Claude Code gh skill gate (blocks `gh` until the `gh` skill loads; bypass at runtime with `SPARKDOCK_GH_GATE=0`)
 
 ### Ansible Tags
 
 - `ai-coding-harness` — umbrella tag for AI coding harness tasks
 - `ai-harness` — alternate umbrella (includes sync + provision)
-- `ai-harness-sync` — no-sudo tasks (RTK + caveman + gh/glab gate + skills sync)
-- `claude-gh-glab-gate` — register only the Claude Code gh/glab skill gate hook
+- `ai-harness-sync` — no-sudo tasks (RTK + caveman + gh gate + skills sync)
+- `claude-gh-gate` — register only the Claude Code gh skill gate hook
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
 - `skills` — backward-compat alias
 
