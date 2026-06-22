@@ -46,9 +46,10 @@ GATED_SKILLS = {"gh"}
 
 # Match a gh invocation anywhere in the command string: at the start, or after
 # whitespace, a separator (; & |), an opening paren, or an env-var assignment.
-# Requires trailing whitespace so "github" does not match. Also catches an
-# RTK-wrapped "rtk-run gh ".
-_GH_RE = re.compile(r"(?:^|[\s;&|(=])gh\s")
+# The name must be followed by whitespace or end-of-string, so a bare `gh` (no
+# args) is still gated while "github" is not. Also catches RTK-wrapped
+# "rtk-run gh ".
+_GH_RE = re.compile(r"(?:^|[\s;&|(=])gh(?:\s|$)")
 
 # Stable identifier embedded in the registered command so the installer can find
 # and remove exactly our entries without disturbing other hooks (RTK, caveman).

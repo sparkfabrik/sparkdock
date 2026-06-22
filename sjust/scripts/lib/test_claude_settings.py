@@ -86,6 +86,19 @@ class BackupTest(unittest.TestCase):
         self.assertTrue(backup.startswith(f"{path}.bak."))
         self.assertEqual(Path(backup).read_text(), '{"model": "opus"}\n')
 
+    def test_backup_preserves_mode(self):
+        path = Path(self.tmp.name) / "settings.json"
+        path.write_text("{}\n")
+        os.chmod(path, 0o600)
+        backup = cs.backup(path)
+        self.assertEqual(os.stat(backup).st_mode & 0o777, 0o600)
+
+    def test_backups_in_quick_succession_do_not_collide(self):
+        path = Path(self.tmp.name) / "settings.json"
+        path.write_text("{}\n")
+        names = {cs.backup(path) for _ in range(5)}
+        self.assertEqual(len(names), 5)
+
 
 class SettingsPathTest(unittest.TestCase):
     def test_honors_home(self):
