@@ -87,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `claude-fix-settings.py` now uses the shared `claude_settings` helper for its atomic settings write and timestamped backup instead of its own copies, removing duplicated I/O. Behavior is unchanged: the same caveman node-path normalization and opt-in claude-usage removal, the same diagnostics for missing/corrupt/non-object files.
 - Menu bar app binary now installs to user-owned `/opt/homebrew/bin/sparkdock-manager` instead of root-owned `/usr/local/bin`, so `sjust sparkdock-menubar-install` no longer needs sudo or a become password (build and LaunchAgent were already user-level)
 - Claude Code statusline context warning is now dynamic against the active model's context window: shows `ctx NN%/1M` (or `/200k`), colored cyan/amber/red by usage, using Claude Code's `context_window.used_percentage` and `context_window.context_window_size`. Falls back to the fixed `⚠ 200k+` flag on older builds that don't emit `context_window`
 - Renamed sjust group `ai-coding-agents` → `ai-coding-harness` and commands `sf-agents-status` → `sf-harness-status`, `sf-agents-sync` → `sf-harness-sync`, `sf-agents-upgrade` → `sf-harness-upgrade`; old names kept as deprecated aliases with notice. Recipe file renamed `01-ai-coding-agents.just` → `01-ai-coding-harness.just`. Ansible tag updated to `ai-coding-harness` (keeping `skills` for backward compat)
