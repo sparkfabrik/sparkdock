@@ -208,6 +208,7 @@ This project uses a daily Slack digest that parses `CHANGELOG.md` to detect and 
 ## Testing
 
 - Ansible playbooks should be idempotent
+- Run Python unit tests with `just test-python` (stdlib `unittest`; also runs in CI via `.github/workflows/test-python.yml`)
 - Test HTTP proxy with `test-http-proxy` command
 - Verify package installations with assertion tasks
 - Check system state with `sjust device-info`
