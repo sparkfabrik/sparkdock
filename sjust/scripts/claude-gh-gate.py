@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""claude-gh-glab-gate — block raw gh/glab commands until the matching skill loads.
+"""claude-gh-gate — block raw gh commands until the gh skill loads.
 
 This script has two roles, selected by the first argument:
 
@@ -9,22 +9,26 @@ This script has two roles, selected by the first argument:
                       remove the two PreToolUse hook entries (matcher "Skill"
                       and matcher "Bash"), or report current status.
 
-Why a gate: the gh/glab skills carry auth handling, structured output, and the
-SparkFabrik conventions for issues/MRs/PRs. Running gh/glab raw bypasses them.
-A skill's description cannot force the agent to load it, but a hook can.
+Why a gate: the gh skill carries auth handling, structured output, and the
+SparkFabrik conventions for issues/PRs. Running gh raw bypasses them. A skill's
+description cannot force the agent to load it, but a hook can.
+
+Scope: gh only. The glab skill is in near-constant use and reliably loaded, so
+gating it would add friction with no payoff. To gate glab (or any other CLI)
+later, add it to GATED_SKILLS and the command regex below.
 
 How the gate works (a "true gate", per session):
-  - When the gh or glab skill is loaded via the Skill tool, the Skill event
-    creates a per-session sentinel file.
-  - A gh/glab Bash command is blocked (exit 2) only while that sentinel is
-    absent. Once the skill has been loaded this session, every later gh/glab
-    call is allowed. The hook still runs on every call; it just stops blocking.
+  - When the gh skill is loaded via the Skill tool, the Skill event creates a
+    per-session sentinel file.
+  - A gh Bash command is blocked (exit 2) only while that sentinel is absent.
+    Once the skill has been loaded this session, every later gh call is allowed.
+    The hook still runs on every call; it just stops blocking.
   - The sentinel is keyed by session_id under the temp dir, so a new session
     starts gated again and nothing needs cleanup.
 
-Escape hatch: set SPARKDOCK_GHGLAB_GATE=0 (or off/false) to disable the gate at
+Escape hatch: set SPARKDOCK_GH_GATE=0 (or off/false) to disable the gate at
 runtime, e.g. for headless automation. Disable persistently with
-`sjust claude-gh-glab-gate-disable`.
+`sjust claude-gh-gate-disable`.
 
 The runtime hook is self-contained (it only reads stdin and touches a sentinel).
 The installer reuses ``sjust/scripts/lib/claude_settings.py`` for the atomic,
@@ -38,13 +42,13 @@ import re
 import sys
 from pathlib import Path
 
-GATED_SKILLS = {"gh", "glab"}
+GATED_SKILLS = {"gh"}
 
-# Match a gh/glab invocation anywhere in the command string: at the start, or
-# after whitespace, a separator (; & |), an opening paren, or an env-var
-# assignment (GITLAB_HOST=... glab ...). Requires trailing whitespace so
-# "github" / "glab-foo" do not match. Also catches RTK-wrapped "rtk-run glab ".
-_GH_GLAB_RE = re.compile(r"(?:^|[\s;&|(=])(?:gh|glab)\s")
+# Match a gh invocation anywhere in the command string: at the start, or after
+# whitespace, a separator (; & |), an opening paren, or an env-var assignment.
+# Requires trailing whitespace so "github" does not match. Also catches an
+# RTK-wrapped "rtk-run gh ".
+_GH_RE = re.compile(r"(?:^|[\s;&|(=])gh\s")
 
 # Stable identifier embedded in the registered command so the installer can find
 # and remove exactly our entries without disturbing other hooks (RTK, caveman).
@@ -70,11 +74,11 @@ def _settings_lib():
 def _sentinel_path(session_id: str) -> Path:
     tmp = Path(os.environ.get("TMPDIR", "/tmp"))
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", session_id or "nosession")
-    return tmp / f"sparkdock-ghglab-gate-{safe}"
+    return tmp / f"sparkdock-gh-gate-{safe}"
 
 
 def _gate_disabled() -> bool:
-    return os.environ.get("SPARKDOCK_GHGLAB_GATE", "").strip().lower() in {
+    return os.environ.get("SPARKDOCK_GH_GATE", "").strip().lower() in {
         "0",
         "off",
         "false",
@@ -113,18 +117,16 @@ def run_hook() -> int:
 
     if tool_name == "Bash":
         command = tool_input.get("command", "")
-        if not isinstance(command, str) or not _GH_GLAB_RE.search(command):
+        if not isinstance(command, str) or not _GH_RE.search(command):
             return 0
         if sentinel.exists():
             return 0
         sys.stderr.write(
-            "Load the GitLab/GitHub CLI skill before running this command.\n"
-            "This command uses `gh` or `glab`, but the matching skill is not "
-            "loaded yet in this session. Invoke the Skill tool first:\n"
-            "  - `glab` for any GitLab work (merge requests, issues, CI, glab)\n"
-            "  - `gh` for any GitHub work (pull requests, issues, Actions, gh)\n"
-            "The skill carries auth handling, structured output, and SparkFabrik "
-            "conventions. After loading it, re-run this command.\n"
+            "Load the gh (GitHub CLI) skill before running this command.\n"
+            "This command uses `gh`, but the `gh` skill is not loaded yet in this "
+            "session. Invoke the Skill tool to load `gh` first; it carries auth "
+            "handling, structured output, and SparkFabrik conventions for issues "
+            "and pull requests. After loading it, re-run this command.\n"
         )
         return 2
 
@@ -145,7 +147,7 @@ def cmd_enable() -> int:
 
     data = cs.load()
     if cs.registered_matchers(data, EVENT, SCRIPT_PATH) >= set(MATCHERS):
-        print(f"ℹ️  gh/glab gate already enabled in {settings}")
+        print(f"ℹ️  gh gate already enabled in {settings}")
         return 0
 
     backup = cs.backup()
@@ -153,10 +155,10 @@ def cmd_enable() -> int:
         cs.register_hook(data, EVENT, matcher, HOOK_COMMAND, SCRIPT_PATH)
     cs.atomic_write(data)
 
-    print(f"✅ gh/glab gate enabled in {settings}")
+    print(f"✅ gh gate enabled in {settings}")
     print(f"💡 Backup saved to {backup}")
     print("💡 Start a new Claude Code session for it to take effect.")
-    print("💡 Disable anytime with: claude-gh-glab-gate-disable")
+    print("💡 Disable anytime with: claude-gh-gate-disable")
     return 0
 
 
@@ -168,13 +170,13 @@ def cmd_disable() -> int:
         return 0
     data = cs.load()
     if not cs.registered_matchers(data, EVENT, SCRIPT_PATH):
-        print(f"ℹ️  gh/glab gate not registered in {settings}.")
+        print(f"ℹ️  gh gate not registered in {settings}.")
         return 0
 
     backup = cs.backup()
     cs.unregister_hook(data, EVENT, SCRIPT_PATH)
     cs.atomic_write(data)
-    print(f"✅ gh/glab gate removed from {settings}")
+    print(f"✅ gh gate removed from {settings}")
     print(f"💡 Backup saved to {backup}")
     return 0
 
@@ -192,14 +194,14 @@ def cmd_info() -> int:
     elif matchers:
         print(f"Configured: ⚠️  partial (only {sorted(matchers)}) in {settings}")
     else:
-        print(f"Configured: no gh/glab gate in {settings}")
+        print(f"Configured: no gh gate in {settings}")
     if _gate_disabled():
-        print("Runtime: SPARKDOCK_GHGLAB_GATE is set to a disabling value (gate off).")
+        print("Runtime: SPARKDOCK_GH_GATE is set to a disabling value (gate off).")
     return 0
 
 
 def usage() -> int:
-    sys.stderr.write("Usage: claude-gh-glab-gate.py {--hook|enable|disable|info}\n")
+    sys.stderr.write("Usage: claude-gh-gate.py {--hook|enable|disable|info}\n")
     return 2
 
 

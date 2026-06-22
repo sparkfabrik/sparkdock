@@ -21,7 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import claude_settings as cs  # noqa: E402
 
-MARKER = "/opt/sparkdock/sjust/scripts/claude-gh-glab-gate.py"
+MARKER = "/opt/sparkdock/sjust/scripts/claude-gh-gate.py"
 COMMAND = f'python3 "{MARKER}" --hook'
 OTHER = {"matcher": "Bash", "hooks": [{"type": "command", "command": "rtk-run-hook"}]}
 
