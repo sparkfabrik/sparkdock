@@ -14,19 +14,20 @@ settings location). Two idempotent fixes are available:
      wires in. Opt-in because users may have installed them deliberately, so the
      automatic provisioning pass leaves them alone.
 
-All JSON work happens here (no jq dependency); writes are atomic (temp file +
-os.replace) with a timestamped backup, and a missing/corrupt/non-object
-settings file is a clean no-op.
+Atomic writes (temp file + os.replace) and the timestamped backup come from the
+shared ``claude_settings`` helper; the load here keeps its own richer
+diagnostics (it distinguishes a missing file from a corrupt or non-object one),
+so a missing/corrupt/non-object settings file stays a clean no-op.
 """
 
 import argparse
 import json
 import os
 import re
-import shutil
 import sys
-import tempfile
-import time
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "lib"))
+import claude_settings as cs  # noqa: E402
 
 CAVEMAN_SCRIPTS = ("caveman-activate.js", "caveman-mode-tracker.js")
 # Leading command token: a quoted "..." path or a bare \S+ run, then the rest.
@@ -104,21 +105,6 @@ def repair(data, node, remove_claude_usage):
     return changes
 
 
-def write_atomic(path, data):
-    """Write ``data`` to ``path`` atomically (temp file + os.replace)."""
-    directory = os.path.dirname(path) or "."
-    fd, tmp = tempfile.mkstemp(dir=directory, prefix=".settings.", suffix=".json")
-    try:
-        with os.fdopen(fd, "w") as f:
-            json.dump(data, f, indent=2)
-            f.write("\n")
-        os.replace(tmp, path)
-    except BaseException:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-        raise
-
-
 def main():
     parser = argparse.ArgumentParser(
         description="Repair Claude Code hooks in settings.json."
@@ -164,9 +150,8 @@ def main():
         )
         return 0
 
-    backup = f"{path}.bak.{time.strftime('%Y%m%d%H%M%S')}"
-    shutil.copy2(path, backup)
-    write_atomic(path, data)
+    backup = cs.backup(path)
+    cs.atomic_write(data, path)
     print(f"\n✅ Applied {len(changes)} change(s) to {path}")
     print(f"💡 Backup saved to {backup}")
     return 0
