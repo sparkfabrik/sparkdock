@@ -89,6 +89,29 @@ class GateHookTest(unittest.TestCase):
             self.run_hook(self.bash("github-release-tool run")).returncode, 0
         )
 
+    def test_gh_as_argument_is_not_gated(self):
+        # The word "gh" inside an argument (e.g. a commit message) must not be
+        # treated as a gh invocation.
+        for cmd in (
+            'git commit -m "feat: enable the gh skill gate"',
+            'echo "gh"',
+            "grep gh file.txt",
+            "rg gh .",
+        ):
+            self.assertEqual(
+                self.run_hook(self.bash(cmd)).returncode, 0, f"should allow: {cmd!r}"
+            )
+
+    def test_gh_after_separators_is_gated(self):
+        for cmd in (
+            "cd /tmp; gh pr list",
+            "cat x | gh pr create",
+            "make build && gh release create",
+        ):
+            self.assertEqual(
+                self.run_hook(self.bash(cmd)).returncode, 2, f"should gate: {cmd!r}"
+            )
+
     def test_non_gh_command_allowed(self):
         self.assertEqual(self.run_hook(self.bash("git push")).returncode, 0)
 
