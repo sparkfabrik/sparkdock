@@ -87,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Claude `gh` gate is now a no-op when `gh` is not installed (not on `PATH`): rather than blocking to load the skill before a command that would only fail with "command not found", it lets the command run. No effect on machines that have `gh`.
 - The Claude `gh` gate now matches `gh` only when it is the command being run (start of the command, or after a `;`/`|`/`&`/newline separator, optionally preceded by env-var assignments), instead of anywhere in the command string. This prevents false-positive blocks when `gh` merely appears inside an argument, such as a commit message that mentions "gh".
 - Menu bar app binary now installs to user-owned `/opt/homebrew/bin/sparkdock-manager` instead of root-owned `/usr/local/bin`, so `sjust sparkdock-menubar-install` no longer needs sudo or a become password (build and LaunchAgent were already user-level)
 - Claude Code statusline context warning is now dynamic against the active model's context window: shows `ctx NN%/1M` (or `/200k`), colored cyan/amber/red by usage, using Claude Code's `context_window.used_percentage` and `context_window.context_window_size`. Falls back to the fixed `⚠ 200k+` flag on older builds that don't emit `context_window`
