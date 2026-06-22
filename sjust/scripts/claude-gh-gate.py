@@ -44,12 +44,13 @@ from pathlib import Path
 
 GATED_SKILLS = {"gh"}
 
-# Match a gh invocation anywhere in the command string: at the start, or after
-# whitespace, a separator (; & |), an opening paren, or an env-var assignment.
-# The name must be followed by whitespace or end-of-string, so a bare `gh` (no
-# args) is still gated while "github" is not. Also catches RTK-wrapped
-# "rtk-run gh ".
-_GH_RE = re.compile(r"(?:^|[\s;&|(=])gh(?:\s|$)")
+# Match `gh` only when it is the command being run, not when it appears as an
+# argument or inside a quoted string. A command position is the start of the
+# string or just after a shell separator (; | & newline, or an opening paren),
+# optionally preceded by env-var assignments (FOO=bar gh ...). The name must be
+# followed by whitespace or end-of-string, so a bare `gh` is gated while
+# "github" and a "gh" mentioned in an argument (e.g. a commit message) are not.
+_GH_RE = re.compile(r"(?:^|[;&|\n(]\s*)(?:\w+=\S*\s+)*gh(?:\s|$)")
 
 # Stable identifier embedded in the registered command so the installer can find
 # and remove exactly our entries without disturbing other hooks (RTK, caveman).
