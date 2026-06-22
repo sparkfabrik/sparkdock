@@ -119,12 +119,16 @@ fi
 
 # --- usage (rate limits) ------------------------------------------------------
 # Mirrors `/usage`: five_hour = current session, seven_day = current week.
+# Claude Code may send fractional percentages (e.g. 14.0000002), so take the
+# integer part the same way the context percentage does above.
 usage=""
-if printf '%s' "$five_pct" | grep -Eq '^[0-9]+$'; then
-  usage="$(printf '5h \033[38;5;%sm%s%%\033[0m' "$(pct_color "$five_pct")" "$five_pct")"
+five_int=$(printf '%s' "$five_pct" | cut -d. -f1)
+if printf '%s' "$five_int" | grep -Eq '^[0-9]+$'; then
+  usage="$(printf '5h \033[38;5;%sm%s%%\033[0m' "$(pct_color "$five_int")" "$five_int")"
 fi
-if printf '%s' "$seven_pct" | grep -Eq '^[0-9]+$'; then
-  week="$(printf '7d \033[38;5;%sm%s%%\033[0m' "$(pct_color "$seven_pct")" "$seven_pct")"
+seven_int=$(printf '%s' "$seven_pct" | cut -d. -f1)
+if printf '%s' "$seven_int" | grep -Eq '^[0-9]+$'; then
+  week="$(printf '7d \033[38;5;%sm%s%%\033[0m' "$(pct_color "$seven_int")" "$seven_int")"
   if [ -n "$usage" ]; then usage="$usage $week"; else usage="$week"; fi
 fi
 [ -n "$usage" ] && append "$usage"
