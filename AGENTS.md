@@ -208,6 +208,7 @@ This project uses a daily Slack digest that parses `CHANGELOG.md` to detect and 
 ## Testing
 
 - Ansible playbooks should be idempotent
+- Run Python unit tests with `just test-python` (stdlib `unittest`; also runs in CI via `.github/workflows/test-python.yml`)
 - Test HTTP proxy with `test-http-proxy` command
 - Verify package installations with assertion tasks
 - Check system state with `sjust device-info`
@@ -273,13 +274,15 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 
 - `sf-harness-status` — Show full AI coding harness status (tools + skills + profiles)
 - `sf-harness-sync [force]` — Fast sync: skills + agent profiles from upstream
-- `sf-harness-upgrade [force]` — Full upgrade via Ansible (RTK + caveman + skills)
+- `sf-harness-upgrade [force]` — Full upgrade via Ansible (RTK + caveman + gh gate + skills)
+- `claude-gh-gate-{enable,disable,info}` — manage the Claude Code gh skill gate (blocks `gh` until the `gh` skill loads; bypass at runtime with `SPARKDOCK_GH_GATE=0`)
 
 ### Ansible Tags
 
 - `ai-coding-harness` — umbrella tag for AI coding harness tasks
 - `ai-harness` — alternate umbrella (includes sync + provision)
-- `ai-harness-sync` — no-sudo tasks (RTK + caveman + skills sync)
+- `ai-harness-sync` — no-sudo tasks (RTK + caveman + gh gate + skills sync)
+- `claude-gh-gate` — register only the Claude Code gh skill gate hook
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
 - `skills` — backward-compat alias
 

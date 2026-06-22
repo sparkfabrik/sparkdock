@@ -36,6 +36,12 @@ run-ansible-playbook TAGS="all":
         ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --tags=${TAGS} -v
     fi
 
+# Run Python unit tests (stdlib unittest only; no third-party deps).
+test-python:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    python3 -m unittest discover -s sjust/scripts/lib -p 'test_*.py' -v
+
 # Create macOS VM with Tart (installs Tart if needed)
 # Available VM images: https://tart.run/quick-start/#vm-images
 tart-create-vm IMAGE="ghcr.io/cirruslabs/macos-sequoia-base:latest":
