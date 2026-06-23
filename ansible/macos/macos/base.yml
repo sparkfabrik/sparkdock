@@ -989,10 +989,10 @@
             - openspec_completion_output.rc == 0
 
         - name: Install or update global OpenSpec skills and prompts for Claude
-          command: "{{ dev_env_dir }}/sjust/sjust.sh sf-openspec-install-global claude"
+          ansible.builtin.command: "{{ dev_env_dir }}/sjust/sjust.sh sf-openspec-install-global claude"
           become: false
           when: openspec_available.stdout == "available"
-          changed_when: false
+          changed_when: true
 
     - name: Configure RTK for AI coding tools
       tags:

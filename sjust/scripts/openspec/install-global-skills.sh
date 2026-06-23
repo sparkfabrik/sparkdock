@@ -24,7 +24,7 @@ fi
 
 # Already initialized: refresh skills + commands for every configured tool.
 if [[ -d "${HOME}/openspec" ]]; then
-    log_info "Updating global OpenSpec skills and prompts in ${HOME}/.claude"
+    log_info "Updating global OpenSpec skills and prompts under ${HOME} (all configured tools)"
     openspec update "${HOME}" --force
     log_success "Global OpenSpec skills and prompts updated"
     exit 0

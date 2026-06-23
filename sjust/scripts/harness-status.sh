@@ -195,7 +195,7 @@ declare -A OPENSPEC_TOOL_CMD_DIR=(
 
 _openspec_version() {
     if command -v openspec &>/dev/null; then
-        openspec --version 2>/dev/null | head -1
+        openspec --version 2>&1 | head -1
     else
         echo ""
     fi
