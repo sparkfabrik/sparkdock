@@ -177,6 +177,50 @@ _caveman_agents() {
     echo "${out% }"
 }
 
+# --- OpenSpec functions ---
+
+# Per-tool skills directories (mirrors bin/common/skills-symlink-shim.sh).
+declare -A OPENSPEC_TOOL_SKILLS_DIR=(
+    [claude]="${HOME}/.claude/skills"
+    [copilot]="${HOME}/.copilot/skills"
+    [opencode]="${HOME}/.config/opencode/skills"
+)
+
+# Per-tool prompt/command directories where OpenSpec installs opsx prompts.
+declare -A OPENSPEC_TOOL_CMD_DIR=(
+    [claude]="${HOME}/.claude/commands/opsx"
+    [copilot]="${HOME}/.copilot/prompts/opsx"
+    [opencode]="${HOME}/.config/opencode/command/opsx"
+)
+
+_openspec_version() {
+    if command -v openspec &>/dev/null; then
+        openspec --version 2>&1 | head -1
+    else
+        echo ""
+    fi
+}
+
+# Count openspec-* skill directories installed under a tool's skills dir.
+_openspec_skill_count() {
+    local dir="$1"
+    local count=0 d
+    for d in "${dir}"/openspec-*/; do
+        [[ -d "${d}" ]] && count=$((count + 1))
+    done
+    echo "${count}"
+}
+
+# Count opsx command/prompt files installed under a tool's command dir.
+_openspec_cmd_count() {
+    local dir="$1"
+    local count=0 f
+    for f in "${dir}"/*.md; do
+        [[ -f "${f}" ]] && count=$((count + 1))
+    done
+    echo "${count}"
+}
+
 # --- Output formatting ---
 
 _print_header() {
@@ -302,6 +346,43 @@ _render_commands_section() {
     echo ""
 }
 
+_render_openspec_section() {
+    local version
+    version="$(_openspec_version)"
+
+    _print_section "OpenSpec — Spec-Driven Workflow"
+    echo ""
+
+    if [[ -z "${version}" ]]; then
+        printf "  CLI: ✗ not installed  (brew install openspec)\n\n"
+        return
+    fi
+
+    local project_state="✗ not initialized"
+    [[ -d "${HOME}/openspec" ]] && project_state="✓ ~/openspec"
+    printf "  CLI: ✓ %s  │  Global project: %s\n" "${version}" "${project_state}"
+
+    local agent
+    for agent in "${AGENTS[@]}"; do
+        local count cmd_count
+        count="$(_openspec_skill_count "${OPENSPEC_TOOL_SKILLS_DIR[${agent}]}")"
+        cmd_count="$(_openspec_cmd_count "${OPENSPEC_TOOL_CMD_DIR[${agent}]}")"
+        if [[ "${count}" -gt 0 || "${cmd_count}" -gt 0 ]]; then
+            printf "    %-9s skills: %s  │  commands: %s\n" "${agent}" "${count}" "${cmd_count}"
+        else
+            printf "    %-9s —\n" "${agent}"
+        fi
+    done
+
+    echo ""
+    local dim='' reset=''
+    if [[ -t 1 && -z "${NO_COLOR:-}" ]]; then
+        dim=$'\033[2m'
+        reset=$'\033[0m'
+    fi
+    printf "  %sInstall/update: sjust sf-openspec-install-global [tools]%s\n\n" "${dim}" "${reset}"
+}
+
 # --- Main ---
 
 main() {
@@ -317,6 +398,9 @@ main() {
     if [[ -x "${agents_status}" ]]; then
         "${agents_status}"
     fi
+
+    # Show OpenSpec spec-driven workflow status (CLI + global skills/prompts)
+    _render_openspec_section
 }
 
 main "$@"
