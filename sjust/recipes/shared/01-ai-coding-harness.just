@@ -13,7 +13,7 @@ sf-harness-sync $force="":
     fi
 
 # Upgrade the full AI coding harness: brew formulae, skills, agent profiles,
-# RTK hooks, and caveman. Runs via Ansible (no sudo required).
+# RTK hooks, caveman, and the OpenSpec CLI + global skills. Runs via Ansible (no sudo required).
 # Pass "force" or "--force" to overwrite locally modified resources.
 [group('ai-coding-harness')]
 sf-harness-upgrade $force="":

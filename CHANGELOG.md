@@ -89,6 +89,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `sjust sf-harness-upgrade` now also upgrades the OpenSpec CLI to the latest Homebrew release and refreshes the global OpenSpec skills and prompts: the OpenSpec Ansible block now carries the `ai-harness`/`ai-harness-sync` tags, so the upgrade reuses the existing `sf-openspec-configure` and `sf-openspec-install-global` recipes
 - The Claude `gh` gate is now a no-op when `gh` is not installed (not on `PATH`): rather than blocking to load the skill before a command that would only fail with "command not found", it lets the command run. No effect on machines that have `gh`.
 - The Claude `gh` gate now matches `gh` only when it is the command being run (start of the command, or after a `;`/`|`/`&`/newline separator, optionally preceded by env-var assignments), instead of anywhere in the command string. This prevents false-positive blocks when `gh` merely appears inside an argument, such as a commit message that mentions "gh".
 - Menu bar app binary now installs to user-owned `/opt/homebrew/bin/sparkdock-manager` instead of root-owned `/usr/local/bin`, so `sjust sparkdock-menubar-install` no longer needs sudo or a become password (build and LaunchAgent were already user-level)

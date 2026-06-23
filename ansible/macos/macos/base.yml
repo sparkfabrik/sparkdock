@@ -951,8 +951,19 @@
             - opencode_completion_output.rc == 0
 
     - name: Configure OpenSpec settings
-      tags: openspec
+      tags:
+        - openspec
+        - ai-harness
+        - ai-harness-sync
       block:
+        - name: Upgrade OpenSpec CLI to the latest release
+          community.general.homebrew:
+            name: openspec
+            state: latest
+            update_homebrew: false
+          become: false
+          when: "'openspec' in all_homebrew_packages"
+
         - name: Configure OpenSpec custom profile with all workflows
           command: "{{ dev_env_dir }}/sjust/sjust.sh sf-openspec-configure force"
           become: false

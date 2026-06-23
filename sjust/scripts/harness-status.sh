@@ -393,14 +393,14 @@ main() {
         _render_commands_section
     fi
 
+    # Show OpenSpec spec-driven workflow status (CLI + global skills/prompts)
+    _render_openspec_section
+
     # Show skills + agent profiles (the other half of the harness)
     local agents_status="${SCRIPT_DIR}/../../bin/sparkdock-agents-status"
     if [[ -x "${agents_status}" ]]; then
         "${agents_status}"
     fi
-
-    # Show OpenSpec spec-driven workflow status (CLI + global skills/prompts)
-    _render_openspec_section
 }
 
 main "$@"
