@@ -960,7 +960,7 @@
           community.general.homebrew:
             name: openspec
             state: latest
-            update_homebrew: false
+            update_homebrew: true
           become: false
           when: "'openspec' in all_homebrew_packages"
 
