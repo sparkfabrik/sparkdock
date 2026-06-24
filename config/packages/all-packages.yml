@@ -17,7 +17,6 @@ cask_packages:
   - iterm2
   - maccy
   - cameracontroller
-  - visual-studio-code
   - monitorcontrol
   - claude
 
@@ -28,6 +27,8 @@ cask_install_once_packages:
     app: "Docker"
   - name: google-chrome
     app: "Google Chrome"
+  - name: visual-studio-code
+    app: "Visual Studio Code"
   - name: visual-studio-code@insiders
     app: "Visual Studio Code - Insiders"
   - name: slack
