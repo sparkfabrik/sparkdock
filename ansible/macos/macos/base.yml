@@ -31,6 +31,7 @@
         - always
       set_fact:
         all_cask_packages: "{{ all_packages.cask_packages | default([]) }}"
+        all_cask_install_once: "{{ all_packages.cask_install_once_packages | default([]) }}"
         all_cask_latest_packages: "{{ all_packages.cask_latest_packages | default([]) }}"
         all_homebrew_packages: "{{ all_packages.homebrew_packages | default([]) }}"
         all_linked_packages: "{{ all_packages.linked_packages | default([]) }}"
@@ -129,44 +130,35 @@
       when: all_removed_homebrew | length > 0
       become: false
 
-    - name: Docker and container runtime installation
-      tags: [docker]
+    - name: Install-once casks (install if absent, never force-reinstall)
+      tags: [cask]
       block:
-        - name: Check if Docker Desktop is already installed
-          shell: brew list --cask docker-desktop >/dev/null 2>&1 && echo yes || echo no
-          register: docker_desktop_installed
+        - name: Detect already-installed install-once casks
+          shell: |
+            if brew list --cask "{{ item.name }}" >/dev/null 2>&1; then
+              echo yes
+            elif [ -n "{{ item.app | default('') }}" ] && { [ -d "/Applications/{{ item.app | default('') }}.app" ] || [ -d "{{ ansible_facts['env']['HOME'] }}/Applications/{{ item.app | default('') }}.app" ]; }; then
+              echo yes
+            else
+              echo no
+            fi
+          loop: "{{ all_cask_install_once }}"
+          register: install_once_checks
           changed_when: false
+          become: false
 
-        - name: Remove Docker Desktop from install list if already installed
+        - name: Build list of missing install-once casks
           set_fact:
-            all_cask_packages: "{{ all_cask_packages | difference(['docker-desktop']) }}"
-          when: "'docker-desktop' in all_cask_packages and docker_desktop_installed.stdout == 'yes'"
+            cask_install_once_to_install: "{{ install_once_checks.results | selectattr('stdout', 'equalto', 'no') | map(attribute='item.name') | list }}"
 
-    - name: Google Chrome installation
-      tags: [chrome]
-      block:
-        - name: Check if Google Chrome is already installed
-          shell: brew list --cask google-chrome >/dev/null 2>&1 && echo yes || echo no
-          register: google_chrome_installed
-          changed_when: false
-
-        - name: Remove Google Chrome from install list if already installed
-          set_fact:
-            all_cask_packages: "{{ all_cask_packages | difference(['google-chrome']) }}"
-          when: "'google-chrome' in all_cask_packages and google_chrome_installed.stdout == 'yes'"
-
-    - name: Visual Studio Code Insiders installation
-      tags: [vscode]
-      block:
-        - name: Check if Visual Studio Code Insiders is already installed
-          shell: brew list --cask visual-studio-code@insiders >/dev/null 2>&1 && echo yes || echo no
-          register: vscode_insiders_installed
-          changed_when: false
-
-        - name: Remove Visual Studio Code Insiders from install list if already installed
-          set_fact:
-            all_cask_packages: "{{ all_cask_packages | difference(['visual-studio-code@insiders']) }}"
-          when: "'visual-studio-code@insiders' in all_cask_packages and vscode_insiders_installed.stdout == 'yes'"
+        - name: Install missing install-once casks
+          community.general.homebrew_cask:
+            name: "{{ item }}"
+            state: present
+            sudo_password: "{{ ansible_become_pass | default(omit) }}"
+          loop: "{{ cask_install_once_to_install }}"
+          when: cask_install_once_to_install | length > 0
+          become: false
 
     - name: Transition GitHub Copilot CLI from npm to brew cask
       tags: copilot-cli

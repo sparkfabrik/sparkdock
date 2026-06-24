@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a `cask_install_once_packages` list in `config/packages/all-packages.yml` for Homebrew casks that should be installed only when absent and never force-reinstalled; each entry supports an optional `app` name so a copy installed outside Homebrew (e.g. downloaded from the web) is detected via its `.app` bundle and not reinstalled
 - Added an OpenSpec section to `sjust sf-harness-status` showing the `openspec` CLI version, the global `~/openspec` project state, and per-tool (claude/copilot/opencode) counts of installed `openspec-*` skills and `opsx` prompts; read-only, no-op when the CLI is absent
 - Added `sjust sf-openspec-install-global [tools]` recipe and Ansible task that install or update OpenSpec skills and prompt commands globally via a home `~/openspec` project; idempotent, defaults to the `claude` tool, runs during provisioning when the `openspec` CLI is available
 - Added a Claude Code `gh` skill gate: a sparkdock-managed `PreToolUse` hook (`sjust/scripts/claude-gh-gate.py`) that blocks the first `gh` command of a session until the `gh` skill is loaded via the Skill tool, then allows the rest of the session (per-session sentinel keyed by `session_id`). Scoped to `gh` only (the `glab` skill is in near-constant use and reliably loaded, so gating it would add friction with no payoff). Default-on (registered during provisioning, like the RTK/caveman hooks, on macOS and Linux); coexists with the RTK Bash hook since it only decides allow/deny. Manage it with `sjust claude-gh-gate-{enable,disable,info}`, and bypass at runtime with `SPARKDOCK_GH_GATE=0` for headless automation. Idempotent, atomic settings write with a timestamped backup, and it preserves all other hooks and settings.
@@ -89,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved Docker Desktop, Google Chrome, VSCode Insiders, Slack, and Zoom from `cask_packages` to the new install-once handling, so they are installed once and never force-reinstalled on later provisioning runs; this replaces the three per-app skip blocks (Docker/Chrome/VSCode Insiders) with a single data-driven block and stops Chrome from being force-reinstalled (degrading the browser) while it is open
 - The OpenSpec CLI upgrade task now runs `brew update` first (`update_homebrew: true`) so `state: latest` resolves against current formula definitions instead of a possibly stale local index
 - `sjust sf-harness-upgrade` now also upgrades the OpenSpec CLI to the latest Homebrew release and refreshes the global OpenSpec skills and prompts: the OpenSpec Ansible block now carries the `ai-harness`/`ai-harness-sync` tags, so the upgrade reuses the existing `sf-openspec-configure` and `sf-openspec-install-global` recipes
 - The Claude `gh` gate is now a no-op when `gh` is not installed (not on `PATH`): rather than blocking to load the skill before a command that would only fail with "command not found", it lets the command run. No effect on machines that have `gh`.
