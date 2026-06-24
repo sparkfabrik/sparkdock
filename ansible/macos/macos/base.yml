@@ -757,10 +757,26 @@
             mode: "0755"
             remote_src: true
 
+        - name: Clear provenance xattr and warm code signature
+          # A freshly written binary fires an ES_EVENT_TYPE_AUTH_EXEC event on its
+          # first exec; under load an Endpoint Security agent (e.g. Mosyle) can be
+          # slow to authorize, the kernel denies the exec and the verify task below
+          # dies with rc -9 (SIGKILL). Clearing the provenance xattr and re-applying
+          # the ad-hoc signature warms the assessment synchronously. See issue #537.
+          ansible.builtin.command: >-
+            /bin/sh -c 'xattr -c "{{ homebrew_brew_bin_path }}/sparkdock-manager";
+            codesign --force --sign - "{{ homebrew_brew_bin_path }}/sparkdock-manager"'
+          changed_when: false
+
         - name: Verify menu bar app works
           command: "{{ homebrew_brew_bin_path }}/sparkdock-manager --status"
           register: sparkdock_status
           changed_when: false
+          # Absorb a transient first-exec denial from an Endpoint Security agent
+          # until its verdict caches. See issue #537.
+          retries: 5
+          delay: 2
+          until: sparkdock_status.rc == 0
 
         - name: Display menu bar app status
           debug:
