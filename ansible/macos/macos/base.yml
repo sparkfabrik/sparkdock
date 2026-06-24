@@ -143,10 +143,14 @@
           when: "'docker-desktop' in all_cask_packages and docker_desktop_installed.stdout == 'yes'"
 
     - name: Google Chrome installation
-      tags: [chrome]
+      tags: [chrome, cask]
       block:
         - name: Check if Google Chrome is already installed
-          shell: brew list --cask google-chrome >/dev/null 2>&1 && echo yes || echo no
+          shell: >
+            (brew list --cask google-chrome >/dev/null 2>&1 ||
+             [ -d "/Applications/Google Chrome.app" ] ||
+             [ -d "{{ ansible_facts['env']['HOME'] }}/Applications/Google Chrome.app" ]) &&
+            echo yes || echo no
           register: google_chrome_installed
           changed_when: false
 

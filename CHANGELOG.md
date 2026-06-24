@@ -141,6 +141,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed Google Chrome being force-reinstalled via Homebrew Cask on every provisioning run: the Chrome skip check now detects both Homebrew-managed and directly-installed Chrome (`/Applications/Google Chrome.app`), and the check block is tagged `cask` so it also runs when provisioning with `--tags cask`. Chrome has its own auto-update mechanism and should not be managed by Homebrew once installed.
 - Fixed the managed Claude Code statusline dropping the weekly (`7d`) usage when Claude Code reports a fractional `seven_day.used_percentage` (e.g. `14.0000002`): the rate-limit percentages are now reduced to their integer part before the numeric check, the same way the context percentage already is. The `5h` value was unaffected only because it happened to be a whole number.
 - Fixed provisioning failing on machines that installed a package before its Homebrew tap was renamed (e.g. `skhd` pinned to `koekeishiya/formulae`): added a generic step that reinstalls any tap-qualified package whose install receipt no longer matches its declared tap, rebinding it; driven by the existing package list, no-op for fresh installs and already-correct packages
 - Fixed third-party Homebrew tap installs failing on Homebrew 6.x (`HOMEBREW_REQUIRE_TAP_TRUST`) by trusting each configured tap during provisioning; guarded to no-op on Homebrew < 6
