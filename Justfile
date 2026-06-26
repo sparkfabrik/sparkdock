@@ -10,30 +10,27 @@ run-ansible-playbook TAGS="all":
     #!/usr/bin/env bash
     set -euo pipefail
 
-    # Unset the password on exit
-    trap 'unset ANSIBLE_BECOME_PASS' EXIT
-
     TAGS={{TAGS}}
 
     # Ensure Python3 is installed and available at the expected location
     ./bin/sparkdock.macos ensure-python3
 
-    # Read password and save to env ANSIBLE_BECOME_PASS
-    # Check if we're running in CI (GitHub Actions sets these variables)
-    if [ -z "${CI:-}" ] && [ -z "${GITHUB_ACTIONS:-}" ]; then
-        read -rsp "Enter your password (for sudo access): " ANSIBLE_BECOME_PASS
-        export ANSIBLE_BECOME_PASS
-        echo
-    else
+    # Single shell-side CI-detection source of truth.
+    source ./bin/common/utils.sh
+
+    # CI runs with --become and no prompt; interactive runs prompt once via
+    # --ask-become-pass, which populates ansible_become_pass natively (no env var).
+    if is_ci_environment; then
         echo "Running in CI mode, skipping sudo password prompt"
-        export ANSIBLE_BECOME_PASS=""
+        BECOME_FLAG="--become"
+    else
+        BECOME_FLAG="--ask-become-pass"
     fi
 
-    # Pass the variable to ansible.
     if [ -z "${TAGS}" ]; then
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini -v
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini "${BECOME_FLAG}" -v
     else
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --tags=${TAGS} -v
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --tags=${TAGS} "${BECOME_FLAG}" -v
     fi
 
 # Run Python unit tests (stdlib unittest only; no third-party deps).
