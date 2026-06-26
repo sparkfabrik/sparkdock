@@ -18,6 +18,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
 
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/audio"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/app"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
@@ -40,6 +41,8 @@ func main() {
 		BrewBin:         "brew",
 		Run:             execRunner,
 	}
+
+	audio.Play() // best-effort startup chime; no-op when disabled/unsupported
 
 	prog := tea.NewProgram(app.New(app.Config{Root: root}, ver, checker), tea.WithAltScreen())
 	if _, err := prog.Run(); err != nil {
