@@ -224,7 +224,8 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	case "provision":
 		return runSpec{title: "Running full provisioning", rnr: m.ansible, opts: ansibleOpts(), sudo: true}, true
 	case "upgrade":
-		return runSpec{title: "Upgrading Brew packages", rnr: m.ansible, opts: ansibleOpts("cask"), sudo: true}, true
+		// A plain `brew upgrade`, not a provisioning run.
+		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForCommand("brew", "upgrade")}, true
 	case "sync":
 		return runSpec{title: "Syncing AI harness", rnr: m.ansible, opts: ansibleOpts("ai-harness-sync"), sudo: false}, true
 	default:

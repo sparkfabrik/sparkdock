@@ -63,22 +63,23 @@ func TestPasswordSubmitStartsRunAndCachesBecome(t *testing.T) {
 func TestCachedPasswordSkipsPrompt(t *testing.T) {
 	m := newTestApp()
 	m.become = "cached"
-	m = update(m, ui.Navigate(ui.PageRunner, "upgrade"))
+	m = update(m, ui.Navigate(ui.PageRunner, "provision")) // sudo action
 	if m.page != ui.PageRunner {
 		t.Errorf("page = %v, want PageRunner (no prompt with cached password)", m.page)
 	}
 }
 
-func TestPendingActionTracksLatestSudoAction(t *testing.T) {
+func TestPendingActionTracksLatestAction(t *testing.T) {
+	// Both actions use the injected fake ansible runner, so nothing real spawns.
 	m := newTestApp()
-	m.become = "cached" // both go straight to run
+	m.become = "cached"
 	m = update(m, ui.Navigate(ui.PageRunner, "provision"))
 	if m.pendingAction != "provision" {
 		t.Fatalf("pendingAction = %q, want provision", m.pendingAction)
 	}
-	m = update(m, ui.Navigate(ui.PageRunner, "upgrade"))
-	if m.pendingAction != "upgrade" {
-		t.Errorf("pendingAction = %q, want upgrade (must track latest for correct re-prompt)", m.pendingAction)
+	m = update(m, ui.Navigate(ui.PageRunner, "sync"))
+	if m.pendingAction != "sync" {
+		t.Errorf("pendingAction = %q, want sync (must track latest for correct re-prompt)", m.pendingAction)
 	}
 }
 
