@@ -59,9 +59,10 @@ type Model struct {
 	title string
 	start time.Time
 
-	phase string
-	task  string
-	stats feed.Stats
+	phase    string
+	task     string
+	stats    feed.Stats
+	hasStats bool // true once an @@STAT marker is seen (i.e. an ansible run)
 
 	lines []string // rendered content
 	raw   []string // verbatim output for the copyable log
@@ -102,6 +103,7 @@ func (m Model) Start(title string, h *runner.Handle) (Model, tea.Cmd) {
 	m.running, m.failed, m.canceled = true, false, false
 	m.phase, m.task = "starting", "…"
 	m.stats = feed.Stats{}
+	m.hasStats = false
 	m.lines, m.raw = nil, nil
 	m.start = time.Now()
 	m.vp = viewport.New(m.width, max(m.height-chromeRows, 1))
@@ -208,6 +210,7 @@ func (m *Model) apply(e feed.Event) {
 		m.task = e.Text
 	case feed.KindStat:
 		m.stats = e.Stats
+		m.hasStats = true
 	case feed.KindResult:
 		m.lines = append(m.lines, "  "+glyph(st, e.Glyph)+" "+e.Text)
 	case feed.KindPlain:
@@ -233,7 +236,9 @@ func (m *Model) finish(res runner.Result) {
 		m.lines = append(m.lines, "", st.Failed.Render("✗ run failed")+detail)
 	default:
 		m.task = "complete"
-		m.lines = append(m.lines, "", lipgloss.NewStyle().Bold(true).Render("Summary")+m.summary())
+		if m.hasStats { // only ansible runs report a task tally
+			m.lines = append(m.lines, "", lipgloss.NewStyle().Bold(true).Render("Summary")+m.summary())
+		}
 	}
 }
 
@@ -278,11 +283,16 @@ func (m Model) View() string {
 	case !m.running:
 		left = st.OK.Render(theme.MarkOK+" Completed") + st.Dim.Render(" · "+m.title)
 	}
-	right := fmt.Sprintf("%s  %s · %s · %s · %s", glyphRune,
-		st.OK.Render(fmt.Sprintf("%d ok", m.stats.OK)),
-		st.Changed.Render(fmt.Sprintf("%d changed", m.stats.Changed)),
-		st.Failed.Render(fmt.Sprintf("%d failed", m.stats.Failed)),
-		st.Dim.Render(m.elapsed()))
+	var right string
+	if m.hasStats {
+		right = fmt.Sprintf("%s  %s · %s · %s · %s", glyphRune,
+			st.OK.Render(fmt.Sprintf("%d ok", m.stats.OK)),
+			st.Changed.Render(fmt.Sprintf("%d changed", m.stats.Changed)),
+			st.Failed.Render(fmt.Sprintf("%d failed", m.stats.Failed)),
+			st.Dim.Render(m.elapsed()))
+	} else {
+		right = glyphRune + "  " + st.Dim.Render(m.elapsed())
+	}
 	gap := max(width-lipgloss.Width(left)-lipgloss.Width(right)-1, 1)
 	statusline := " " + left + strings.Repeat(" ", gap) + right
 

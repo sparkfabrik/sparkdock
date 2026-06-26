@@ -90,6 +90,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "r":
 			m.loading = true
 			return m, m.refresh()
+		case "d":
+			return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, "device") }
 		case "enter":
 			if it := m.current(); it != nil {
 				return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, it.id) }
@@ -151,8 +153,6 @@ func (m *Model) rebuild() {
 		item{kind: kindAction, id: "provision", label: "Run full provisioning", selectable: true},
 		item{kind: kindAction, id: "upgrade", label: "Upgrade Brew packages", detail: m.subByKey("brew").Detail, selectable: true},
 		item{kind: kindAction, id: "sync", label: "Sync AI harness", selectable: true},
-		item{kind: kindGroup, label: "Tools"},
-		item{kind: kindAction, id: "device", label: "Device info", selectable: true},
 		item{kind: kindGroup, label: "HTTP proxy"},
 		item{kind: kindAction, id: "proxy-status", label: "Status", selectable: true},
 		item{kind: kindAction, id: "proxy-start", label: "Start", selectable: true},
@@ -224,11 +224,16 @@ func (m Model) View() string {
 	}
 
 	b.WriteString("\n" + st.Dim.Render(strings.Repeat("─", width)) + "\n")
-	left := st.Dim.Render(" " + m.ver.Short())
+	left := " " + st.SparkS.Render(theme.Spark) + " " + st.Dim.Render(m.ver.Short())
 	if m.loading {
-		left = st.Dim.Render(" refreshing…")
+		left = " " + st.Amber.Render("◐") + " " + st.Dim.Render("refreshing…")
 	}
-	keys := st.Dim.Render("↑↓ move · ⏎ select · r refresh · q quit ")
+	hint := func(k, label string) string { return st.SparkS.Render(k) + " " + st.Dim.Render(label) }
+	sep := st.Dim.Render(" · ")
+	keys := strings.Join([]string{
+		hint("↑↓", "move"), hint("⏎", "select"), hint("r", "refresh"),
+		hint("d", "device"), hint("q", "quit"),
+	}, sep) + " "
 	gap := max(width-lipgloss.Width(left)-lipgloss.Width(keys), 1)
 	b.WriteString(left + strings.Repeat(" ", gap) + keys)
 	return b.String()

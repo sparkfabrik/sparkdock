@@ -173,7 +173,7 @@ func (m Model) launch(action string) (tea.Model, tea.Cmd) {
 
 func (m Model) start(spec runSpec) (tea.Model, tea.Cmd) {
 	if spec.sudo {
-		spec.opts.AskBecomePass = true
+		spec.opts.Sudo = true
 	}
 	// Size the child's PTY to the runner view's content area (lines are indented
 	// by two columns, so leave room for that).
@@ -203,7 +203,8 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	case "provision":
 		return runSpec{title: "Running full provisioning", rnr: m.ansible, opts: ansibleOpts(), sudo: true}, true
 	case "upgrade":
-		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForCommand("brew", "upgrade")}, true
+		// brew casks may invoke sudo; prime it once up front.
+		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForSudoCommand("brew", "upgrade")}, true
 	case "sync":
 		return runSpec{title: "Syncing AI harness", rnr: m.ansible, opts: ansibleOpts("ai-harness-sync")}, true
 	case "proxy-status":

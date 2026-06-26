@@ -95,10 +95,9 @@ func TestCancel_MarksCanceled(t *testing.T) {
 
 func TestAnsibleBuilder_Flags(t *testing.T) {
 	cmd := AnsibleBuilder(context.Background(), Options{
-		Playbook:      "playbook.yml",
-		Tags:          []string{"docker", "cask"},
-		AskBecomePass: true,
-		ForceFail:     true,
+		Playbook:  "playbook.yml",
+		Tags:      []string{"docker", "cask"},
+		ForceFail: true,
 	})
 	joined := ""
 	for _, a := range cmd.Args {
@@ -107,17 +106,28 @@ func TestAnsibleBuilder_Flags(t *testing.T) {
 	if !contains(joined, "--tags") || !contains(joined, "docker,cask") {
 		t.Errorf("argv missing tags: %v", cmd.Args)
 	}
-	if !contains(joined, "--ask-become-pass") {
-		t.Errorf("argv missing --ask-become-pass: %v", cmd.Args)
-	}
 	if !contains(joined, "force_fail=true") {
 		t.Errorf("argv missing force_fail: %v", cmd.Args)
 	}
-	// no password anywhere; the env carries no become secret
+	// no become password env, and no --ask-become-pass (sudo is primed instead)
 	for _, kv := range cmd.Env {
 		if contains(kv, "ANSIBLE_BECOME_PASS") {
 			t.Errorf("env must not carry a become password: %q", kv)
 		}
+	}
+}
+
+func TestAnsibleBuilder_SudoPrimesTimestamp(t *testing.T) {
+	cmd := AnsibleBuilder(context.Background(), Options{Playbook: "playbook.yml", Sudo: true})
+	joined := ""
+	for _, a := range cmd.Args {
+		joined += a + " "
+	}
+	if !contains(joined, "sudo -v") {
+		t.Errorf("sudo run must prime the sudo timestamp: %v", cmd.Args)
+	}
+	if !contains(joined, "ansible-playbook") {
+		t.Errorf("wrapped command must still exec ansible-playbook: %v", cmd.Args)
 	}
 }
 

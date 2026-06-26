@@ -32,7 +32,7 @@ type Options struct {
 	Playbook          string   // playbook filename (relative to Dir)
 	Inventory         string   // inventory spec, e.g. "localhost,"
 	Tags              []string // optional --tags
-	AskBecomePass     bool     // add --ask-become-pass so ansible prompts (we answer via PTY)
+	Sudo              bool     // prime the sudo timestamp first (sudo -v), so become works via sudo -n
 	ForceFail         bool     // demo/testing: -e force_fail=true
 	Verbose           bool     // pass -v
 	CallbackPluginDir string   // dir containing the sparkdock callback
@@ -198,9 +198,15 @@ func IsBecomeAuthFailure(lines []string) bool {
 	return false
 }
 
+// sudoPrime is a shell prelude that caches the sudo timestamp (prompting on the
+// PTY, which the UI answers) before exec'ing the real command. Ansible's
+// per-task `sudo -n` and brew's cask sudo then reuse the cached credential, so
+// there is a single prompt and no become-password plumbing.
+const sudoPrime = `sudo -v || exit 1; exec "$@"`
+
 // AnsibleBuilder builds a real ansible-playbook invocation with the sparkdock
-// stdout callback. --ask-become-pass is added when AskBecomePass is set, so
-// ansible prompts for the become password on the PTY (which the UI answers).
+// stdout callback. When Sudo is set, the run is wrapped so the sudo timestamp is
+// primed first (one PTY password prompt) rather than passing a become password.
 func AnsibleBuilder(ctx context.Context, opts Options) *exec.Cmd {
 	inventory := opts.Inventory
 	if inventory == "" {
@@ -215,16 +221,19 @@ func AnsibleBuilder(ctx context.Context, opts Options) *exec.Cmd {
 	if len(opts.Tags) > 0 {
 		args = append(args, "--tags", strings.Join(opts.Tags, ","))
 	}
-	if opts.AskBecomePass {
-		args = append(args, "--ask-become-pass")
-	}
 	if opts.Verbose {
 		args = append(args, "-v")
 	}
 	if opts.ForceFail {
 		args = append(args, "-e", "force_fail=true")
 	}
-	cmd := exec.CommandContext(ctx, "ansible-playbook", args...)
+
+	var cmd *exec.Cmd
+	if opts.Sudo {
+		cmd = exec.CommandContext(ctx, "bash", append([]string{"-c", sudoPrime, "bash", "ansible-playbook"}, args...)...)
+	} else {
+		cmd = exec.CommandContext(ctx, "ansible-playbook", args...)
+	}
 	cmd.Dir = opts.Dir
 	cmd.Env = append(os.Environ(),
 		"ANSIBLE_STDOUT_CALLBACK=sparkdock",
@@ -238,10 +247,18 @@ func AnsibleBuilder(ctx context.Context, opts Options) *exec.Cmd {
 }
 
 // ForCommand returns a Runner that runs an arbitrary command, streaming its
-// combined output as plain feed lines (no Ansible callback). Used for brew,
-// sjust recipes, and other non-Ansible operations shown in the runner view.
+// combined output as plain feed lines (no Ansible callback).
 func ForCommand(name string, args ...string) *Runner {
 	return &Runner{Build: func(ctx context.Context, _ Options) *exec.Cmd {
 		return exec.CommandContext(ctx, name, args...)
+	}}
+}
+
+// ForSudoCommand is like ForCommand but primes the sudo timestamp first, so a
+// command whose sub-steps call sudo (e.g. `brew upgrade` for casks) prompts once
+// up front instead of stalling mid-run.
+func ForSudoCommand(name string, args ...string) *Runner {
+	return &Runner{Build: func(ctx context.Context, _ Options) *exec.Cmd {
+		return exec.CommandContext(ctx, "bash", append([]string{"-c", sudoPrime, "bash", name}, args...)...)
 	}}
 }
