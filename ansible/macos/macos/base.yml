@@ -10,7 +10,6 @@
     homebrew_prefix: "{{ (ansible_facts['machine'] == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
     homebrew_install_path: "{{ homebrew_prefix }}/Homebrew"
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
-    ansible_become_pass: "{{ lookup('env', 'ANSIBLE_BECOME_PASS') | default(omit, true) }}"
 
   tasks:
     - name: Check if running in non-interactive environment

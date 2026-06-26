@@ -90,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Replaced the `ANSIBLE_BECOME_PASS` environment variable with Ansible's native `--ask-become-pass`, so the become password is held in memory instead of exported to the process environment (#541)
 - Moved Docker Desktop, Google Chrome, VSCode (stable and Insiders), Slack, and Zoom from `cask_packages` to the new install-once handling, so they are installed once and never force-reinstalled on later provisioning runs; this replaces the three per-app skip blocks (Docker/Chrome/VSCode Insiders) with a single data-driven block and stops Chrome from being force-reinstalled (degrading the browser) while it is open
 - The OpenSpec CLI upgrade task now runs `brew update` first (`update_homebrew: true`) so `state: latest` resolves against current formula definitions instead of a possibly stale local index
 - `sjust sf-harness-upgrade` now also upgrades the OpenSpec CLI to the latest Homebrew release and refreshes the global OpenSpec skills and prompts: the OpenSpec Ansible block now carries the `ai-harness`/`ai-harness-sync` tags, so the upgrade reuses the existing `sf-openspec-configure` and `sf-openspec-install-global` recipes

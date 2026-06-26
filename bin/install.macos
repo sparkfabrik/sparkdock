@@ -146,14 +146,8 @@ if [[ ! -f ./ansible/inventory.ini ]]; then
 EOF
 fi
 
-# Modify sparkdock.macos to use non-interactive mode if needed
-# it should exit if ansible fails.
+# Non-interactive cleanup of spurious files (part of the tart VM).
 if [[ "$NON_INTERACTIVE" == "true" ]]; then
-  # Make the sed replacement idempotent - only replace if the original pattern exists
-  if grep -q -- "--ask-become-pass" ./bin/sparkdock.macos; then
-    sed -i '' 's/--ask-become-pass/-e "ansible_become_password=" --become/g' ./bin/sparkdock.macos
-  fi
-  # Try to remove spurious files, they are part of the tart VM.
   # Yarn: /opt/homebrew/lib/node_modules/yarn/bin/yarn.js
   if [[ -e /opt/homebrew/lib/node_modules/yarn/bin/yarn.js ]]; then
     sudo rm -f /opt/homebrew/lib/node_modules/yarn/bin/yarn.js
