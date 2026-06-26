@@ -85,6 +85,6 @@ func (m Model) View() string {
 		b.WriteString("  " + st.Failed.Render(theme.MarkFailed+" "+m.errMsg) + "\n\n")
 	}
 	b.WriteString(st.Dim.Render("  ⏎ continue · esc cancel") + "\n")
-	b.WriteString(st.Dim.Render("  ⓘ held in memory for this session, passed only to the ansible subprocess (not your shell)"))
+	b.WriteString(st.Dim.Render("  ⓘ sent straight to the running process over its terminal; never stored, logged, or placed in env/argv"))
 	return b.String()
 }

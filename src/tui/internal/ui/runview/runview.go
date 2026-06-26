@@ -23,10 +23,16 @@ import (
 
 // Messages flowing through the bubbletea loop while a run is live.
 type (
-	eventMsg  feed.Event
-	closedMsg struct{}
-	doneMsg   runner.Result
+	eventMsg      feed.Event
+	closedMsg     struct{}
+	doneMsg       runner.Result
+	promptMsg     string
+	promptsClosed struct{}
 )
+
+// PromptMsg tells the app the run is asking for a password; the app shows the
+// password page and answers via AnswerPrompt.
+type PromptMsg struct{ Text string }
 
 // OpenLogMsg asks the app to open the captured output in the log page.
 type OpenLogMsg struct {
@@ -104,7 +110,22 @@ func (m Model) Start(title string, h *runner.Handle) (Model, tea.Cmd) {
 	m.vp = viewport.New(m.width, max(m.height-chromeRows, 1))
 
 	m.handle = h
-	return m, tea.Batch(waitEvent(m.handle), waitDone(m.handle), m.sp.Tick)
+	return m, tea.Batch(waitEvent(m.handle), waitPrompt(m.handle), waitDone(m.handle), m.sp.Tick)
+}
+
+// AnswerPrompt writes the password to the running process's PTY.
+func (m Model) AnswerPrompt(password string) {
+	if m.handle != nil {
+		m.handle.Answer(password)
+	}
+}
+
+// CancelRun cancels the in-progress run (used when the user backs out of a
+// password prompt).
+func (m Model) CancelRun() {
+	if m.handle != nil {
+		m.handle.Cancel()
+	}
 }
 
 // Update advances the run; returns true from handled when it consumed the msg.
@@ -122,6 +143,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, waitEvent(m.handle)
 
 	case closedMsg:
+		return m, nil
+
+	case promptMsg:
+		// surface the prompt to the app and keep listening for re-prompts
+		return m, tea.Batch(
+			func() tea.Msg { return PromptMsg{Text: string(msg)} },
+			waitPrompt(m.handle),
+		)
+
+	case promptsClosed:
 		return m, nil
 
 	case doneMsg:
@@ -285,6 +316,16 @@ func waitEvent(h *runner.Handle) tea.Cmd {
 			return closedMsg{}
 		}
 		return eventMsg(e)
+	}
+}
+
+func waitPrompt(h *runner.Handle) tea.Cmd {
+	return func() tea.Msg {
+		p, ok := <-h.Prompts
+		if !ok {
+			return promptsClosed{}
+		}
+		return promptMsg(p)
 	}
 }
 

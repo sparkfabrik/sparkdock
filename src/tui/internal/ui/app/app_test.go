@@ -9,6 +9,7 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/password"
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/runview"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
 
@@ -27,59 +28,45 @@ func newTestApp() Model {
 	return m
 }
 
-func update(m Model, msg interface{}) Model {
+func update(m Model, msg any) Model {
 	next, _ := m.Update(msg)
 	return next.(Model)
 }
 
-func TestNonSudoActionStartsRunDirectly(t *testing.T) {
-	m := update(newTestApp(), ui.Navigate(ui.PageRunner, "sync"))
-	if m.page != ui.PageRunner {
-		t.Errorf("page = %v, want PageRunner", m.page)
+func TestActionStartsRunImmediately(t *testing.T) {
+	// No pre-gating: a sudo action starts the run; the password is requested
+	// reactively only if the process prompts.
+	for _, action := range []string{"sync", "provision"} {
+		m := update(newTestApp(), ui.Navigate(ui.PageRunner, action))
+		if m.page != ui.PageRunner {
+			t.Errorf("action %q: page = %v, want PageRunner", action, m.page)
+		}
+		if !m.hasLast {
+			t.Errorf("action %q: last run not recorded", action)
+		}
 	}
 }
 
-func TestSudoActionPromptsForPassword(t *testing.T) {
+func TestPromptShowsPasswordPageThenReturns(t *testing.T) {
 	m := update(newTestApp(), ui.Navigate(ui.PageRunner, "provision"))
+	// the process asks for a password
+	m = update(m, runview.PromptMsg{Text: "BECOME password:"})
 	if m.page != ui.PagePassword {
-		t.Errorf("page = %v, want PagePassword", m.page)
+		t.Fatalf("page = %v, want PagePassword on prompt", m.page)
 	}
-	if m.pendingAction != "provision" {
-		t.Errorf("pendingAction = %q, want provision", m.pendingAction)
-	}
-}
-
-func TestPasswordSubmitStartsRunAndCachesBecome(t *testing.T) {
-	m := update(newTestApp(), ui.Navigate(ui.PageRunner, "provision"))
+	// answering returns to the runner page
 	m = update(m, password.SubmitMsg{Password: "s3cret"})
 	if m.page != ui.PageRunner {
-		t.Errorf("page = %v, want PageRunner", m.page)
-	}
-	if m.become != "s3cret" {
-		t.Errorf("become = %q, want cached", m.become)
+		t.Errorf("page = %v, want PageRunner after answering", m.page)
 	}
 }
 
-func TestCachedPasswordSkipsPrompt(t *testing.T) {
-	m := newTestApp()
-	m.become = "cached"
-	m = update(m, ui.Navigate(ui.PageRunner, "provision")) // sudo action
+func TestPasswordCancelReturnsToRunner(t *testing.T) {
+	m := update(newTestApp(), ui.Navigate(ui.PageRunner, "provision"))
+	m = update(m, runview.PromptMsg{Text: "BECOME password:"})
+	m = update(m, password.CancelMsg{})
 	if m.page != ui.PageRunner {
-		t.Errorf("page = %v, want PageRunner (no prompt with cached password)", m.page)
-	}
-}
-
-func TestPendingActionTracksLatestAction(t *testing.T) {
-	// Both actions use the injected fake ansible runner, so nothing real spawns.
-	m := newTestApp()
-	m.become = "cached"
-	m = update(m, ui.Navigate(ui.PageRunner, "provision"))
-	if m.pendingAction != "provision" {
-		t.Fatalf("pendingAction = %q, want provision", m.pendingAction)
-	}
-	m = update(m, ui.Navigate(ui.PageRunner, "sync"))
-	if m.pendingAction != "sync" {
-		t.Errorf("pendingAction = %q, want sync (must track latest for correct re-prompt)", m.pendingAction)
+		t.Errorf("page = %v, want PageRunner after cancel", m.page)
 	}
 }
 

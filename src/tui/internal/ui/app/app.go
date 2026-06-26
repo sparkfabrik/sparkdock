@@ -1,9 +1,11 @@
 // Package app is the root bubbletea model and page router. It owns each page's
 // sub-model, broadcasts size changes, routes input to the active page, switches
-// pages on navigation messages, and orchestrates runs: it builds the
-// runner.Handle for each action, gates sudo actions behind the password page,
-// caches the become password in memory for the session, and re-prompts on a
-// sudo authentication failure.
+// pages on navigation messages, and orchestrates runs.
+//
+// Sudo is handled reactively: a run starts immediately, and when the underlying
+// process asks for a password (detected via the PTY), the app shows the password
+// page and writes the answer back to the process. The password is never cached,
+// stored, or placed in argv/env.
 package app
 
 import (
@@ -28,12 +30,12 @@ type Config struct {
 	Root string // e.g. /opt/sparkdock
 }
 
-// runSpec fully describes a run the app can start (and retry).
+// runSpec describes a run the app can start (and retry).
 type runSpec struct {
 	title string
 	rnr   *runner.Runner
 	opts  runner.Options
-	sudo  bool
+	sudo  bool // ansible runs only: add --ask-become-pass so ansible prompts
 }
 
 // Model is the root application model.
@@ -52,10 +54,8 @@ type Model struct {
 
 	ansible *runner.Runner
 
-	become        string  // session-scoped, in memory only
-	pendingAction string  // action awaiting a password
-	last          runSpec // last started run, for retry
-	hasLast       bool
+	last    runSpec // last started run, for retry / re-prompt
+	hasLast bool
 }
 
 // New builds the root model wired to its dependencies.
@@ -86,7 +86,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case tea.KeyMsg:
-		// ctrl+c cancels a live run; otherwise quits.
 		if msg.String() == "ctrl+c" {
 			if m.page == ui.PageRunner && m.runview.Running() {
 				return m.route(msg)
@@ -104,7 +103,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case dashboard.StatusMsg:
-		// Status can land while another page is active; always feed the dashboard.
 		var cmd tea.Cmd
 		m.dashboard, cmd = m.dashboard.Update(msg)
 		return m, cmd
@@ -112,15 +110,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case ui.NavigateMsg:
 		return m.navigate(msg)
 
+	case runview.PromptMsg:
+		// The run is asking for a password; collect it on the password page.
+		title := "This operation"
+		if m.hasLast {
+			title = m.last.title
+		}
+		cmd := m.password.Prompt(title, "")
+		m.page = ui.PagePassword
+		return m, cmd
+
 	case password.SubmitMsg:
-		m.become = msg.Password
-		return m.launch(m.pendingAction)
+		m.runview.AnswerPrompt(msg.Password)
+		m.page = ui.PageRunner
+		return m, nil
 
 	case password.CancelMsg:
-		m.page = ui.PageDashboard
+		m.runview.CancelRun()
+		m.page = ui.PageRunner
 		return m, nil
 
 	case runview.RetryMsg:
+		if m.hasLast {
+			return m.start(m.last)
+		}
+		return m, nil
+
+	case runview.BecomeFailedMsg:
+		// ansible rejected the become password; re-run so it prompts again.
 		if m.hasLast {
 			return m.start(m.last)
 		}
@@ -131,12 +148,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.page = ui.PageLog
 		return m, nil
 
-	case runview.BecomeFailedMsg:
-		m.become = ""
-		cmd := m.password.Prompt(m.last.title, "Incorrect password, try again")
-		m.page = ui.PagePassword
-		return m, cmd
-
 	case runview.BackMsg:
 		m.page = ui.PageDashboard
 		return m, m.dashboard.Init() // refresh status after a run
@@ -146,11 +157,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case sjust.RunMsg:
-		spec := runSpec{
+		return m.start(runSpec{
 			title: "sjust ▸ " + msg.Recipe,
 			rnr:   runner.ForCommand("sjust", msg.Recipe),
-		}
-		return m.start(spec)
+		})
 
 	case sjust.BackMsg:
 		m.page = ui.PageDashboard
@@ -160,14 +170,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m.route(msg)
 }
 
-// navigate handles a page switch requested by a page.
 func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {
 	switch msg.To {
 	case ui.PageSjust:
 		m.page = ui.PageSjust
 		return m, m.sjust.Init()
 	case ui.PageRunner:
-		// The dashboard routes every action here; the app decides what to do.
 		if msg.Action == "sjust" {
 			m.page = ui.PageSjust
 			return m, m.sjust.Init()
@@ -179,27 +187,21 @@ func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-// launch resolves an action to a run, gating sudo actions behind the password.
+// launch resolves an action to a run and starts it immediately; any password is
+// requested reactively once the process prompts for it.
 func (m Model) launch(action string) (tea.Model, tea.Cmd) {
 	spec, ok := m.planFor(action)
 	if !ok {
 		m.page = ui.PageDashboard // unhandled action: stay home
 		return m, nil
 	}
-	// Track the action so a become re-prompt re-launches the right one, even
-	// when the password was already cached and the prompt was skipped.
-	m.pendingAction = action
-	if spec.sudo && m.become == "" {
-		cmd := m.password.Prompt(spec.title, "")
-		m.page = ui.PagePassword
-		return m, cmd
-	}
 	return m.start(spec)
 }
 
-// start launches the run described by spec and shows the runner page.
 func (m Model) start(spec runSpec) (tea.Model, tea.Cmd) {
-	spec.opts.BecomePass = m.become // always use the current password
+	if spec.sudo {
+		spec.opts.AskBecomePass = true
+	}
 	handle := spec.rnr.Start(context.Background(), spec.opts)
 	var cmd tea.Cmd
 	m.runview, cmd = m.runview.Start(spec.title, handle)
@@ -209,7 +211,7 @@ func (m Model) start(spec runSpec) (tea.Model, tea.Cmd) {
 }
 
 // planFor maps a dashboard action id to a run spec. Returns ok=false for
-// actions not yet wired (proxy, device, company links, self-update).
+// actions not yet wired (Company links, self-update).
 func (m Model) planFor(action string) (runSpec, bool) {
 	ansibleOpts := func(tags ...string) runner.Options {
 		return runner.Options{
@@ -224,10 +226,9 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	case "provision":
 		return runSpec{title: "Running full provisioning", rnr: m.ansible, opts: ansibleOpts(), sudo: true}, true
 	case "upgrade":
-		// A plain `brew upgrade`, not a provisioning run.
 		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForCommand("brew", "upgrade")}, true
 	case "sync":
-		return runSpec{title: "Syncing AI harness", rnr: m.ansible, opts: ansibleOpts("ai-harness-sync"), sudo: false}, true
+		return runSpec{title: "Syncing AI harness", rnr: m.ansible, opts: ansibleOpts("ai-harness-sync")}, true
 	case "proxy-status":
 		return runSpec{title: "HTTP proxy · status", rnr: runner.ForCommand("spark-http-proxy", "status")}, true
 	case "proxy-start":
@@ -235,9 +236,9 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	case "proxy-stop":
 		return runSpec{title: "HTTP proxy · stop", rnr: runner.ForCommand("spark-http-proxy", "stop")}, true
 	case "proxy-upgrade":
-		return runSpec{title: "HTTP proxy · upgrade", rnr: runner.ForCommand("sjust", "http-proxy-install-update")}, true
+		return runSpec{title: "HTTP proxy · upgrade", rnr: m.ansible, opts: ansibleOpts("http-proxy"), sudo: true}, true
 	case "device":
-		return runSpec{title: "Device info", rnr: runner.ForCommand("sjust", "device-info")}, true
+		return runSpec{title: "Device info", rnr: runner.ForCommand("ayse-get-sm")}, true
 	default:
 		return runSpec{}, false
 	}
@@ -253,7 +254,6 @@ func (m *Model) setSize(w, h int) {
 	m.sjust.SetSize(w, h)
 }
 
-// route forwards a message to the active page.
 func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch m.page {

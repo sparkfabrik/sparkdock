@@ -93,35 +93,64 @@ func TestCancel_MarksCanceled(t *testing.T) {
 	}
 }
 
-func TestAnsibleBuilder_BecomePassOnChildEnvOnly(t *testing.T) {
+func TestAnsibleBuilder_Flags(t *testing.T) {
 	cmd := AnsibleBuilder(context.Background(), Options{
-		Playbook:   "playbook.yml",
-		BecomePass: "s3cret",
-		Tags:       []string{"docker", "cask"},
-		ForceFail:  true,
+		Playbook:      "playbook.yml",
+		Tags:          []string{"docker", "cask"},
+		AskBecomePass: true,
+		ForceFail:     true,
 	})
-	var found bool
-	for _, kv := range cmd.Env {
-		if kv == "ANSIBLE_BECOME_PASS=s3cret" {
-			found = true
-		}
-	}
-	if !found {
-		t.Error("ANSIBLE_BECOME_PASS not set on child env")
-	}
-	// must never appear in argv
-	for _, a := range cmd.Args {
-		if a == "s3cret" || a == "ANSIBLE_BECOME_PASS=s3cret" {
-			t.Errorf("become password leaked into argv: %v", cmd.Args)
-		}
-	}
-	// tags + force_fail are wired into argv
 	joined := ""
 	for _, a := range cmd.Args {
 		joined += a + " "
 	}
-	if !contains(joined, "--tags") || !contains(joined, "docker,cask") || !contains(joined, "force_fail=true") {
-		t.Errorf("argv missing expected flags: %v", cmd.Args)
+	if !contains(joined, "--tags") || !contains(joined, "docker,cask") {
+		t.Errorf("argv missing tags: %v", cmd.Args)
+	}
+	if !contains(joined, "--ask-become-pass") {
+		t.Errorf("argv missing --ask-become-pass: %v", cmd.Args)
+	}
+	if !contains(joined, "force_fail=true") {
+		t.Errorf("argv missing force_fail: %v", cmd.Args)
+	}
+	// no password anywhere; the env carries no become secret
+	for _, kv := range cmd.Env {
+		if contains(kv, "ANSIBLE_BECOME_PASS") {
+			t.Errorf("env must not carry a become password: %q", kv)
+		}
+	}
+}
+
+func TestStart_DetectsPasswordPromptAndAnswers(t *testing.T) {
+	// Script prints a prompt with no newline, reads a line, echoes it back.
+	script := `printf 'Password: '; read -r p; printf '\n@@TASK got\n'; printf '%s\n' "answered:$p"; printf '@@DONE\n'`
+	r := &Runner{Build: scriptBuilder(script)}
+	h := r.Start(context.Background(), Options{})
+
+	// wait for the prompt, then answer
+	select {
+	case p := <-h.Prompts:
+		if !contains(p, "Password:") {
+			t.Fatalf("prompt = %q, want it to contain Password:", p)
+		}
+		h.Answer("hunter2")
+	case <-time.After(5 * time.Second):
+		t.Fatal("no prompt received")
+	}
+
+	var got []feed.Event
+	for e := range h.Events {
+		got = append(got, e)
+	}
+	<-h.Done
+	var sawAnswer bool
+	for _, e := range got {
+		if contains(e.Raw, "answered:hunter2") {
+			sawAnswer = true
+		}
+	}
+	if !sawAnswer {
+		t.Errorf("answer not delivered to the process; events=%v", got)
 	}
 }
 
