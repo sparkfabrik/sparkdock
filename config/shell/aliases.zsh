@@ -60,7 +60,6 @@ fi
 
 # zoxide integration with smart cd replacement
 if command_exists zoxide; then
-  alias cd="zd"
   zd() {
     if [ $# -eq 0 ]; then
       builtin cd ~ && return
@@ -70,6 +69,11 @@ if command_exists zoxide; then
       z "$@" && printf "\U000F17A9 " && pwd || echo "Error: Directory not found"
     fi
   }
+  # Keep cd literal under AI agents (Claude Code, etc.): zoxide frecency-jumps on a missing
+  # relative path instead of erroring, silently teleporting the agent's persistent cwd.
+  if [[ -z ${CLAUDECODE:-} && -z ${AI_AGENT:-} ]]; then
+    alias cd="zd"
+  fi
 fi
 
 # Modern replacements for classic commands
