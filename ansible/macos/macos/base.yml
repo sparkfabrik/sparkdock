@@ -853,6 +853,7 @@
         - name: Build sparkdock TUI
           shell: |
             cd {{ dev_env_dir }}/src/tui
+            mkdir -p .build
             go build -o .build/sparkdock-tui ./cmd/sparkdock-tui
           environment:
             PATH: "{{ homebrew_brew_bin_path }}:{{ ansible_facts['env'].PATH }}"
@@ -862,7 +863,10 @@
 
         - name: Check if TUI build was successful
           fail:
-            msg: "go build failed for src/tui. See output above."
+            msg: |-
+              go build failed for src/tui:
+              {{ tui_build_result.stderr | default('') | trim }}
+              {{ tui_build_result.stdout | default('') | trim }}
           when: tui_build_result.rc != 0
 
         - name: Install sparkdock-tui binary

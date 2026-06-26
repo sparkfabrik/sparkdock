@@ -77,11 +77,15 @@ func New() Model {
 	return Model{sp: sp}
 }
 
+// chromeRows is the number of non-viewport rows: header, rule, a spacer, the
+// statusline, and the footer.
+const chromeRows = 5
+
 // SetSize updates dimensions and the viewport.
 func (m *Model) SetSize(w, h int) {
 	m.width, m.height = w, h
 	m.vp.Width = w
-	m.vp.Height = max(h-4, 1) // header, rule, statusline, footer
+	m.vp.Height = max(h-chromeRows, 1)
 }
 
 // Start renders the run represented by h under the given title. If a previous
@@ -97,7 +101,7 @@ func (m Model) Start(title string, h *runner.Handle) (Model, tea.Cmd) {
 	m.stats = feed.Stats{}
 	m.lines, m.raw = nil, nil
 	m.start = time.Now()
-	m.vp = viewport.New(m.width, max(m.height-4, 1))
+	m.vp = viewport.New(m.width, max(m.height-chromeRows, 1))
 
 	m.handle = h
 	return m, tea.Batch(waitEvent(m.handle), waitDone(m.handle), m.sp.Tick)
@@ -238,7 +242,7 @@ func (m Model) View() string {
 	gap := max(width-lipgloss.Width(left)-lipgloss.Width(right)-1, 1)
 	statusline := " " + left + strings.Repeat(" ", gap) + right
 
-	return header + "\n" + rule + "\n" + m.vp.View() + "\n" + statusline + "\n" + m.footer(st)
+	return header + "\n" + rule + "\n" + m.vp.View() + "\n\n" + statusline + "\n" + m.footer(st)
 }
 
 func (m Model) footer(st theme.Styles) string {

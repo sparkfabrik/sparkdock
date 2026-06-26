@@ -60,10 +60,28 @@ class CallbackModule(CallbackBase):
     def v2_runner_on_failed(self, result, ignore_errors=False):
         self.failed += 1
         name = result._task.get_name().strip()
-        msg = result._result.get("msg", "")
-        suffix = (" (ignored)" if ignore_errors else "") + (": " + msg if msg else "")
+        detail = self._failure_detail(result._result)
+        suffix = (" (ignored)" if ignore_errors else "") + (
+            ": " + detail if detail else ""
+        )
+        # detail may be multi-line; the TUI renders each line, so the real error
+        # (compiler output, module stderr) is visible, not just a short message.
         self._emit("✗ " + name + suffix)
         self._stat()
+
+    @staticmethod
+    def _failure_detail(res):
+        """Assemble a useful failure message: the module msg plus any captured
+        stderr/stdout, de-duplicated."""
+        parts = []
+        for key in ("msg", "module_stderr", "stderr", "stdout"):
+            val = res.get(key)
+            if not val:
+                continue
+            val = val.strip()
+            if val and val not in parts:
+                parts.append(val)
+        return "\n".join(parts)
 
     def v2_runner_on_skipped(self, result):
         self.skipped += 1
