@@ -52,7 +52,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 // View renders the centred splash.
 func (m Model) View() string {
-	st := theme.New()
+	st := theme.Default()
 	w, h := m.width, m.height
 	if w == 0 {
 		w, h = 80, 24

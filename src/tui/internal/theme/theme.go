@@ -47,8 +47,15 @@ type Styles struct {
 	SparkS   lipgloss.Style
 }
 
-// New returns the style set. It is allocation-light and intended to be called
-// per View; callers may also cache it.
+// Default is the shared style set. Styles do not depend on width, so a single
+// cached instance serves every page and avoids rebuilding per frame.
+var defaultStyles = New()
+
+// Default returns the cached style set.
+func Default() Styles { return defaultStyles }
+
+// New returns a fresh style set. Prefer Default in render paths; New exists for
+// tests or callers wanting an independent instance.
 func New() Styles {
 	return Styles{
 		Title:    lipgloss.NewStyle().Bold(true).Foreground(Accent),

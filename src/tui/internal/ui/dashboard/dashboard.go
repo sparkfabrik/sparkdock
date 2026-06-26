@@ -190,7 +190,7 @@ func dot(st theme.Styles, h status.Health) string {
 
 // View renders the dashboard.
 func (m Model) View() string {
-	st := theme.New()
+	st := theme.Default()
 	width := m.width
 	if width < 40 {
 		width = 40
