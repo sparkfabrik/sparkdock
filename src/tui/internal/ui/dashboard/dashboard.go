@@ -12,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/audio"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/theme"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui"
@@ -80,6 +81,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.subs = []status.Subsystem(msg)
 		m.loading = false
 		m.rebuild()
+		return m, nil
+	case tea.MouseMsg:
+		// click the header logo (top row) to replay the sound
+		if msg.Action == tea.MouseActionPress && msg.Y == 0 {
+			audio.Play()
+		}
 		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {

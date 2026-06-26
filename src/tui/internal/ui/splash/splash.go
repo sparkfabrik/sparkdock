@@ -11,6 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/audio"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/theme"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
@@ -42,10 +43,17 @@ func (m Model) Init() tea.Cmd {
 // SetSize updates the render dimensions.
 func (m *Model) SetSize(w, h int) { m.width, m.height = w, h }
 
-// Update dismisses on any key; the timer dismiss is handled by the app router.
+// Update plays the startup sound when the logo is clicked, and dismisses on any
+// key or click (the timer dismiss is handled by the app router).
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
-	if _, ok := msg.(tea.KeyMsg); ok {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
 		return m, func() tea.Msg { return ui.Navigate(ui.PageDashboard, "") }
+	case tea.MouseMsg:
+		if msg.Action == tea.MouseActionPress {
+			audio.Play() // click the logo to hear it
+			return m, func() tea.Msg { return ui.Navigate(ui.PageDashboard, "") }
+		}
 	}
 	return m, nil
 }
