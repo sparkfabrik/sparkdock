@@ -84,7 +84,8 @@ func TestPendingActionTracksLatestAction(t *testing.T) {
 }
 
 func TestUnhandledActionReturnsToDashboard(t *testing.T) {
-	m := update(newTestApp(), ui.Navigate(ui.PageRunner, "device"))
+	// "self-update" has no run plan yet (deliberate follow-up), so it no-ops home.
+	m := update(newTestApp(), ui.Navigate(ui.PageRunner, "self-update"))
 	if m.page != ui.PageDashboard {
 		t.Errorf("page = %v, want PageDashboard for unhandled action", m.page)
 	}
