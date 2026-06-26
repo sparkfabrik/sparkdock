@@ -153,8 +153,12 @@ func (m *Model) rebuild() {
 		item{kind: kindAction, id: "sync", label: "Sync AI harness", selectable: true},
 		item{kind: kindGroup, label: "Tools"},
 		item{kind: kindAction, id: "sjust", label: "sjust task runner", selectable: true},
-		item{kind: kindAction, id: "proxy", label: "HTTP-proxy dashboard", detail: "→ opens browser", selectable: true},
 		item{kind: kindAction, id: "device", label: "Device info", selectable: true},
+		item{kind: kindGroup, label: "HTTP proxy"},
+		item{kind: kindAction, id: "proxy-status", label: "Status", selectable: true},
+		item{kind: kindAction, id: "proxy-start", label: "Start", selectable: true},
+		item{kind: kindAction, id: "proxy-stop", label: "Stop", selectable: true},
+		item{kind: kindAction, id: "proxy-upgrade", label: "Upgrade", selectable: true},
 	)
 	m.items = items
 	if m.current() == nil {

@@ -228,6 +228,16 @@ func (m Model) planFor(action string) (runSpec, bool) {
 		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForCommand("brew", "upgrade")}, true
 	case "sync":
 		return runSpec{title: "Syncing AI harness", rnr: m.ansible, opts: ansibleOpts("ai-harness-sync"), sudo: false}, true
+	case "proxy-status":
+		return runSpec{title: "HTTP proxy · status", rnr: runner.ForCommand("spark-http-proxy", "status")}, true
+	case "proxy-start":
+		return runSpec{title: "HTTP proxy · start", rnr: runner.ForCommand("spark-http-proxy", "start")}, true
+	case "proxy-stop":
+		return runSpec{title: "HTTP proxy · stop", rnr: runner.ForCommand("spark-http-proxy", "stop")}, true
+	case "proxy-upgrade":
+		return runSpec{title: "HTTP proxy · upgrade", rnr: runner.ForCommand("sjust", "http-proxy-install-update")}, true
+	case "device":
+		return runSpec{title: "Device info", rnr: runner.ForCommand("sjust", "device-info")}, true
 	default:
 		return runSpec{}, false
 	}
