@@ -20,7 +20,6 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/logview"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/password"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/runview"
-	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/sjust"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/splash"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
@@ -50,7 +49,6 @@ type Model struct {
 	runview   runview.Model
 	password  password.Model
 	logview   logview.Model
-	sjust     sjust.Model
 
 	ansible *runner.Runner
 
@@ -68,7 +66,6 @@ func New(cfg Config, ver version.Info, checker status.Checker) Model {
 		runview:   runview.New(),
 		password:  password.New(),
 		logview:   logview.New(),
-		sjust:     sjust.New(sjust.DefaultLister),
 		ansible:   runner.New(),
 	}
 }
@@ -136,13 +133,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case runview.BecomeFailedMsg:
-		// ansible rejected the become password; re-run so it prompts again.
-		if m.hasLast {
-			return m.start(m.last)
-		}
-		return m, nil
-
 	case runview.OpenLogMsg:
 		m.logview.Open(msg.Title, msg.Lines)
 		m.page = ui.PageLog
@@ -155,16 +145,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logview.BackMsg:
 		m.page = ui.PageRunner
 		return m, nil
-
-	case sjust.RunMsg:
-		return m.start(runSpec{
-			title: "sjust ▸ " + msg.Recipe,
-			rnr:   runner.ForCommand("sjust", msg.Recipe),
-		})
-
-	case sjust.BackMsg:
-		m.page = ui.PageDashboard
-		return m, nil
 	}
 
 	return m.route(msg)
@@ -172,14 +152,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {
 	switch msg.To {
-	case ui.PageSjust:
-		m.page = ui.PageSjust
-		return m, m.sjust.Init()
 	case ui.PageRunner:
-		if msg.Action == "sjust" {
-			m.page = ui.PageSjust
-			return m, m.sjust.Init()
-		}
 		return m.launch(msg.Action)
 	default:
 		m.page = msg.To
@@ -202,6 +175,10 @@ func (m Model) start(spec runSpec) (tea.Model, tea.Cmd) {
 	if spec.sudo {
 		spec.opts.AskBecomePass = true
 	}
+	// Size the child's PTY to the runner view's content area (lines are indented
+	// by two columns, so leave room for that).
+	spec.opts.PtyCols = max(m.width-2, 20)
+	spec.opts.PtyRows = max(m.height-5, 10)
 	handle := spec.rnr.Start(context.Background(), spec.opts)
 	var cmd tea.Cmd
 	m.runview, cmd = m.runview.Start(spec.title, handle)
@@ -251,7 +228,6 @@ func (m *Model) setSize(w, h int) {
 	m.runview.SetSize(w, h)
 	m.password.SetSize(w, h)
 	m.logview.SetSize(w, h)
-	m.sjust.SetSize(w, h)
 }
 
 func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -267,8 +243,6 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.password, cmd = m.password.Update(msg)
 	case ui.PageLog:
 		m.logview, cmd = m.logview.Update(msg)
-	case ui.PageSjust:
-		m.sjust, cmd = m.sjust.Update(msg)
 	}
 	return m, cmd
 }
@@ -284,8 +258,6 @@ func (m Model) View() string {
 		return m.password.View()
 	case ui.PageLog:
 		return m.logview.View()
-	case ui.PageSjust:
-		return m.sjust.View()
 	default:
 		return m.dashboard.View()
 	}

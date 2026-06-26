@@ -15,6 +15,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/feed"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/runner"
@@ -42,10 +43,6 @@ type OpenLogMsg struct {
 
 // RetryMsg asks the app to re-run the last action.
 type RetryMsg struct{}
-
-// BecomeFailedMsg signals the run failed sudo/become authentication, so the app
-// should clear the cached password and re-prompt.
-type BecomeFailedMsg struct{}
 
 // BackMsg asks the app to leave the runner page. Only emitted once the run has
 // finished, so the user cannot navigate away mid-run and drop its events.
@@ -138,7 +135,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case eventMsg:
 		m.apply(feed.Event(msg))
-		m.vp.SetContent(strings.Join(m.lines, "\n"))
+		m.vp.SetContent(m.content())
 		m.vp.GotoBottom()
 		return m, waitEvent(m.handle)
 
@@ -157,11 +154,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case doneMsg:
 		m.finish(runner.Result(msg))
-		m.vp.SetContent(strings.Join(m.lines, "\n"))
+		m.vp.SetContent(m.content())
 		m.vp.GotoBottom()
-		if m.failed && runner.IsBecomeAuthFailure(m.raw) {
-			return m, func() tea.Msg { return BecomeFailedMsg{} }
-		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -248,6 +242,17 @@ func (m Model) summary() string {
 		m.stats.OK, m.stats.Changed, m.stats.Failed, m.stats.Skipped)
 }
 
+// content returns the rendered output, each line truncated to the width so a
+// program emitting lines wider than the view cannot corrupt the layout.
+func (m Model) content() string {
+	w := max(m.width, 20)
+	lines := make([]string, len(m.lines))
+	for i, l := range m.lines {
+		lines[i] = ansi.Truncate(l, w, "")
+	}
+	return strings.Join(lines, "\n")
+}
+
 // View renders header, scrolling region, pinned statusline, and footer.
 func (m Model) View() string {
 	st := theme.Default()
@@ -265,6 +270,14 @@ func (m Model) View() string {
 		glyphRune = st.OK.Render(theme.MarkOK)
 	}
 	left := st.Title.Render(m.phase) + st.Dim.Render(" "+theme.Pointer+" ") + m.task
+	switch {
+	case m.failed:
+		left = st.Failed.Render(theme.MarkFailed + " Failed") + st.Dim.Render(" · "+m.title)
+	case m.canceled:
+		left = st.Amber.Render("⚠ Cancelled") + st.Dim.Render(" · "+m.title)
+	case !m.running:
+		left = st.OK.Render(theme.MarkOK+" Completed") + st.Dim.Render(" · "+m.title)
+	}
 	right := fmt.Sprintf("%s  %s · %s · %s · %s", glyphRune,
 		st.OK.Render(fmt.Sprintf("%d ok", m.stats.OK)),
 		st.Changed.Render(fmt.Sprintf("%d changed", m.stats.Changed)),

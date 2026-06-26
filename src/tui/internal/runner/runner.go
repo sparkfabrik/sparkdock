@@ -36,6 +36,8 @@ type Options struct {
 	ForceFail         bool     // demo/testing: -e force_fail=true
 	Verbose           bool     // pass -v
 	CallbackPluginDir string   // dir containing the sparkdock callback
+
+	PtyRows, PtyCols int // terminal size to give the child; defaults to 24x80
 }
 
 // Result reports how a run ended.
@@ -93,6 +95,17 @@ func (r *Runner) Start(ctx context.Context, opts Options) *Handle {
 		return h
 	}
 	h.ptmx = ptmx
+
+	// Size the PTY to the view so tty-aware programs render to fit instead of a
+	// default width that overflows and corrupts the layout.
+	rows, cols := opts.PtyRows, opts.PtyCols
+	if cols <= 0 {
+		cols = 80
+	}
+	if rows <= 0 {
+		rows = 24
+	}
+	_ = pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 
 	go h.pump(events, prompts, done)
 	return h

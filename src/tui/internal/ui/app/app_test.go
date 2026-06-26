@@ -77,17 +77,3 @@ func TestUnhandledActionReturnsToDashboard(t *testing.T) {
 		t.Errorf("page = %v, want PageDashboard for unhandled action", m.page)
 	}
 }
-
-func TestSjustActionOpensBrowser(t *testing.T) {
-	m := update(newTestApp(), ui.Navigate(ui.PageRunner, "sjust"))
-	if m.page != ui.PageSjust {
-		t.Errorf("page = %v, want PageSjust", m.page)
-	}
-}
-
-func TestNavigateToSjustDirect(t *testing.T) {
-	m := update(newTestApp(), ui.Navigate(ui.PageSjust, ""))
-	if m.page != ui.PageSjust {
-		t.Errorf("page = %v, want PageSjust", m.page)
-	}
-}

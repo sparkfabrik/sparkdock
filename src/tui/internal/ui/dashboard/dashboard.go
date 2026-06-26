@@ -152,7 +152,6 @@ func (m *Model) rebuild() {
 		item{kind: kindAction, id: "upgrade", label: "Upgrade Brew packages", detail: m.subByKey("brew").Detail, selectable: true},
 		item{kind: kindAction, id: "sync", label: "Sync AI harness", selectable: true},
 		item{kind: kindGroup, label: "Tools"},
-		item{kind: kindAction, id: "sjust", label: "sjust task runner", selectable: true},
 		item{kind: kindAction, id: "device", label: "Device info", selectable: true},
 		item{kind: kindGroup, label: "HTTP proxy"},
 		item{kind: kindAction, id: "proxy-status", label: "Status", selectable: true},
