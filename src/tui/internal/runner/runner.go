@@ -120,6 +120,30 @@ func (h *Handle) Cancel() {
 	}
 }
 
+// becomeAuthNeedles are substrings Ansible emits when the become password is
+// missing or wrong, used to decide whether to re-prompt rather than report a
+// generic failure.
+var becomeAuthNeedles = []string{
+	"Incorrect sudo password",
+	"Incorrect su password",
+	"Missing sudo password",
+	"sudo: a password is required",
+	"Invalid/incorrect password",
+}
+
+// IsBecomeAuthFailure reports whether any captured output line indicates a
+// sudo/become authentication failure.
+func IsBecomeAuthFailure(lines []string) bool {
+	for _, ln := range lines {
+		for _, needle := range becomeAuthNeedles {
+			if strings.Contains(ln, needle) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // AnsibleBuilder builds a real ansible-playbook invocation with the sparkdock
 // stdout callback. The become password, if any, is appended to the child env
 // only.
@@ -152,4 +176,13 @@ func AnsibleBuilder(ctx context.Context, opts Options) *exec.Cmd {
 		cmd.Env = append(cmd.Env, "ANSIBLE_BECOME_PASS="+opts.BecomePass) // child-scoped only
 	}
 	return cmd
+}
+
+// ForCommand returns a Runner that runs an arbitrary command, streaming its
+// combined output as plain feed lines (no Ansible callback). Used for sjust
+// recipes and other non-Ansible operations shown in the runner view.
+func ForCommand(name string, args ...string) *Runner {
+	return &Runner{Build: func(ctx context.Context, _ Options) *exec.Cmd {
+		return exec.CommandContext(ctx, name, args...)
+	}}
 }

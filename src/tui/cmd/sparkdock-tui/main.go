@@ -41,7 +41,7 @@ func main() {
 		Run:             execRunner,
 	}
 
-	prog := tea.NewProgram(app.New(ver, checker), tea.WithAltScreen())
+	prog := tea.NewProgram(app.New(app.Config{Root: root}, ver, checker), tea.WithAltScreen())
 	if _, err := prog.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "sparkdock-tui:", err)
 		os.Exit(1)

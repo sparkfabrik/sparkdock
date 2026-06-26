@@ -17,7 +17,7 @@ func feedEvents(m Model, lines ...string) Model {
 }
 
 func TestApply_CapturesContentAndStats(t *testing.T) {
-	m := New(runner.New())
+	m := New()
 	m.running = true
 	m = feedEvents(m,
 		"@@PHASE Packages",
@@ -40,7 +40,7 @@ func TestApply_CapturesContentAndStats(t *testing.T) {
 }
 
 func TestFinish_Success(t *testing.T) {
-	m := New(runner.New())
+	m := New()
 	m.running = true
 	m = feedEvents(m, "@@STAT ok=3 changed=1 failed=0 skipped=0")
 	m, _ = m.Update(doneMsg(runner.Result{}))
@@ -53,7 +53,7 @@ func TestFinish_Success(t *testing.T) {
 }
 
 func TestFinish_NonZeroExitFails(t *testing.T) {
-	m := New(runner.New())
+	m := New()
 	m.running = true
 	m, _ = m.Update(doneMsg(runner.Result{Err: errBoom{}}))
 	if !m.failed {
@@ -62,7 +62,7 @@ func TestFinish_NonZeroExitFails(t *testing.T) {
 }
 
 func TestFinish_FailedTaskCountFails(t *testing.T) {
-	m := New(runner.New())
+	m := New()
 	m.running = true
 	m = feedEvents(m, "@@STAT ok=2 changed=0 failed=1 skipped=0")
 	m, _ = m.Update(doneMsg(runner.Result{})) // no exit err, but a task failed
@@ -72,7 +72,7 @@ func TestFinish_FailedTaskCountFails(t *testing.T) {
 }
 
 func TestFinish_CancelNotFailure(t *testing.T) {
-	m := New(runner.New())
+	m := New()
 	m.running = true
 	m, _ = m.Update(doneMsg(runner.Result{Canceled: true, Err: errBoom{}}))
 	if m.failed {
@@ -84,7 +84,7 @@ func TestFinish_CancelNotFailure(t *testing.T) {
 }
 
 func TestRunning(t *testing.T) {
-	m := New(runner.New())
+	m := New()
 	if m.Running() {
 		t.Error("fresh model should not be running")
 	}

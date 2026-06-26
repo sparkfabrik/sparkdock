@@ -7,7 +7,6 @@
 package runview
 
 import (
-	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -38,11 +37,18 @@ type OpenLogMsg struct {
 // RetryMsg asks the app to re-run the last action.
 type RetryMsg struct{}
 
+// BecomeFailedMsg signals the run failed sudo/become authentication, so the app
+// should clear the cached password and re-prompt.
+type BecomeFailedMsg struct{}
+
+// BackMsg asks the app to leave the runner page. Only emitted once the run has
+// finished, so the user cannot navigate away mid-run and drop its events.
+type BackMsg struct{}
+
 // Model is the runner page.
 type Model struct {
 	width, height int
 
-	rnr    *runner.Runner
 	handle *runner.Handle
 
 	vp    viewport.Model
@@ -62,12 +68,13 @@ type Model struct {
 	canceled bool
 }
 
-// New returns a runner page bound to a runner backend.
-func New(rnr *runner.Runner) Model {
+// New returns a runner page. The page renders any run it is handed; the app
+// owns construction of the runner.Handle (ansible vs. arbitrary command).
+func New() Model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
 	sp.Style = lipgloss.NewStyle().Foreground(theme.Accent)
-	return Model{rnr: rnr, sp: sp}
+	return Model{sp: sp}
 }
 
 // SetSize updates dimensions and the viewport.
@@ -77,10 +84,10 @@ func (m *Model) SetSize(w, h int) {
 	m.vp.Height = max(h-4, 1) // header, rule, statusline, footer
 }
 
-// Start launches a run described by opts under the given title. If a previous
+// Start renders the run represented by h under the given title. If a previous
 // run is somehow still live, it is cancelled first so its goroutine cannot leak
 // or bleed events into the new run.
-func (m Model) Start(title string, opts runner.Options) (Model, tea.Cmd) {
+func (m Model) Start(title string, h *runner.Handle) (Model, tea.Cmd) {
 	if m.handle != nil && m.running {
 		m.handle.Cancel()
 	}
@@ -92,7 +99,7 @@ func (m Model) Start(title string, opts runner.Options) (Model, tea.Cmd) {
 	m.start = time.Now()
 	m.vp = viewport.New(m.width, max(m.height-4, 1))
 
-	m.handle = m.rnr.Start(context.Background(), opts)
+	m.handle = h
 	return m, tea.Batch(waitEvent(m.handle), waitDone(m.handle), m.sp.Tick)
 }
 
@@ -117,6 +124,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.finish(runner.Result(msg))
 		m.vp.SetContent(strings.Join(m.lines, "\n"))
 		m.vp.GotoBottom()
+		if m.failed && runner.IsBecomeAuthFailure(m.raw) {
+			return m, func() tea.Msg { return BecomeFailedMsg{} }
+		}
 		return m, nil
 
 	case tea.KeyMsg:
@@ -132,12 +142,16 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			m.handle.Cancel()
 		}
 		return m, nil
+	case "esc", "q":
+		if !m.running {
+			return m, func() tea.Msg { return BackMsg{} }
+		}
 	case "r":
 		if !m.running {
 			return m, func() tea.Msg { return RetryMsg{} }
 		}
 	case "l":
-		if len(m.raw) > 0 {
+		if !m.running && len(m.raw) > 0 {
 			lines := append([]string(nil), m.raw...)
 			return m, func() tea.Msg { return OpenLogMsg{Title: m.title, Lines: lines} }
 		}

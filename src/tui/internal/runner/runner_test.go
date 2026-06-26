@@ -137,3 +137,15 @@ func indexOf(s, sub string) int {
 	}
 	return -1
 }
+
+func TestIsBecomeAuthFailure(t *testing.T) {
+	if !IsBecomeAuthFailure([]string{"ok", "sudo: a password is required", "more"}) {
+		t.Error("should detect become auth failure")
+	}
+	if !IsBecomeAuthFailure([]string{"✗ task: Incorrect sudo password"}) {
+		t.Error("should detect incorrect sudo password")
+	}
+	if IsBecomeAuthFailure([]string{"✓ docker present", "PLAY RECAP"}) {
+		t.Error("false positive on clean output")
+	}
+}
