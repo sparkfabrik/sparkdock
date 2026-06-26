@@ -103,6 +103,25 @@ if [ "$1" = "ensure-python3" ] ; then
     exit 0
 fi
 
+# Terminal hub mode: launch the sparkdock-tui binary, building it on first use.
+# The 'tui' Ansible tag is become: false, so the build needs no sudo password.
+if [ "$1" = "tui" ] ; then
+    if ! command -v sparkdock-tui >/dev/null 2>&1; then
+        print_info "Building sparkdock-tui (first run, no sudo required)..."
+        if ! ( cd "$SPARKDOCK_ROOT" && ensure_python3 && ansible-playbook -i ansible/inventory.ini ansible/macos.yml --tags tui ); then
+            print_error "Failed to build sparkdock-tui. Run 'sparkdock' to provision."
+            exit 1
+        fi
+        hash -r 2>/dev/null || true
+    fi
+    if ! command -v sparkdock-tui >/dev/null 2>&1; then
+        print_error "sparkdock-tui is still not on PATH after building."
+        exit 1
+    fi
+    shift
+    exec sparkdock-tui "$@"
+fi
+
 # Updating myself.
 if [ "$1" != "skip-update" ] ; then
     # Only perform updates if we're running from installed location
