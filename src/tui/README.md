@@ -39,12 +39,30 @@ go build ./...
 go test ./...
 ```
 
-## Status of the build-out
+## Pages
 
-Implemented and tested: `feed`, `status`, `runner`, `version`, `theme`; runnable
-`app` + `splash` + `dashboard`.
+- `splash` — launch wordmark + version.
+- `dashboard` — flat grouped status/actions list (live status).
+- `runview` — streaming run with a pinned statusline; cancel, retry, open log.
+- `password` — masked become-password entry (subprocess-scoped, session-cached).
+- `logview` — scrollable, copyable run log written to `~/.cache/sparkdock/last-run.log`.
+- `sjust` — recipe browser that runs the selected recipe through the runner.
 
-Next pages (ports of the validated prototype, onto the tested `runner` backend):
-Runner (streaming + pinned statusline), Password (masked, subprocess-scoped),
-Log (copyable), sjust browser. Then the `tui` Ansible build tag and the
-`sparkdock` dispatch + self-update wiring.
+The `app` router wires these together: it builds the `runner.Handle` per action,
+gates sudo actions behind the password page, caches the become password in
+memory for the session, and re-prompts on a sudo authentication failure.
+
+## Install & run
+
+Built and installed during provisioning by the `tui` Ansible tag. Launch with
+`sparkdock tui` (it builds itself on first use, no sudo needed), or rebuild on
+demand with `sjust sparkdock-tui-install`. The Ansible stdout callback that
+drives the streaming view lives at `ansible/callback_plugins/sparkdock.py`.
+
+## Not yet wired
+
+- The `sparkdock` default command still provisions; flipping bare `sparkdock` to
+  the hub (with `sparkdock update` kept headless) and the in-hub self-update
+  remain a deliberate, separately-reviewed migration step.
+- Dashboard `proxy`, `device`, and Company actions, and `Update Sparkdock`, are
+  not yet handled (they no-op back to the dashboard).
