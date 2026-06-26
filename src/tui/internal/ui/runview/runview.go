@@ -142,9 +142,9 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 			return m, func() tea.Msg { return OpenLogMsg{Title: m.title, Lines: lines} }
 		}
 	case "up", "k":
-		m.vp.LineUp(1)
+		m.vp.ScrollUp(1)
 	case "down", "j":
-		m.vp.LineDown(1)
+		m.vp.ScrollDown(1)
 	}
 	return m, nil
 }
