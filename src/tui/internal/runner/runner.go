@@ -153,6 +153,14 @@ func AnsibleBuilder(ctx context.Context, opts Options) *exec.Cmd {
 		inventory = "localhost,"
 	}
 	args := []string{opts.Playbook, "-i", inventory, "-c", "local"}
+	if opts.Dir != "" {
+		// Align the playbook's dev_env_dir with where we run from, so a run
+		// against a checkout (e.g. SPARKDOCK_ROOT=<repo>) builds from that
+		// checkout rather than the hardcoded /opt/sparkdock default.
+		if abs, err := filepath.Abs(opts.Dir); err == nil {
+			args = append(args, "-e", "dev_env_dir="+abs)
+		}
+	}
 	if len(opts.Tags) > 0 {
 		args = append(args, "--tags", strings.Join(opts.Tags, ","))
 	}

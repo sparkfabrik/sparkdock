@@ -149,3 +149,17 @@ func TestIsBecomeAuthFailure(t *testing.T) {
 		t.Error("false positive on clean output")
 	}
 }
+
+func TestAnsibleBuilder_PassesDevEnvDir(t *testing.T) {
+	cmd := AnsibleBuilder(context.Background(), Options{Dir: "/tmp/checkout", Playbook: "ansible/macos.yml"})
+	joined := ""
+	for _, a := range cmd.Args {
+		joined += a + " "
+	}
+	if !contains(joined, "-e dev_env_dir=/tmp/checkout") {
+		t.Errorf("argv missing dev_env_dir override: %v", cmd.Args)
+	}
+	if cmd.Dir != "/tmp/checkout" {
+		t.Errorf("cmd.Dir = %q, want /tmp/checkout", cmd.Dir)
+	}
+}
