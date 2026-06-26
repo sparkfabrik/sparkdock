@@ -5,7 +5,6 @@ taps:
 
 # Cloud Tools, Applications, and Fonts
 cask_packages:
-  - docker-desktop
   - google-cloud-sdk
   - applite
   - font-caskaydia-mono-nerd-font
@@ -13,18 +12,29 @@ cask_packages:
   - font-inconsolata-nerd-font
   - font-fira-code-nerd-font
   - font-jetbrains-mono-nerd-font
-  - google-chrome
   - ghostty
   - git-credential-manager
   - iterm2
   - maccy
   - cameracontroller
-  - visual-studio-code
-  - visual-studio-code@insiders
-  - slack
-  - zoom
   - monitorcontrol
   - claude
+
+# Casks installed only if absent, never force-reinstalled (self-updating GUI apps).
+# `app` enables detection of installs made outside Homebrew (e.g. downloaded from the web).
+cask_install_once_packages:
+  - name: docker-desktop
+    app: "Docker"
+  - name: google-chrome
+    app: "Google Chrome"
+  - name: visual-studio-code
+    app: "Visual Studio Code"
+  - name: visual-studio-code@insiders
+    app: "Visual Studio Code - Insiders"
+  - name: slack
+    app: "Slack"
+  - name: zoom
+    app: "zoom.us"
 
 # Cask packages upgraded to latest on every provisioning run
 cask_latest_packages:
