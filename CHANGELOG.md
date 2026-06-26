@@ -143,6 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Gated the zoxide `cd` alias behind the `CLAUDECODE`/`AI_AGENT` markers so AI coding agents get a literal `cd` (a missing relative path errors instead of frecency-jumping the agent's persistent working directory); interactive shells keep zoxide-backed `cd`, and `zd`/`z`/`zi` stay available everywhere
 - Fixed the menubar provisioning aborting on the "Verify menu bar app works" task with `rc -9` (SIGKILL) on managed Macs: a freshly installed binary fires a first-exec authorization that an Endpoint Security agent (e.g. Mosyle) can deny under load; the install now clears the provenance xattr and re-applies the ad-hoc signature to warm the assessment, and the verify step retries until the agent's verdict caches
 - Fixed the managed Claude Code statusline dropping the weekly (`7d`) usage when Claude Code reports a fractional `seven_day.used_percentage` (e.g. `14.0000002`): the rate-limit percentages are now reduced to their integer part before the numeric check, the same way the context percentage already is. The `5h` value was unaffected only because it happened to be a whole number.
 - Fixed provisioning failing on machines that installed a package before its Homebrew tap was renamed (e.g. `skhd` pinned to `koekeishiya/formulae`): added a generic step that reinstalls any tap-qualified package whose install receipt no longer matches its declared tap, rebinding it; driven by the existing package list, no-op for fresh installs and already-correct packages
