@@ -107,12 +107,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case splash.MinElapsedMsg:
 		m.splashMin = true
-		m.dismissSplashIfReady()
-		return m, nil
+		return m, m.dismissSplashIfReady()
 
 	case splash.TimeoutMsg:
 		if m.page == ui.PageSplash {
 			m.page = ui.PageDashboard // never trap the user on a slow status load
+			return m, tea.DisableMouse
 		}
 		return m, nil
 
@@ -120,8 +120,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.dashboard, cmd = m.dashboard.Update(msg)
 		m.statusReady = true // status loaded in the background during the splash
-		m.dismissSplashIfReady()
-		return m, cmd
+		return m, tea.Batch(cmd, m.dismissSplashIfReady())
 
 	case dashboard.SysInfoMsg:
 		// May arrive while the splash is still up; force it to the dashboard so
@@ -181,7 +180,11 @@ func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {
 	case ui.PageRunner:
 		return m.launch(msg.Action)
 	default:
+		fromSplash := m.page == ui.PageSplash
 		m.page = msg.To
+		if fromSplash && m.page == ui.PageDashboard {
+			return m, tea.DisableMouse // restore native text selection/copy
+		}
 	}
 	return m, nil
 }
@@ -250,10 +253,15 @@ func (m Model) planFor(action string) (runSpec, bool) {
 
 // dismissSplashIfReady hands off to the dashboard once status has loaded and the
 // minimum splash time has passed, unless the user is holding it via clicks.
-func (m *Model) dismissSplashIfReady() {
+// dismissSplashIfReady hands off to the dashboard once status has loaded and the
+// minimum splash time has passed, returning a command to disable mouse reporting
+// so normal terminal text selection/copy works on the content pages.
+func (m *Model) dismissSplashIfReady() tea.Cmd {
 	if m.page == ui.PageSplash && m.statusReady && m.splashMin {
 		m.page = ui.PageDashboard
+		return tea.DisableMouse
 	}
+	return nil
 }
 
 func (m *Model) setSize(w, h int) {

@@ -138,7 +138,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case eventMsg:
 		m.apply(feed.Event(msg))
 		m.vp.SetContent(m.content())
-		m.vp.GotoBottom()
+		m.follow()
 		return m, waitEvent(m.handle)
 
 	case closedMsg:
@@ -157,13 +157,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case doneMsg:
 		m.finish(runner.Result(msg))
 		m.vp.SetContent(m.content())
-		// Ansible runs follow the tail (summary at the bottom); a plain command's
-		// output is a report, so start at the top for reading.
-		if m.hasStats {
-			m.vp.GotoBottom()
-		} else {
-			m.vp.GotoTop()
-		}
+		m.follow()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -245,6 +239,17 @@ func (m *Model) finish(res runner.Result) {
 		if m.hasStats { // only ansible runs report a task tally
 			m.lines = append(m.lines, "", lipgloss.NewStyle().Bold(true).Render("Summary")+m.summary())
 		}
+	}
+}
+
+// follow keeps the viewport tracking the tail for streaming ansible runs, but
+// pins a plain command's output (a report) to the top so it reads from the
+// start rather than the end.
+func (m *Model) follow() {
+	if m.hasStats {
+		m.vp.GotoBottom()
+	} else {
+		m.vp.GotoTop()
 	}
 }
 

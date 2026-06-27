@@ -13,7 +13,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
-	"github.com/sparkfabrik/sparkdock/src/tui/internal/audio"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/sysinfo"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/theme"
@@ -107,12 +106,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case SysInfoMsg:
 		m.sys = sysinfo.Info(msg)
 		m.sysReady = true
-		return m, nil
-	case tea.MouseMsg:
-		// click the header logo (top row) to replay the sound
-		if msg.Action == tea.MouseActionPress && msg.Y == 0 {
-			audio.Play()
-		}
 		return m, nil
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -260,7 +253,7 @@ func (m Model) sysInfoBlock(st theme.Styles) string {
 		lines = append(lines, row("Memory", fmt.Sprintf("%s free / %s", gb(s.MemFree), gb(s.MemTotal))))
 	}
 	if s.DiskTotal > 0 {
-		lines = append(lines, row("Disk", fmt.Sprintf("%s / %s free", gb(s.DiskFree), gb(s.DiskTotal))))
+		lines = append(lines, row("Disk", fmt.Sprintf("%s free / %s", gb(s.DiskFree), gb(s.DiskTotal))))
 	}
 	return strings.Join(lines, "\n")
 }
