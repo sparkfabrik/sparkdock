@@ -8,8 +8,10 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/runner"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui"
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/dashboard"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/password"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/runview"
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/splash"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
 
@@ -67,6 +69,52 @@ func TestPasswordCancelReturnsToRunner(t *testing.T) {
 	m = update(m, password.CancelMsg{})
 	if m.page != ui.PageRunner {
 		t.Errorf("page = %v, want PageRunner after cancel", m.page)
+	}
+}
+
+func TestSplash_DismissesOnlyWhenStatusReadyAndMinElapsed(t *testing.T) {
+	m := newTestApp() // starts on splash
+	m = update(m, splash.MinElapsedMsg{})
+	if m.page != ui.PageSplash {
+		t.Fatalf("page = %v, want PageSplash (status not loaded yet)", m.page)
+	}
+	m = update(m, dashboard.StatusMsg(nil))
+	if m.page != ui.PageDashboard {
+		t.Errorf("page = %v, want PageDashboard once status ready and min elapsed", m.page)
+	}
+}
+
+func TestSplash_StatusBeforeMinStillWaits(t *testing.T) {
+	m := newTestApp()
+	m = update(m, dashboard.StatusMsg(nil)) // ready, but min not elapsed
+	if m.page != ui.PageSplash {
+		t.Fatalf("page = %v, want PageSplash (min time not elapsed)", m.page)
+	}
+	m = update(m, splash.MinElapsedMsg{})
+	if m.page != ui.PageDashboard {
+		t.Errorf("page = %v, want PageDashboard", m.page)
+	}
+}
+
+func TestSplash_LogoClickHoldsBootstrap(t *testing.T) {
+	m := newTestApp()
+	m = update(m, splash.ClickedMsg{})     // hold
+	m = update(m, splash.MinElapsedMsg{})  // min elapsed
+	m = update(m, dashboard.StatusMsg(nil)) // status ready, but held
+	if m.page != ui.PageSplash {
+		t.Fatalf("page = %v, want PageSplash while held by a click", m.page)
+	}
+	m = update(m, splashHoldDoneMsg{})
+	if m.page != ui.PageDashboard {
+		t.Errorf("page = %v, want PageDashboard after the hold clears", m.page)
+	}
+}
+
+func TestSplash_TimeoutForcesDismiss(t *testing.T) {
+	m := newTestApp()
+	m = update(m, splash.TimeoutMsg{}) // status never arrived
+	if m.page != ui.PageDashboard {
+		t.Errorf("page = %v, want PageDashboard on timeout", m.page)
 	}
 }
 

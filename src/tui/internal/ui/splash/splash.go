@@ -23,8 +23,22 @@ var wordmark string
 // minWidth below which the block wordmark is replaced by a spaced text fallback.
 const minWidth = 84
 
-// DismissMsg is emitted when the splash should hand off to the dashboard.
-type DismissMsg struct{}
+// Timing: show the splash at least minShow so it is not a flash, but no longer
+// than maxShow so a slow status load never traps the user.
+const (
+	minShow = 900 * time.Millisecond
+	maxShow = 8 * time.Second
+)
+
+// MinElapsedMsg fires once the minimum splash time has passed.
+type MinElapsedMsg struct{}
+
+// TimeoutMsg fires at the maximum splash time, forcing a hand-off.
+type TimeoutMsg struct{}
+
+// ClickedMsg fires when the user clicks the logo (the app holds the splash a
+// little longer so they can keep clicking to hear the sound).
+type ClickedMsg struct{}
 
 // Model is the splash page.
 type Model struct {
@@ -35,9 +49,12 @@ type Model struct {
 // New returns a splash for the given version info.
 func New(ver version.Info) Model { return Model{ver: ver} }
 
-// Init starts the auto-dismiss timer.
+// Init starts the minimum and maximum splash timers.
 func (m Model) Init() tea.Cmd {
-	return tea.Tick(1400*time.Millisecond, func(time.Time) tea.Msg { return DismissMsg{} })
+	return tea.Batch(
+		tea.Tick(minShow, func(time.Time) tea.Msg { return MinElapsedMsg{} }),
+		tea.Tick(maxShow, func(time.Time) tea.Msg { return TimeoutMsg{} }),
+	)
 }
 
 // SetSize updates the render dimensions.
@@ -51,8 +68,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, func() tea.Msg { return ui.Navigate(ui.PageDashboard, "") }
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress {
-			audio.Play() // click the logo to hear it
-			return m, func() tea.Msg { return ui.Navigate(ui.PageDashboard, "") }
+			audio.Play() // click the logo to hear it; the app holds the splash a bit
+			return m, func() tea.Msg { return ClickedMsg{} }
 		}
 	}
 	return m, nil
@@ -75,7 +92,8 @@ func (m Model) View() string {
 	block := lipgloss.JoinVertical(lipgloss.Center,
 		mark, "",
 		spark+"  "+st.Dim.Render("dev environment manager")+"  "+spark, "",
-		st.Dim.Render(m.ver.Short()+"   ·   press any key…"),
+		st.Dim.Render(m.ver.Short()), "",
+		st.Dim.Render("preparing… · click the logo · any key to skip"),
 	)
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, block)
 }
