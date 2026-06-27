@@ -96,20 +96,6 @@ func TestSplash_StatusBeforeMinStillWaits(t *testing.T) {
 	}
 }
 
-func TestSplash_LogoClickHoldsBootstrap(t *testing.T) {
-	m := newTestApp()
-	m = update(m, splash.ClickedMsg{})     // hold
-	m = update(m, splash.MinElapsedMsg{})  // min elapsed
-	m = update(m, dashboard.StatusMsg(nil)) // status ready, but held
-	if m.page != ui.PageSplash {
-		t.Fatalf("page = %v, want PageSplash while held by a click", m.page)
-	}
-	m = update(m, splashHoldDoneMsg{})
-	if m.page != ui.PageDashboard {
-		t.Errorf("page = %v, want PageDashboard after the hold clears", m.page)
-	}
-}
-
 func TestSplash_TimeoutForcesDismiss(t *testing.T) {
 	m := newTestApp()
 	m = update(m, splash.TimeoutMsg{}) // status never arrived

@@ -36,10 +36,6 @@ type MinElapsedMsg struct{}
 // TimeoutMsg fires at the maximum splash time, forcing a hand-off.
 type TimeoutMsg struct{}
 
-// ClickedMsg fires when the user clicks the logo (the app holds the splash a
-// little longer so they can keep clicking to hear the sound).
-type ClickedMsg struct{}
-
 // Model is the splash page.
 type Model struct {
 	width, height int
@@ -68,8 +64,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, func() tea.Msg { return ui.Navigate(ui.PageDashboard, "") }
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress {
-			audio.Play() // click the logo to hear it; the app holds the splash a bit
-			return m, func() tea.Msg { return ClickedMsg{} }
+			audio.Play() // click the logo to hear it
 		}
 	}
 	return m, nil

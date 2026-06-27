@@ -10,7 +10,6 @@ package app
 
 import (
 	"context"
-	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -57,14 +56,10 @@ type Model struct {
 	hasLast bool
 
 	// splash dismissal: hand off to the dashboard once status is loaded and the
-	// minimum splash time has passed, unless the user is clicking the logo.
+	// minimum splash time has passed.
 	statusReady bool
 	splashMin   bool
-	splashHold  bool
 }
-
-// splashHoldDoneMsg clears the post-click hold on the splash.
-type splashHoldDoneMsg struct{}
 
 // New builds the root model wired to its dependencies.
 func New(cfg Config, ver version.Info, checker status.Checker) Model {
@@ -112,15 +107,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.page == ui.PageSplash {
 			m.page = ui.PageDashboard // never trap the user on a slow status load
 		}
-		return m, nil
-
-	case splash.ClickedMsg:
-		m.splashHold = true // delay the bootstrap so they can keep clicking
-		return m, tea.Tick(1500*time.Millisecond, func(time.Time) tea.Msg { return splashHoldDoneMsg{} })
-
-	case splashHoldDoneMsg:
-		m.splashHold = false
-		m.dismissSplashIfReady()
 		return m, nil
 
 	case dashboard.StatusMsg:
@@ -251,7 +237,7 @@ func (m Model) planFor(action string) (runSpec, bool) {
 // dismissSplashIfReady hands off to the dashboard once status has loaded and the
 // minimum splash time has passed, unless the user is holding it via clicks.
 func (m *Model) dismissSplashIfReady() {
-	if m.page == ui.PageSplash && m.statusReady && m.splashMin && !m.splashHold {
+	if m.page == ui.PageSplash && m.statusReady && m.splashMin {
 		m.page = ui.PageDashboard
 	}
 }
