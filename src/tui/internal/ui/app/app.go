@@ -123,6 +123,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.dismissSplashIfReady()
 		return m, cmd
 
+	case dashboard.SysInfoMsg:
+		// May arrive while the splash is still up; force it to the dashboard so
+		// the panel is populated rather than dropped.
+		var cmd tea.Cmd
+		m.dashboard, cmd = m.dashboard.Update(msg)
+		return m, cmd
+
 	case ui.NavigateMsg:
 		return m.navigate(msg)
 
