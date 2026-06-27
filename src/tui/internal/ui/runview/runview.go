@@ -157,7 +157,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case doneMsg:
 		m.finish(runner.Result(msg))
 		m.vp.SetContent(m.content())
-		m.vp.GotoBottom()
+		// Ansible runs follow the tail (summary at the bottom); a plain command's
+		// output is a report, so start at the top for reading.
+		if m.hasStats {
+			m.vp.GotoBottom()
+		} else {
+			m.vp.GotoTop()
+		}
 		return m, nil
 
 	case tea.KeyMsg:

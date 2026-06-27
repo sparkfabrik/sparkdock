@@ -241,12 +241,17 @@ func (m Model) sysInfoBlock(st theme.Styles) string {
 	if s.GPUCores > 0 {
 		chip += fmt.Sprintf(" · %d-core GPU", s.GPUCores)
 	}
-	var lines []string
-	if s.Model != "" {
-		lines = append(lines, row("Model", s.Model))
-	}
+	// model, serial, and macOS version on one line
+	ident := s.Model
 	if s.Serial != "" {
-		lines = append(lines, row("Serial", s.Serial))
+		ident = strings.TrimSpace(ident + " · " + s.Serial)
+	}
+	if s.OS != "" {
+		ident = strings.TrimSpace(ident + " · macOS " + s.OS)
+	}
+	var lines []string
+	if ident != "" {
+		lines = append(lines, row("Model", ident))
 	}
 	if chip != "" {
 		lines = append(lines, row("Chip", chip))
@@ -256,9 +261,6 @@ func (m Model) sysInfoBlock(st theme.Styles) string {
 	}
 	if s.DiskTotal > 0 {
 		lines = append(lines, row("Disk", fmt.Sprintf("%s / %s free", gb(s.DiskFree), gb(s.DiskTotal))))
-	}
-	if s.OS != "" {
-		lines = append(lines, row("macOS", s.OS))
 	}
 	return strings.Join(lines, "\n")
 }
