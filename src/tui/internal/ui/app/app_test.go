@@ -22,7 +22,7 @@ func (stubChecker) Check(context.Context) []status.Subsystem { return nil }
 // newTestApp wires an app whose ansible runner is a fast, harmless fake so
 // starting a run never spawns ansible-playbook.
 func newTestApp() Model {
-	m := New(Config{Root: "/tmp"}, version.Info{}, stubChecker{})
+	m := New(Config{Root: "/tmp"}, version.Info{}, Deps{Checker: stubChecker{}})
 	m.ansible = &runner.Runner{Build: func(ctx context.Context, _ runner.Options) *exec.Cmd {
 		return exec.CommandContext(ctx, "bash", "-c", "printf '@@DONE\\n'")
 	}}

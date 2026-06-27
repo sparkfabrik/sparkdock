@@ -19,6 +19,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/sysinfo"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/app"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
@@ -35,14 +36,17 @@ func main() {
 	}
 
 	ver := version.NewReader(root).Read()
-	checker := status.CmdChecker{
-		CheckUpdatesBin: root + "/bin/sparkdock-check-updates",
-		BrewBin:         "brew",
-		Run:             execRunner,
+	deps := app.Deps{
+		Checker: status.CmdChecker{
+			CheckUpdatesBin: root + "/bin/sparkdock-check-updates",
+			BrewBin:         "brew",
+			Run:             execRunner,
+		},
+		Gatherer: sysinfo.Gatherer{Run: execRunner},
 	}
 
 	prog := tea.NewProgram(
-		app.New(app.Config{Root: root}, ver, checker),
+		app.New(app.Config{Root: root}, ver, deps),
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(), // so the splash logo is clickable
 	)

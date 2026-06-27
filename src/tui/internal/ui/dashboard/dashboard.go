@@ -11,9 +11,11 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/audio"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/sysinfo"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/theme"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
@@ -40,26 +42,36 @@ type item struct {
 	selectable bool
 }
 
+// StatusMsg / SysInfoMsg carry async results back into the model.
+// (StatusMsg is declared above.)
+
+// SysInfoMsg carries a completed system-info gather.
+type SysInfoMsg sysinfo.Info
+
 // Model is the dashboard page.
 type Model struct {
 	width, height int
 	checker       status.Checker
+	gatherer      sysinfo.Gatherer
 	ver           version.Info
 	subs          []status.Subsystem
+	sys           sysinfo.Info
+	sysReady      bool
 	items         []item
 	cursor        int
 	loading       bool
 }
 
-// New builds a dashboard bound to a status checker and version info.
-func New(checker status.Checker, ver version.Info) Model {
-	m := Model{checker: checker, ver: ver, loading: true}
+// New builds a dashboard bound to a status checker, a sysinfo gatherer, and
+// version info.
+func New(checker status.Checker, gatherer sysinfo.Gatherer, ver version.Info) Model {
+	m := Model{checker: checker, gatherer: gatherer, ver: ver, loading: true}
 	m.rebuild()
 	return m
 }
 
-// Init triggers the first status load.
-func (m Model) Init() tea.Cmd { return m.refresh() }
+// Init triggers the first status load and system-info gather.
+func (m Model) Init() tea.Cmd { return tea.Batch(m.refresh(), m.sysGather()) }
 
 // SetSize updates render dimensions.
 func (m *Model) SetSize(w, h int) { m.width, m.height = w, h }
@@ -74,6 +86,16 @@ func (m Model) refresh() tea.Cmd {
 	}
 }
 
+func (m Model) sysGather() tea.Cmd {
+	g := m.gatherer
+	return func() tea.Msg {
+		if g.Run == nil {
+			return SysInfoMsg{}
+		}
+		return SysInfoMsg(g.Gather(context.Background()))
+	}
+}
+
 // Update handles navigation, refresh, and incoming status.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -81,6 +103,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.subs = []status.Subsystem(msg)
 		m.loading = false
 		m.rebuild()
+		return m, nil
+	case SysInfoMsg:
+		m.sys = sysinfo.Info(msg)
+		m.sysReady = true
 		return m, nil
 	case tea.MouseMsg:
 		// click the header logo (top row) to replay the sound
@@ -96,7 +122,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.move(1)
 		case "r":
 			m.loading = true
-			return m, m.refresh()
+			return m, tea.Batch(m.refresh(), m.sysGather())
 		case "d":
 			return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, "device") }
 		case "enter":
@@ -198,6 +224,60 @@ func dot(st theme.Styles, h status.Health) string {
 	}
 }
 
+// sysInfoBlock renders the right-hand system-info panel, or "" until the first
+// gather completes.
+func (m Model) sysInfoBlock(st theme.Styles) string {
+	if !m.sysReady {
+		return ""
+	}
+	s := m.sys
+	row := func(label, value string) string {
+		return st.Dim.Render(fmt.Sprintf("%-7s", label)) + " " + value
+	}
+	chip := s.Chip
+	if s.Cores > 0 {
+		chip += fmt.Sprintf(" · %d-core CPU", s.Cores)
+	}
+	if s.GPUCores > 0 {
+		chip += fmt.Sprintf(" · %d-core GPU", s.GPUCores)
+	}
+	var lines []string
+	if s.Model != "" {
+		lines = append(lines, row("Model", s.Model))
+	}
+	if s.Serial != "" {
+		lines = append(lines, row("Serial", s.Serial))
+	}
+	if chip != "" {
+		lines = append(lines, row("Chip", chip))
+	}
+	if s.MemTotal > 0 {
+		lines = append(lines, row("Memory", fmt.Sprintf("%s free / %s", gb(s.MemFree), gb(s.MemTotal))))
+	}
+	if s.DiskTotal > 0 {
+		lines = append(lines, row("Disk", fmt.Sprintf("%s / %s free", gb(s.DiskFree), gb(s.DiskTotal))))
+	}
+	if s.OS != "" {
+		lines = append(lines, row("macOS", s.OS))
+	}
+	return strings.Join(lines, "\n")
+}
+
+// gb formats a byte count as whole gigabytes.
+func gb(bytes uint64) string {
+	return fmt.Sprintf("%.0f GB", float64(bytes)/(1<<30))
+}
+
+// truncateBlock clips every line of a multi-line block to width cells
+// (ANSI-aware), so the right column can never overflow into the left.
+func truncateBlock(block string, width int) string {
+	lines := strings.Split(block, "\n")
+	for i, l := range lines {
+		lines[i] = ansi.Truncate(l, width, "")
+	}
+	return strings.Join(lines, "\n")
+}
+
 // View renders the dashboard.
 func (m Model) View() string {
 	st := theme.Default()
@@ -210,15 +290,38 @@ func (m Model) View() string {
 		st.Dim.Render("   ·   dev environment manager") + "\n")
 	b.WriteString(st.Dim.Render(strings.Repeat("─", width)) + "\n")
 
+	// Status rows form the left column; the system-info block sits on the right.
+	var statusRows []string
+	colsFlushed := false
+	flushCols := func() {
+		if colsFlushed {
+			return
+		}
+		colsFlushed = true
+		left := strings.Join(statusRows, "\n")
+		right := m.sysInfoBlock(st)
+		const gapW = 5
+		budget := width - lipgloss.Width(left) - gapW
+		if right != "" && budget >= 24 {
+			right = truncateBlock(right, budget)
+			b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, left, strings.Repeat(" ", gapW), right) + "\n")
+		} else {
+			b.WriteString(left + "\n")
+		}
+	}
+
 	for i, it := range m.items {
 		switch it.kind {
 		case kindStatus:
-			b.WriteString(fmt.Sprintf("  %s  %-16s %s\n", dot(st, it.health), it.label, st.Dim.Render(it.detail)))
+			statusRows = append(statusRows, fmt.Sprintf("  %s  %-16s %s", dot(st, it.health), it.label, st.Dim.Render(it.detail)))
 		case kindRule:
+			flushCols()
 			b.WriteString("  " + st.Dim.Render(strings.Repeat("─", max(width-4, 30))) + "\n")
 		case kindGroup:
+			flushCols()
 			b.WriteString("\n  " + st.Group.Render(it.label) + "\n")
 		case kindAction:
+			flushCols()
 			line := "   " + st.Action.Render(theme.Pointer+" "+it.label)
 			if i == m.cursor {
 				line = "  " + st.Selected.Render(" "+theme.Pointer+" "+it.label+" ")
@@ -229,6 +332,7 @@ func (m Model) View() string {
 			b.WriteString(line + "\n")
 		}
 	}
+	flushCols()
 
 	b.WriteString("\n" + st.Dim.Render(strings.Repeat("─", width)) + "\n")
 	left := " " + st.SparkS.Render(theme.Spark) + " " + st.Dim.Render(m.ver.Short())

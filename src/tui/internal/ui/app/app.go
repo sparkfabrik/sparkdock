@@ -15,6 +15,7 @@ import (
 
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/runner"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/sysinfo"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/dashboard"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/logview"
@@ -27,6 +28,12 @@ import (
 // Config locates the sparkdock install used to build run commands.
 type Config struct {
 	Root string // e.g. /opt/sparkdock
+}
+
+// Deps are the injected backends the app wires into its pages.
+type Deps struct {
+	Checker  status.Checker
+	Gatherer sysinfo.Gatherer
 }
 
 // runSpec describes a run the app can start (and retry).
@@ -62,12 +69,12 @@ type Model struct {
 }
 
 // New builds the root model wired to its dependencies.
-func New(cfg Config, ver version.Info, checker status.Checker) Model {
+func New(cfg Config, ver version.Info, deps Deps) Model {
 	return Model{
 		cfg:       cfg,
 		page:      ui.PageSplash,
 		splash:    splash.New(ver),
-		dashboard: dashboard.New(checker, ver),
+		dashboard: dashboard.New(deps.Checker, deps.Gatherer, ver),
 		runview:   runview.New(),
 		password:  password.New(),
 		logview:   logview.New(),
