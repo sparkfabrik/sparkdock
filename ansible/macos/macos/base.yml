@@ -5,6 +5,11 @@
   gather_facts: yes
   become: no
 
+  # Every brew/cask task inherits this, so brew never upgrades casks that manage
+  # their own updates (auto_updates true) — see https://github.com/Homebrew/brew/pull/21882.
+  environment:
+    HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS: "1"
+
   vars:
     dev_env_dir: /opt/sparkdock
     homebrew_prefix: "{{ (ansible_facts['machine'] == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
@@ -844,6 +849,39 @@
           fail:
             msg: >-
               {% if build_result is defined and build_result.rc != 0 %}Menubar app compilation failed. Run 'sjust sparkdock-menubar-reinstall' to fix Xcode command line tools and retry installation.{% else %}Menubar app install failed at task '{{ ansible_failed_task.name | default('unknown') }}': {{ ansible_failed_result.msg | default('see output above') }}{% endif %}
+
+    - name: Install Sparkdock TUI
+      tags: tui
+      become: false
+      block:
+        - name: Build sparkdock TUI
+          shell: |
+            cd {{ dev_env_dir }}/src/tui
+            mkdir -p .build
+            go build -o .build/sparkdock-tui ./cmd/sparkdock-tui
+          environment:
+            PATH: "{{ homebrew_brew_bin_path }}:{{ ansible_facts['env'].PATH }}"
+          register: tui_build_result
+          # go's build cache makes the build a no-op when sources are unchanged,
+          # so the compile itself is never a "change"; the install copy below
+          # reports whether the binary actually changed.
+          changed_when: false
+          failed_when: false
+
+        - name: Check if TUI build was successful
+          fail:
+            msg: |-
+              go build failed for src/tui:
+              {{ tui_build_result.stderr | default('') | trim }}
+              {{ tui_build_result.stdout | default('') | trim }}
+          when: tui_build_result.rc != 0
+
+        - name: Install sparkdock-tui binary
+          copy:
+            src: "{{ dev_env_dir }}/src/tui/.build/sparkdock-tui"
+            dest: "{{ homebrew_brew_bin_path }}/sparkdock-tui"
+            mode: "0755"
+            remote_src: true
 
     - name: Configure OpenCode settings
       tags: opencode

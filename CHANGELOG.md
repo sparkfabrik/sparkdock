@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `sparkdock tui`, a terminal hub (Go/bubbletea) that shows live subsystem status and runs provisioning, upgrades, and sjust recipes in a streaming view with a pinned statusline, masked sudo-password entry, cancel, retry, and a copyable run log. It is built and installed during provisioning via the new `tui` Ansible tag (and on first `sparkdock tui` invocation it builds itself via that tag, which is `become: false` so it needs no sudo); `sjust sparkdock-tui-install` rebuilds it on demand. An `ansible/callback_plugins/sparkdock.py` stdout callback drives the streaming view
 - Added a `cask_install_once_packages` list in `config/packages/all-packages.yml` for Homebrew casks that should be installed only when absent and never force-reinstalled; each entry supports an optional `app` name so a copy installed outside Homebrew (e.g. downloaded from the web) is detected via its `.app` bundle and not reinstalled
 - Added an OpenSpec section to `sjust sf-harness-status` showing the `openspec` CLI version, the global `~/openspec` project state, and per-tool (claude/copilot/opencode) counts of installed `openspec-*` skills and `opsx` prompts; read-only, no-op when the CLI is absent
 - Added `sjust sf-openspec-install-global [tools]` recipe and Ansible task that install or update OpenSpec skills and prompt commands globally via a home `~/openspec` project; idempotent, defaults to the `claude` tool, runs during provisioning when the `openspec` CLI is available
@@ -90,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Set `HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS=1` so `brew` no longer upgrades casks with `auto_updates true` (Chrome, Slack, Docker Desktop, …), restoring the behaviour a recent brew change removed (https://github.com/Homebrew/brew/pull/21882). Applied in three places so every code path is covered: the managed shell init (interactive use), the Ansible play environment (provisioning), and the sparkdock TUI's brew upgrade run. Opt back in per run with `brew upgrade --greedy`
 - Replaced the `ANSIBLE_BECOME_PASS` environment variable with Ansible's native `--ask-become-pass`, so the become password is held in memory instead of exported to the process environment (#541)
 - Moved Docker Desktop, Google Chrome, VSCode (stable and Insiders), Slack, and Zoom from `cask_packages` to the new install-once handling, so they are installed once and never force-reinstalled on later provisioning runs; this replaces the three per-app skip blocks (Docker/Chrome/VSCode Insiders) with a single data-driven block and stops Chrome from being force-reinstalled (degrading the browser) while it is open
 - The OpenSpec CLI upgrade task now runs `brew update` first (`update_homebrew: true`) so `state: latest` resolves against current formula definitions instead of a possibly stale local index

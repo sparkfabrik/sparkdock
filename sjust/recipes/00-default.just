@@ -287,6 +287,16 @@ sparkdock-install-tags tags:
 
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
 
+# Build and install the Sparkdock terminal hub (sparkdock-tui). The 'tui' tag is become: false, so no sudo password is required.
+[group('sparkdock')]
+sparkdock-tui-install:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    cd {{ sparkdock_path }}
+    sparkdock ensure-python3
+    ansible-playbook -i ansible/inventory.ini ansible/macos.yml --tags tui
+    echo "✓ sparkdock-tui installed. Launch it with 'sparkdock tui'."
+
 # Fetch latest Sparkdock updates from git repository without running system configuration. Useful for getting the newest sjust recipes and commands without triggering a full system update.
 [group('sparkdock')]
 sparkdock-fetch-updates:

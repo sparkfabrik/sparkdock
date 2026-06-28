@@ -10,6 +10,14 @@ command_exists() {
 # Homebrew prefix on macOS
 HOMEBREW_PREFIX="/opt/homebrew"
 
+# Leave self-updating casks (auto_updates true) to update themselves. A recent
+# brew change (https://github.com/Homebrew/brew/pull/21882) made `brew upgrade`
+# upgrade auto_updates casks even without --greedy, which fights apps that
+# manage their own updates (Chrome, Slack, Docker Desktop, …). This restores the
+# prior behaviour for all brew usage. Opt back in per-run with
+# `brew upgrade --greedy`.
+export HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS=1
+
 # Default values for optional features (can be overridden before sourcing sparkdock.zshrc)
 : "${SPARKDOCK_ENABLE_STARSHIP:=1}"  # Enabled by default
 : "${SPARKDOCK_ENABLE_FZF:=1}"       # Enabled by default

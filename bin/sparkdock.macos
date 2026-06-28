@@ -22,6 +22,7 @@ get_root_dir() {
 }
 
 SPARKDOCK_ROOT="$(get_root_dir)"
+export SPARKDOCK_ROOT
 
 cleanup_lock() {
     LOCK_FILE="/tmp/sparkdock.lock"
@@ -101,6 +102,36 @@ fi
 if [ "$1" = "ensure-python3" ] ; then
     ensure_python3
     exit 0
+fi
+
+# Terminal hub mode: launch the sparkdock-tui binary, building it on first use
+# or whenever its sources are newer than the installed binary (so a self-update
+# that touched src/tui is picked up before launch). The 'tui' Ansible tag is
+# become: false, so the build needs no sudo password.
+if [ "$1" = "tui" ] ; then
+    shift
+    tui_bin="$(command -v sparkdock-tui 2>/dev/null || true)"
+    needs_build=false
+    if [ -z "$tui_bin" ]; then
+        needs_build=true
+    elif [ -n "$(find "$SPARKDOCK_ROOT/src/tui" -path '*/.build' -prune -o -type f -newer "$tui_bin" -print 2>/dev/null | head -1)" ]; then
+        print_info "sparkdock-tui sources changed since last build; rebuilding..."
+        needs_build=true
+    fi
+    if [ "$needs_build" = true ]; then
+        print_info "Building sparkdock-tui (no sudo required)..."
+        if ! ( cd "$SPARKDOCK_ROOT" && ensure_python3 && ansible-playbook -i ansible/inventory.ini ansible/macos.yml --tags tui ); then
+            print_error "Failed to build sparkdock-tui. Run 'sparkdock' to provision."
+            exit 1
+        fi
+        hash -r 2>/dev/null || true
+        tui_bin="$(command -v sparkdock-tui 2>/dev/null || true)"
+    fi
+    if [ -z "$tui_bin" ]; then
+        print_error "sparkdock-tui is still not on PATH after building."
+        exit 1
+    fi
+    exec sparkdock-tui "$@"
 fi
 
 # Updating myself.
