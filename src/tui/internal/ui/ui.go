@@ -10,7 +10,6 @@ const (
 	PageSplash PageID = iota
 	PageDashboard
 	PageRunner
-	PageSjust
 	PagePassword
 	PageLog
 )

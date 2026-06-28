@@ -83,7 +83,13 @@ func (c *structuredContent) rawLog() []string           { return c.raw }
 func (c *structuredContent) phase() string              { return c.phaseName }
 func (c *structuredContent) task() string               { return c.taskName }
 func (c *structuredContent) stats() (feed.Stats, bool)  { return c.tally, c.hasTally }
-func (c *structuredContent) scroll(delta int)           { c.vp.ScrollDown(delta) }
+func (c *structuredContent) scroll(delta int) {
+	if delta < 0 {
+		c.vp.ScrollUp(-delta)
+	} else {
+		c.vp.ScrollDown(delta)
+	}
+}
 func (c *structuredContent) gotoTop()                   { c.vp.GotoTop() }
 func (c *structuredContent) gotoBottom()                { c.vp.GotoBottom() }
 

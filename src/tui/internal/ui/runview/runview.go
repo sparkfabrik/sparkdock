@@ -180,8 +180,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 func (m *Model) finish(res runner.Result) {
 	m.running = false
 	m.canceled = res.Canceled
-	_, hasStats := m.content.stats()
-	stats, _ := m.content.stats()
+	stats, hasStats := m.content.stats()
 	m.failed = !res.Canceled && (res.Err != nil || (hasStats && stats.Failed > 0))
 	m.content.finalize()
 	m.content.follow(m.scroll)

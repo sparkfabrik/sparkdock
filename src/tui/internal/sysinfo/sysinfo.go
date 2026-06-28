@@ -51,9 +51,15 @@ func (g Gatherer) Gather(ctx context.Context) Info {
 func parseHardware(out string) Info {
 	var info Info
 	var modelName, modelID string
-	coresSeen := 0
+	inDisplays := false
 	for _, raw := range strings.Split(out, "\n") {
 		line := strings.TrimSpace(raw)
+		// SPDisplaysDataType output begins with the "Graphics/Displays:" header;
+		// "Total Number of Cores" before it is the CPU, after it is the GPU.
+		if strings.HasPrefix(line, "Graphics/Displays") {
+			inDisplays = true
+			continue
+		}
 		key, val, ok := strings.Cut(line, ":")
 		if !ok {
 			continue
@@ -71,16 +77,11 @@ func parseHardware(out string) Info {
 		case "Memory":
 			info.MemTotal = parseMemoryGB(val)
 		case "Total Number of Cores":
-			// The first occurrence is the CPU (SPHardwareDataType); the second is
-			// the GPU (SPDisplaysDataType). Order is reliable; the CPU's
-			// "(8 performance…)" suffix is not present on base M-series chips.
-			n := leadingInt(val)
-			if coresSeen == 0 {
-				info.Cores = n
-			} else if coresSeen == 1 {
-				info.GPUCores = n
+			if inDisplays {
+				info.GPUCores = leadingInt(val)
+			} else {
+				info.Cores = leadingInt(val)
 			}
-			coresSeen++
 		}
 	}
 	info.Model = modelName

@@ -14,6 +14,7 @@ package runner
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -114,8 +115,17 @@ func (r *Runner) Start(ctx context.Context, opts Options) *Handle {
 // prompt when the pending (un-newlined) text looks like one. It does not parse
 // or interpret the bytes; rendering is the view's responsibility.
 func (h *Handle) pump(output chan<- []byte, prompts chan<- string, done chan<- Result) {
-	defer close(output)
+	// Guarantee exactly one Done is sent, even on a panic, so the UI never hangs
+	// waiting on it. Deferred LIFO: channels close first, then Done is sent.
+	var res Result
+	defer func() {
+		if r := recover(); r != nil {
+			res = Result{Err: fmt.Errorf("runner: %v", r)}
+		}
+		done <- res
+	}()
 	defer close(prompts)
+	defer close(output)
 
 	buf := make([]byte, 4096)
 	var line []byte // pending line, for prompt detection only
@@ -134,6 +144,11 @@ func (h *Handle) pump(output chan<- []byte, prompts chan<- string, done chan<- R
 				}
 				line = append(line, b)
 			}
+			// Cap the pending-line buffer so a process that never emits a newline
+			// can't grow it without bound; the prompt sits at the tail anyway.
+			if len(line) > 4096 {
+				line = line[len(line)-512:]
+			}
 			if !awaiting && len(line) > 0 && promptRe.Match(line) {
 				awaiting = true
 				prompts <- strings.TrimSpace(string(line))
@@ -148,9 +163,9 @@ func (h *Handle) pump(output chan<- []byte, prompts chan<- string, done chan<- R
 	h.ptmx.Close()
 	select {
 	case <-h.canceled:
-		done <- Result{Err: exitErr, Canceled: true}
+		res = Result{Err: exitErr, Canceled: true}
 	default:
-		done <- Result{Err: exitErr}
+		res = Result{Err: exitErr}
 	}
 }
 

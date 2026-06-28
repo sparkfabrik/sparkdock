@@ -863,7 +863,10 @@
           environment:
             PATH: "{{ homebrew_brew_bin_path }}:{{ ansible_facts['env'].PATH }}"
           register: tui_build_result
-          changed_when: tui_build_result.rc == 0
+          # go's build cache makes the build a no-op when sources are unchanged,
+          # so the compile itself is never a "change"; the install copy below
+          # reports whether the binary actually changed.
+          changed_when: false
           failed_when: false
 
         - name: Check if TUI build was successful
