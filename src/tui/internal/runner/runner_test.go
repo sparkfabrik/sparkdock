@@ -105,17 +105,20 @@ func TestAnsibleBuilder_Flags(t *testing.T) {
 	}
 }
 
-func TestAnsibleBuilder_SudoPrimesTimestamp(t *testing.T) {
+func TestAnsibleBuilder_SudoAsksBecomePass(t *testing.T) {
 	cmd := AnsibleBuilder(context.Background(), Options{Playbook: "playbook.yml", Sudo: true})
 	joined := ""
 	for _, a := range cmd.Args {
 		joined += a + " "
 	}
-	if !contains(joined, "sudo -v") {
-		t.Errorf("sudo run must prime the sudo timestamp: %v", cmd.Args)
+	if !contains(joined, "--ask-become-pass") {
+		t.Errorf("sudo run must add --ask-become-pass: %v", cmd.Args)
 	}
-	if !contains(joined, "ansible-playbook") {
-		t.Errorf("wrapped command must still exec ansible-playbook: %v", cmd.Args)
+	// no password anywhere in env or argv
+	for _, kv := range cmd.Env {
+		if contains(kv, "ANSIBLE_BECOME_PASS") {
+			t.Errorf("env must not carry a become password: %q", kv)
+		}
 	}
 }
 

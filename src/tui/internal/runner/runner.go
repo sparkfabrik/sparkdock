@@ -207,15 +207,11 @@ func IsBecomeAuthFailure(lines []string) bool {
 	return false
 }
 
-// sudoPrime is a shell prelude that caches the sudo timestamp (prompting on the
-// PTY, which the UI answers) before exec'ing the real command. Ansible's
-// per-task `sudo -n` and brew's cask sudo then reuse the cached credential, so
-// there is a single prompt and no become-password plumbing.
-const sudoPrime = `sudo -v || exit 1; exec "$@"`
-
 // AnsibleBuilder builds a real ansible-playbook invocation with the sparkdock
-// stdout callback. When Sudo is set, the run is wrapped so the sudo timestamp is
-// primed first (one PTY password prompt) rather than passing a become password.
+// stdout callback. When Sudo is set, --ask-become-pass is added so ansible
+// prompts once for the become password and feeds it to every become task itself
+// (reliable regardless of the tty's sudo timestamp). The UI answers the prompt
+// on the PTY via the masked password page; the password is never cached.
 func AnsibleBuilder(ctx context.Context, opts Options) *exec.Cmd {
 	inventory := opts.Inventory
 	if inventory == "" {
@@ -230,6 +226,9 @@ func AnsibleBuilder(ctx context.Context, opts Options) *exec.Cmd {
 	if len(opts.Tags) > 0 {
 		args = append(args, "--tags", strings.Join(opts.Tags, ","))
 	}
+	if opts.Sudo {
+		args = append(args, "--ask-become-pass")
+	}
 	if opts.Verbose {
 		args = append(args, "-v")
 	}
@@ -237,12 +236,7 @@ func AnsibleBuilder(ctx context.Context, opts Options) *exec.Cmd {
 		args = append(args, "-e", "force_fail=true")
 	}
 
-	var cmd *exec.Cmd
-	if opts.Sudo {
-		cmd = exec.CommandContext(ctx, "bash", append([]string{"-c", sudoPrime, "bash", "ansible-playbook"}, args...)...)
-	} else {
-		cmd = exec.CommandContext(ctx, "ansible-playbook", args...)
-	}
+	cmd := exec.CommandContext(ctx, "ansible-playbook", args...)
 	cmd.Dir = opts.Dir
 	cmd.Env = append(os.Environ(),
 		"ANSIBLE_STDOUT_CALLBACK=sparkdock",
