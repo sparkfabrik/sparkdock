@@ -285,6 +285,7 @@ func (m Model) View() string {
 	}
 	var b strings.Builder
 	b.WriteString(" " + st.SparkS.Render(theme.Spark) + " " + st.Title.Render("sparkdock") +
+		" " + st.Amber.Render("beta") +
 		st.Dim.Render("   ·   dev environment manager") + "\n")
 	b.WriteString(st.Dim.Render(strings.Repeat("─", width)) + "\n")
 

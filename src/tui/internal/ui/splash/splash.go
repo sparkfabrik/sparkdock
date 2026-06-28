@@ -87,6 +87,7 @@ func (m Model) View() string {
 	block := lipgloss.JoinVertical(lipgloss.Center,
 		mark, "",
 		spark+"  "+st.Dim.Render("dev environment manager")+"  "+spark, "",
+		st.Amber.Render("beta")+st.Dim.Render(" · experimental"), "",
 		st.Dim.Render(m.ver.Short()), "",
 		st.Dim.Render("preparing… · click the logo · any key to skip"),
 	)
