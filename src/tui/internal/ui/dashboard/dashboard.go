@@ -169,18 +169,18 @@ func (m *Model) rebuild() {
 		{kind: kindStatus, id: "sparkdock", label: "Sparkdock", detail: sdDetail, health: sd.Health},
 		statusItem(m.subByKey("brew"), "Brew packages"),
 		statusItem(m.subByKey("http-proxy"), "HTTP proxy"),
-		statusItem(m.subByKey("skills"), "Agent skills"),
+		statusItem(m.subByKey("skills"), "AI harness"),
 		{kind: kindRule},
 	}
 	if sd.Health == status.Stale {
 		items = append(items, item{kind: kindAction, id: "self-update", label: "Update Sparkdock", detail: sd.Detail, selectable: true})
 	}
 	items = append(items,
-		item{kind: kindAction, id: "provision", label: "Run full provisioning", selectable: true},
+		item{kind: kindAction, id: "provision", label: "Provision system", selectable: true},
 		item{kind: kindAction, id: "upgrade", label: "Upgrade Brew packages", detail: m.subByKey("brew").Detail, selectable: true},
 		item{kind: kindAction, id: "sync", label: "Sync AI harness", selectable: true},
 		item{kind: kindGroup, label: "HTTP proxy"},
-		item{kind: kindAction, id: "proxy-status", label: "Status", selectable: true},
+		item{kind: kindAction, id: "proxy-status", label: "Check status", selectable: true},
 		item{kind: kindAction, id: "proxy-start", label: "Start", selectable: true},
 		item{kind: kindAction, id: "proxy-stop", label: "Stop", selectable: true},
 		item{kind: kindAction, id: "proxy-upgrade", label: "Upgrade", selectable: true},
