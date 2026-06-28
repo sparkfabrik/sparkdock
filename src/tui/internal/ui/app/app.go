@@ -235,10 +235,14 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	case "provision":
 		return runSpec{title: "Running full provisioning", rnr: m.ansible, opts: ansibleOpts(), sudo: true, scroll: runview.FollowTail, render: runview.Structured}, true
 	case "upgrade":
-		// --yes skips the confirmation prompt (official flag). Formulae need no
-		// sudo; a cask that does prompts on the PTY. brew redraws progress in
-		// place, so emulate a terminal.
-		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForCommand("brew", "upgrade", "--yes"), scroll: runview.FollowTail, render: runview.Terminal}, true
+		// --yes skips the confirmation prompt (official flag). A recent brew
+		// change (PR #21882) made `brew upgrade` upgrade auto_updates casks even
+		// non-greedy; HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS=1 restores the old
+		// behaviour of leaving self-updating apps to update themselves. Formulae
+		// need no sudo; a cask that does prompts on the PTY. brew redraws progress
+		// in place, so emulate a terminal.
+		brewEnv := []string{"HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS=1"}
+		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForCommandEnv(brewEnv, "brew", "upgrade", "--yes"), scroll: runview.FollowTail, render: runview.Terminal}, true
 	case "sync":
 		return runSpec{title: "Syncing AI harness", rnr: m.ansible, opts: ansibleOpts("ai-harness-sync"), scroll: runview.FollowTail, render: runview.Structured}, true
 	case "proxy-status":
