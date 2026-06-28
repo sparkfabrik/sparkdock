@@ -170,6 +170,40 @@ docker run --rm -v "$(pwd):/src" koalaman/shellcheck:stable /src/bin/sparkdock-a
 - Run via Docker: `docker run --rm -v "$(pwd)/src:/src" ghcr.io/astral-sh/ruff:latest format /src`
 - Lint check: `docker run --rm -v "$(pwd)/src:/src" ghcr.io/astral-sh/ruff:latest check /src`
 
+## Go Standards
+
+The terminal hub lives in `src/tui/` (a self-contained Go module, see the
+**Sparkdock TUI** section). All Go work happens inside that directory.
+
+**Always run these before committing any `.go` change**, in order. CI runs the
+same gates (`.github/workflows/test-tui.yml`), so a skipped step here becomes a
+red check on the PR:
+
+```bash
+cd src/tui
+gofmt -l .               # MUST print nothing. If it lists files, run: gofmt -w .
+go vet ./...             # static analysis; MUST be clean
+go build ./...           # MUST compile
+go test ./... -count=1   # -count=1 disables the test cache so results are real
+```
+
+- **Formatting is non-negotiable.** `gofmt -l .` listing a file fails CI. Never
+  hand-format; run `gofmt -w .`. Do not reformat files you did not change.
+- **`-count=1`** on tests bypasses Go's result cache, so a green run reflects the
+  current code rather than a cached pass.
+- **Editor diagnostics about "inefficient `WriteString`" or "use `max`"** from
+  staticcheck/gopls are advisory style hints, not CI gates (CI runs `go vet`, not
+  staticcheck). Do not chase them unless you are already editing that code.
+- **Design pattern.** Keep packages pure-core with side effects injected: parsing
+  and orchestration take an injected command runner (see `internal/status`,
+  `internal/sysinfo`, `internal/runner`) so they are unit-tested without invoking
+  real binaries. New packages follow the same shape.
+- **Cross-platform builds.** The binary ships only on macOS, but the code carries
+  no build constraints and cross-compiles to linux, which is why CI runs on
+  `ubuntu-latest`. Do not add `//go:build darwin` unless a file genuinely needs a
+  macOS-only API; runtime tool calls (`system_profiler`, `afplay`) are plain
+  strings and compile everywhere.
+
 ## Markdown Formatting
 
 After creating or editing any Markdown file (`.md`), **always** run the
@@ -240,6 +274,55 @@ make uninstall               # Remove installation
 - Replaces old launchd-based update notifications
 - Auto-starts at login via launch agent (local development only)
 - CI environments skip LaunchAgent installation for better automation
+
+## Sparkdock TUI (Terminal Hub)
+
+A Go/bubbletea terminal hub under `src/tui/`, the terminal twin of the menu bar
+app. It is an **opt-in front end**: launched with `sparkdock tui`, never by bare
+`sparkdock` (which keeps its self-update plus full-provisioning behavior). See
+the **Go Standards** section for the mandatory `gofmt`/`vet`/`build`/`test` gate.
+
+### What it does
+
+- A flat grouped dashboard mirrors the menu bar: a status group (Sparkdock, Brew
+  packages, HTTP proxy, AI harness) fed by `sparkdock-check-updates` and `brew
+outdated`, plus a background-gathered system-info panel (model, serial, chip,
+  memory, disk, macOS).
+- Each action shows its **equivalent shell command** as the detail, so the CLI is
+  discoverable: `Update everything` (`sparkdock`), `Upgrade Brew packages` (`brew
+upgrade`), `Sync AI harness` (`sjust sf-harness-sync`), the `HTTP proxy` group
+  (`spark-http-proxy …`), and `d` for device info (`ayse-get-sm`).
+- A shared Runner streams output above a pinned statusline via two renderers
+  behind one interface: **structured** (decodes the `ansible/callback_plugins/sparkdock.py`
+  stdout callback's `@@PHASE`/`@@TASK`/`@@STAT`/`@@DONE` markers) and **terminal**
+  (a VT emulator for programs that redraw in place, like `brew`).
+- Privileged runs use `--ask-become-pass`; the password is entered on a masked
+  page and written to the process PTY. **It is never cached, never put in the
+  environment, argv, or a file, and is asked for each time.** Do not add caching.
+
+### Building and testing
+
+```bash
+cd src/tui
+go build -o .build/sparkdock-tui ./cmd/sparkdock-tui   # build the binary
+go test ./... -count=1                                  # run the suite
+```
+
+- The full binary is built during provisioning via the `tui` Ansible tag
+  (`become: false`, no sudo). `sparkdock tui` builds it on first use and rebuilds
+  whenever `src/tui` is newer than the installed binary.
+- To run the binary against a dev checkout (not the installed `/opt/sparkdock`),
+  set `SPARKDOCK_ROOT` to the repo root; otherwise the callback plugin and status
+  binaries resolve against `/opt/sparkdock` and fail. The `sparkdock` entrypoint
+  exports `SPARKDOCK_ROOT` for you.
+- Disable the logo-click chime in tests or headless use with
+  `SPARKDOCK_TUI_NO_AUDIO=1`. The TUI needs a TTY; with no TTY it takes a headless
+  path (currently a stub).
+
+### Not yet wired
+
+- The self-update action is hidden (not a dead button); run `sparkdock` to
+  self-update. The headless delegate (`sparkdock-tui update`) is a stub.
 
 ## macOS System Defaults
 
