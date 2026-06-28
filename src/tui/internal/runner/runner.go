@@ -161,6 +161,14 @@ func (h *Handle) Answer(password string) {
 	}
 }
 
+// WriteInput forwards raw input to the running process's PTY, so the user can
+// answer non-password prompts (e.g. brew's "Proceed? [y/n]") from the runner.
+func (h *Handle) WriteInput(s string) {
+	if h.ptmx != nil {
+		_, _ = io.WriteString(h.ptmx, s)
+	}
+}
+
 // Cancel interrupts the running process so it can unwind. Safe to call multiple
 // times and after completion.
 func (h *Handle) Cancel() {
@@ -254,11 +262,3 @@ func ForCommand(name string, args ...string) *Runner {
 	}}
 }
 
-// ForSudoCommand is like ForCommand but primes the sudo timestamp first, so a
-// command whose sub-steps call sudo (e.g. `brew upgrade` for casks) prompts once
-// up front instead of stalling mid-run.
-func ForSudoCommand(name string, args ...string) *Runner {
-	return &Runner{Build: func(ctx context.Context, _ Options) *exec.Cmd {
-		return exec.CommandContext(ctx, "bash", append([]string{"-c", sudoPrime, "bash", name}, args...)...)
-	}}
-}

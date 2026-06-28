@@ -35,6 +35,16 @@ type (
 // password page and answers via AnswerPrompt.
 type PromptMsg struct{ Text string }
 
+// ScrollMode is how the runner view tracks output. The caller declares it per
+// run: streaming work follows the tail; a one-shot report pins to the top so it
+// reads from the start.
+type ScrollMode int
+
+const (
+	FollowTail ScrollMode = iota // keep the latest output in view (default)
+	PinTop                       // keep the top in view (reports: device info, status)
+)
+
 // OpenLogMsg asks the app to open the captured output in the log page.
 type OpenLogMsg struct {
 	Title string
@@ -67,6 +77,7 @@ type Model struct {
 	lines []string // rendered content
 	raw   []string // verbatim output for the copyable log
 
+	scroll   ScrollMode
 	running  bool
 	failed   bool
 	canceled bool
@@ -92,13 +103,14 @@ func (m *Model) SetSize(w, h int) {
 	m.vp.Height = max(h-chromeRows, 1)
 }
 
-// Start renders the run represented by h under the given title. If a previous
-// run is somehow still live, it is cancelled first so its goroutine cannot leak
-// or bleed events into the new run.
-func (m Model) Start(title string, h *runner.Handle) (Model, tea.Cmd) {
+// Start renders the run represented by h under the given title and scroll mode.
+// If a previous run is somehow still live, it is cancelled first so its
+// goroutine cannot leak or bleed events into the new run.
+func (m Model) Start(title string, h *runner.Handle, scroll ScrollMode) (Model, tea.Cmd) {
 	if m.handle != nil && m.running {
 		m.handle.Cancel()
 	}
+	m.scroll = scroll
 	m.title = title
 	m.running, m.failed, m.canceled = true, false, false
 	m.phase, m.task = "starting", "…"
@@ -167,22 +179,24 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c":
+	k := msg.String()
+	if k == "ctrl+c" {
 		if m.running && m.handle != nil {
 			m.handle.Cancel()
 		}
 		return m, nil
+	}
+	if m.running {
+		return m.handleRunningKey(msg)
+	}
+	// Finished: navigation and scrollback controls.
+	switch k {
 	case "esc", "q":
-		if !m.running {
-			return m, func() tea.Msg { return BackMsg{} }
-		}
+		return m, func() tea.Msg { return BackMsg{} }
 	case "r":
-		if !m.running {
-			return m, func() tea.Msg { return RetryMsg{} }
-		}
+		return m, func() tea.Msg { return RetryMsg{} }
 	case "l":
-		if !m.running && len(m.raw) > 0 {
+		if len(m.raw) > 0 {
 			lines := append([]string(nil), m.raw...)
 			return m, func() tea.Msg { return OpenLogMsg{Title: m.title, Lines: lines} }
 		}
@@ -190,6 +204,34 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 		m.vp.ScrollUp(1)
 	case "down", "j":
 		m.vp.ScrollDown(1)
+	case "g":
+		m.vp.GotoTop()
+	case "G":
+		m.vp.GotoBottom()
+	}
+	return m, nil
+}
+
+// handleRunningKey forwards input to the live process so interactive prompts
+// (brew's "Proceed? [y/n]", etc.) can be answered, while arrows still scroll and
+// ctrl+c cancels (handled by the caller).
+func (m Model) handleRunningKey(msg tea.KeyMsg) (Model, tea.Cmd) {
+	if m.handle == nil {
+		return m, nil
+	}
+	switch msg.Type {
+	case tea.KeyUp:
+		m.vp.ScrollUp(1)
+	case tea.KeyDown:
+		m.vp.ScrollDown(1)
+	case tea.KeyEnter:
+		m.handle.WriteInput("\n")
+	case tea.KeyBackspace:
+		m.handle.WriteInput("\x7f")
+	case tea.KeySpace:
+		m.handle.WriteInput(" ")
+	case tea.KeyRunes:
+		m.handle.WriteInput(string(msg.Runes))
 	}
 	return m, nil
 }
@@ -242,14 +284,14 @@ func (m *Model) finish(res runner.Result) {
 	}
 }
 
-// follow keeps the viewport tracking the tail for streaming ansible runs, but
-// pins a plain command's output (a report) to the top so it reads from the
-// start rather than the end.
+// follow tracks output per the declared scroll mode: streaming runs keep the
+// latest line in view; reports stay at the top.
 func (m *Model) follow() {
-	if m.hasStats {
-		m.vp.GotoBottom()
-	} else {
+	switch m.scroll {
+	case PinTop:
 		m.vp.GotoTop()
+	default:
+		m.vp.GotoBottom()
 	}
 }
 
