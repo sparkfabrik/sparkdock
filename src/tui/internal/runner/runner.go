@@ -257,3 +257,14 @@ func ForCommand(name string, args ...string) *Runner {
 	}}
 }
 
+// ForCommandEnv is ForCommand with extra environment appended to the child, used
+// to switch on the sparkdock stdout callback for recipes that run ansible (so a
+// recipe's nested playbook produces the structured feed too).
+func ForCommandEnv(extraEnv []string, name string, args ...string) *Runner {
+	return &Runner{Build: func(ctx context.Context, _ Options) *exec.Cmd {
+		cmd := exec.CommandContext(ctx, name, args...)
+		cmd.Env = append(os.Environ(), extraEnv...)
+		return cmd
+	}}
+}
+

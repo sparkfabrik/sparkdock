@@ -10,6 +10,7 @@ package app
 
 import (
 	"context"
+	"path/filepath"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -247,10 +248,11 @@ func (m Model) planFor(action string) (runSpec, bool) {
 		return runSpec{title: "HTTP proxy · stop", rnr: runner.ForCommand("spark-http-proxy", "stop"), scroll: runview.FollowTail, render: runview.Terminal}, true
 	case "proxy-upgrade":
 		// Canonical path: the recipe git-updates the http-proxy repo, then
-		// re-provisions. It runs its own ansible (default output + git progress),
-		// so emulate a terminal; its nested --ask-become-pass prompt is answered
-		// via the password page.
-		return runSpec{title: "HTTP proxy · upgrade", rnr: runner.ForCommand("sjust", "http-proxy-install-update"), scroll: runview.FollowTail, render: runview.Terminal}, true
+		// re-provisions. Run it with the sparkdock callback env so its nested
+		// ansible emits the structured feed too; render Structured (the decoder's
+		// \r handling keeps git's progress clean). The nested --ask-become-pass
+		// prompt is answered via the password page.
+		return runSpec{title: "HTTP proxy · upgrade", rnr: runner.ForCommandEnv(m.callbackEnv(), "sjust", "http-proxy-install-update"), scroll: runview.FollowTail, render: runview.Structured}, true
 	case "device":
 		return runSpec{title: "Device info", rnr: runner.ForCommand("ayse-get-sm"), scroll: runview.PinTop, render: runview.Structured}, true
 	default:
@@ -267,6 +269,22 @@ func (m *Model) dismissSplashIfReady() tea.Cmd {
 		return tea.DisableMouse
 	}
 	return nil
+}
+
+// callbackEnv enables the sparkdock stdout callback for a recipe that runs
+// ansible, so its nested playbook produces the structured feed. The callback
+// dir is absolute, so ansible loads it regardless of the recipe's working dir.
+func (m Model) callbackEnv() []string {
+	dir := filepath.Join(m.cfg.Root, "ansible", "callback_plugins")
+	if abs, err := filepath.Abs(dir); err == nil {
+		dir = abs
+	}
+	return []string{
+		"ANSIBLE_STDOUT_CALLBACK=sparkdock",
+		"ANSIBLE_CALLBACK_PLUGINS=" + dir,
+		"PYTHONUNBUFFERED=1",
+		"ANSIBLE_FORCE_COLOR=0",
+	}
 }
 
 func (m *Model) setSize(w, h int) {

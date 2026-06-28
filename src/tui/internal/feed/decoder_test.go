@@ -24,11 +24,30 @@ func TestDecoder_SplitsAcrossChunks(t *testing.T) {
 	}
 }
 
-func TestDecoder_StripsCarriageReturn(t *testing.T) {
+func TestDecoder_StripsTrailingCarriageReturn(t *testing.T) {
 	var d Decoder
 	ev := d.Write([]byte("✓ done\r\n"))
 	if len(ev) != 1 || ev[0].Text != "done" {
 		t.Errorf("got %+v, want one result 'done' without CR", ev)
+	}
+}
+
+func TestDecoder_CollapsesInPlaceProgress(t *testing.T) {
+	var d Decoder
+	// git-style single-line progress: overwrites via \r, final state on \n
+	ev := d.Write([]byte("Receiving objects:  10%\rReceiving objects:  55%\rReceiving objects: 100%, done.\n"))
+	if len(ev) != 1 {
+		t.Fatalf("got %d events, want 1", len(ev))
+	}
+	if ev[0].Text != "Receiving objects: 100%, done." {
+		t.Errorf("collapsed line = %q, want final progress state", ev[0].Text)
+	}
+}
+
+func TestDecoder_CarriageReturnOverwriteKeepsTail(t *testing.T) {
+	// shorter overwrite leaves the previous tail, like a real terminal
+	if got := collapseCR("abcdef\rXY"); got != "XYcdef" {
+		t.Errorf("collapseCR = %q, want XYcdef", got)
 	}
 }
 
