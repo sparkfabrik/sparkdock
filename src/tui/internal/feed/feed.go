@@ -22,12 +22,12 @@ import (
 type Kind int
 
 const (
-	KindPlain Kind = iota // content line, no recognised glyph
-	KindResult            // content line with an ok/changed/failed/skipped glyph
-	KindPhase             // @@PHASE
-	KindTask              // @@TASK
-	KindStat              // @@STAT
-	KindDone              // @@DONE
+	KindPlain  Kind = iota // content line, no recognised glyph
+	KindResult             // content line with an ok/changed/failed/skipped glyph
+	KindPhase              // @@PHASE
+	KindTask               // @@TASK
+	KindStat               // @@STAT
+	KindDone               // @@DONE
 )
 
 // Glyph classifies a result content line.

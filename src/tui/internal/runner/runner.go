@@ -282,4 +282,3 @@ func ForCommandEnv(extraEnv []string, name string, args ...string) *Runner {
 		return cmd
 	}}
 }
-
