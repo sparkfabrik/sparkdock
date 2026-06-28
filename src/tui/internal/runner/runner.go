@@ -22,8 +22,6 @@ import (
 	"strings"
 
 	"github.com/creack/pty"
-
-	"github.com/sparkfabrik/sparkdock/src/tui/internal/feed"
 )
 
 // Options configures a single run.
@@ -60,11 +58,12 @@ func New() *Runner {
 	return &Runner{Build: AnsibleBuilder}
 }
 
-// Handle is a live run. Events streams parsed feed events until closed. Prompts
-// delivers the text of each detected password prompt; the UI answers with
-// Answer. Done delivers exactly one Result after Events closes.
+// Handle is a live run. Output streams raw PTY bytes until closed (the view
+// decides how to render them: a structured decoder or a terminal emulator).
+// Prompts delivers the text of each detected password prompt; the UI answers
+// with Answer. Done delivers exactly one Result after Output closes.
 type Handle struct {
-	Events  <-chan feed.Event
+	Output  <-chan []byte
 	Prompts <-chan string
 	Done    <-chan Result
 
@@ -79,17 +78,17 @@ var promptRe = regexp.MustCompile(`(?i)password(?: for [^:]*)?:\s*$`)
 
 // Start launches the run under a PTY and returns a Handle.
 func (r *Runner) Start(ctx context.Context, opts Options) *Handle {
-	events := make(chan feed.Event, 64)
+	output := make(chan []byte, 64)
 	prompts := make(chan string, 1)
 	done := make(chan Result, 1)
-	h := &Handle{Events: events, Prompts: prompts, Done: done, canceled: make(chan struct{})}
+	h := &Handle{Output: output, Prompts: prompts, Done: done, canceled: make(chan struct{})}
 
 	cmd := r.Build(ctx, opts)
 	h.cmd = cmd
 
 	ptmx, err := pty.Start(cmd)
 	if err != nil {
-		close(events)
+		close(output)
 		close(prompts)
 		done <- Result{Err: err}
 		return h
@@ -107,38 +106,40 @@ func (r *Runner) Start(ctx context.Context, opts Options) *Handle {
 	}
 	_ = pty.Setsize(ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
 
-	go h.pump(events, prompts, done)
+	go h.pump(output, prompts, done)
 	return h
 }
 
-// pump reads the PTY, emitting completed lines as events and signalling a
-// password prompt when the pending (un-newlined) text looks like one.
-func (h *Handle) pump(events chan<- feed.Event, prompts chan<- string, done chan<- Result) {
-	defer close(events)
+// pump reads the PTY, forwarding raw bytes on output and signalling a password
+// prompt when the pending (un-newlined) text looks like one. It does not parse
+// or interpret the bytes; rendering is the view's responsibility.
+func (h *Handle) pump(output chan<- []byte, prompts chan<- string, done chan<- Result) {
+	defer close(output)
 	defer close(prompts)
 
 	buf := make([]byte, 4096)
-	var line []byte
+	var line []byte // pending line, for prompt detection only
 	awaiting := false
 	for {
 		n, err := h.ptmx.Read(buf)
-		for _, b := range buf[:n] {
-			if b == '\n' {
-				events <- feed.Parse(strings.TrimRight(string(line), "\r"))
-				line = line[:0]
-				awaiting = false
-				continue
+		if n > 0 {
+			chunk := make([]byte, n)
+			copy(chunk, buf[:n])
+			output <- chunk
+			for _, b := range buf[:n] {
+				if b == '\n' {
+					line = line[:0]
+					awaiting = false
+					continue
+				}
+				line = append(line, b)
 			}
-			line = append(line, b)
-		}
-		if !awaiting && len(line) > 0 && promptRe.Match(line) {
-			awaiting = true
-			prompts <- strings.TrimSpace(string(line))
+			if !awaiting && len(line) > 0 && promptRe.Match(line) {
+				awaiting = true
+				prompts <- strings.TrimSpace(string(line))
+			}
 		}
 		if err != nil { // EOF, or EIO when the child exits and closes the PTY
-			if len(line) > 0 && !awaiting {
-				events <- feed.Parse(strings.TrimRight(string(line), "\r"))
-			}
 			break
 		}
 	}

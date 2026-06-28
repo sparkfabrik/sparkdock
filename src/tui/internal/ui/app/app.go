@@ -41,8 +41,9 @@ type runSpec struct {
 	title  string
 	rnr    *runner.Runner
 	opts   runner.Options
-	sudo   bool              // prime the sudo timestamp before the run (ansible become)
+	sudo   bool               // prime the sudo timestamp before the run (ansible become)
 	scroll runview.ScrollMode // how the runner view tracks output
+	render runview.RenderMode // structured (callback) vs terminal emulation
 }
 
 // Model is the root application model.
@@ -211,7 +212,7 @@ func (m Model) start(spec runSpec) (tea.Model, tea.Cmd) {
 	spec.opts.PtyRows = max(m.height-5, 10)
 	handle := spec.rnr.Start(context.Background(), spec.opts)
 	var cmd tea.Cmd
-	m.runview, cmd = m.runview.Start(spec.title, handle, spec.scroll)
+	m.runview, cmd = m.runview.Start(spec.title, handle, spec.scroll, spec.render)
 	m.last, m.hasLast = spec, true
 	m.page = ui.PageRunner
 	return m, cmd
@@ -231,23 +232,23 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	}
 	switch action {
 	case "provision":
-		return runSpec{title: "Running full provisioning", rnr: m.ansible, opts: ansibleOpts(), sudo: true, scroll: runview.FollowTail}, true
+		return runSpec{title: "Running full provisioning", rnr: m.ansible, opts: ansibleOpts(), sudo: true, scroll: runview.FollowTail, render: runview.Structured}, true
 	case "upgrade":
 		// Run brew directly: formulae need no sudo, and a cask that does will
-		// prompt on the PTY (answered via the password page) — no upfront sudo.
-		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForCommand("brew", "upgrade"), scroll: runview.FollowTail}, true
+		// prompt on the PTY. brew redraws progress in place, so emulate a terminal.
+		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForCommand("brew", "upgrade"), scroll: runview.FollowTail, render: runview.Terminal}, true
 	case "sync":
-		return runSpec{title: "Syncing AI harness", rnr: m.ansible, opts: ansibleOpts("ai-harness-sync"), scroll: runview.FollowTail}, true
+		return runSpec{title: "Syncing AI harness", rnr: m.ansible, opts: ansibleOpts("ai-harness-sync"), scroll: runview.FollowTail, render: runview.Structured}, true
 	case "proxy-status":
-		return runSpec{title: "HTTP proxy · status", rnr: runner.ForCommand("spark-http-proxy", "status"), scroll: runview.PinTop}, true
+		return runSpec{title: "HTTP proxy · status", rnr: runner.ForCommand("spark-http-proxy", "status"), scroll: runview.PinTop, render: runview.Structured}, true
 	case "proxy-start":
-		return runSpec{title: "HTTP proxy · start", rnr: runner.ForCommand("spark-http-proxy", "start"), scroll: runview.FollowTail}, true
+		return runSpec{title: "HTTP proxy · start", rnr: runner.ForCommand("spark-http-proxy", "start"), scroll: runview.FollowTail, render: runview.Terminal}, true
 	case "proxy-stop":
-		return runSpec{title: "HTTP proxy · stop", rnr: runner.ForCommand("spark-http-proxy", "stop"), scroll: runview.FollowTail}, true
+		return runSpec{title: "HTTP proxy · stop", rnr: runner.ForCommand("spark-http-proxy", "stop"), scroll: runview.FollowTail, render: runview.Terminal}, true
 	case "proxy-upgrade":
-		return runSpec{title: "HTTP proxy · upgrade", rnr: m.ansible, opts: ansibleOpts("http-proxy"), sudo: true, scroll: runview.FollowTail}, true
+		return runSpec{title: "HTTP proxy · upgrade", rnr: m.ansible, opts: ansibleOpts("http-proxy"), sudo: true, scroll: runview.FollowTail, render: runview.Structured}, true
 	case "device":
-		return runSpec{title: "Device info", rnr: runner.ForCommand("ayse-get-sm"), scroll: runview.PinTop}, true
+		return runSpec{title: "Device info", rnr: runner.ForCommand("ayse-get-sm"), scroll: runview.PinTop, render: runview.Structured}, true
 	default:
 		return runSpec{}, false
 	}

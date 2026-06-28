@@ -3,62 +3,52 @@ package runner
 import (
 	"context"
 	"os/exec"
+	"strings"
 	"testing"
 	"time"
-
-	"github.com/sparkfabrik/sparkdock/src/tui/internal/feed"
 )
 
-// scriptBuilder returns a Builder that runs a shell script emitting a fixed feed.
+// scriptBuilder returns a Builder that runs a shell script.
 func scriptBuilder(script string) Builder {
 	return func(ctx context.Context, _ Options) *exec.Cmd {
 		return exec.CommandContext(ctx, "bash", "-c", script)
 	}
 }
 
-func drain(t *testing.T, h *Handle) ([]feed.Event, Result) {
+// drain consumes all raw output and returns it joined with the final Result.
+func drain(t *testing.T, h *Handle) (string, Result) {
 	t.Helper()
-	var events []feed.Event
-	for e := range h.Events {
-		events = append(events, e)
+	var sb strings.Builder
+	for chunk := range h.Output {
+		sb.Write(chunk)
 	}
 	select {
 	case res := <-h.Done:
-		return events, res
+		return sb.String(), res
 	case <-time.After(5 * time.Second):
 		t.Fatal("timed out waiting for Done")
-		return nil, Result{}
+		return "", Result{}
 	}
 }
 
-func TestStart_StreamsParsedEvents(t *testing.T) {
-	script := `printf '@@PHASE Packages\n'; printf '%s\n' '✓ docker present'; printf '@@STAT ok=1 changed=0 failed=0 skipped=0\n'; printf '@@DONE\n'`
+func TestStart_StreamsOutput(t *testing.T) {
+	script := `printf '@@PHASE Packages\n'; printf '%s\n' '✓ docker present'; printf '@@DONE\n'`
 	r := &Runner{Build: scriptBuilder(script)}
 	h := r.Start(context.Background(), Options{})
-	events, res := drain(t, h)
+	out, res := drain(t, h)
 
 	if res.Err != nil {
 		t.Fatalf("Result.Err = %v, want nil", res.Err)
 	}
-	if len(events) != 4 {
-		t.Fatalf("got %d events, want 4: %+v", len(events), events)
-	}
-	if events[0].Kind != feed.KindPhase || events[0].Text != "Packages" {
-		t.Errorf("event 0 = %+v", events[0])
-	}
-	if events[1].Kind != feed.KindResult || events[1].Glyph != feed.GlyphOK {
-		t.Errorf("event 1 = %+v", events[1])
-	}
-	if events[2].Kind != feed.KindStat || events[2].Stats.OK != 1 {
-		t.Errorf("event 2 = %+v", events[2])
-	}
-	if events[3].Kind != feed.KindDone {
-		t.Errorf("event 3 = %+v", events[3])
+	for _, want := range []string{"@@PHASE Packages", "✓ docker present", "@@DONE"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("output missing %q; got:\n%s", want, out)
+		}
 	}
 }
 
 func TestStart_NonZeroExitReportsError(t *testing.T) {
-	r := &Runner{Build: scriptBuilder(`printf '✗ boom\n'; exit 2`)}
+	r := &Runner{Build: scriptBuilder(`printf 'boom\n'; exit 2`)}
 	h := r.Start(context.Background(), Options{})
 	_, res := drain(t, h)
 	if res.Err == nil {
@@ -79,13 +69,11 @@ func TestStart_FailedBuildStillCompletes(t *testing.T) {
 
 func TestCancel_MarksCanceled(t *testing.T) {
 	// long-running script; cancel mid-flight.
-	r := &Runner{Build: scriptBuilder(`printf '@@PHASE Slow\n'; sleep 1; printf '@@DONE\n'`)}
+	r := &Runner{Build: scriptBuilder(`printf 'slow\n'; sleep 1; printf 'done\n'`)}
 	h := r.Start(context.Background(), Options{})
-	// read the first event, then cancel
-	<-h.Events
+	<-h.Output // first chunk
 	h.Cancel()
-	// drain the rest
-	for range h.Events {
+	for range h.Output { // drain the rest
 	}
 	res := <-h.Done
 	if !res.Canceled {
@@ -148,19 +136,13 @@ func TestStart_DetectsPasswordPromptAndAnswers(t *testing.T) {
 		t.Fatal("no prompt received")
 	}
 
-	var got []feed.Event
-	for e := range h.Events {
-		got = append(got, e)
+	var out strings.Builder
+	for chunk := range h.Output {
+		out.Write(chunk)
 	}
 	<-h.Done
-	var sawAnswer bool
-	for _, e := range got {
-		if contains(e.Raw, "answered:hunter2") {
-			sawAnswer = true
-		}
-	}
-	if !sawAnswer {
-		t.Errorf("answer not delivered to the process; events=%v", got)
+	if !contains(out.String(), "answered:hunter2") {
+		t.Errorf("answer not delivered to the process; output:\n%s", out.String())
 	}
 }
 

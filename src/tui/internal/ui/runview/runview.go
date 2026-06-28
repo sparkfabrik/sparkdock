@@ -1,9 +1,10 @@
-// Package runview renders a running operation: a scrolling content region above
-// a pinned, claude-code-style statusline (phase, task, ok/changed/failed,
-// elapsed). It consumes a runner.Handle's event stream and supports cancel,
-// retry, and opening the captured output. Run orchestration (which playbook,
-// which tags, the become password) lives in the app; this page only renders and
-// controls a run it is handed.
+// Package runview renders a running operation: a content region above a pinned,
+// claude-code-style statusline, with cancel, retry, and a copyable log. It
+// consumes a runner.Handle's raw output and delegates rendering to a content
+// strategy: structured (the sparkdock callback → line list + tally) or terminal
+// (a VT emulator → faithful live screen for arbitrary programs). Run
+// orchestration (playbook, tags, sudo) lives in the app; this page only renders
+// and controls a run it is handed.
 package runview
 
 import (
@@ -12,19 +13,21 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/spinner"
-	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/charmbracelet/x/ansi"
 
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/feed"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/runner"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/theme"
 )
 
+// chromeRows is the non-content rows: header, rule, a spacer, the statusline,
+// and the footer.
+const chromeRows = 5
+
 // Messages flowing through the bubbletea loop while a run is live.
 type (
-	eventMsg      feed.Event
+	outMsg        []byte
 	closedMsg     struct{}
 	doneMsg       runner.Result
 	promptMsg     string
@@ -35,16 +38,6 @@ type (
 // password page and answers via AnswerPrompt.
 type PromptMsg struct{ Text string }
 
-// ScrollMode is how the runner view tracks output. The caller declares it per
-// run: streaming work follows the tail; a one-shot report pins to the top so it
-// reads from the start.
-type ScrollMode int
-
-const (
-	FollowTail ScrollMode = iota // keep the latest output in view (default)
-	PinTop                       // keep the top in view (reports: device info, status)
-)
-
 // OpenLogMsg asks the app to open the captured output in the log page.
 type OpenLogMsg struct {
 	Title string
@@ -54,37 +47,63 @@ type OpenLogMsg struct {
 // RetryMsg asks the app to re-run the last action.
 type RetryMsg struct{}
 
-// BackMsg asks the app to leave the runner page. Only emitted once the run has
-// finished, so the user cannot navigate away mid-run and drop its events.
+// BackMsg asks the app to leave the runner page (only emitted once finished).
 type BackMsg struct{}
+
+// ScrollMode is how a run tracks output: streaming work follows the tail; a
+// one-shot report pins to the top so it reads from the start.
+type ScrollMode int
+
+const (
+	FollowTail ScrollMode = iota
+	PinTop
+)
+
+// RenderMode selects the content renderer: Structured decodes the sparkdock
+// callback into a line list; Terminal emulates a real terminal for arbitrary
+// programs that redraw in place.
+type RenderMode int
+
+const (
+	Structured RenderMode = iota
+	Terminal
+)
+
+// content is a run's body renderer. Two implementations: structuredContent and
+// terminalContent.
+type content interface {
+	write(p []byte)
+	render() string
+	resize(w, h int)
+	finalize()
+	rawLog() []string
+	phase() string
+	task() string
+	stats() (feed.Stats, bool)
+	follow(ScrollMode)
+	scroll(delta int)
+	gotoTop()
+	gotoBottom()
+}
 
 // Model is the runner page.
 type Model struct {
 	width, height int
 
-	handle *runner.Handle
+	handle  *runner.Handle
+	content content
 
-	vp    viewport.Model
-	sp    spinner.Model
-	title string
-	start time.Time
+	sp     spinner.Model
+	title  string
+	start  time.Time
+	scroll ScrollMode
 
-	phase    string
-	task     string
-	stats    feed.Stats
-	hasStats bool // true once an @@STAT marker is seen (i.e. an ansible run)
-
-	lines []string // rendered content
-	raw   []string // verbatim output for the copyable log
-
-	scroll   ScrollMode
 	running  bool
 	failed   bool
 	canceled bool
 }
 
-// New returns a runner page. The page renders any run it is handed; the app
-// owns construction of the runner.Handle (ansible vs. arbitrary command).
+// New returns a runner page.
 func New() Model {
 	sp := spinner.New()
 	sp.Spinner = spinner.Dot
@@ -92,54 +111,36 @@ func New() Model {
 	return Model{sp: sp}
 }
 
-// chromeRows is the number of non-viewport rows: header, rule, a spacer, the
-// statusline, and the footer.
-const chromeRows = 5
-
-// SetSize updates dimensions and the viewport.
+// SetSize updates dimensions and the active content renderer.
 func (m *Model) SetSize(w, h int) {
 	m.width, m.height = w, h
-	m.vp.Width = w
-	m.vp.Height = max(h-chromeRows, 1)
+	if m.content != nil {
+		m.content.resize(w, m.bodyHeight())
+	}
 }
 
-// Start renders the run represented by h under the given title and scroll mode.
-// If a previous run is somehow still live, it is cancelled first so its
-// goroutine cannot leak or bleed events into the new run.
-func (m Model) Start(title string, h *runner.Handle, scroll ScrollMode) (Model, tea.Cmd) {
+func (m Model) bodyHeight() int { return max(m.height-chromeRows, 1) }
+
+// Start renders the run represented by h under the given title, scroll, and
+// render mode. A still-live previous run is cancelled first.
+func (m Model) Start(title string, h *runner.Handle, scroll ScrollMode, mode RenderMode) (Model, tea.Cmd) {
 	if m.handle != nil && m.running {
 		m.handle.Cancel()
 	}
-	m.scroll = scroll
 	m.title = title
+	m.scroll = scroll
 	m.running, m.failed, m.canceled = true, false, false
-	m.phase, m.task = "starting", "…"
-	m.stats = feed.Stats{}
-	m.hasStats = false
-	m.lines, m.raw = nil, nil
 	m.start = time.Now()
-	m.vp = viewport.New(m.width, max(m.height-chromeRows, 1))
-
+	if mode == Terminal {
+		m.content = newTerminalContent(m.width, m.bodyHeight())
+	} else {
+		m.content = newStructuredContent(m.width, m.bodyHeight())
+	}
 	m.handle = h
-	return m, tea.Batch(waitEvent(m.handle), waitPrompt(m.handle), waitDone(m.handle), m.sp.Tick)
+	return m, tea.Batch(waitOutput(h), waitPrompt(h), waitDone(h), m.sp.Tick)
 }
 
-// AnswerPrompt writes the password to the running process's PTY.
-func (m Model) AnswerPrompt(password string) {
-	if m.handle != nil {
-		m.handle.Answer(password)
-	}
-}
-
-// CancelRun cancels the in-progress run (used when the user backs out of a
-// password prompt).
-func (m Model) CancelRun() {
-	if m.handle != nil {
-		m.handle.Cancel()
-	}
-}
-
-// Update advances the run; returns true from handled when it consumed the msg.
+// Update advances the run.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case spinner.TickMsg:
@@ -147,17 +148,17 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.sp, cmd = m.sp.Update(msg)
 		return m, cmd
 
-	case eventMsg:
-		m.apply(feed.Event(msg))
-		m.vp.SetContent(m.content())
-		m.follow()
-		return m, waitEvent(m.handle)
+	case outMsg:
+		m.content.write([]byte(msg))
+		if m.running {
+			m.content.follow(m.scroll)
+		}
+		return m, waitOutput(m.handle)
 
 	case closedMsg:
 		return m, nil
 
 	case promptMsg:
-		// surface the prompt to the app and keep listening for re-prompts
 		return m, tea.Batch(
 			func() tea.Msg { return PromptMsg{Text: string(msg)} },
 			waitPrompt(m.handle),
@@ -168,8 +169,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	case doneMsg:
 		m.finish(runner.Result(msg))
-		m.vp.SetContent(m.content())
-		m.follow()
 		return m, nil
 
 	case tea.KeyMsg:
@@ -178,9 +177,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	return m, nil
 }
 
+func (m *Model) finish(res runner.Result) {
+	m.running = false
+	m.canceled = res.Canceled
+	_, hasStats := m.content.stats()
+	stats, _ := m.content.stats()
+	m.failed = !res.Canceled && (res.Err != nil || (hasStats && stats.Failed > 0))
+	m.content.finalize()
+	m.content.follow(m.scroll)
+}
+
 func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
-	k := msg.String()
-	if k == "ctrl+c" {
+	if msg.String() == "ctrl+c" {
 		if m.running && m.handle != nil {
 			m.handle.Cancel()
 		}
@@ -189,41 +197,39 @@ func (m Model) handleKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.running {
 		return m.handleRunningKey(msg)
 	}
-	// Finished: navigation and scrollback controls.
-	switch k {
+	switch msg.String() {
 	case "esc", "q":
 		return m, func() tea.Msg { return BackMsg{} }
 	case "r":
 		return m, func() tea.Msg { return RetryMsg{} }
 	case "l":
-		if len(m.raw) > 0 {
-			lines := append([]string(nil), m.raw...)
-			return m, func() tea.Msg { return OpenLogMsg{Title: m.title, Lines: lines} }
+		if lines := m.content.rawLog(); len(lines) > 0 {
+			cp := append([]string(nil), lines...)
+			return m, func() tea.Msg { return OpenLogMsg{Title: m.title, Lines: cp} }
 		}
 	case "up", "k":
-		m.vp.ScrollUp(1)
+		m.content.scroll(-1)
 	case "down", "j":
-		m.vp.ScrollDown(1)
+		m.content.scroll(1)
 	case "g":
-		m.vp.GotoTop()
+		m.content.gotoTop()
 	case "G":
-		m.vp.GotoBottom()
+		m.content.gotoBottom()
 	}
 	return m, nil
 }
 
-// handleRunningKey forwards input to the live process so interactive prompts
-// (brew's "Proceed? [y/n]", etc.) can be answered, while arrows still scroll and
-// ctrl+c cancels (handled by the caller).
+// handleRunningKey forwards input to the live process (so prompts like brew's
+// "Proceed? [y/n]" are answerable), while arrows scroll.
 func (m Model) handleRunningKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	if m.handle == nil {
 		return m, nil
 	}
 	switch msg.Type {
 	case tea.KeyUp:
-		m.vp.ScrollUp(1)
+		m.content.scroll(-1)
 	case tea.KeyDown:
-		m.vp.ScrollDown(1)
+		m.content.scroll(1)
 	case tea.KeyEnter:
 		m.handle.WriteInput("\n")
 	case tea.KeyBackspace:
@@ -236,82 +242,24 @@ func (m Model) handleRunningKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 	return m, nil
 }
 
-// Running reports whether a run is in progress (the app uses it to gate "back").
+// Running reports whether a run is in progress.
 func (m Model) Running() bool { return m.running }
 
-func (m *Model) apply(e feed.Event) {
-	if !e.IsControl() {
-		m.raw = append(m.raw, e.Raw)
-	}
-	st := theme.Default()
-	switch e.Kind {
-	case feed.KindPhase:
-		m.phase = e.Text
-		m.lines = append(m.lines, st.Title.Render(theme.PhaseArrow+" "+e.Text))
-	case feed.KindTask:
-		m.task = e.Text
-	case feed.KindStat:
-		m.stats = e.Stats
-		m.hasStats = true
-	case feed.KindResult:
-		m.lines = append(m.lines, "  "+glyph(st, e.Glyph)+" "+e.Text)
-	case feed.KindPlain:
-		m.lines = append(m.lines, "  "+e.Text)
+// AnswerPrompt writes the password to the running process's PTY.
+func (m Model) AnswerPrompt(password string) {
+	if m.handle != nil {
+		m.handle.Answer(password)
 	}
 }
 
-func (m *Model) finish(res runner.Result) {
-	m.running = false
-	m.canceled = res.Canceled
-	m.failed = !res.Canceled && (res.Err != nil || m.stats.Failed > 0)
-	st := theme.Default()
-	switch {
-	case m.canceled:
-		m.task = "cancelled"
-		m.lines = append(m.lines, "", st.Amber.Render("⚠ cancelled by user"))
-	case m.failed:
-		m.task = "failed"
-		detail := ""
-		if res.Err != nil {
-			detail = " (" + res.Err.Error() + ")"
-		}
-		m.lines = append(m.lines, "", st.Failed.Render("✗ run failed")+detail)
-	default:
-		m.task = "complete"
-		if m.hasStats { // only ansible runs report a task tally
-			m.lines = append(m.lines, "", lipgloss.NewStyle().Bold(true).Render("Summary")+m.summary())
-		}
+// CancelRun cancels the in-progress run.
+func (m Model) CancelRun() {
+	if m.handle != nil {
+		m.handle.Cancel()
 	}
 }
 
-// follow tracks output per the declared scroll mode: streaming runs keep the
-// latest line in view; reports stay at the top.
-func (m *Model) follow() {
-	switch m.scroll {
-	case PinTop:
-		m.vp.GotoTop()
-	default:
-		m.vp.GotoBottom()
-	}
-}
-
-func (m Model) summary() string {
-	return fmt.Sprintf("  %d ok · %d changed · %d failed · %d skipped",
-		m.stats.OK, m.stats.Changed, m.stats.Failed, m.stats.Skipped)
-}
-
-// content returns the rendered output, each line truncated to the width so a
-// program emitting lines wider than the view cannot corrupt the layout.
-func (m Model) content() string {
-	w := max(m.width, 20)
-	lines := make([]string, len(m.lines))
-	for i, l := range m.lines {
-		lines[i] = ansi.Truncate(l, w, "")
-	}
-	return strings.Join(lines, "\n")
-}
-
-// View renders header, scrolling region, pinned statusline, and footer.
+// View renders header, content region, pinned statusline, and footer.
 func (m Model) View() string {
 	st := theme.Default()
 	width := max(m.width, 40)
@@ -327,29 +275,39 @@ func (m Model) View() string {
 	case !m.running:
 		glyphRune = st.OK.Render(theme.MarkOK)
 	}
-	left := st.Title.Render(m.phase) + st.Dim.Render(" "+theme.Pointer+" ") + m.task
-	switch {
-	case m.failed:
-		left = st.Failed.Render(theme.MarkFailed + " Failed") + st.Dim.Render(" · "+m.title)
-	case m.canceled:
-		left = st.Amber.Render("⚠ Cancelled") + st.Dim.Render(" · "+m.title)
-	case !m.running:
-		left = st.OK.Render(theme.MarkOK+" Completed") + st.Dim.Render(" · "+m.title)
-	}
-	var right string
-	if m.hasStats {
-		right = fmt.Sprintf("%s  %s · %s · %s · %s", glyphRune,
-			st.OK.Render(fmt.Sprintf("%d ok", m.stats.OK)),
-			st.Changed.Render(fmt.Sprintf("%d changed", m.stats.Changed)),
-			st.Failed.Render(fmt.Sprintf("%d failed", m.stats.Failed)),
-			st.Dim.Render(m.elapsed()))
-	} else {
-		right = glyphRune + "  " + st.Dim.Render(m.elapsed())
-	}
+
+	left := m.statusLeft(st)
+	right := m.statusRight(st, glyphRune)
 	gap := max(width-lipgloss.Width(left)-lipgloss.Width(right)-1, 1)
 	statusline := " " + left + strings.Repeat(" ", gap) + right
 
-	return header + "\n" + rule + "\n" + m.vp.View() + "\n\n" + statusline + "\n" + m.footer(st)
+	return header + "\n" + rule + "\n" + m.content.render() + "\n\n" + statusline + "\n" + m.footer(st)
+}
+
+func (m Model) statusLeft(st theme.Styles) string {
+	switch {
+	case m.failed:
+		return st.Failed.Render(theme.MarkFailed+" Failed") + st.Dim.Render(" · "+m.title)
+	case m.canceled:
+		return st.Amber.Render("⚠ Cancelled") + st.Dim.Render(" · "+m.title)
+	case !m.running:
+		return st.OK.Render(theme.MarkOK+" Completed") + st.Dim.Render(" · "+m.title)
+	}
+	if p := m.content.phase(); p != "" {
+		return st.Title.Render(p) + st.Dim.Render(" "+theme.Pointer+" ") + m.content.task()
+	}
+	return st.Title.Render(strings.TrimSpace(m.title))
+}
+
+func (m Model) statusRight(st theme.Styles, glyphRune string) string {
+	if stats, ok := m.content.stats(); ok {
+		return fmt.Sprintf("%s  %s · %s · %s · %s", glyphRune,
+			st.OK.Render(fmt.Sprintf("%d ok", stats.OK)),
+			st.Changed.Render(fmt.Sprintf("%d changed", stats.Changed)),
+			st.Failed.Render(fmt.Sprintf("%d failed", stats.Failed)),
+			st.Dim.Render(m.elapsed()))
+	}
+	return glyphRune + "  " + st.Dim.Render(m.elapsed())
 }
 
 func (m Model) footer(st theme.Styles) string {
@@ -361,7 +319,7 @@ func (m Model) footer(st theme.Styles) string {
 	case !m.running:
 		return st.Dim.Render(" ✓ done · l view log · esc back")
 	default:
-		return st.Dim.Render(" ctrl+c cancel · ↑↓ scroll")
+		return st.Dim.Render(" ctrl+c cancel · ↑↓ scroll · type to answer prompts")
 	}
 }
 
@@ -385,13 +343,13 @@ func glyph(st theme.Styles, g feed.Glyph) string {
 	}
 }
 
-func waitEvent(h *runner.Handle) tea.Cmd {
+func waitOutput(h *runner.Handle) tea.Cmd {
 	return func() tea.Msg {
-		e, ok := <-h.Events
+		b, ok := <-h.Output
 		if !ok {
 			return closedMsg{}
 		}
-		return eventMsg(e)
+		return outMsg(b)
 	}
 }
 
