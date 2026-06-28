@@ -5,6 +5,11 @@
   gather_facts: yes
   become: no
 
+  # Every brew/cask task inherits this, so brew never upgrades casks that manage
+  # their own updates (auto_updates true) — see https://github.com/Homebrew/brew/pull/21882.
+  environment:
+    HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS: "1"
+
   vars:
     dev_env_dir: /opt/sparkdock
     homebrew_prefix: "{{ (ansible_facts['machine'] == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
