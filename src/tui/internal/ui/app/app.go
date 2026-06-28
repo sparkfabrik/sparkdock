@@ -235,9 +235,10 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	case "provision":
 		return runSpec{title: "Running full provisioning", rnr: m.ansible, opts: ansibleOpts(), sudo: true, scroll: runview.FollowTail, render: runview.Structured}, true
 	case "upgrade":
-		// Run brew directly: formulae need no sudo, and a cask that does will
-		// prompt on the PTY. brew redraws progress in place, so emulate a terminal.
-		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForCommand("brew", "upgrade"), scroll: runview.FollowTail, render: runview.Terminal}, true
+		// --yes skips the confirmation prompt (official flag). Formulae need no
+		// sudo; a cask that does prompts on the PTY. brew redraws progress in
+		// place, so emulate a terminal.
+		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForCommand("brew", "upgrade", "--yes"), scroll: runview.FollowTail, render: runview.Terminal}, true
 	case "sync":
 		return runSpec{title: "Syncing AI harness", rnr: m.ansible, opts: ansibleOpts("ai-harness-sync"), scroll: runview.FollowTail, render: runview.Structured}, true
 	case "proxy-status":
