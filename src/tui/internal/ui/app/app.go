@@ -233,7 +233,7 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	}
 	switch action {
 	case "provision":
-		return runSpec{title: "Provisioning system", rnr: m.ansible, opts: ansibleOpts(), sudo: true, scroll: runview.FollowTail, render: runview.Structured}, true
+		return runSpec{title: "Updating everything", rnr: m.ansible, opts: ansibleOpts(), sudo: true, scroll: runview.FollowTail, render: runview.Structured}, true
 	case "upgrade":
 		// --yes skips the confirmation prompt (official flag). A recent brew
 		// change (PR #21882) made `brew upgrade` upgrade auto_updates casks even

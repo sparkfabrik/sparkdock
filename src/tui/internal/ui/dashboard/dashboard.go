@@ -172,18 +172,21 @@ func (m *Model) rebuild() {
 		statusItem(m.subByKey("skills"), "AI harness"),
 		{kind: kindRule},
 	}
-	if sd.Health == status.Stale {
-		items = append(items, item{kind: kindAction, id: "self-update", label: "Update Sparkdock", detail: sd.Detail, selectable: true})
-	}
+	// When sparkdock itself is stale, the amber status dot on the Sparkdock row
+	// already signals it; the self-update action is not wired yet, so no button
+	// is shown rather than a dead one. Run `sparkdock` to self-update.
+	// Action details show the equivalent shell command (the "$ " prompt signals
+	// it is the CLI this action runs), so the TUI teaches the underlying command.
+	// Live status (outdated counts, health) stays on the status rows above.
 	items = append(items,
-		item{kind: kindAction, id: "provision", label: "Provision system", selectable: true},
-		item{kind: kindAction, id: "upgrade", label: "Upgrade Brew packages", detail: m.subByKey("brew").Detail, selectable: true},
-		item{kind: kindAction, id: "sync", label: "Sync AI harness", selectable: true},
+		item{kind: kindAction, id: "provision", label: "Update everything", detail: "$ sparkdock", selectable: true},
+		item{kind: kindAction, id: "upgrade", label: "Upgrade Brew packages", detail: "$ brew upgrade", selectable: true},
+		item{kind: kindAction, id: "sync", label: "Sync AI harness", detail: "$ sjust sf-harness-sync", selectable: true},
 		item{kind: kindGroup, label: "HTTP proxy"},
-		item{kind: kindAction, id: "proxy-status", label: "Check status", selectable: true},
-		item{kind: kindAction, id: "proxy-start", label: "Start", selectable: true},
-		item{kind: kindAction, id: "proxy-stop", label: "Stop", selectable: true},
-		item{kind: kindAction, id: "proxy-upgrade", label: "Upgrade", selectable: true},
+		item{kind: kindAction, id: "proxy-status", label: "Check status", detail: "$ spark-http-proxy status", selectable: true},
+		item{kind: kindAction, id: "proxy-start", label: "Start", detail: "$ spark-http-proxy start", selectable: true},
+		item{kind: kindAction, id: "proxy-stop", label: "Stop", detail: "$ spark-http-proxy stop", selectable: true},
+		item{kind: kindAction, id: "proxy-upgrade", label: "Upgrade", detail: "$ sjust http-proxy-install-update", selectable: true},
 	)
 	m.items = items
 	if m.current() == nil {
