@@ -246,7 +246,11 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	case "proxy-stop":
 		return runSpec{title: "HTTP proxy · stop", rnr: runner.ForCommand("spark-http-proxy", "stop"), scroll: runview.FollowTail, render: runview.Terminal}, true
 	case "proxy-upgrade":
-		return runSpec{title: "HTTP proxy · upgrade", rnr: m.ansible, opts: ansibleOpts("http-proxy"), sudo: true, scroll: runview.FollowTail, render: runview.Structured}, true
+		// Canonical path: the recipe git-updates the http-proxy repo, then
+		// re-provisions. It runs its own ansible (default output + git progress),
+		// so emulate a terminal; its nested --ask-become-pass prompt is answered
+		// via the password page.
+		return runSpec{title: "HTTP proxy · upgrade", rnr: runner.ForCommand("sjust", "http-proxy-install-update"), scroll: runview.FollowTail, render: runview.Terminal}, true
 	case "device":
 		return runSpec{title: "Device info", rnr: runner.ForCommand("ayse-get-sm"), scroll: runview.PinTop, render: runview.Structured}, true
 	default:
