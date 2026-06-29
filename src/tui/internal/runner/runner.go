@@ -287,20 +287,25 @@ func ansibleEnv(opts Options) []string {
 
 // selfUpdateScript force-syncs the install to upstream master, then execs the
 // provided ansible-playbook command. The git step is guarded to the /opt
-// install (passed as $SPARKDOCK_DIR) so it never resets a dev checkout, and any
-// local changes are stashed first so nothing is lost — mirroring the behaviour
-// of the `sparkdock` entrypoint. ansible-playbook arguments arrive as "$@", so
-// no shell quoting is needed.
+// install (passed as $SPARKDOCK_DIR) so it never resets a dev checkout. It
+// fetches first and only stashes + resets once upstream is reachable, so a
+// failed fetch never leaves a dangling stash; any local changes are stashed so
+// nothing is lost, mirroring the `sparkdock` entrypoint. If upstream is
+// unreachable it provisions the current checkout rather than aborting the run.
+// ansible-playbook arguments arrive as "$@", so no shell quoting is needed.
 const selfUpdateScript = `set -e
 if [ "$SPARKDOCK_DIR" = /opt/sparkdock ]; then
   cd "$SPARKDOCK_DIR"
-  if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)" ]; then
-    git stash push -u -m "sparkdock-tui auto-update" >/dev/null 2>&1 || true
+  if git fetch --quiet origin master; then
+    if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+      git stash push -u -m "sparkdock-tui auto-update" >/dev/null 2>&1 || true
+    fi
+    echo "Updating sparkdock from upstream (origin/master)…"
+    git reset --hard --quiet origin/master
+    echo "Provisioning the updated checkout…"
+  else
+    echo "Could not reach upstream; provisioning the current checkout…"
   fi
-  echo "Updating sparkdock from upstream (origin/master)…"
-  git fetch --quiet origin master
-  git reset --hard --quiet origin/master
-  echo "Provisioning the updated checkout…"
 fi
 exec ansible-playbook "$@"`
 
