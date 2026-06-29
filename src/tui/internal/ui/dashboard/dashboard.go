@@ -253,7 +253,11 @@ func (m Model) sysInfoBlock(st theme.Styles) string {
 		lines = append(lines, row("Chip", chip))
 	}
 	if s.MemTotal > 0 {
-		lines = append(lines, row("Memory", fmt.Sprintf("%s free / %s", gb(s.MemFree), gb(s.MemTotal))))
+		mem := fmt.Sprintf("%s free / %s", gb(s.MemFree), gb(s.MemTotal))
+		if s.MemCached > 0 {
+			mem = fmt.Sprintf("%s free · %s cached / %s", gb(s.MemFree), gb(s.MemCached), gb(s.MemTotal))
+		}
+		lines = append(lines, row("Memory", mem))
 	}
 	if s.DiskTotal > 0 {
 		lines = append(lines, row("Disk", fmt.Sprintf("%s free / %s", gb(s.DiskFree), gb(s.DiskTotal))))

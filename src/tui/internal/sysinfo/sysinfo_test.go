@@ -47,17 +47,22 @@ func TestParseHardware(t *testing.T) {
 	}
 }
 
-func TestParseVMStatFree(t *testing.T) {
+func TestParseVMStat(t *testing.T) {
 	out := `Mach Virtual Memory Statistics: (page size of 16384 bytes)
 Pages free:                          1000.
 Pages active:                        9000.
 Pages inactive:                      2000.
 Pages speculative:                    500.
+Pages purgeable:                      300.
 `
-	// (1000 + 2000 + 500) * 16384
-	want := uint64(3500) * 16384
-	if got := parseVMStatFree(out); got != want {
-		t.Errorf("free = %d, want %d", got, want)
+	free, cached := parseVMStat(out)
+	// free + speculative
+	if want := uint64(1500) * 16384; free != want {
+		t.Errorf("free = %d, want %d", free, want)
+	}
+	// inactive + purgeable
+	if want := uint64(2300) * 16384; cached != want {
+		t.Errorf("cached = %d, want %d", cached, want)
 	}
 }
 
@@ -94,7 +99,7 @@ func TestGather_UsesInjectedRunner(t *testing.T) {
 		case "sysctl":
 			return status.CommandResult{Stdout: "38654705664\n"} // 36 GiB
 		case "vm_stat":
-			return status.CommandResult{Stdout: "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 1000.\nPages inactive: 0.\n"}
+			return status.CommandResult{Stdout: "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 1000.\nPages inactive: 500.\n"}
 		case "df":
 			return status.CommandResult{Stdout: "Filesystem 1024-blocks Used Available Capacity Mounted\n/dev/disk3 100 40 60 40% /\n"}
 		case "sw_vers":
@@ -111,6 +116,9 @@ func TestGather_UsesInjectedRunner(t *testing.T) {
 	}
 	if got.MemFree != 1000*16384 {
 		t.Errorf("MemFree = %d", got.MemFree)
+	}
+	if got.MemCached != 500*16384 {
+		t.Errorf("MemCached = %d", got.MemCached)
 	}
 	if got.DiskFree != 60*1024 {
 		t.Errorf("DiskFree = %d", got.DiskFree)
