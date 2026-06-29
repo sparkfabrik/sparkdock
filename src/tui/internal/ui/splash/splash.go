@@ -71,8 +71,9 @@ func (m Model) Init() tea.Cmd {
 // SetSize updates the render dimensions.
 func (m *Model) SetSize(w, h int) { m.width, m.height = w, h }
 
-// Update plays the startup sound when the logo is clicked, and dismisses on any
-// key or click (the timer dismiss is handled by the app router).
+// Update dismisses on any key, and on a logo click plays the startup sound and
+// starts the flare. A click never dismisses; the timer dismiss is handled by the
+// app router.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -80,9 +81,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress {
 			audio.Play() // click the logo to hear it
+			wasGlowing := m.glowing
 			m.glowStart = time.Now()
 			m.glowing = true
 			m.glowFactor = 0
+			if wasGlowing {
+				// A flare is already running; restart its envelope (new
+				// glowStart) and let the single tick loop carry it, rather than
+				// spawning a second concurrent loop.
+				return m, nil
+			}
 			return m, glowTick()
 		}
 	case glowTickMsg:
