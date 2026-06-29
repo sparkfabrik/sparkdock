@@ -122,6 +122,56 @@ func TestAnsibleBuilder_SudoAsksBecomePass(t *testing.T) {
 	}
 }
 
+func TestAnsibleBuilder_SelfUpdateWrapsInGuardedGit(t *testing.T) {
+	cmd := AnsibleBuilder(context.Background(), Options{
+		Playbook:   "ansible/macos.yml",
+		Dir:        "/opt/sparkdock",
+		Sudo:       true,
+		SelfUpdate: true,
+	})
+	if cmd.Args[0] != "bash" || cmd.Args[1] != "-c" {
+		t.Fatalf("self-update run must be a bash -c wrapper: %v", cmd.Args)
+	}
+	script := cmd.Args[2]
+	// The git step is guarded to the /opt install so a dev checkout is never reset.
+	if !contains(script, `"$SPARKDOCK_DIR" = /opt/sparkdock`) {
+		t.Errorf("self-update script must guard on /opt/sparkdock: %q", script)
+	}
+	if !contains(script, "git fetch") || !contains(script, "reset --hard") {
+		t.Errorf("self-update script must fetch and reset: %q", script)
+	}
+	if !contains(script, `exec ansible-playbook "$@"`) {
+		t.Errorf("self-update script must exec ansible-playbook with $@: %q", script)
+	}
+	// The playbook and become flag travel as positional args ($@), not shell-spliced.
+	joined := ""
+	for _, a := range cmd.Args {
+		joined += a + " "
+	}
+	if !contains(joined, "ansible/macos.yml") || !contains(joined, "--ask-become-pass") {
+		t.Errorf("ansible args missing from positional args: %v", cmd.Args)
+	}
+	var hasDir bool
+	for _, kv := range cmd.Env {
+		if kv == "SPARKDOCK_DIR=/opt/sparkdock" {
+			hasDir = true
+		}
+		if contains(kv, "ANSIBLE_BECOME_PASS") {
+			t.Errorf("env must not carry a become password: %q", kv)
+		}
+	}
+	if !hasDir {
+		t.Errorf("env must carry SPARKDOCK_DIR for the guard: %v", cmd.Env)
+	}
+}
+
+func TestAnsibleBuilder_NoSelfUpdateRunsAnsibleDirectly(t *testing.T) {
+	cmd := AnsibleBuilder(context.Background(), Options{Playbook: "ansible/macos.yml"})
+	if cmd.Args[0] != "ansible-playbook" {
+		t.Errorf("without SelfUpdate the command must be ansible-playbook directly: %v", cmd.Args)
+	}
+}
+
 func TestStart_DetectsPasswordPromptAndAnswers(t *testing.T) {
 	// Script prints a prompt with no newline, reads a line, echoes it back.
 	script := `printf 'Password: '; read -r p; printf '\n@@TASK got\n'; printf '%s\n' "answered:$p"; printf '@@DONE\n'`

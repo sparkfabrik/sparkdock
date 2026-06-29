@@ -59,6 +59,14 @@ type Model struct {
 	items         []item
 	cursor        int
 	loading       bool
+	restartHint   bool
+}
+
+// WithRestartHint marks that the running binary was updated, so the dashboard
+// shows a relaunch notice until the user quits.
+func (m Model) WithRestartHint() Model {
+	m.restartHint = true
+	return m
 }
 
 // New builds a dashboard bound to a status checker, a sysinfo gatherer, and
@@ -288,6 +296,9 @@ func (m Model) View() string {
 		" " + st.Amber.Render("beta") +
 		st.Dim.Render("   ·   dev environment manager") + "\n")
 	b.WriteString(st.Dim.Render(strings.Repeat("─", width)) + "\n")
+	if m.restartHint {
+		b.WriteString(" " + st.Amber.Render("↻ sparkdock-tui was updated — quit (q) and run `sparkdock tui` again to load the new version") + "\n")
+	}
 
 	// Status rows form the left column; the system-info block sits on the right.
 	var statusRows []string
