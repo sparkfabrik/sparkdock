@@ -35,6 +35,7 @@ type Options struct {
 	ForceFail         bool     // demo/testing: -e force_fail=true
 	Verbose           bool     // pass -v
 	CallbackPluginDir string   // dir containing the sparkdock callback
+	SelfUpdate        bool     // git fetch + reset --hard origin/master before provisioning (only when Dir is the /opt install)
 
 	PtyRows, PtyCols int // terminal size to give the child; defaults to 24x80
 }
@@ -226,8 +227,25 @@ func IsBecomeAuthFailure(lines []string) bool {
 // stdout callback. When Sudo is set, --ask-become-pass is added so ansible
 // prompts once for the become password and feeds it to every become task itself
 // (reliable regardless of the tty's sudo timestamp). The UI answers the prompt
-// on the PTY via the masked password page; the password is never cached.
+// on the PTY via the masked password page; the password is never cached. When
+// SelfUpdate is set, the run first force-syncs the install to upstream master
+// (see selfUpdateWrap), so "Update everything" matches bare `sparkdock`.
 func AnsibleBuilder(ctx context.Context, opts Options) *exec.Cmd {
+	args := ansibleArgs(opts)
+	env := ansibleEnv(opts)
+
+	if opts.SelfUpdate {
+		return selfUpdateWrap(ctx, opts, args, env)
+	}
+
+	cmd := exec.CommandContext(ctx, "ansible-playbook", args...)
+	cmd.Dir = opts.Dir
+	cmd.Env = env
+	return cmd
+}
+
+// ansibleArgs builds the ansible-playbook argument list from opts.
+func ansibleArgs(opts Options) []string {
 	inventory := opts.Inventory
 	if inventory == "" {
 		inventory = "localhost,"
@@ -250,17 +268,53 @@ func AnsibleBuilder(ctx context.Context, opts Options) *exec.Cmd {
 	if opts.ForceFail {
 		args = append(args, "-e", "force_fail=true")
 	}
+	return args
+}
 
-	cmd := exec.CommandContext(ctx, "ansible-playbook", args...)
-	cmd.Dir = opts.Dir
-	cmd.Env = append(os.Environ(),
+// ansibleEnv builds the environment for an ansible run with the sparkdock
+// stdout callback.
+func ansibleEnv(opts Options) []string {
+	env := append(os.Environ(),
 		"ANSIBLE_STDOUT_CALLBACK=sparkdock",
 		"PYTHONUNBUFFERED=1",
 		"ANSIBLE_FORCE_COLOR=0",
 	)
 	if opts.CallbackPluginDir != "" {
-		cmd.Env = append(cmd.Env, "ANSIBLE_CALLBACK_PLUGINS="+filepath.Clean(opts.CallbackPluginDir))
+		env = append(env, "ANSIBLE_CALLBACK_PLUGINS="+filepath.Clean(opts.CallbackPluginDir))
 	}
+	return env
+}
+
+// selfUpdateScript force-syncs the install to upstream master, then execs the
+// provided ansible-playbook command. The git step is guarded to the /opt
+// install (passed as $SPARKDOCK_DIR) so it never resets a dev checkout. It
+// fetches first and only stashes + resets once upstream is reachable, so a
+// failed fetch never leaves a dangling stash; any local changes are stashed so
+// nothing is lost, mirroring the `sparkdock` entrypoint. If upstream is
+// unreachable it provisions the current checkout rather than aborting the run.
+// ansible-playbook arguments arrive as "$@", so no shell quoting is needed.
+const selfUpdateScript = `set -e
+if [ "$SPARKDOCK_DIR" = /opt/sparkdock ]; then
+  cd "$SPARKDOCK_DIR"
+  if git fetch --quiet origin master; then
+    if ! git diff --quiet HEAD || [ -n "$(git ls-files --others --exclude-standard)" ]; then
+      git stash push -u -m "sparkdock-tui auto-update" >/dev/null 2>&1 || true
+    fi
+    echo "Updating sparkdock from upstream (origin/master)…"
+    git reset --hard --quiet origin/master
+    echo "Provisioning the updated checkout…"
+  else
+    echo "Could not reach upstream; provisioning the current checkout…"
+  fi
+fi
+exec ansible-playbook "$@"`
+
+// selfUpdateWrap wraps the ansible command in the self-update shell script.
+func selfUpdateWrap(ctx context.Context, opts Options, args, env []string) *exec.Cmd {
+	cmdArgs := append([]string{"-c", selfUpdateScript, "sparkdock-update"}, args...)
+	cmd := exec.CommandContext(ctx, "bash", cmdArgs...)
+	cmd.Dir = opts.Dir
+	cmd.Env = append(env, "SPARKDOCK_DIR="+opts.Dir)
 	return cmd
 }
 

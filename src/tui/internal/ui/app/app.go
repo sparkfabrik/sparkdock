@@ -10,7 +10,9 @@ package app
 
 import (
 	"context"
+	"os"
 	"path/filepath"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -28,7 +30,8 @@ import (
 
 // Config locates the sparkdock install used to build run commands.
 type Config struct {
-	Root string // e.g. /opt/sparkdock
+	Root    string // e.g. /opt/sparkdock
+	ExePath string // path to the running sparkdock-tui binary, for restart detection
 }
 
 // Deps are the injected backends the app wires into its pages.
@@ -69,11 +72,15 @@ type Model struct {
 	// minimum splash time has passed.
 	statusReady bool
 	splashMin   bool
+
+	// binModTime is the running binary's mtime at startup; a self-update that
+	// rebuilds it changes this, so we can advise a relaunch.
+	binModTime time.Time
 }
 
 // New builds the root model wired to its dependencies.
 func New(cfg Config, ver version.Info, deps Deps) Model {
-	return Model{
+	m := Model{
 		cfg:       cfg,
 		page:      ui.PageSplash,
 		splash:    splash.New(ver),
@@ -83,6 +90,26 @@ func New(cfg Config, ver version.Info, deps Deps) Model {
 		logview:   logview.New(),
 		ansible:   runner.New(),
 	}
+	if cfg.ExePath != "" {
+		if fi, err := os.Stat(cfg.ExePath); err == nil {
+			m.binModTime = fi.ModTime()
+		}
+	}
+	return m
+}
+
+// binaryChanged reports whether the running binary was replaced since startup
+// (a self-update that rebuilt sparkdock-tui), meaning a relaunch is needed to
+// load the new version.
+func (m Model) binaryChanged() bool {
+	if m.cfg.ExePath == "" || m.binModTime.IsZero() {
+		return false
+	}
+	fi, err := os.Stat(m.cfg.ExePath)
+	if err != nil {
+		return false
+	}
+	return fi.ModTime().After(m.binModTime)
 }
 
 // Init starts the splash timer and the dashboard's first status load.
@@ -167,8 +194,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case runview.BackMsg:
-		m.page = ui.PageDashboard
-		return m, m.dashboard.Init() // refresh status after a run
+		// A self-update that rebuilt the binary means the running process is now
+		// stale; advise a relaunch on the dashboard.
+		if m.hasLast && m.last.opts.SelfUpdate && m.binaryChanged() {
+			m.dashboard = m.dashboard.WithRestartHint()
+		}
+		return m.toDashboard()
 
 	case logview.BackMsg:
 		m.page = ui.PageRunner
@@ -176,6 +207,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.route(msg)
+}
+
+// toDashboard returns to the home page and always re-checks status, so any
+// change an action made (a self-update, an upgrade, a proxy start) is reflected
+// immediately instead of showing stale dots until the next manual refresh.
+func (m Model) toDashboard() (tea.Model, tea.Cmd) {
+	m.page = ui.PageDashboard
+	m.dashboard = m.dashboard.MarkLoading()
+	return m, m.dashboard.Init()
 }
 
 func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {
@@ -197,8 +237,7 @@ func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {
 func (m Model) launch(action string) (tea.Model, tea.Cmd) {
 	spec, ok := m.planFor(action)
 	if !ok {
-		m.page = ui.PageDashboard // unhandled action: stay home
-		return m, nil
+		return m.toDashboard() // unhandled action: stay home, still refresh
 	}
 	return m.start(spec)
 }
@@ -233,7 +272,12 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	}
 	switch action {
 	case "provision":
-		return runSpec{title: "Updating everything", rnr: m.ansible, opts: ansibleOpts(), sudo: true, scroll: runview.FollowTail, render: runview.Structured}, true
+		// "Update everything" is the equivalent of bare `sparkdock`: self-update
+		// the install to upstream master, then provision. SelfUpdate is guarded in
+		// the runner to the /opt install, so a dev checkout is only provisioned.
+		opts := ansibleOpts()
+		opts.SelfUpdate = true
+		return runSpec{title: "Updating everything", rnr: m.ansible, opts: opts, sudo: true, scroll: runview.FollowTail, render: runview.Structured}, true
 	case "upgrade":
 		// --yes skips the confirmation prompt (official flag). A recent brew
 		// change (PR #21882) made `brew upgrade` upgrade auto_updates casks even

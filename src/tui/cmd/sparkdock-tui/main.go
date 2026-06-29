@@ -45,8 +45,10 @@ func main() {
 		Gatherer: sysinfo.Gatherer{Run: execRunner},
 	}
 
+	exePath, _ := os.Executable()
+
 	prog := tea.NewProgram(
-		app.New(app.Config{Root: root}, ver, deps),
+		app.New(app.Config{Root: root, ExePath: exePath}, ver, deps),
 		tea.WithAltScreen(),
 		tea.WithMouseCellMotion(), // so the splash logo is clickable
 	)
