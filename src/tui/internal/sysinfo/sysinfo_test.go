@@ -47,17 +47,22 @@ func TestParseHardware(t *testing.T) {
 	}
 }
 
-func TestParseVMStatFree(t *testing.T) {
+func TestParseVMStat(t *testing.T) {
 	out := `Mach Virtual Memory Statistics: (page size of 16384 bytes)
 Pages free:                          1000.
 Pages active:                        9000.
 Pages inactive:                      2000.
 Pages speculative:                    500.
+Pages purgeable:                      300.
 `
-	// (1000 + 2000 + 500) * 16384
-	want := uint64(3500) * 16384
-	if got := parseVMStatFree(out); got != want {
-		t.Errorf("free = %d, want %d", got, want)
+	free, cached := parseVMStat(out)
+	// free + speculative
+	if want := uint64(1500) * 16384; free != want {
+		t.Errorf("free = %d, want %d", free, want)
+	}
+	// inactive + purgeable
+	if want := uint64(2300) * 16384; cached != want {
+		t.Errorf("cached = %d, want %d", cached, want)
 	}
 }
 
