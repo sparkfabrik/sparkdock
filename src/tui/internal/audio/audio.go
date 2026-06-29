@@ -3,7 +3,8 @@
 // non-blocking: it never delays or blocks the UI and degrades to a silent
 // no-op when disabled or unsupported.
 //
-// The sound is OpenCode's "bip-bop-01" (MIT licensed; see assets/NOTICE),
+// The sound is "spark-zap", a short synthesized rising sweep with a sub-bass
+// body (generated with ffmpeg, no third-party license; see assets/NOTICE),
 // embedded into the binary. Disable with SPARKDOCK_TUI_NO_AUDIO=1. Only macOS
 // (via the built-in afplay) is supported; elsewhere it is a no-op.
 package audio
@@ -17,7 +18,7 @@ import (
 	"sync"
 )
 
-//go:embed assets/bip-bop-01.mp3
+//go:embed assets/spark-zap.mp3
 var sound []byte
 
 var (
