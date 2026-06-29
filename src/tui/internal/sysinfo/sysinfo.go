@@ -22,6 +22,7 @@ type Info struct {
 	GPUCores  int
 	MemTotal  uint64
 	MemFree   uint64
+	MemCached uint64
 	DiskTotal uint64
 	DiskFree  uint64
 	OS        string
@@ -41,7 +42,7 @@ func (g Gatherer) Gather(ctx context.Context) Info {
 	if memsize := parseUint(g.Run(ctx, "sysctl", "-n", "hw.memsize").Stdout); memsize > 0 {
 		hw.MemTotal = memsize
 	}
-	hw.MemFree = parseVMStatFree(g.Run(ctx, "vm_stat").Stdout)
+	hw.MemFree, hw.MemCached = parseVMStat(g.Run(ctx, "vm_stat").Stdout)
 	hw.DiskTotal, hw.DiskFree = parseDF(g.Run(ctx, "df", "-k", "/").Stdout)
 	hw.OS = strings.TrimSpace(g.Run(ctx, "sw_vers", "-productVersion").Stdout)
 	return hw
@@ -95,26 +96,33 @@ func parseHardware(out string) Info {
 	return info
 }
 
-// parseVMStatFree returns free + inactive memory in bytes from `vm_stat` output.
-func parseVMStatFree(out string) uint64 {
+// parseVMStat returns (free, cached) memory in bytes from `vm_stat` output.
+// free is immediately-available memory (free + speculative pages); cached is the
+// reclaimable file cache (inactive + purgeable pages), shown the way Activity
+// Monitor distinguishes free memory from "Cached Files".
+func parseVMStat(out string) (free, cached uint64) {
 	pageSize := uint64(4096)
 	if i := strings.Index(out, "page size of "); i >= 0 {
 		if n := leadingInt(out[i+len("page size of "):]); n > 0 {
 			pageSize = uint64(n)
 		}
 	}
-	var pages uint64
+	var freePages, cachedPages uint64
 	for _, raw := range strings.Split(out, "\n") {
 		line := strings.TrimSpace(raw)
 		key, val, ok := strings.Cut(line, ":")
 		if !ok {
 			continue
 		}
-		if key == "Pages free" || key == "Pages inactive" || key == "Pages speculative" {
-			pages += uint64(leadingInt(strings.TrimSpace(val)))
+		n := uint64(leadingInt(strings.TrimSpace(val)))
+		switch key {
+		case "Pages free", "Pages speculative":
+			freePages += n
+		case "Pages inactive", "Pages purgeable":
+			cachedPages += n
 		}
 	}
-	return pages * pageSize
+	return freePages * pageSize, cachedPages * pageSize
 }
 
 // parseDF returns (total, free) bytes for the root filesystem from `df -k /`.
