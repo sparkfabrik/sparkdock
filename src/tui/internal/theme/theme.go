@@ -2,7 +2,12 @@
 // TUI so the visual language lives in one place and pages stay free of literals.
 package theme
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"fmt"
+	"math"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 // Brand and semantic colours. 256-colour codes keep output readable on the
 // common terminals sparkdock targets; truecolor terminals render them faithfully.
@@ -16,6 +21,38 @@ var (
 	Grey    = lipgloss.Color("240") // dim / secondary
 	FgLight = lipgloss.Color("15")  // selected foreground
 )
+
+// Glow base RGB for the logo flare. The wordmark base approximates the brand
+// purple (256-colour 99) and the spark base the orange glyph (208); both are
+// interpolated toward white at the flare's peak. Truecolor terminals render the
+// ramp smoothly; lipgloss downsamples it on 256-colour terminals.
+var (
+	TitleGlowBase = [3]int{0x87, 0x5F, 0xFF}
+	SparkGlowBase = [3]int{0xFF, 0x87, 0x00}
+)
+
+// GlowFactor maps an animation phase in [0,1] to a brightness factor in [0,1],
+// mirroring the logo sound's envelope: a fast attack to a white-hot peak, then
+// an exponential decay back to the base colour. Outside (0,1) it is 0.
+func GlowFactor(phase float64) float64 {
+	if phase <= 0 || phase >= 1 {
+		return 0
+	}
+	const attack = 0.18
+	if phase < attack {
+		return phase / attack
+	}
+	return math.Exp(-3.5 * (phase - attack) / (1 - attack))
+}
+
+// Glow interpolates a base RGB colour toward white by factor f (clamped to
+// [0,1]) and returns it as a truecolor hex value. f=0 is the base colour, f=1 is
+// white.
+func Glow(base [3]int, f float64) lipgloss.Color {
+	f = math.Max(0, math.Min(1, f))
+	mix := func(c int) int { return c + int(math.Round(float64(255-c)*f)) }
+	return lipgloss.Color(fmt.Sprintf("#%02X%02X%02X", mix(base[0]), mix(base[1]), mix(base[2])))
+}
 
 // Glyphs shared across views.
 const (
