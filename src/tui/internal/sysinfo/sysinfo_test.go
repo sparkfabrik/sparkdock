@@ -99,7 +99,7 @@ func TestGather_UsesInjectedRunner(t *testing.T) {
 		case "sysctl":
 			return status.CommandResult{Stdout: "38654705664\n"} // 36 GiB
 		case "vm_stat":
-			return status.CommandResult{Stdout: "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 1000.\nPages inactive: 0.\n"}
+			return status.CommandResult{Stdout: "Mach Virtual Memory Statistics: (page size of 16384 bytes)\nPages free: 1000.\nPages inactive: 500.\n"}
 		case "df":
 			return status.CommandResult{Stdout: "Filesystem 1024-blocks Used Available Capacity Mounted\n/dev/disk3 100 40 60 40% /\n"}
 		case "sw_vers":
@@ -116,6 +116,9 @@ func TestGather_UsesInjectedRunner(t *testing.T) {
 	}
 	if got.MemFree != 1000*16384 {
 		t.Errorf("MemFree = %d", got.MemFree)
+	}
+	if got.MemCached != 500*16384 {
+		t.Errorf("MemCached = %d", got.MemCached)
 	}
 	if got.DiskFree != 60*1024 {
 		t.Errorf("DiskFree = %d", got.DiskFree)
