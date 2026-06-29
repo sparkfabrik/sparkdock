@@ -194,13 +194,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case runview.BackMsg:
-		m.page = ui.PageDashboard
 		// A self-update that rebuilt the binary means the running process is now
 		// stale; advise a relaunch on the dashboard.
 		if m.hasLast && m.last.opts.SelfUpdate && m.binaryChanged() {
 			m.dashboard = m.dashboard.WithRestartHint()
 		}
-		return m, m.dashboard.Init() // refresh status after a run
+		return m.toDashboard()
 
 	case logview.BackMsg:
 		m.page = ui.PageRunner
@@ -208,6 +207,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	return m.route(msg)
+}
+
+// toDashboard returns to the home page and always re-checks status, so any
+// change an action made (a self-update, an upgrade, a proxy start) is reflected
+// immediately instead of showing stale dots until the next manual refresh.
+func (m Model) toDashboard() (tea.Model, tea.Cmd) {
+	m.page = ui.PageDashboard
+	m.dashboard = m.dashboard.MarkLoading()
+	return m, m.dashboard.Init()
 }
 
 func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {
@@ -229,8 +237,7 @@ func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {
 func (m Model) launch(action string) (tea.Model, tea.Cmd) {
 	spec, ok := m.planFor(action)
 	if !ok {
-		m.page = ui.PageDashboard // unhandled action: stay home
-		return m, nil
+		return m.toDashboard() // unhandled action: stay home, still refresh
 	}
 	return m.start(spec)
 }

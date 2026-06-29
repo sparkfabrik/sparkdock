@@ -69,6 +69,13 @@ func (m Model) WithRestartHint() Model {
 	return m
 }
 
+// MarkLoading shows the refreshing indicator until the next status arrives. The
+// app sets it when returning to the dashboard so a refresh is visibly in flight.
+func (m Model) MarkLoading() Model {
+	m.loading = true
+	return m
+}
+
 // New builds a dashboard bound to a status checker, a sysinfo gatherer, and
 // version info.
 func New(checker status.Checker, gatherer sysinfo.Gatherer, ver version.Info) Model {
