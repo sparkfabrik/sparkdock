@@ -30,16 +30,31 @@ const (
 	maxShow = 8 * time.Second
 )
 
+// Glow timing: a click flares the logo for glowDur, redrawn every glowFrame,
+// matching the logo sound's envelope.
+const (
+	glowDur   = 700 * time.Millisecond
+	glowFrame = 45 * time.Millisecond
+)
+
 // MinElapsedMsg fires once the minimum splash time has passed.
 type MinElapsedMsg struct{}
 
 // TimeoutMsg fires at the maximum splash time, forcing a hand-off.
 type TimeoutMsg struct{}
 
+// glowTickMsg drives a frame of the logo flare; its time is compared to the
+// flare's start to derive the animation phase.
+type glowTickMsg time.Time
+
 // Model is the splash page.
 type Model struct {
 	width, height int
 	ver           version.Info
+
+	glowStart  time.Time
+	glowing    bool
+	glowFactor float64
 }
 
 // New returns a splash for the given version info.
@@ -65,9 +80,30 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	case tea.MouseMsg:
 		if msg.Action == tea.MouseActionPress {
 			audio.Play() // click the logo to hear it
+			m.glowStart = time.Now()
+			m.glowing = true
+			m.glowFactor = 0
+			return m, glowTick()
 		}
+	case glowTickMsg:
+		if !m.glowing {
+			return m, nil
+		}
+		phase := float64(time.Time(msg).Sub(m.glowStart)) / float64(glowDur)
+		if phase >= 1 {
+			m.glowing = false
+			m.glowFactor = 0
+			return m, nil
+		}
+		m.glowFactor = theme.GlowFactor(phase)
+		return m, glowTick()
 	}
 	return m, nil
+}
+
+// glowTick schedules the next flare frame.
+func glowTick() tea.Cmd {
+	return tea.Tick(glowFrame, func(t time.Time) tea.Msg { return glowTickMsg(t) })
 }
 
 // View renders the centred splash.
@@ -77,13 +113,18 @@ func (m Model) View() string {
 	if w == 0 {
 		w, h = 80, 24
 	}
+	markStyle, sparkStyle := st.Title, st.SparkS
+	if m.glowing {
+		markStyle = markStyle.Foreground(theme.Glow(theme.TitleGlowBase, m.glowFactor))
+		sparkStyle = sparkStyle.Foreground(theme.Glow(theme.SparkGlowBase, m.glowFactor))
+	}
 	var mark string
 	if w >= minWidth {
-		mark = st.Title.Render(strings.TrimRight(wordmark, "\n"))
+		mark = markStyle.Render(strings.TrimRight(wordmark, "\n"))
 	} else {
-		mark = st.Title.Render("S P A R K D O C K")
+		mark = markStyle.Render("S P A R K D O C K")
 	}
-	spark := st.SparkS.Render(theme.Spark)
+	spark := sparkStyle.Render(theme.Spark)
 	block := lipgloss.JoinVertical(lipgloss.Center,
 		mark, "",
 		spark+"  "+st.Dim.Render("dev environment manager")+"  "+spark, "",
