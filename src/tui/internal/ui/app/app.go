@@ -28,6 +28,7 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/recipelist"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/runview"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/splash"
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/whatsnew"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
 
@@ -67,6 +68,7 @@ type Model struct {
 	password  password.Model
 	logview   logview.Model
 	recipes   recipelist.Model
+	whatsnew  whatsnew.Model
 
 	ansible *runner.Runner
 
@@ -94,6 +96,7 @@ func New(cfg Config, ver version.Info, deps Deps) Model {
 		password:  password.New(),
 		logview:   logview.New(),
 		recipes:   recipelist.New(deps.Recipes),
+		whatsnew:  whatsnew.New(func() ([]byte, error) { return os.ReadFile(filepath.Join(cfg.Root, "CHANGELOG.md")) }),
 		ansible:   runner.New(),
 	}
 	if cfg.ExePath != "" {
@@ -216,6 +219,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case recipelist.BackMsg:
 		return m.toDashboard()
 
+	case whatsnew.BackMsg:
+		m.page = ui.PageDashboard // nothing ran, no need to re-check status
+		return m, nil
+
 	case recipelist.LoadedMsg:
 		// May arrive after the user already left the page; apply it regardless so
 		// the catalog is cached for the next visit.
@@ -246,6 +253,10 @@ func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.recipes, cmd = m.recipes.Open()
 		return m, cmd
+	case ui.PageWhatsNew:
+		m.page = ui.PageWhatsNew
+		m.whatsnew = m.whatsnew.Open()
+		return m, nil
 	default:
 		fromSplash := m.page == ui.PageSplash
 		m.page = msg.To
@@ -373,6 +384,7 @@ func (m *Model) setSize(w, h int) {
 	m.password.SetSize(w, h)
 	m.logview.SetSize(w, h)
 	m.recipes.SetSize(w, h)
+	m.whatsnew.SetSize(w, h)
 }
 
 func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -390,6 +402,8 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.logview, cmd = m.logview.Update(msg)
 	case ui.PageRecipes:
 		m.recipes, cmd = m.recipes.Update(msg)
+	case ui.PageWhatsNew:
+		m.whatsnew, cmd = m.whatsnew.Update(msg)
 	}
 	return m, cmd
 }
@@ -407,6 +421,8 @@ func (m Model) View() string {
 		return m.logview.View()
 	case ui.PageRecipes:
 		return m.recipes.View()
+	case ui.PageWhatsNew:
+		return m.whatsnew.View()
 	default:
 		return m.dashboard.View()
 	}
