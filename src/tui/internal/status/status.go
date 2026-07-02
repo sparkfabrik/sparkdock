@@ -8,7 +8,6 @@ import (
 	"context"
 	"fmt"
 	"strings"
-	"sync"
 )
 
 // Health is the freshness of a subsystem, mirroring the menu bar's dots.
@@ -100,23 +99,6 @@ func (c CmdChecker) CheckOne(ctx context.Context, key string) Subsystem {
 	default:
 		return Subsystem{Key: key, Health: Unknown, Detail: "unknown"}
 	}
-}
-
-// Check queries every subsystem concurrently (brew alone can take seconds) and
-// returns the results in display order.
-func (c CmdChecker) Check(ctx context.Context) []Subsystem {
-	keys := c.Subsystems()
-	out := make([]Subsystem, len(keys))
-	var wg sync.WaitGroup
-	for i, key := range keys {
-		wg.Add(1)
-		go func(i int, key string) {
-			defer wg.Done()
-			out[i] = c.CheckOne(ctx, key)
-		}(i, key)
-	}
-	wg.Wait()
-	return out
 }
 
 func (c CmdChecker) checkUpdatesSubsystem(ctx context.Context, key, name, arg string) Subsystem {

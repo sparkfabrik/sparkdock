@@ -21,20 +21,13 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
 
-// StatusMsg carries a completed bulk status check back into the model (used
-// when no checker is wired; per-subsystem results arrive as SubsystemMsg).
-type StatusMsg []status.Subsystem
-
 // SubsystemMsg carries one completed subsystem check; rows stream in as each
 // check finishes instead of waiting for the slowest one.
 type SubsystemMsg status.Subsystem
 
-// statusTimeout bounds one subsystem check, and sysinfoTimeout one system-info
-// gather, so a hung command (network-stuck brew) can't pin a row on "…" forever.
-const (
-	statusTimeout  = 60 * time.Second
-	sysinfoTimeout = 60 * time.Second
-)
+// checkTimeout bounds one subsystem check or system-info gather, so a hung
+// command (network-stuck brew) can't pin a row on "…" forever.
+const checkTimeout = 60 * time.Second
 
 type itemKind int
 
@@ -54,9 +47,6 @@ type item struct {
 	selectable bool
 }
 
-// StatusMsg / SysInfoMsg carry async results back into the model.
-// (StatusMsg is declared above.)
-
 // SysInfoMsg carries a completed system-info gather.
 type SysInfoMsg sysinfo.Info
 
@@ -71,7 +61,6 @@ type Model struct {
 	sysReady      bool
 	items         []item
 	cursor        int
-	loading       bool
 	restartHint   bool
 
 	awaiting  map[string]bool // subsystem keys still being checked this round
@@ -80,6 +69,10 @@ type Model struct {
 
 	showHelp bool
 }
+
+// loading reports whether a check round is still in flight; it is fully
+// derived from the awaiting set.
+func (m Model) loading() bool { return len(m.awaiting) > 0 }
 
 // WithRestartHint marks that the running binary was updated, so the dashboard
 // shows a relaunch notice until the user quits.
@@ -91,7 +84,7 @@ func (m Model) WithRestartHint() Model {
 // New builds a dashboard bound to a status checker, a sysinfo gatherer, and
 // version info.
 func New(checker status.Checker, gatherer sysinfo.Gatherer, ver version.Info) Model {
-	m := Model{checker: checker, gatherer: gatherer, ver: ver, loading: true, now: time.Now}
+	m := Model{checker: checker, gatherer: gatherer, ver: ver, now: time.Now}
 	m.awaiting = m.allKeys()
 	m.rebuild()
 	return m
@@ -104,13 +97,12 @@ func (m Model) Init() tea.Cmd { return tea.Batch(m.refresh(), m.sysGather()) }
 // Refresh starts a new round of checks. Existing rows stay visible (with the
 // refreshing indicator) and update in place as fresh results stream in.
 func (m Model) Refresh() (Model, tea.Cmd) {
-	m.loading = true
 	m.awaiting = m.allKeys()
 	return m, tea.Batch(m.refresh(), m.sysGather())
 }
 
 // Ready reports whether the current round of checks has fully landed.
-func (m Model) Ready() bool { return !m.loading }
+func (m Model) Ready() bool { return !m.loading() }
 
 // SetSize updates render dimensions.
 func (m *Model) SetSize(w, h int) { m.width, m.height = w, h }
@@ -126,17 +118,18 @@ func (m Model) allKeys() map[string]bool {
 }
 
 // refresh fans out one command per subsystem so each row lands as soon as its
-// check completes; a nil checker resolves to an empty bulk result.
+// check completes; with no checker there is nothing to fan out and the round
+// is trivially complete.
 func (m Model) refresh() tea.Cmd {
 	checker := m.checker
 	if checker == nil {
-		return func() tea.Msg { return StatusMsg(nil) }
+		return nil
 	}
 	keys := checker.Subsystems()
 	cmds := make([]tea.Cmd, 0, len(keys))
 	for _, key := range keys {
 		cmds = append(cmds, func() tea.Msg {
-			ctx, cancel := context.WithTimeout(context.Background(), statusTimeout)
+			ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
 			defer cancel()
 			return SubsystemMsg(checker.CheckOne(ctx, key))
 		})
@@ -150,7 +143,7 @@ func (m Model) sysGather() tea.Cmd {
 		if g.Run == nil {
 			return SysInfoMsg{}
 		}
-		ctx, cancel := context.WithTimeout(context.Background(), sysinfoTimeout)
+		ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
 		defer cancel()
 		return SysInfoMsg(g.Gather(ctx))
 	}
@@ -159,17 +152,11 @@ func (m Model) sysGather() tea.Cmd {
 // Update handles navigation, refresh, and incoming status.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case StatusMsg:
-		m.subs = []status.Subsystem(msg)
-		m.awaiting = nil
-		m.finishRound()
-		m.rebuild()
-		return m, nil
 	case SubsystemMsg:
 		m.upsert(status.Subsystem(msg))
 		delete(m.awaiting, msg.Key)
 		if len(m.awaiting) == 0 {
-			m.finishRound()
+			m.stampRound()
 		}
 		m.rebuild()
 		return m, nil
@@ -203,8 +190,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				if it.id == "recipes" {
 					return m, func() tea.Msg { return ui.Navigate(ui.PageRecipes, "") }
 				}
-				id := it.id
-				return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, id) }
+				return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, it.id) }
 			}
 		}
 	}
@@ -215,13 +201,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 // global keys (like q-to-quit) from stealing the overlay's dismiss keys.
 func (m Model) HelpOpen() bool { return m.showHelp }
 
-// finishRound marks the current check round complete and stamps its time.
-func (m *Model) finishRound() {
-	m.loading = false
-	if m.now != nil {
-		m.checkedAt = m.now()
-	}
-}
+// stampRound records when the check round completed, for the age hint.
+func (m *Model) stampRound() { m.checkedAt = m.now() }
 
 // upsert replaces the subsystem with the same key, or appends a new row.
 func (m *Model) upsert(s status.Subsystem) {
@@ -376,7 +357,7 @@ func (m Model) sysInfoBlock(st theme.Styles) string {
 // checkedAgo formats the age of the last completed check round for the footer,
 // or "" before the first round completes.
 func (m Model) checkedAgo() string {
-	if m.checkedAt.IsZero() || m.now == nil {
+	if m.checkedAt.IsZero() {
 		return ""
 	}
 	d := m.now().Sub(m.checkedAt)
@@ -487,22 +468,15 @@ func (m Model) View() string {
 			b.WriteString("\n  " + st.Group.Render(it.label) + "\n")
 		case kindAction:
 			flushCols()
-			line := "   " + st.Action.Render(theme.Pointer+" "+it.label)
-			if i == m.cursor {
-				line = "  " + st.Selected.Render(" "+theme.Pointer+" "+it.label+" ")
-			}
-			if it.detail != "" {
-				line += "  " + st.Dim.Render(it.detail)
-			}
-			b.WriteString(line + "\n")
+			b.WriteString(theme.ActionRow(st, i == m.cursor, it.label, it.detail) + "\n")
 		}
 	}
 	flushCols()
 
 	b.WriteString("\n" + st.Dim.Render(strings.Repeat("─", width)) + "\n")
 	left := " " + st.SparkS.Render(theme.Spark) + " " + st.Dim.Render(m.ver.Short()+m.checkedAgo())
-	if m.loading {
-		left = " " + st.Amber.Render("◐") + " " + st.Dim.Render("refreshing…")
+	if m.loading() {
+		left = " " + st.Amber.Render(theme.DotStale) + " " + st.Dim.Render("refreshing…")
 	}
 	hint := func(k, label string) string { return st.SparkS.Render(k) + " " + st.Dim.Render(label) }
 	sep := st.Dim.Render(" · ")

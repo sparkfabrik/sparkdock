@@ -121,11 +121,3 @@ func TestHelpOverlayToggles(t *testing.T) {
 		t.Error("q must close the overlay (not quit) while help is open")
 	}
 }
-
-func TestBulkStatusMsgCompletesRound(t *testing.T) {
-	m := newTestModel("sparkdock", "brew")
-	m, _ = m.Update(StatusMsg{{Key: "sparkdock", Health: status.OK, Detail: "up to date"}})
-	if !m.Ready() {
-		t.Error("bulk status must complete the round")
-	}
-}

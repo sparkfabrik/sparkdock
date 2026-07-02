@@ -46,7 +46,7 @@ type Model struct {
 // New returns a log page wired to the system clipboard (pbcopy, falling back
 // to OSC 52 for remote sessions) and the filesystem.
 func New() Model {
-	return Model{clip: firstOf(pbcopy, osc52), write: writeFile, home: os.Getenv("HOME")}
+	return Model{clip: systemClipboard, write: writeFile, home: os.Getenv("HOME")}
 }
 
 // SetSize updates dimensions and the viewport.
@@ -123,17 +123,13 @@ func (m Model) View() string {
 	return header + "\n" + rule + "\n" + m.vp.View() + "\n" + footer
 }
 
-// firstOf tries each clipboard in order, returning nil on the first success.
-func firstOf(clips ...Clipboard) Clipboard {
-	return func(text string) error {
-		var err error
-		for _, clip := range clips {
-			if err = clip(text); err == nil {
-				return nil
-			}
-		}
-		return err
+// systemClipboard copies via pbcopy, falling back to OSC 52 when pbcopy cannot
+// reach the clipboard (an SSH session into this machine).
+func systemClipboard(text string) error {
+	if err := pbcopy(text); err == nil {
+		return nil
 	}
+	return osc52(text)
 }
 
 func pbcopy(text string) error {

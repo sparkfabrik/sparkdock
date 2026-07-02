@@ -34,7 +34,7 @@ type (
 		gen int
 		b   []byte
 	}
-	closedMsg struct{ gen int }
+	closedMsg struct{}
 	doneMsg   struct {
 		gen int
 		res runner.Result
@@ -43,7 +43,7 @@ type (
 		gen  int
 		text string
 	}
-	promptsClosed struct{ gen int }
+	promptsClosed struct{}
 )
 
 // PromptMsg tells the app the run is asking for a password; the app shows the
@@ -383,7 +383,7 @@ func waitOutput(h *runner.Handle, gen int) tea.Cmd {
 	return func() tea.Msg {
 		b, ok := <-h.Output
 		if !ok {
-			return closedMsg{gen: gen}
+			return closedMsg{}
 		}
 		return outMsg{gen: gen, b: b}
 	}
@@ -393,7 +393,7 @@ func waitPrompt(h *runner.Handle, gen int) tea.Cmd {
 	return func() tea.Msg {
 		p, ok := <-h.Prompts
 		if !ok {
-			return promptsClosed{gen: gen}
+			return promptsClosed{}
 		}
 		return promptMsg{gen: gen, text: p}
 	}

@@ -65,8 +65,17 @@ func Parse(data []byte) ([]Recipe, error) {
 		if r.Private || strings.HasPrefix(name, "_") || isPrivate(r.Attributes) {
 			continue
 		}
-		if requiresArgs(r.Parameters) {
-			continue // not runnable from a picker without an argument prompt
+		// A parameter without a default makes the recipe unrunnable from a
+		// picker (no argument prompt), so skip it.
+		runnable := true
+		for _, p := range r.Parameters {
+			if p.Default == nil {
+				runnable = false
+				break
+			}
+		}
+		if !runnable {
+			continue
 		}
 		out = append(out, Recipe{Name: name, Doc: r.Doc, Group: group(r.Attributes)})
 	}
@@ -97,17 +106,4 @@ func group(attrs []any) string {
 		}
 	}
 	return ""
-}
-
-// requiresArgs reports whether any parameter lacks a default value.
-func requiresArgs(params []struct {
-	Name    string `json:"name"`
-	Default any    `json:"default"`
-}) bool {
-	for _, p := range params {
-		if p.Default == nil {
-			return true
-		}
-	}
-	return false
 }

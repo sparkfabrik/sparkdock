@@ -40,6 +40,7 @@ type Model struct {
 	loader        recipes.Loader
 
 	all     []recipes.Recipe
+	hay     []string // lowercase name+doc+group per recipe, built once on load
 	query   string
 	cursor  int
 	loading bool
@@ -90,6 +91,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, nil
 		}
 		m.all = msg.Recipes
+		m.hay = make([]string, len(m.all))
+		for i, r := range m.all {
+			m.hay[i] = strings.ToLower(r.Name + " " + r.Doc + " " + r.Group)
+		}
 		m.clamp()
 		return m, nil
 
@@ -146,9 +151,8 @@ func (m Model) filtered() []recipes.Recipe {
 	}
 	q := strings.ToLower(m.query)
 	var out []recipes.Recipe
-	for _, r := range m.all {
-		hay := strings.ToLower(r.Name + " " + r.Doc + " " + r.Group)
-		if strings.Contains(hay, q) {
+	for i, r := range m.all {
+		if strings.Contains(m.hay[i], q) {
 			out = append(out, r)
 		}
 	}
@@ -198,7 +202,7 @@ func (m Model) View() string {
 
 	switch {
 	case m.loading:
-		b.WriteString("\n  " + st.Amber.Render("◐") + " " + st.Dim.Render("loading recipe catalog…") + "\n")
+		b.WriteString("\n  " + st.Amber.Render(theme.DotStale) + " " + st.Dim.Render("loading recipe catalog…") + "\n")
 	case m.errMsg != "":
 		b.WriteString("\n  " + st.Failed.Render(theme.MarkFailed+" "+m.errMsg) + "\n")
 		b.WriteString("  " + st.Dim.Render("R reload · esc back") + "\n")
@@ -265,13 +269,7 @@ func (m Model) listView(st theme.Styles, width int, f []recipes.Recipe) string {
 			continue
 		}
 		r := f[dl.idx]
-		line := "   " + st.Action.Render(theme.Pointer+" "+r.Name)
-		if dl.idx == m.cursor {
-			line = "  " + st.Selected.Render(" "+theme.Pointer+" "+r.Name+" ")
-		}
-		if r.Doc != "" {
-			line += "  " + st.Dim.Render(r.Doc)
-		}
+		line := theme.ActionRow(st, dl.idx == m.cursor, r.Name, r.Doc)
 		b.WriteString(ansi.Truncate(line, width, "…") + "\n")
 	}
 	return b.String()

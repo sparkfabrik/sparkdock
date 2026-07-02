@@ -20,7 +20,15 @@ func fakeRunner(byArg map[string]CommandResult) CommandRunner {
 	}
 }
 
-func TestCheck_MapsExitCodesAndBrewCount(t *testing.T) {
+func checkAll(c CmdChecker) map[string]Subsystem {
+	byKey := map[string]Subsystem{}
+	for _, key := range c.Subsystems() {
+		byKey[key] = c.CheckOne(context.Background(), key)
+	}
+	return byKey
+}
+
+func TestCheckOne_MapsExitCodesAndBrewCount(t *testing.T) {
 	c := CmdChecker{
 		CheckUpdatesBin: "check-updates",
 		BrewBin:         "brew",
@@ -31,14 +39,7 @@ func TestCheck_MapsExitCodesAndBrewCount(t *testing.T) {
 			"outdated":   {Stdout: "docker\nnode\nphp\n"},
 		}),
 	}
-	got := c.Check(context.Background())
-	if len(got) != 4 {
-		t.Fatalf("want 4 subsystems, got %d", len(got))
-	}
-	byKey := map[string]Subsystem{}
-	for _, s := range got {
-		byKey[s.Key] = s
-	}
+	byKey := checkAll(c)
 	if byKey["sparkdock"].Health != OK {
 		t.Errorf("sparkdock health = %v, want OK", byKey["sparkdock"].Health)
 	}
@@ -101,33 +102,24 @@ func TestSubsystems_Order(t *testing.T) {
 	}
 }
 
-func TestCheck_BrewUpToDate(t *testing.T) {
+func TestCheckOne_BrewUpToDate(t *testing.T) {
 	c := CmdChecker{
-		Run: fakeRunner(map[string]CommandResult{
-			"sparkdock": {ExitCode: 1}, "http-proxy": {ExitCode: 1}, "skills": {ExitCode: 1},
-			"outdated": {Stdout: "\n  \n"},
-		}),
+		Run: fakeRunner(map[string]CommandResult{"outdated": {Stdout: "\n  \n"}}),
 	}
-	for _, s := range c.Check(context.Background()) {
-		if s.Key == "brew" {
-			if s.Health != OK || s.Detail != "up to date" {
-				t.Errorf("brew = %+v, want OK 'up to date'", s)
-			}
-		}
+	s := c.CheckOne(context.Background(), "brew")
+	if s.Health != OK || s.Detail != "up to date" {
+		t.Errorf("brew = %+v, want OK 'up to date'", s)
 	}
 }
 
-func TestCheck_ErrorsBecomeUnknown(t *testing.T) {
+func TestCheckOne_ErrorsBecomeUnknown(t *testing.T) {
 	c := CmdChecker{
 		Run: fakeRunner(map[string]CommandResult{
 			"sparkdock": {Err: errors.New("boom")}, "http-proxy": {ExitCode: 1},
 			"skills": {ExitCode: 1}, "outdated": {Err: errors.New("no brew")},
 		}),
 	}
-	byKey := map[string]Subsystem{}
-	for _, s := range c.Check(context.Background()) {
-		byKey[s.Key] = s
-	}
+	byKey := checkAll(c)
 	if byKey["sparkdock"].Health != Unknown {
 		t.Errorf("sparkdock health = %v, want Unknown", byKey["sparkdock"].Health)
 	}

@@ -95,10 +95,8 @@ func runHeadless(root string) {
 		candidates = append(candidates, p)
 	}
 	for _, path := range candidates {
-		if fi, err := os.Stat(path); err != nil || fi.IsDir() {
-			continue
-		}
-		// Exec never returns on success; the entrypoint takes over the terminal.
+		// Exec never returns on success (the entrypoint takes over the terminal)
+		// and fails fast on a missing or non-executable path.
 		_ = syscall.Exec(path, []string{path}, os.Environ())
 	}
 	fmt.Fprintf(os.Stderr, "sparkdock-tui: could not exec the sparkdock entrypoint (tried %s)\n", candidates)

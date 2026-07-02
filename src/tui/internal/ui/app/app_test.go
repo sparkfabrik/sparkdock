@@ -15,11 +15,18 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
 
+// stubChecker exposes one subsystem so the dashboard starts a round and the
+// splash waits for it, mirroring the real startup sequence.
 type stubChecker struct{}
 
-func (stubChecker) Subsystems() []string { return nil }
+func (stubChecker) Subsystems() []string { return []string{"stub"} }
 func (stubChecker) CheckOne(context.Context, string) status.Subsystem {
-	return status.Subsystem{}
+	return status.Subsystem{Key: "stub", Health: status.OK}
+}
+
+// stubStatusMsg is the message completing the stub checker's round.
+func stubStatusMsg() dashboard.SubsystemMsg {
+	return dashboard.SubsystemMsg{Key: "stub", Health: status.OK}
 }
 
 // newTestApp wires an app whose ansible runner is a fast, harmless fake so
@@ -81,7 +88,7 @@ func TestSplash_DismissesOnlyWhenStatusReadyAndMinElapsed(t *testing.T) {
 	if m.page != ui.PageSplash {
 		t.Fatalf("page = %v, want PageSplash (status not loaded yet)", m.page)
 	}
-	m = update(m, dashboard.StatusMsg(nil))
+	m = update(m, stubStatusMsg())
 	if m.page != ui.PageDashboard {
 		t.Errorf("page = %v, want PageDashboard once status ready and min elapsed", m.page)
 	}
@@ -89,7 +96,7 @@ func TestSplash_DismissesOnlyWhenStatusReadyAndMinElapsed(t *testing.T) {
 
 func TestSplash_StatusBeforeMinStillWaits(t *testing.T) {
 	m := newTestApp()
-	m = update(m, dashboard.StatusMsg(nil)) // ready, but min not elapsed
+	m = update(m, stubStatusMsg()) // ready, but min not elapsed
 	if m.page != ui.PageSplash {
 		t.Fatalf("page = %v, want PageSplash (min time not elapsed)", m.page)
 	}

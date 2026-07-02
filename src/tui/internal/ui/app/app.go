@@ -74,10 +74,9 @@ type Model struct {
 	hasLast bool
 	runFrom ui.PageID // page that launched the run; esc returns there
 
-	// splash dismissal: hand off to the dashboard once status is loaded and the
-	// minimum splash time has passed.
-	statusReady bool
-	splashMin   bool
+	// splash dismissal: hand off to the dashboard once status is loaded (the
+	// dashboard reports Ready) and the minimum splash time has passed.
+	splashMin bool
 
 	// binModTime is the running binary's mtime at startup; a self-update that
 	// rebuilds it changes this, so we can advise a relaunch.
@@ -153,12 +152,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case dashboard.StatusMsg, dashboard.SubsystemMsg:
+	case dashboard.SubsystemMsg:
+		// Rows load in the background during the splash; once the round lands the
+		// dashboard reports Ready and the splash can hand off.
 		var cmd tea.Cmd
 		m.dashboard, cmd = m.dashboard.Update(msg)
-		if m.dashboard.Ready() {
-			m.statusReady = true // all rows loaded in the background during the splash
-		}
 		return m, tea.Batch(cmd, m.dismissSplashIfReady())
 
 	case dashboard.SysInfoMsg:
@@ -353,7 +351,7 @@ func (m Model) planFor(action string) (runSpec, bool) {
 // minimum splash time has passed, returning a command to disable mouse reporting
 // so normal terminal text selection/copy works on the content pages.
 func (m *Model) dismissSplashIfReady() tea.Cmd {
-	if m.page == ui.PageSplash && m.statusReady && m.splashMin {
+	if m.page == ui.PageSplash && m.dashboard.Ready() && m.splashMin {
 		m.page = ui.PageDashboard
 		return tea.DisableMouse
 	}
