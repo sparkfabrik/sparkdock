@@ -2,8 +2,10 @@
 //
 // Dispatch:
 //
-//	sparkdock-tui            (interactive TTY)  -> launch the TUI hub
-//	sparkdock-tui update     / non-TTY / --no-tui -> headless (delegates out)
+//	sparkdock-tui                     (interactive TTY) -> launch the TUI hub
+//	sparkdock-tui update / --no-tui   -> exec the sparkdock bash entrypoint
+//	sparkdock-tui with no TTY         -> refuse with guidance (never provisions
+//	                                     implicitly from a pipe)
 //
 // The headless path is intentionally a thin delegate: real provisioning is
 // driven by the existing bash entrypoint and Ansible, not reimplemented here.
@@ -15,6 +17,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
@@ -31,9 +35,13 @@ func main() {
 		root = "/opt/sparkdock"
 	}
 
-	if !interactive() || headlessRequested(os.Args[1:]) {
-		runHeadless()
+	if headlessRequested(os.Args[1:]) {
+		runHeadless(root)
 		return
+	}
+	if !interactive() {
+		fmt.Fprintln(os.Stderr, "sparkdock-tui: stdin/stdout is not a terminal; run `sparkdock` to provision headlessly, or `sparkdock-tui update` to delegate explicitly")
+		os.Exit(1)
 	}
 
 	ver := version.NewReader(root).Read()
@@ -73,10 +81,24 @@ func headlessRequested(args []string) bool {
 	return false
 }
 
-// runHeadless is a placeholder for the headless path. The production version
-// will delegate to the bash entrypoint / `just run-ansible-playbook`.
-func runHeadless() {
-	fmt.Println("sparkdock-tui: headless mode — delegate to the provisioner (not yet wired)")
+// runHeadless replaces this process with the sparkdock bash entrypoint, which
+// owns self-update and full provisioning (the exact behaviour of running bare
+// `sparkdock`). Tries the install the binary was configured for first, then
+// PATH.
+func runHeadless(root string) {
+	candidates := []string{filepath.Join(root, "bin", "sparkdock.macos")}
+	if p, err := exec.LookPath("sparkdock"); err == nil {
+		candidates = append(candidates, p)
+	}
+	for _, path := range candidates {
+		if fi, err := os.Stat(path); err != nil || fi.IsDir() {
+			continue
+		}
+		// Exec never returns on success; the entrypoint takes over the terminal.
+		_ = syscall.Exec(path, []string{path}, os.Environ())
+	}
+	fmt.Fprintf(os.Stderr, "sparkdock-tui: could not exec the sparkdock entrypoint (tried %s)\n", candidates)
+	os.Exit(1)
 }
 
 // execRunner adapts os/exec to status.CommandRunner, distinguishing a command
