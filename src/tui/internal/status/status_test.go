@@ -66,6 +66,21 @@ func TestBrew_ManyOutdatedFoldsIntoMore(t *testing.T) {
 	}
 }
 
+func TestBrew_NonZeroExitSurfacesStderr(t *testing.T) {
+	c := CmdChecker{
+		Run: fakeRunner(map[string]CommandResult{
+			"outdated": {ExitCode: 1, Stderr: "Error: brokén tap\nmore noise"},
+		}),
+	}
+	got := c.CheckOne(context.Background(), "brew")
+	if got.Health != Unknown {
+		t.Errorf("brew health = %v, want Unknown on non-zero exit", got.Health)
+	}
+	if got.Detail != "check failed: Error: brokén tap" {
+		t.Errorf("brew detail = %q, want the first stderr line", got.Detail)
+	}
+}
+
 func TestCheckOne_UnknownKey(t *testing.T) {
 	c := CmdChecker{Run: fakeRunner(nil)}
 	if got := c.CheckOne(context.Background(), "nope"); got.Health != Unknown {

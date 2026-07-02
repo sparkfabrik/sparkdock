@@ -11,6 +11,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -79,23 +80,17 @@ func runHeadless() {
 }
 
 // execRunner adapts os/exec to status.CommandRunner, distinguishing a command
-// that ran with a non-zero exit from one that could not run at all.
+// that ran with a non-zero exit from one that could not run at all. Stderr is
+// captured (Output stores it on the ExitError) so a failing check can surface
+// its cause instead of a bare "check failed".
 func execRunner(ctx context.Context, name string, args ...string) status.CommandResult {
 	out, err := exec.CommandContext(ctx, name, args...).Output()
 	if err == nil {
 		return status.CommandResult{Stdout: string(out), ExitCode: 0}
 	}
 	var ee *exec.ExitError
-	if ok := asExitError(err, &ee); ok {
-		return status.CommandResult{Stdout: string(out), ExitCode: ee.ExitCode()}
+	if errors.As(err, &ee) {
+		return status.CommandResult{Stdout: string(out), Stderr: string(ee.Stderr), ExitCode: ee.ExitCode()}
 	}
 	return status.CommandResult{Err: err}
-}
-
-func asExitError(err error, target **exec.ExitError) bool {
-	if ee, ok := err.(*exec.ExitError); ok {
-		*target = ee
-		return true
-	}
-	return false
 }

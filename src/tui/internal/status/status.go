@@ -41,6 +41,7 @@ type Checker interface {
 // CommandResult is the outcome of running one external command.
 type CommandResult struct {
 	Stdout   string
+	Stderr   string // captured so a failing check can name its cause
 	ExitCode int
 	Err      error
 }
@@ -127,9 +128,11 @@ func (c CmdChecker) checkUpdatesSubsystem(ctx context.Context, key, name, arg st
 func (c CmdChecker) brewSubsystem(ctx context.Context) Subsystem {
 	res := c.Run(ctx, c.BrewBin, "outdated", "--quiet")
 	sub := Subsystem{Key: "brew", Name: "Brew packages"}
-	if res.Err != nil {
+	// brew outdated exits non-zero only on real errors, so treat that as a
+	// failed check too (its stdout would not be a package list).
+	if res.Err != nil || res.ExitCode != 0 {
 		sub.Health = Unknown
-		sub.Detail = "check failed"
+		sub.Detail = failDetail(res)
 		return sub
 	}
 	names := nonEmptyLines(res.Stdout)
@@ -163,6 +166,24 @@ func detailFor(h Health) string {
 	default:
 		return "unknown"
 	}
+}
+
+// failDetail names the failure cause on the status row, preferring the
+// command's own stderr over a generic label.
+func failDetail(r CommandResult) string {
+	cause := ""
+	if lines := nonEmptyLines(r.Stderr); len(lines) > 0 {
+		cause = lines[0]
+	} else if r.Err != nil {
+		cause = r.Err.Error()
+	}
+	if cause == "" {
+		return "check failed"
+	}
+	if r := []rune(cause); len(r) > 60 {
+		cause = string(r[:60]) + "…"
+	}
+	return "check failed: " + cause
 }
 
 func nonEmptyLines(s string) []string {
