@@ -184,7 +184,7 @@ func TestStart_DetectsPasswordPromptAndAnswers(t *testing.T) {
 		if !contains(p, "Password:") {
 			t.Fatalf("prompt = %q, want it to contain Password:", p)
 		}
-		h.Answer("hunter2")
+		h.Answer([]byte("hunter2"))
 	case <-time.After(5 * time.Second):
 		t.Fatal("no prompt received")
 	}

@@ -208,10 +208,22 @@ func (h *Handle) Resize(rows, cols int) {
 }
 
 // Answer writes a password (plus newline) to the running process's PTY in
-// response to a prompt. The secret travels only over the child's terminal.
-func (h *Handle) Answer(password string) {
-	if h.ptmx != nil {
-		_, _ = io.WriteString(h.ptmx, password+"\n")
+// response to a prompt, then zeroes both the caller's buffer and the local
+// copy so the secret does not linger in this process's memory longer than
+// needed. The secret travels only over the child's terminal.
+func (h *Handle) Answer(password []byte) {
+	defer zero(password)
+	if h.ptmx == nil {
+		return
+	}
+	buf := append(append([]byte(nil), password...), '\n')
+	defer zero(buf)
+	_, _ = h.ptmx.Write(buf)
+}
+
+func zero(b []byte) {
+	for i := range b {
+		b[i] = 0
 	}
 }
 

@@ -60,7 +60,7 @@ func TestPromptShowsPasswordPageThenReturns(t *testing.T) {
 		t.Fatalf("page = %v, want PagePassword on prompt", m.page)
 	}
 	// answering returns to the runner page
-	m = update(m, password.SubmitMsg{Password: "s3cret"})
+	m = update(m, password.SubmitMsg{Password: []byte("s3cret")})
 	if m.page != ui.PageRunner {
 		t.Errorf("page = %v, want PageRunner after answering", m.page)
 	}

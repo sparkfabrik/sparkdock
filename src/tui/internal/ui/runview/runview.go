@@ -272,8 +272,9 @@ func (m Model) handleRunningKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 // Running reports whether a run is in progress.
 func (m Model) Running() bool { return m.running }
 
-// AnswerPrompt writes the password to the running process's PTY.
-func (m Model) AnswerPrompt(password string) {
+// AnswerPrompt writes the password to the running process's PTY; the runner
+// zeroes the buffer once written.
+func (m Model) AnswerPrompt(password []byte) {
 	if m.handle != nil {
 		m.handle.Answer(password)
 	}
