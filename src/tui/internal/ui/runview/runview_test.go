@@ -18,7 +18,12 @@ func structuredModel() Model {
 }
 
 func feedBytes(m Model, s string) Model {
-	m, _ = m.Update(outMsg([]byte(s)))
+	m, _ = m.Update(outMsg{gen: m.gen, b: []byte(s)})
+	return m
+}
+
+func finish(m Model, res runner.Result) Model {
+	m, _ = m.Update(doneMsg{gen: m.gen, res: res})
 	return m
 }
 
@@ -41,7 +46,7 @@ func TestStructured_CapturesContentAndStats(t *testing.T) {
 func TestFinish_Success(t *testing.T) {
 	m := structuredModel()
 	m = feedBytes(m, "@@STAT ok=3 changed=1 failed=0 skipped=0\n")
-	m, _ = m.Update(doneMsg(runner.Result{}))
+	m = finish(m, runner.Result{})
 	if m.running || m.failed || m.canceled {
 		t.Errorf("want success state; running=%v failed=%v canceled=%v", m.running, m.failed, m.canceled)
 	}
@@ -49,7 +54,7 @@ func TestFinish_Success(t *testing.T) {
 
 func TestFinish_NonZeroExitFails(t *testing.T) {
 	m := structuredModel()
-	m, _ = m.Update(doneMsg(runner.Result{Err: errBoom{}}))
+	m = finish(m, runner.Result{Err: errBoom{}})
 	if !m.failed {
 		t.Error("failed = false, want true on non-zero exit")
 	}
@@ -58,7 +63,7 @@ func TestFinish_NonZeroExitFails(t *testing.T) {
 func TestFinish_FailedTaskCountFails(t *testing.T) {
 	m := structuredModel()
 	m = feedBytes(m, "@@STAT ok=2 changed=0 failed=1 skipped=0\n")
-	m, _ = m.Update(doneMsg(runner.Result{}))
+	m = finish(m, runner.Result{})
 	if !m.failed {
 		t.Error("failed = false, want true when stats.Failed > 0")
 	}
@@ -66,7 +71,7 @@ func TestFinish_FailedTaskCountFails(t *testing.T) {
 
 func TestFinish_CancelNotFailure(t *testing.T) {
 	m := structuredModel()
-	m, _ = m.Update(doneMsg(runner.Result{Canceled: true, Err: errBoom{}}))
+	m = finish(m, runner.Result{Canceled: true, Err: errBoom{}})
 	if m.failed {
 		t.Error("canceled run must not be marked failed")
 	}
@@ -90,6 +95,27 @@ func TestRunning(t *testing.T) {
 	if New().Running() {
 		t.Error("fresh model should not be running")
 	}
+}
+
+func TestStaleRunMessagesDropped(t *testing.T) {
+	m := structuredModel()
+	m.gen = 2 // a second run is live; gen-1 messages are leftovers
+
+	m, _ = m.Update(outMsg{gen: 1, b: []byte("old run noise\n")})
+	if joined := strings.Join(m.content.rawLog(), "\n"); strings.Contains(joined, "old run noise") {
+		t.Errorf("stale output leaked into the new run's content: %q", joined)
+	}
+
+	m, _ = m.Update(doneMsg{gen: 1, res: runner.Result{Canceled: true}})
+	if !m.running || m.canceled {
+		t.Errorf("stale done finished the new run; running=%v canceled=%v", m.running, m.canceled)
+	}
+
+	m, cmd := m.Update(promptMsg{gen: 1, text: "Password:"})
+	if cmd != nil {
+		t.Error("stale prompt must not surface the password page")
+	}
+	_ = m
 }
 
 type errBoom struct{}
