@@ -3,6 +3,7 @@ package recipelist
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -95,6 +96,32 @@ func TestLoadErrorRendered(t *testing.T) {
 	m, _ = m.Update(LoadedMsg{Err: errors.New("just not found")})
 	if !strings.Contains(m.View(), "just not found") {
 		t.Error("load error must be rendered on the page")
+	}
+}
+
+func TestViewNeverExceedsTerminalHeight(t *testing.T) {
+	// Many groups: each header eats a row; the page must still fit the height.
+	var cat []recipes.Recipe
+	for i := 0; i < 40; i++ {
+		g := string(rune('a' + i%20))
+		cat = append(cat, recipes.Recipe{Name: fmt.Sprintf("recipe-%02d", i), Doc: "doc", Group: g})
+	}
+	m := New(nil)
+	m.SetSize(80, 20)
+	m, _ = m.Update(LoadedMsg{Recipes: cat})
+	if got := strings.Count(m.View(), "\n") + 1; got > 20 {
+		t.Errorf("view is %d rows for a 20-row terminal", got)
+	}
+	// Cursor at the bottom must stay visible without growing the page.
+	for range 45 {
+		m.move(1)
+	}
+	v := m.View()
+	if got := strings.Count(v, "\n") + 1; got > 20 {
+		t.Errorf("view is %d rows after scrolling, terminal is 20", got)
+	}
+	if !strings.Contains(v, "recipe-39") {
+		t.Error("cursor row must be visible after scrolling to the bottom")
 	}
 }
 

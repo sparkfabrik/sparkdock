@@ -210,38 +210,69 @@ func (m Model) View() string {
 	return b.String()
 }
 
-// listView renders a cursor-centred window of the filtered recipes.
-func (m Model) listView(st theme.Styles, width int, f []recipes.Recipe) string {
-	rows := max(m.height-chromeRows, 3)
-	start := 0
-	if m.cursor >= rows {
-		start = m.cursor - rows + 1
-	}
-	end := min(start+rows, len(f))
+// displayLine is one rendered row of the list: either a group header or the
+// recipe at idx. Group headers occupy real rows, so the scroll window must be
+// computed over these, not over recipe indices alone — otherwise the page
+// renders taller than the terminal and the top gets clipped.
+type displayLine struct {
+	header string // non-empty: a group header row
+	idx    int    // recipe index into the filtered slice when header == ""
+}
 
-	var b strings.Builder
+func displayLines(f []recipes.Recipe) []displayLine {
+	var out []displayLine
 	lastGroup := "\x00"
-	for i := start; i < end; i++ {
-		r := f[i]
+	for i, r := range f {
 		if r.Group != lastGroup {
 			lastGroup = r.Group
 			label := r.Group
 			if label == "" {
 				label = "other"
 			}
-			b.WriteString("  " + st.Group.Render(label) + "\n")
+			out = append(out, displayLine{header: label})
 		}
+		out = append(out, displayLine{idx: i})
+	}
+	return out
+}
+
+// listView renders a cursor-centred window of the filtered recipes, sized in
+// rendered rows (group headers included) so the page never exceeds the
+// terminal height.
+func (m Model) listView(st theme.Styles, width int, f []recipes.Recipe) string {
+	if len(f) == 0 {
+		return "\n  " + st.Dim.Render("no recipes match the filter") + "\n"
+	}
+	rows := max(m.height-chromeRows, 3)
+	lines := displayLines(f)
+	cursorLine := 0
+	for i, dl := range lines {
+		if dl.header == "" && dl.idx == m.cursor {
+			cursorLine = i
+			break
+		}
+	}
+	start := 0
+	if cursorLine >= rows {
+		start = cursorLine - rows + 1
+	}
+	end := min(start+rows, len(lines))
+
+	var b strings.Builder
+	for _, dl := range lines[start:end] {
+		if dl.header != "" {
+			b.WriteString("  " + st.Group.Render(dl.header) + "\n")
+			continue
+		}
+		r := f[dl.idx]
 		line := "   " + st.Action.Render(theme.Pointer+" "+r.Name)
-		if i == m.cursor {
+		if dl.idx == m.cursor {
 			line = "  " + st.Selected.Render(" "+theme.Pointer+" "+r.Name+" ")
 		}
 		if r.Doc != "" {
 			line += "  " + st.Dim.Render(r.Doc)
 		}
 		b.WriteString(ansi.Truncate(line, width, "…") + "\n")
-	}
-	if len(f) == 0 {
-		b.WriteString("\n  " + st.Dim.Render("no recipes match the filter") + "\n")
 	}
 	return b.String()
 }
