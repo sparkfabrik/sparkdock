@@ -57,6 +57,31 @@ func TestCopy_InvokesClipboardAndMarksCopied(t *testing.T) {
 	}
 }
 
+func TestFirstOf_FallsThroughToNextClipboard(t *testing.T) {
+	var got string
+	clip := firstOf(
+		func(string) error { return errBoom{} },
+		func(s string) error { got = s; return nil },
+	)
+	if err := clip("text"); err != nil || got != "text" {
+		t.Errorf("fallback clipboard not used; err=%v got=%q", err, got)
+	}
+}
+
+func TestFirstOf_ReturnsLastError(t *testing.T) {
+	clip := firstOf(
+		func(string) error { return errBoom{} },
+		func(string) error { return errBoom{} },
+	)
+	if err := clip("text"); err == nil {
+		t.Error("want error when every clipboard fails")
+	}
+}
+
+type errBoom struct{}
+
+func (errBoom) Error() string { return "boom" }
+
 func TestBack(t *testing.T) {
 	m, _, _ := newWithFakes()
 	for _, k := range []string{"esc", "q", "l"} {

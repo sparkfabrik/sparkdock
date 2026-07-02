@@ -5,6 +5,8 @@
 package logview
 
 import (
+	"encoding/base64"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -41,9 +43,10 @@ type Model struct {
 	home  string
 }
 
-// New returns a log page wired to pbcopy and the filesystem.
+// New returns a log page wired to the system clipboard (pbcopy, falling back
+// to OSC 52 for remote sessions) and the filesystem.
 func New() Model {
-	return Model{clip: pbcopy, write: writeFile, home: os.Getenv("HOME")}
+	return Model{clip: firstOf(pbcopy, osc52), write: writeFile, home: os.Getenv("HOME")}
 }
 
 // SetSize updates dimensions and the viewport.
@@ -120,10 +123,36 @@ func (m Model) View() string {
 	return header + "\n" + rule + "\n" + m.vp.View() + "\n" + footer
 }
 
+// firstOf tries each clipboard in order, returning nil on the first success.
+func firstOf(clips ...Clipboard) Clipboard {
+	return func(text string) error {
+		var err error
+		for _, clip := range clips {
+			if err = clip(text); err == nil {
+				return nil
+			}
+		}
+		return err
+	}
+}
+
 func pbcopy(text string) error {
 	cmd := exec.Command("pbcopy")
 	cmd.Stdin = strings.NewReader(text)
 	return cmd.Run()
+}
+
+// osc52 copies by writing an OSC 52 escape to the controlling terminal: the
+// terminal emulator stores the text in the local clipboard, which works where
+// pbcopy cannot reach it (an SSH session into this machine).
+func osc52(text string) error {
+	tty, err := os.OpenFile("/dev/tty", os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	defer tty.Close()
+	_, err = fmt.Fprintf(tty, "\x1b]52;c;%s\x07", base64.StdEncoding.EncodeToString([]byte(text)))
+	return err
 }
 
 func writeFile(path string, data []byte) error {
