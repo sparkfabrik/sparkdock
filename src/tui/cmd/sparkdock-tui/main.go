@@ -23,6 +23,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"golang.org/x/term"
 
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/recipes"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/sysinfo"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/app"
@@ -52,6 +53,9 @@ func main() {
 			Run:             execRunner,
 		},
 		Gatherer: sysinfo.Gatherer{Run: execRunner},
+		Recipes: func(ctx context.Context) ([]recipes.Recipe, error) {
+			return recipes.Load(ctx, root)
+		},
 	}
 
 	exePath, _ := os.Executable()

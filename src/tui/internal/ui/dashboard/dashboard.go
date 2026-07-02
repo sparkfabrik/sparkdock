@@ -194,6 +194,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m.Refresh()
 		case "d":
 			return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, "device") }
+		case "s":
+			return m, func() tea.Msg { return ui.Navigate(ui.PageRecipes, "") }
 		case "?":
 			m.showHelp = true
 		case "enter":
@@ -411,6 +413,7 @@ func (m Model) helpView(st theme.Styles, width int) string {
 		row("↑↓ j k", "move between actions"),
 		row("⏎", "run the selected action"),
 		row("r", "refresh status"),
+		row("s", "browse and run sjust recipes"),
 		row("d", "device info"),
 		row("?", "this help"),
 		row("q", "quit"),
@@ -500,7 +503,7 @@ func (m Model) View() string {
 	sep := st.Dim.Render(" · ")
 	keys := strings.Join([]string{
 		hint("↑↓", "move"), hint("⏎", "select"), hint("r", "refresh"),
-		hint("d", "device"), hint("?", "help"), hint("q", "quit"),
+		hint("s", "recipes"), hint("d", "device"), hint("?", "help"), hint("q", "quit"),
 	}, sep) + " "
 	gap := max(width-lipgloss.Width(left)-lipgloss.Width(keys), 1)
 	b.WriteString(left + strings.Repeat(" ", gap) + keys)

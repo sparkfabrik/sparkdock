@@ -12,10 +12,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/recipes"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/runner"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/sysinfo"
@@ -23,6 +25,7 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/dashboard"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/logview"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/password"
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/recipelist"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/runview"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/splash"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
@@ -38,6 +41,7 @@ type Config struct {
 type Deps struct {
 	Checker  status.Checker
 	Gatherer sysinfo.Gatherer
+	Recipes  recipes.Loader
 }
 
 // runSpec describes a run the app can start (and retry).
@@ -62,6 +66,7 @@ type Model struct {
 	runview   runview.Model
 	password  password.Model
 	logview   logview.Model
+	recipes   recipelist.Model
 
 	ansible *runner.Runner
 
@@ -88,6 +93,7 @@ func New(cfg Config, ver version.Info, deps Deps) Model {
 		runview:   runview.New(),
 		password:  password.New(),
 		logview:   logview.New(),
+		recipes:   recipelist.New(deps.Recipes),
 		ansible:   runner.New(),
 	}
 	if cfg.ExePath != "" {
@@ -206,6 +212,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case logview.BackMsg:
 		m.page = ui.PageRunner
 		return m, nil
+
+	case recipelist.BackMsg:
+		return m.toDashboard()
+
+	case recipelist.LoadedMsg:
+		// May arrive after the user already left the page; apply it regardless so
+		// the catalog is cached for the next visit.
+		var cmd tea.Cmd
+		m.recipes, cmd = m.recipes.Update(msg)
+		return m, cmd
 	}
 
 	return m.route(msg)
@@ -225,6 +241,11 @@ func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {
 	switch msg.To {
 	case ui.PageRunner:
 		return m.launch(msg.Action)
+	case ui.PageRecipes:
+		m.page = ui.PageRecipes
+		var cmd tea.Cmd
+		m.recipes, cmd = m.recipes.Open()
+		return m, cmd
 	default:
 		fromSplash := m.page == ui.PageSplash
 		m.page = msg.To
@@ -308,6 +329,11 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	case "device":
 		return runSpec{title: "Device info", rnr: runner.ForCommand("ayse-get-sm"), scroll: runview.PinTop, render: runview.Structured}, true
 	default:
+		// Recipe browser selections arrive as "sjust:<recipe>". Rendered as a
+		// terminal since a recipe can run any program.
+		if name, ok := strings.CutPrefix(action, "sjust:"); ok && name != "" {
+			return runSpec{title: "sjust · " + name, rnr: runner.ForCommand("sjust", name), scroll: runview.FollowTail, render: runview.Terminal}, true
+		}
 		return runSpec{}, false
 	}
 }
@@ -346,6 +372,7 @@ func (m *Model) setSize(w, h int) {
 	m.runview.SetSize(w, h)
 	m.password.SetSize(w, h)
 	m.logview.SetSize(w, h)
+	m.recipes.SetSize(w, h)
 }
 
 func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -361,6 +388,8 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.password, cmd = m.password.Update(msg)
 	case ui.PageLog:
 		m.logview, cmd = m.logview.Update(msg)
+	case ui.PageRecipes:
+		m.recipes, cmd = m.recipes.Update(msg)
 	}
 	return m, cmd
 }
@@ -376,6 +405,8 @@ func (m Model) View() string {
 		return m.password.View()
 	case ui.PageLog:
 		return m.logview.View()
+	case ui.PageRecipes:
+		return m.recipes.View()
 	default:
 		return m.dashboard.View()
 	}
