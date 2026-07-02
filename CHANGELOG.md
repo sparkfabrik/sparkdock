@@ -10,7 +10,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added an sjust recipe browser to `sparkdock tui` (press `s`): a filterable catalog of the public, argument-free recipes from `just --dump`, grouped and documented, with enter running the selection through the shared runner as `sjust <name>`
-- Added a what's-new page to `sparkdock tui` (press `w`) that renders the changelog's Unreleased section in a scrollable, word-wrapped view
 - Added a `?` help overlay to the `sparkdock tui` dashboard with the full key reference for the dashboard, live runs, and finished runs
 - Added outdated package names to the `sparkdock tui` Brew status row (first three, folding the rest into `+N more`), and failing status checks now surface the command's first stderr line instead of a bare "check failed"
 - Added a "checked Xm ago" age hint to the `sparkdock tui` dashboard footer so the freshness of the status round is visible

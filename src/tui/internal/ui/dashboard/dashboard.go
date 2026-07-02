@@ -196,8 +196,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, "device") }
 		case "s":
 			return m, func() tea.Msg { return ui.Navigate(ui.PageRecipes, "") }
-		case "w":
-			return m, func() tea.Msg { return ui.Navigate(ui.PageWhatsNew, "") }
 		case "?":
 			m.showHelp = true
 		case "enter":
@@ -422,7 +420,6 @@ func (m Model) helpView(st theme.Styles, width int) string {
 		row("r", "refresh status"),
 		row("s", "browse and run sjust recipes"),
 		row("d", "device info"),
-		row("w", "what's new (unreleased changelog)"),
 		row("?", "this help"),
 		row("q", "quit"),
 		"",

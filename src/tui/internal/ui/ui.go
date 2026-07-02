@@ -13,7 +13,6 @@ const (
 	PagePassword
 	PageLog
 	PageRecipes
-	PageWhatsNew
 )
 
 // NavigateMsg asks the app router to switch pages. Action names the operation a
