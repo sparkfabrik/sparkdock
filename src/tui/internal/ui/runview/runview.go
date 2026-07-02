@@ -140,10 +140,18 @@ func (m *Model) SetSize(w, h int) {
 func (m Model) bodyHeight() int { return max(m.height-chromeRows, 1) }
 
 // Start renders the run represented by h under the given title, scroll, and
-// render mode. A still-live previous run is cancelled first.
+// render mode. A still-live previous run is cancelled first: its output is
+// drained in the background (so its pump can deliver EOF and reap the child
+// instead of blocking on a full channel) and its content finalized (stopping a
+// terminal emulator's response forwarder).
 func (m Model) Start(title string, h *runner.Handle, scroll ScrollMode, mode RenderMode) (Model, tea.Cmd) {
 	if m.handle != nil && m.running {
 		m.handle.Cancel()
+		go func(old *runner.Handle) {
+			for range old.Output {
+			}
+		}(m.handle)
+		m.content.finalize()
 	}
 	m.gen++
 	m.title = title
@@ -151,7 +159,7 @@ func (m Model) Start(title string, h *runner.Handle, scroll ScrollMode, mode Ren
 	m.running, m.failed, m.canceled = true, false, false
 	m.start = time.Now()
 	if mode == Terminal {
-		m.content = newTerminalContent(m.width, m.bodyHeight())
+		m.content = newTerminalContent(m.width, m.bodyHeight(), h)
 	} else {
 		m.content = newStructuredContent(m.width, m.bodyHeight())
 	}

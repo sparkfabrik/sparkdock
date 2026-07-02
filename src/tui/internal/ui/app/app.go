@@ -72,6 +72,7 @@ type Model struct {
 
 	last    runSpec // last started run, for retry / re-prompt
 	hasLast bool
+	runFrom ui.PageID // page that launched the run; esc returns there
 
 	// splash dismissal: hand off to the dashboard once status is loaded and the
 	// minimum splash time has passed.
@@ -207,6 +208,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.hasLast && m.last.opts.SelfUpdate && m.binaryChanged() {
 			m.dashboard = m.dashboard.WithRestartHint()
 		}
+		// A run launched from the recipe browser returns there (list and filter
+		// intact); everything else goes home.
+		if m.runFrom == ui.PageRecipes {
+			m.page = ui.PageRecipes
+			return m, nil
+		}
 		return m.toDashboard()
 
 	case logview.BackMsg:
@@ -262,6 +269,10 @@ func (m Model) launch(action string) (tea.Model, tea.Cmd) {
 	spec, ok := m.planFor(action)
 	if !ok {
 		return m.toDashboard() // unhandled action: stay home, still refresh
+	}
+	m.runFrom = ui.PageDashboard
+	if strings.HasPrefix(action, "sjust:") {
+		m.runFrom = ui.PageRecipes
 	}
 	return m.start(spec)
 }
@@ -386,6 +397,14 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.runview, cmd = m.runview.Update(msg)
 	case ui.PagePassword:
 		m.password, cmd = m.password.Update(msg)
+		// The run keeps streaming while the password page is up. Its stream
+		// messages must still reach the runview, or the wait chain dies and the
+		// runner's pump blocks on a full channel once the buffer fills.
+		if _, isKey := msg.(tea.KeyMsg); !isKey {
+			var rcmd tea.Cmd
+			m.runview, rcmd = m.runview.Update(msg)
+			cmd = tea.Batch(cmd, rcmd)
+		}
 	case ui.PageLog:
 		m.logview, cmd = m.logview.Update(msg)
 	case ui.PageRecipes:

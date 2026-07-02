@@ -107,6 +107,23 @@ func TestSplash_TimeoutForcesDismiss(t *testing.T) {
 	}
 }
 
+func TestBackFromRecipeRunReturnsToBrowser(t *testing.T) {
+	m := update(newTestApp(), ui.Navigate(ui.PageRunner, "sjust:device-info"))
+	if m.page != ui.PageRunner {
+		t.Fatalf("page = %v, want PageRunner", m.page)
+	}
+	m = update(m, runview.BackMsg{})
+	if m.page != ui.PageRecipes {
+		t.Errorf("page = %v, want PageRecipes after esc from a browser-launched run", m.page)
+	}
+	// A dashboard-launched run still returns home.
+	m = update(m, ui.Navigate(ui.PageRunner, "sync"))
+	m = update(m, runview.BackMsg{})
+	if m.page != ui.PageDashboard {
+		t.Errorf("page = %v, want PageDashboard after esc from a dashboard run", m.page)
+	}
+}
+
 func TestUnhandledActionReturnsToDashboard(t *testing.T) {
 	// "self-update" has no run plan yet (deliberate follow-up), so it no-ops home.
 	m := update(newTestApp(), ui.Navigate(ui.PageRunner, "self-update"))

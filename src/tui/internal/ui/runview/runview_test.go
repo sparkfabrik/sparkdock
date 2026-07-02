@@ -1,8 +1,11 @@
 package runview
 
 import (
+	"context"
+	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/runner"
 )
@@ -80,8 +83,42 @@ func TestFinish_CancelNotFailure(t *testing.T) {
 	}
 }
 
+// TestTerminalRun_AnswersCursorPositionQuery reproduces the gum/charm hang:
+// the child queries its terminal with CSI 6n and blocks until a reply arrives.
+// The reply exists only if the emulator's response pipe is forwarded to the
+// child's PTY; without the forwarder both the child and the UI froze.
+func TestTerminalRun_AnswersCursorPositionQuery(t *testing.T) {
+	script := `printf '\033[6n'; IFS= read -r -d R reply; printf 'got-reply\n'`
+	r := &runner.Runner{Build: func(ctx context.Context, _ runner.Options) *exec.Cmd {
+		return exec.CommandContext(ctx, "bash", "-c", script)
+	}}
+	h := r.Start(context.Background(), runner.Options{PtyRows: 24, PtyCols: 80})
+	c := newTerminalContent(80, 24, h)
+
+	var out strings.Builder
+	done := false
+	for !done {
+		select {
+		case chunk, ok := <-h.Output:
+			if !ok {
+				done = true
+				break
+			}
+			out.Write(chunk)
+			c.write(chunk) // triggers the emulator's CPR reply via the forwarder
+		case <-time.After(5 * time.Second):
+			h.Cancel()
+			t.Fatal("child never received the cursor position reply (forwarder broken)")
+		}
+	}
+	<-h.Done
+	if !strings.Contains(out.String(), "got-reply") {
+		t.Errorf("child did not confirm the reply; output: %q", out.String())
+	}
+}
+
 func TestTerminalContent_RendersWrites(t *testing.T) {
-	c := newTerminalContent(40, 5)
+	c := newTerminalContent(40, 5, nil)
 	c.write([]byte("hello world"))
 	if !strings.Contains(c.render(), "hello world") {
 		t.Errorf("terminal render missing text: %q", c.render())

@@ -235,6 +235,17 @@ func (h *Handle) WriteInput(s string) {
 	}
 }
 
+// Write implements io.Writer over the child's PTY. The terminal renderer uses
+// it to deliver the VT emulator's query responses (cursor position reports,
+// OSC color replies) back to the program that asked — charm/gum-based tools
+// block forever waiting for them otherwise.
+func (h *Handle) Write(p []byte) (int, error) {
+	if h.ptmx == nil {
+		return len(p), nil
+	}
+	return h.ptmx.Write(p)
+}
+
 // Cancel interrupts the running process so it can unwind. The child runs as the
 // leader of its own session (the pty library sets Setsid), so the whole process
 // group is signalled — a bare Signal to the direct child would leave nested
