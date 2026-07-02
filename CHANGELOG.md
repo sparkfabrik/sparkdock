@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added an sjust recipe browser to `sparkdock tui` (press `s`): a filterable catalog of the public, argument-free recipes from `just --dump`, grouped and documented, with enter running the selection through the shared runner as `sjust <name>`
+- Added a `?` help overlay to the `sparkdock tui` dashboard with the full key reference for the dashboard, live runs, and finished runs
+- Added outdated package names to the `sparkdock tui` Brew status row (first three, folding the rest into `+N more`), and failing status checks now surface the command's first stderr line instead of a bare "check failed"
+- Added a "checked Xm ago" age hint to the `sparkdock tui` dashboard footer so the freshness of the status round is visible
+
 - Added a self-update step to the `sparkdock tui` `Update everything` action: it now force-syncs the `/opt/sparkdock` install to upstream `master` (stashing any local changes) before provisioning, matching bare `sparkdock`, so the Sparkdock status clears; the dashboard re-checks status whenever you return from any action, and advises a relaunch when the update rebuilds the hub's own binary
 - Added cached (reclaimable) memory to the `sparkdock tui` system-info panel, shown beside free memory (e.g. `8 GB free · 16 GB cached / 48 GB`), the way Activity Monitor distinguishes free from "Cached Files"
 - Added a `beta` badge to the `sparkdock tui` splash and header, plus a logo flourish: clicking the splash logo plays an original synthesized chime and flares the wordmark and spark glyph with a brightness ramp synced to the sound
@@ -94,6 +99,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `sparkdock tui` status checks to run in parallel and stream into the dashboard row by row, each under a 60-second timeout so a hung command can never pin a row on the loading ellipsis; returning to the dashboard keeps the previous rows visible while the new round refreshes in the background
+- Changed `sparkdock-tui update` and `--no-tui` to exec the `sparkdock` bash entrypoint (self-update plus provisioning) instead of printing a stub; a bare non-TTY invocation now refuses with guidance rather than provisioning implicitly
+- Changed `sparkdock tui` run cancellation to signal the child's whole process group (nested processes included) and escalate to SIGKILL after a five-second grace period if SIGINT is ignored
+- Changed the `sparkdock tui` log page clipboard copy to fall back to an OSC 52 escape when `pbcopy` cannot reach the clipboard (e.g. an SSH session)
 - Set `HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS=1` so `brew` no longer upgrades casks with `auto_updates true` (Chrome, Slack, Docker Desktop, …), restoring the behaviour a recent brew change removed (https://github.com/Homebrew/brew/pull/21882). Applied in three places so every code path is covered: the managed shell init (interactive use), the Ansible play environment (provisioning), and the sparkdock TUI's brew upgrade run. Opt back in per run with `brew upgrade --greedy`
 - Replaced the `ANSIBLE_BECOME_PASS` environment variable with Ansible's native `--ask-become-pass`, so the become password is held in memory instead of exported to the process environment (#541)
 - Moved Docker Desktop, Google Chrome, VSCode (stable and Insiders), Slack, and Zoom from `cask_packages` to the new install-once handling, so they are installed once and never force-reinstalled on later provisioning runs; this replaces the three per-app skip blocks (Docker/Chrome/VSCode Insiders) with a single data-driven block and stops Chrome from being force-reinstalled (degrading the browser) while it is open
@@ -149,6 +158,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed `sparkdock tui` late output from a cancelled run bleeding into the next run's view (or marking the new run finished): every runner message now carries a run generation stamp and stale messages are dropped
+- Fixed `sparkdock tui` child programs rendering at a stale width after a terminal resize: the child's PTY is now resized (with SIGWINCH) alongside the view
 - Gated the zoxide `cd` alias behind the `CLAUDECODE`/`AI_AGENT` markers so AI coding agents get a literal `cd` (a missing relative path errors instead of frecency-jumping the agent's persistent working directory); interactive shells keep zoxide-backed `cd`, and `zd`/`z`/`zi` stay available everywhere
 - Fixed the menubar provisioning aborting on the "Verify menu bar app works" task with `rc -9` (SIGKILL) on managed Macs: a freshly installed binary fires a first-exec authorization that an Endpoint Security agent (e.g. Mosyle) can deny under load; the install now clears the provenance xattr and re-applies the ad-hoc signature to warm the assessment, and the verify step retries until the agent's verdict caches
 - Fixed the managed Claude Code statusline dropping the weekly (`7d`) usage when Claude Code reports a fractional `seven_day.used_percentage` (e.g. `14.0000002`): the rate-limit percentages are now reduced to their integer part before the numeric check, the same way the context percentage already is. The `5h` value was unaffected only because it happened to be a whole number.
@@ -186,3 +197,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed `docker-desktop-install-version-4412` task to automatically remove incompatible docker-mcp plugin that blocks Docker Desktop 4.41.2 from starting
 - Fixed `lima-destroy` command to handle VMs that are already stopped, preventing fatal error when VM is not running
 - Added `set -e` to `install.macos` to fail fast on errors
+
+### Security
+
+- The `sparkdock tui` become password now travels the submit path as a byte slice and is zeroed right after the write to the child's PTY, instead of lingering as immutable string copies; the design is otherwise unchanged (never cached, never in argv/env/files, asked each time)

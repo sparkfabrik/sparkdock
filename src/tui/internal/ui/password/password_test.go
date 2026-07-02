@@ -34,7 +34,7 @@ func TestSubmit_NonEmptyEmitsPassword(t *testing.T) {
 	if !ok {
 		t.Fatalf("want SubmitMsg, got %T", msgOf(cmd))
 	}
-	if sub.Password != "hunter2" {
+	if string(sub.Password) != "hunter2" {
 		t.Errorf("password = %q, want hunter2", sub.Password)
 	}
 }

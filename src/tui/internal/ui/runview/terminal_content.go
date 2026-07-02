@@ -1,6 +1,7 @@
 package runview
 
 import (
+	"io"
 	"strings"
 
 	"github.com/charmbracelet/x/vt"
@@ -11,12 +12,27 @@ import (
 // terminalContent renders arbitrary terminal programs (brew, spark-http-proxy,
 // …) through a virtual terminal emulator, so in-place redraws (progress bars,
 // cursor moves) display faithfully as a live screen rather than piling up.
+//
+// Programs that query their terminal (CSI 6n cursor position, OSC 10/11
+// colors — anything charm/gum based) block until a reply arrives, and the
+// emulator writes its replies to an internal pipe that itself blocks until
+// read. A forwarder goroutine pumps that pipe into the child's PTY; without it
+// the first query would freeze both the child and this UI.
+//
+// The forwarder is not closed deliberately: Emulator.Close races with a
+// blocked Read (an unsynchronized flag upstream), so the goroutine is left
+// parked on the pipe instead — it exits on the first forward that fails after
+// the child's PTY closes, and a parked one costs a few KB for the session.
 type terminalContent struct {
 	emu *vt.Emulator
 }
 
-func newTerminalContent(w, h int) *terminalContent {
-	return &terminalContent{emu: vt.NewEmulator(max(w, 1), max(h, 1))}
+func newTerminalContent(w, h int, input io.Writer) *terminalContent {
+	c := &terminalContent{emu: vt.NewEmulator(max(w, 1), max(h, 1))}
+	if input != nil {
+		go func() { _, _ = io.Copy(input, c.emu) }()
+	}
+	return c
 }
 
 func (c *terminalContent) write(p []byte)  { _, _ = c.emu.Write(p) }

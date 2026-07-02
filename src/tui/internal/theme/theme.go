@@ -91,6 +91,21 @@ var defaultStyles = New()
 // Default returns the cached style set.
 func Default() Styles { return defaultStyles }
 
+// ActionRow renders one selectable row of a picker list: the pointer and label,
+// highlighted when selected, with an optional dim detail. Both the dashboard's
+// action list and the recipe browser use it, so the selection styling cannot
+// drift between the two.
+func ActionRow(st Styles, selected bool, label, detail string) string {
+	line := "   " + st.Action.Render(Pointer+" "+label)
+	if selected {
+		line = "  " + st.Selected.Render(" "+Pointer+" "+label+" ")
+	}
+	if detail != "" {
+		line += "  " + st.Dim.Render(detail)
+	}
+	return line
+}
+
 // New returns a fresh style set. Prefer Default in render paths; New exists for
 // tests or callers wanting an independent instance.
 func New() Styles {

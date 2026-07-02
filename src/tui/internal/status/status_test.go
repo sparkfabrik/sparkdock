@@ -20,7 +20,15 @@ func fakeRunner(byArg map[string]CommandResult) CommandRunner {
 	}
 }
 
-func TestCheck_MapsExitCodesAndBrewCount(t *testing.T) {
+func checkAll(c CmdChecker) map[string]Subsystem {
+	byKey := map[string]Subsystem{}
+	for _, key := range c.Subsystems() {
+		byKey[key] = c.CheckOne(context.Background(), key)
+	}
+	return byKey
+}
+
+func TestCheckOne_MapsExitCodesAndBrewCount(t *testing.T) {
 	c := CmdChecker{
 		CheckUpdatesBin: "check-updates",
 		BrewBin:         "brew",
@@ -31,14 +39,7 @@ func TestCheck_MapsExitCodesAndBrewCount(t *testing.T) {
 			"outdated":   {Stdout: "docker\nnode\nphp\n"},
 		}),
 	}
-	got := c.Check(context.Background())
-	if len(got) != 4 {
-		t.Fatalf("want 4 subsystems, got %d", len(got))
-	}
-	byKey := map[string]Subsystem{}
-	for _, s := range got {
-		byKey[s.Key] = s
-	}
+	byKey := checkAll(c)
 	if byKey["sparkdock"].Health != OK {
 		t.Errorf("sparkdock health = %v, want OK", byKey["sparkdock"].Health)
 	}
@@ -49,38 +50,76 @@ func TestCheck_MapsExitCodesAndBrewCount(t *testing.T) {
 		t.Errorf("skills health = %v, want Unconfigured", byKey["skills"].Health)
 	}
 	brew := byKey["brew"]
-	if brew.Health != Stale || brew.Detail != "3 to update" {
-		t.Errorf("brew = %+v, want Stale '3 to update'", brew)
+	if brew.Health != Stale || brew.Detail != "3 to update: docker, node, php" {
+		t.Errorf("brew = %+v, want Stale '3 to update: docker, node, php'", brew)
 	}
 }
 
-func TestCheck_BrewUpToDate(t *testing.T) {
+func TestBrew_ManyOutdatedFoldsIntoMore(t *testing.T) {
 	c := CmdChecker{
 		Run: fakeRunner(map[string]CommandResult{
-			"sparkdock": {ExitCode: 1}, "http-proxy": {ExitCode: 1}, "skills": {ExitCode: 1},
-			"outdated": {Stdout: "\n  \n"},
+			"outdated": {Stdout: "a\nb\nc\nd\ne\n"},
 		}),
 	}
-	for _, s := range c.Check(context.Background()) {
-		if s.Key == "brew" {
-			if s.Health != OK || s.Detail != "up to date" {
-				t.Errorf("brew = %+v, want OK 'up to date'", s)
-			}
+	got := c.CheckOne(context.Background(), "brew")
+	if got.Detail != "5 to update: a, b, c +2 more" {
+		t.Errorf("brew detail = %q, want '5 to update: a, b, c +2 more'", got.Detail)
+	}
+}
+
+func TestBrew_NonZeroExitSurfacesStderr(t *testing.T) {
+	c := CmdChecker{
+		Run: fakeRunner(map[string]CommandResult{
+			"outdated": {ExitCode: 1, Stderr: "Error: brokén tap\nmore noise"},
+		}),
+	}
+	got := c.CheckOne(context.Background(), "brew")
+	if got.Health != Unknown {
+		t.Errorf("brew health = %v, want Unknown on non-zero exit", got.Health)
+	}
+	if got.Detail != "check failed: Error: brokén tap" {
+		t.Errorf("brew detail = %q, want the first stderr line", got.Detail)
+	}
+}
+
+func TestCheckOne_UnknownKey(t *testing.T) {
+	c := CmdChecker{Run: fakeRunner(nil)}
+	if got := c.CheckOne(context.Background(), "nope"); got.Health != Unknown {
+		t.Errorf("unknown key health = %v, want Unknown", got.Health)
+	}
+}
+
+func TestSubsystems_Order(t *testing.T) {
+	got := CmdChecker{}.Subsystems()
+	want := []string{"sparkdock", "brew", "http-proxy", "skills"}
+	if len(got) != len(want) {
+		t.Fatalf("Subsystems() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("Subsystems() = %v, want %v", got, want)
 		}
 	}
 }
 
-func TestCheck_ErrorsBecomeUnknown(t *testing.T) {
+func TestCheckOne_BrewUpToDate(t *testing.T) {
+	c := CmdChecker{
+		Run: fakeRunner(map[string]CommandResult{"outdated": {Stdout: "\n  \n"}}),
+	}
+	s := c.CheckOne(context.Background(), "brew")
+	if s.Health != OK || s.Detail != "up to date" {
+		t.Errorf("brew = %+v, want OK 'up to date'", s)
+	}
+}
+
+func TestCheckOne_ErrorsBecomeUnknown(t *testing.T) {
 	c := CmdChecker{
 		Run: fakeRunner(map[string]CommandResult{
 			"sparkdock": {Err: errors.New("boom")}, "http-proxy": {ExitCode: 1},
 			"skills": {ExitCode: 1}, "outdated": {Err: errors.New("no brew")},
 		}),
 	}
-	byKey := map[string]Subsystem{}
-	for _, s := range c.Check(context.Background()) {
-		byKey[s.Key] = s
-	}
+	byKey := checkAll(c)
 	if byKey["sparkdock"].Health != Unknown {
 		t.Errorf("sparkdock health = %v, want Unknown", byKey["sparkdock"].Health)
 	}

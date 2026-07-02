@@ -12,8 +12,9 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/theme"
 )
 
-// SubmitMsg carries an entered password to the app.
-type SubmitMsg struct{ Password string }
+// SubmitMsg carries an entered password to the app as a byte slice, so the
+// consumer (the runner) can zero it after writing it to the child's PTY.
+type SubmitMsg struct{ Password []byte }
 
 // CancelMsg signals the user backed out of the prompt.
 type CancelMsg struct{}
@@ -61,7 +62,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				m.errMsg = "password cannot be empty"
 				return m, nil
 			}
-			pw := m.input.Value()
+			pw := []byte(m.input.Value())
 			m.input.SetValue("") // don't retain the secret in the input buffer
 			m.input.Blur()
 			return m, func() tea.Msg { return SubmitMsg{Password: pw} }

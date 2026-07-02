@@ -25,12 +25,24 @@ import (
 // and the footer.
 const chromeRows = 5
 
-// Messages flowing through the bubbletea loop while a run is live.
+// Messages flowing through the bubbletea loop while a run is live. Each carries
+// the generation of the run that produced it: a cancelled previous run can still
+// deliver late messages, and without the stamp its output would bleed into the
+// new run (or its Done would mark the new run finished).
 type (
-	outMsg        []byte
-	closedMsg     struct{}
-	doneMsg       runner.Result
-	promptMsg     string
+	outMsg struct {
+		gen int
+		b   []byte
+	}
+	closedMsg struct{}
+	doneMsg   struct {
+		gen int
+		res runner.Result
+	}
+	promptMsg struct {
+		gen  int
+		text string
+	}
 	promptsClosed struct{}
 )
 
@@ -92,6 +104,7 @@ type Model struct {
 
 	handle  *runner.Handle
 	content content
+	gen     int // current run generation; stale-run messages are dropped
 
 	sp     spinner.Model
 	title  string
@@ -111,33 +124,50 @@ func New() Model {
 	return Model{sp: sp}
 }
 
-// SetSize updates dimensions and the active content renderer.
+// SetSize updates dimensions, the active content renderer, and a live child's
+// PTY (mirroring the sizing in app.start), so a mid-run terminal resize reaches
+// the running program instead of leaving it rendering at a stale width.
 func (m *Model) SetSize(w, h int) {
 	m.width, m.height = w, h
 	if m.content != nil {
 		m.content.resize(w, m.bodyHeight())
+	}
+	if m.running && m.handle != nil {
+		m.handle.Resize(max(h-chromeRows, 10), max(w-2, 20))
 	}
 }
 
 func (m Model) bodyHeight() int { return max(m.height-chromeRows, 1) }
 
 // Start renders the run represented by h under the given title, scroll, and
-// render mode. A still-live previous run is cancelled first.
+// render mode. A still-live previous run is cancelled first and both its
+// channels are drained in the background, so its pump can flush any last
+// output or prompt and reap the child instead of blocking on a full channel.
 func (m Model) Start(title string, h *runner.Handle, scroll ScrollMode, mode RenderMode) (Model, tea.Cmd) {
 	if m.handle != nil && m.running {
 		m.handle.Cancel()
+		go func(out <-chan []byte) {
+			for range out {
+			}
+		}(m.handle.Output)
+		go func(prompts <-chan string) {
+			for range prompts {
+			}
+		}(m.handle.Prompts)
+		m.content.finalize()
 	}
+	m.gen++
 	m.title = title
 	m.scroll = scroll
 	m.running, m.failed, m.canceled = true, false, false
 	m.start = time.Now()
 	if mode == Terminal {
-		m.content = newTerminalContent(m.width, m.bodyHeight())
+		m.content = newTerminalContent(m.width, m.bodyHeight(), h)
 	} else {
 		m.content = newStructuredContent(m.width, m.bodyHeight())
 	}
 	m.handle = h
-	return m, tea.Batch(waitOutput(h), waitPrompt(h), waitDone(h), m.sp.Tick)
+	return m, tea.Batch(waitOutput(h, m.gen), waitPrompt(h, m.gen), waitDone(h, m.gen), m.sp.Tick)
 }
 
 // Update advances the run.
@@ -149,26 +179,35 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		return m, cmd
 
 	case outMsg:
-		m.content.write([]byte(msg))
+		if msg.gen != m.gen {
+			return m, nil // late output from a cancelled previous run
+		}
+		m.content.write(msg.b)
 		if m.running {
 			m.content.follow(m.scroll)
 		}
-		return m, waitOutput(m.handle)
+		return m, waitOutput(m.handle, m.gen)
 
 	case closedMsg:
 		return m, nil
 
 	case promptMsg:
+		if msg.gen != m.gen {
+			return m, nil
+		}
 		return m, tea.Batch(
-			func() tea.Msg { return PromptMsg{Text: string(msg)} },
-			waitPrompt(m.handle),
+			func() tea.Msg { return PromptMsg{Text: msg.text} },
+			waitPrompt(m.handle, m.gen),
 		)
 
 	case promptsClosed:
 		return m, nil
 
 	case doneMsg:
-		m.finish(runner.Result(msg))
+		if msg.gen != m.gen {
+			return m, nil // a cancelled previous run must not finish the new one
+		}
+		m.finish(msg.res)
 		return m, nil
 
 	case tea.KeyMsg:
@@ -244,8 +283,9 @@ func (m Model) handleRunningKey(msg tea.KeyMsg) (Model, tea.Cmd) {
 // Running reports whether a run is in progress.
 func (m Model) Running() bool { return m.running }
 
-// AnswerPrompt writes the password to the running process's PTY.
-func (m Model) AnswerPrompt(password string) {
+// AnswerPrompt writes the password to the running process's PTY; the runner
+// zeroes the buffer once written.
+func (m Model) AnswerPrompt(password []byte) {
 	if m.handle != nil {
 		m.handle.Answer(password)
 	}
@@ -342,26 +382,26 @@ func glyph(st theme.Styles, g feed.Glyph) string {
 	}
 }
 
-func waitOutput(h *runner.Handle) tea.Cmd {
+func waitOutput(h *runner.Handle, gen int) tea.Cmd {
 	return func() tea.Msg {
 		b, ok := <-h.Output
 		if !ok {
 			return closedMsg{}
 		}
-		return outMsg(b)
+		return outMsg{gen: gen, b: b}
 	}
 }
 
-func waitPrompt(h *runner.Handle) tea.Cmd {
+func waitPrompt(h *runner.Handle, gen int) tea.Cmd {
 	return func() tea.Msg {
 		p, ok := <-h.Prompts
 		if !ok {
 			return promptsClosed{}
 		}
-		return promptMsg(p)
+		return promptMsg{gen: gen, text: p}
 	}
 }
 
-func waitDone(h *runner.Handle) tea.Cmd {
-	return func() tea.Msg { return doneMsg(<-h.Done) }
+func waitDone(h *runner.Handle, gen int) tea.Cmd {
+	return func() tea.Msg { return doneMsg{gen: gen, res: <-h.Done} }
 }

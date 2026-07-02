@@ -15,9 +15,19 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
 
+// stubChecker exposes one subsystem so the dashboard starts a round and the
+// splash waits for it, mirroring the real startup sequence.
 type stubChecker struct{}
 
-func (stubChecker) Check(context.Context) []status.Subsystem { return nil }
+func (stubChecker) Subsystems() []string { return []string{"stub"} }
+func (stubChecker) CheckOne(context.Context, string) status.Subsystem {
+	return status.Subsystem{Key: "stub", Health: status.OK}
+}
+
+// stubStatusMsg is the message completing the stub checker's round.
+func stubStatusMsg() dashboard.SubsystemMsg {
+	return dashboard.SubsystemMsg{Key: "stub", Health: status.OK}
+}
 
 // newTestApp wires an app whose ansible runner is a fast, harmless fake so
 // starting a run never spawns ansible-playbook.
@@ -57,7 +67,7 @@ func TestPromptShowsPasswordPageThenReturns(t *testing.T) {
 		t.Fatalf("page = %v, want PagePassword on prompt", m.page)
 	}
 	// answering returns to the runner page
-	m = update(m, password.SubmitMsg{Password: "s3cret"})
+	m = update(m, password.SubmitMsg{Password: []byte("s3cret")})
 	if m.page != ui.PageRunner {
 		t.Errorf("page = %v, want PageRunner after answering", m.page)
 	}
@@ -78,7 +88,7 @@ func TestSplash_DismissesOnlyWhenStatusReadyAndMinElapsed(t *testing.T) {
 	if m.page != ui.PageSplash {
 		t.Fatalf("page = %v, want PageSplash (status not loaded yet)", m.page)
 	}
-	m = update(m, dashboard.StatusMsg(nil))
+	m = update(m, stubStatusMsg())
 	if m.page != ui.PageDashboard {
 		t.Errorf("page = %v, want PageDashboard once status ready and min elapsed", m.page)
 	}
@@ -86,7 +96,7 @@ func TestSplash_DismissesOnlyWhenStatusReadyAndMinElapsed(t *testing.T) {
 
 func TestSplash_StatusBeforeMinStillWaits(t *testing.T) {
 	m := newTestApp()
-	m = update(m, dashboard.StatusMsg(nil)) // ready, but min not elapsed
+	m = update(m, stubStatusMsg()) // ready, but min not elapsed
 	if m.page != ui.PageSplash {
 		t.Fatalf("page = %v, want PageSplash (min time not elapsed)", m.page)
 	}
@@ -101,6 +111,23 @@ func TestSplash_TimeoutForcesDismiss(t *testing.T) {
 	m = update(m, splash.TimeoutMsg{}) // status never arrived
 	if m.page != ui.PageDashboard {
 		t.Errorf("page = %v, want PageDashboard on timeout", m.page)
+	}
+}
+
+func TestBackFromRecipeRunReturnsToBrowser(t *testing.T) {
+	m := update(newTestApp(), ui.Navigate(ui.PageRunner, "sjust:device-info"))
+	if m.page != ui.PageRunner {
+		t.Fatalf("page = %v, want PageRunner", m.page)
+	}
+	m = update(m, runview.BackMsg{})
+	if m.page != ui.PageRecipes {
+		t.Errorf("page = %v, want PageRecipes after esc from a browser-launched run", m.page)
+	}
+	// A dashboard-launched run still returns home.
+	m = update(m, ui.Navigate(ui.PageRunner, "sync"))
+	m = update(m, runview.BackMsg{})
+	if m.page != ui.PageDashboard {
+		t.Errorf("page = %v, want PageDashboard after esc from a dashboard run", m.page)
 	}
 }
 

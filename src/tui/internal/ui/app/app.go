@@ -12,10 +12,12 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/recipes"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/runner"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/sysinfo"
@@ -23,6 +25,7 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/dashboard"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/logview"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/password"
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/recipelist"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/runview"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui/splash"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
@@ -38,6 +41,7 @@ type Config struct {
 type Deps struct {
 	Checker  status.Checker
 	Gatherer sysinfo.Gatherer
+	Recipes  recipes.Loader
 }
 
 // runSpec describes a run the app can start (and retry).
@@ -62,16 +66,17 @@ type Model struct {
 	runview   runview.Model
 	password  password.Model
 	logview   logview.Model
+	recipes   recipelist.Model
 
 	ansible *runner.Runner
 
 	last    runSpec // last started run, for retry / re-prompt
 	hasLast bool
+	runFrom ui.PageID // page that launched the run; esc returns there
 
-	// splash dismissal: hand off to the dashboard once status is loaded and the
-	// minimum splash time has passed.
-	statusReady bool
-	splashMin   bool
+	// splash dismissal: hand off to the dashboard once status is loaded (the
+	// dashboard reports Ready) and the minimum splash time has passed.
+	splashMin bool
 
 	// binModTime is the running binary's mtime at startup; a self-update that
 	// rebuilds it changes this, so we can advise a relaunch.
@@ -88,6 +93,7 @@ func New(cfg Config, ver version.Info, deps Deps) Model {
 		runview:   runview.New(),
 		password:  password.New(),
 		logview:   logview.New(),
+		recipes:   recipelist.New(deps.Recipes),
 		ansible:   runner.New(),
 	}
 	if cfg.ExePath != "" {
@@ -131,7 +137,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		}
-		if m.page == ui.PageDashboard && msg.String() == "q" {
+		if m.page == ui.PageDashboard && msg.String() == "q" && !m.dashboard.HelpOpen() {
 			return m, tea.Quit
 		}
 
@@ -146,10 +152,11 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case dashboard.StatusMsg:
+	case dashboard.SubsystemMsg:
+		// Rows load in the background during the splash; once the round lands the
+		// dashboard reports Ready and the splash can hand off.
 		var cmd tea.Cmd
 		m.dashboard, cmd = m.dashboard.Update(msg)
-		m.statusReady = true // status loaded in the background during the splash
 		return m, tea.Batch(cmd, m.dismissSplashIfReady())
 
 	case dashboard.SysInfoMsg:
@@ -199,11 +206,27 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.hasLast && m.last.opts.SelfUpdate && m.binaryChanged() {
 			m.dashboard = m.dashboard.WithRestartHint()
 		}
+		// A run launched from the recipe browser returns there (list and filter
+		// intact); everything else goes home.
+		if m.runFrom == ui.PageRecipes {
+			m.page = ui.PageRecipes
+			return m, nil
+		}
 		return m.toDashboard()
 
 	case logview.BackMsg:
 		m.page = ui.PageRunner
 		return m, nil
+
+	case recipelist.BackMsg:
+		return m.toDashboard()
+
+	case recipelist.LoadedMsg:
+		// May arrive after the user already left the page; apply it regardless so
+		// the catalog is cached for the next visit.
+		var cmd tea.Cmd
+		m.recipes, cmd = m.recipes.Update(msg)
+		return m, cmd
 	}
 
 	return m.route(msg)
@@ -214,14 +237,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // immediately instead of showing stale dots until the next manual refresh.
 func (m Model) toDashboard() (tea.Model, tea.Cmd) {
 	m.page = ui.PageDashboard
-	m.dashboard = m.dashboard.MarkLoading()
-	return m, m.dashboard.Init()
+	var cmd tea.Cmd
+	m.dashboard, cmd = m.dashboard.Refresh()
+	return m, cmd
 }
 
 func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {
 	switch msg.To {
 	case ui.PageRunner:
 		return m.launch(msg.Action)
+	case ui.PageRecipes:
+		m.page = ui.PageRecipes
+		var cmd tea.Cmd
+		m.recipes, cmd = m.recipes.Open()
+		return m, cmd
 	default:
 		fromSplash := m.page == ui.PageSplash
 		m.page = msg.To
@@ -238,6 +267,10 @@ func (m Model) launch(action string) (tea.Model, tea.Cmd) {
 	spec, ok := m.planFor(action)
 	if !ok {
 		return m.toDashboard() // unhandled action: stay home, still refresh
+	}
+	m.runFrom = ui.PageDashboard
+	if strings.HasPrefix(action, "sjust:") {
+		m.runFrom = ui.PageRecipes
 	}
 	return m.start(spec)
 }
@@ -305,6 +338,11 @@ func (m Model) planFor(action string) (runSpec, bool) {
 	case "device":
 		return runSpec{title: "Device info", rnr: runner.ForCommand("ayse-get-sm"), scroll: runview.PinTop, render: runview.Structured}, true
 	default:
+		// Recipe browser selections arrive as "sjust:<recipe>". Rendered as a
+		// terminal since a recipe can run any program.
+		if name, ok := strings.CutPrefix(action, "sjust:"); ok && name != "" {
+			return runSpec{title: "sjust · " + name, rnr: runner.ForCommand("sjust", name), scroll: runview.FollowTail, render: runview.Terminal}, true
+		}
 		return runSpec{}, false
 	}
 }
@@ -313,7 +351,7 @@ func (m Model) planFor(action string) (runSpec, bool) {
 // minimum splash time has passed, returning a command to disable mouse reporting
 // so normal terminal text selection/copy works on the content pages.
 func (m *Model) dismissSplashIfReady() tea.Cmd {
-	if m.page == ui.PageSplash && m.statusReady && m.splashMin {
+	if m.page == ui.PageSplash && m.dashboard.Ready() && m.splashMin {
 		m.page = ui.PageDashboard
 		return tea.DisableMouse
 	}
@@ -343,6 +381,7 @@ func (m *Model) setSize(w, h int) {
 	m.runview.SetSize(w, h)
 	m.password.SetSize(w, h)
 	m.logview.SetSize(w, h)
+	m.recipes.SetSize(w, h)
 }
 
 func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -356,8 +395,18 @@ func (m Model) route(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.runview, cmd = m.runview.Update(msg)
 	case ui.PagePassword:
 		m.password, cmd = m.password.Update(msg)
+		// The run keeps streaming while the password page is up. Its stream
+		// messages must still reach the runview, or the wait chain dies and the
+		// runner's pump blocks on a full channel once the buffer fills.
+		if _, isKey := msg.(tea.KeyMsg); !isKey {
+			var rcmd tea.Cmd
+			m.runview, rcmd = m.runview.Update(msg)
+			cmd = tea.Batch(cmd, rcmd)
+		}
 	case ui.PageLog:
 		m.logview, cmd = m.logview.Update(msg)
+	case ui.PageRecipes:
+		m.recipes, cmd = m.recipes.Update(msg)
 	}
 	return m, cmd
 }
@@ -373,6 +422,8 @@ func (m Model) View() string {
 		return m.password.View()
 	case ui.PageLog:
 		return m.logview.View()
+	case ui.PageRecipes:
+		return m.recipes.View()
 	default:
 		return m.dashboard.View()
 	}

@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -20,8 +21,13 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
 
-// StatusMsg carries a completed status check back into the model.
-type StatusMsg []status.Subsystem
+// SubsystemMsg carries one completed subsystem check; rows stream in as each
+// check finishes instead of waiting for the slowest one.
+type SubsystemMsg status.Subsystem
+
+// checkTimeout bounds one subsystem check or system-info gather, so a hung
+// command (network-stuck brew) can't pin a row on "…" forever.
+const checkTimeout = 60 * time.Second
 
 type itemKind int
 
@@ -41,9 +47,6 @@ type item struct {
 	selectable bool
 }
 
-// StatusMsg / SysInfoMsg carry async results back into the model.
-// (StatusMsg is declared above.)
-
 // SysInfoMsg carries a completed system-info gather.
 type SysInfoMsg sysinfo.Info
 
@@ -58,9 +61,18 @@ type Model struct {
 	sysReady      bool
 	items         []item
 	cursor        int
-	loading       bool
 	restartHint   bool
+
+	awaiting  map[string]bool // subsystem keys still being checked this round
+	checkedAt time.Time       // when the last round completed, for the age hint
+	now       func() time.Time
+
+	showHelp bool
 }
+
+// loading reports whether a check round is still in flight; it is fully
+// derived from the awaiting set.
+func (m Model) loading() bool { return len(m.awaiting) > 0 }
 
 // WithRestartHint marks that the running binary was updated, so the dashboard
 // shows a relaunch notice until the user quits.
@@ -69,35 +81,60 @@ func (m Model) WithRestartHint() Model {
 	return m
 }
 
-// MarkLoading shows the refreshing indicator until the next status arrives. The
-// app sets it when returning to the dashboard so a refresh is visibly in flight.
-func (m Model) MarkLoading() Model {
-	m.loading = true
-	return m
-}
-
 // New builds a dashboard bound to a status checker, a sysinfo gatherer, and
 // version info.
 func New(checker status.Checker, gatherer sysinfo.Gatherer, ver version.Info) Model {
-	m := Model{checker: checker, gatherer: gatherer, ver: ver, loading: true}
+	m := Model{checker: checker, gatherer: gatherer, ver: ver, now: time.Now}
+	m.awaiting = m.allKeys()
 	m.rebuild()
 	return m
 }
 
-// Init triggers the first status load and system-info gather.
+// Init triggers the first status load and system-info gather (New already
+// marked every subsystem as awaiting).
 func (m Model) Init() tea.Cmd { return tea.Batch(m.refresh(), m.sysGather()) }
+
+// Refresh starts a new round of checks. Existing rows stay visible (with the
+// refreshing indicator) and update in place as fresh results stream in.
+func (m Model) Refresh() (Model, tea.Cmd) {
+	m.awaiting = m.allKeys()
+	return m, tea.Batch(m.refresh(), m.sysGather())
+}
+
+// Ready reports whether the current round of checks has fully landed.
+func (m Model) Ready() bool { return !m.loading() }
 
 // SetSize updates render dimensions.
 func (m *Model) SetSize(w, h int) { m.width, m.height = w, h }
 
+func (m Model) allKeys() map[string]bool {
+	keys := map[string]bool{}
+	if m.checker != nil {
+		for _, k := range m.checker.Subsystems() {
+			keys[k] = true
+		}
+	}
+	return keys
+}
+
+// refresh fans out one command per subsystem so each row lands as soon as its
+// check completes; with no checker there is nothing to fan out and the round
+// is trivially complete.
 func (m Model) refresh() tea.Cmd {
 	checker := m.checker
-	return func() tea.Msg {
-		if checker == nil {
-			return StatusMsg(nil)
-		}
-		return StatusMsg(checker.Check(context.Background()))
+	if checker == nil {
+		return nil
 	}
+	keys := checker.Subsystems()
+	cmds := make([]tea.Cmd, 0, len(keys))
+	for _, key := range keys {
+		cmds = append(cmds, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
+			defer cancel()
+			return SubsystemMsg(checker.CheckOne(ctx, key))
+		})
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m Model) sysGather() tea.Cmd {
@@ -106,16 +143,21 @@ func (m Model) sysGather() tea.Cmd {
 		if g.Run == nil {
 			return SysInfoMsg{}
 		}
-		return SysInfoMsg(g.Gather(context.Background()))
+		ctx, cancel := context.WithTimeout(context.Background(), checkTimeout)
+		defer cancel()
+		return SysInfoMsg(g.Gather(ctx))
 	}
 }
 
 // Update handles navigation, refresh, and incoming status.
 func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
-	case StatusMsg:
-		m.subs = []status.Subsystem(msg)
-		m.loading = false
+	case SubsystemMsg:
+		m.upsert(status.Subsystem(msg))
+		delete(m.awaiting, msg.Key)
+		if len(m.awaiting) == 0 {
+			m.stampRound()
+		}
 		m.rebuild()
 		return m, nil
 	case SysInfoMsg:
@@ -123,23 +165,54 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.sysReady = true
 		return m, nil
 	case tea.KeyMsg:
+		if m.showHelp {
+			switch msg.String() {
+			case "?", "esc", "q", "enter":
+				m.showHelp = false
+			}
+			return m, nil
+		}
 		switch msg.String() {
 		case "up", "k":
 			m.move(-1)
 		case "down", "j":
 			m.move(1)
 		case "r":
-			m.loading = true
-			return m, tea.Batch(m.refresh(), m.sysGather())
+			return m.Refresh()
 		case "d":
 			return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, "device") }
+		case "s":
+			return m, func() tea.Msg { return ui.Navigate(ui.PageRecipes, "") }
+		case "?":
+			m.showHelp = true
 		case "enter":
 			if it := m.current(); it != nil {
+				if it.id == "recipes" {
+					return m, func() tea.Msg { return ui.Navigate(ui.PageRecipes, "") }
+				}
 				return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, it.id) }
 			}
 		}
 	}
 	return m, nil
+}
+
+// HelpOpen reports whether the help overlay is showing, so the app can keep
+// global keys (like q-to-quit) from stealing the overlay's dismiss keys.
+func (m Model) HelpOpen() bool { return m.showHelp }
+
+// stampRound records when the check round completed, for the age hint.
+func (m *Model) stampRound() { m.checkedAt = m.now() }
+
+// upsert replaces the subsystem with the same key, or appends a new row.
+func (m *Model) upsert(s status.Subsystem) {
+	for i := range m.subs {
+		if m.subs[i].Key == s.Key {
+			m.subs[i] = s
+			return
+		}
+	}
+	m.subs = append(m.subs, s)
 }
 
 func (m *Model) move(d int) {
@@ -197,6 +270,7 @@ func (m *Model) rebuild() {
 		item{kind: kindAction, id: "provision", label: "Update everything", detail: "$ sparkdock", selectable: true},
 		item{kind: kindAction, id: "upgrade", label: "Upgrade Brew packages", detail: "$ brew upgrade", selectable: true},
 		item{kind: kindAction, id: "sync", label: "Sync AI harness", detail: "$ sjust sf-harness-sync", selectable: true},
+		item{kind: kindAction, id: "recipes", label: "Browse sjust recipes", detail: "$ sjust --list", selectable: true},
 		item{kind: kindGroup, label: "HTTP proxy"},
 		item{kind: kindAction, id: "proxy-status", label: "Check status", detail: "$ spark-http-proxy status", selectable: true},
 		item{kind: kindAction, id: "proxy-start", label: "Start", detail: "$ spark-http-proxy start", selectable: true},
@@ -280,6 +354,23 @@ func (m Model) sysInfoBlock(st theme.Styles) string {
 	return strings.Join(lines, "\n")
 }
 
+// checkedAgo formats the age of the last completed check round for the footer,
+// or "" before the first round completes.
+func (m Model) checkedAgo() string {
+	if m.checkedAt.IsZero() {
+		return ""
+	}
+	d := m.now().Sub(m.checkedAt)
+	switch {
+	case d < time.Minute:
+		return " · checked just now"
+	case d < time.Hour:
+		return fmt.Sprintf(" · checked %dm ago", int(d.Minutes()))
+	default:
+		return fmt.Sprintf(" · checked %dh ago", int(d.Hours()))
+	}
+}
+
 // gb formats a byte count as whole gigabytes.
 func gb(bytes uint64) string {
 	return fmt.Sprintf("%.0f GB", float64(bytes)/(1<<30))
@@ -295,12 +386,46 @@ func truncateBlock(block string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
+// helpView renders the key-reference overlay page.
+func (m Model) helpView(st theme.Styles, width int) string {
+	row := func(key, what string) string {
+		return "   " + st.SparkS.Render(fmt.Sprintf("%-7s", key)) + " " + st.Dim.Render(what)
+	}
+	sections := []string{
+		" " + st.Title.Render("keys") + st.Dim.Render("   ·   ? or esc to close"),
+		st.Dim.Render(strings.Repeat("─", width)),
+		"",
+		"  " + st.Group.Render("Dashboard"),
+		row("↑↓ j k", "move between actions"),
+		row("⏎", "run the selected action"),
+		row("r", "refresh status"),
+		row("s", "browse and run sjust recipes"),
+		row("d", "device info"),
+		row("?", "this help"),
+		row("q", "quit"),
+		"",
+		"  " + st.Group.Render("While a run is live"),
+		row("ctrl+c", "cancel the run"),
+		row("↑↓", "scroll output"),
+		row("type", "answer the program's prompts (y/n, …)"),
+		"",
+		"  " + st.Group.Render("After a run"),
+		row("l", "open the full log (y copies it)"),
+		row("r", "retry"),
+		row("esc", "back to the dashboard"),
+	}
+	return strings.Join(sections, "\n")
+}
+
 // View renders the dashboard.
 func (m Model) View() string {
 	st := theme.Default()
 	width := m.width
 	if width < 40 {
 		width = 40
+	}
+	if m.showHelp {
+		return m.helpView(st, width)
 	}
 	var b strings.Builder
 	b.WriteString(" " + st.SparkS.Render(theme.Spark) + " " + st.Title.Render("sparkdock") +
@@ -343,28 +468,21 @@ func (m Model) View() string {
 			b.WriteString("\n  " + st.Group.Render(it.label) + "\n")
 		case kindAction:
 			flushCols()
-			line := "   " + st.Action.Render(theme.Pointer+" "+it.label)
-			if i == m.cursor {
-				line = "  " + st.Selected.Render(" "+theme.Pointer+" "+it.label+" ")
-			}
-			if it.detail != "" {
-				line += "  " + st.Dim.Render(it.detail)
-			}
-			b.WriteString(line + "\n")
+			b.WriteString(theme.ActionRow(st, i == m.cursor, it.label, it.detail) + "\n")
 		}
 	}
 	flushCols()
 
 	b.WriteString("\n" + st.Dim.Render(strings.Repeat("─", width)) + "\n")
-	left := " " + st.SparkS.Render(theme.Spark) + " " + st.Dim.Render(m.ver.Short())
-	if m.loading {
-		left = " " + st.Amber.Render("◐") + " " + st.Dim.Render("refreshing…")
+	left := " " + st.SparkS.Render(theme.Spark) + " " + st.Dim.Render(m.ver.Short()+m.checkedAgo())
+	if m.loading() {
+		left = " " + st.Amber.Render(theme.DotStale) + " " + st.Dim.Render("refreshing…")
 	}
 	hint := func(k, label string) string { return st.SparkS.Render(k) + " " + st.Dim.Render(label) }
 	sep := st.Dim.Render(" · ")
 	keys := strings.Join([]string{
 		hint("↑↓", "move"), hint("⏎", "select"), hint("r", "refresh"),
-		hint("d", "device"), hint("q", "quit"),
+		hint("s", "recipes"), hint("d", "device"), hint("?", "help"), hint("q", "quit"),
 	}, sep) + " "
 	gap := max(width-lipgloss.Width(left)-lipgloss.Width(keys), 1)
 	b.WriteString(left + strings.Repeat(" ", gap) + keys)
