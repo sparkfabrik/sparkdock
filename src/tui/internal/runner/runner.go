@@ -21,6 +21,9 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/creack/pty"
 )
@@ -72,7 +75,18 @@ type Handle struct {
 	cmd      *exec.Cmd
 	ptmx     *os.File
 	canceled chan struct{}
+	finished chan struct{} // closed once the child is reaped, stops escalation
+
+	// mu guards ptmxClosed and the Setsize ioctl: pty.Setsize reads the raw fd
+	// via File.Fd(), which races with the pump goroutine closing the file.
+	// (Read/Write go through the runtime poller and need no extra locking.)
+	mu         sync.Mutex
+	ptmxClosed bool
 }
+
+// cancelGrace is how long Cancel waits for the child to honour SIGINT before
+// escalating to SIGKILL. A variable so tests can shorten it.
+var cancelGrace = 5 * time.Second
 
 // promptRe matches a trailing interactive password prompt with no newline yet,
 // e.g. "Password:", "BECOME password:", "[sudo] password for user:".
@@ -83,7 +97,7 @@ func (r *Runner) Start(ctx context.Context, opts Options) *Handle {
 	output := make(chan []byte, 64)
 	prompts := make(chan string, 1)
 	done := make(chan Result, 1)
-	h := &Handle{Output: output, Prompts: prompts, Done: done, canceled: make(chan struct{})}
+	h := &Handle{Output: output, Prompts: prompts, Done: done, canceled: make(chan struct{}), finished: make(chan struct{})}
 
 	cmd := r.Build(ctx, opts)
 	h.cmd = cmd
@@ -125,6 +139,7 @@ func (h *Handle) pump(output chan<- []byte, prompts chan<- string, done chan<- R
 		}
 		done <- res
 	}()
+	defer close(h.finished)
 	defer close(prompts)
 	defer close(output)
 
@@ -161,7 +176,7 @@ func (h *Handle) pump(output chan<- []byte, prompts chan<- string, done chan<- R
 	}
 
 	exitErr := h.cmd.Wait()
-	h.ptmx.Close()
+	h.closePTY()
 	select {
 	case <-h.canceled:
 		res = Result{Err: exitErr, Canceled: true}
@@ -170,12 +185,23 @@ func (h *Handle) pump(output chan<- []byte, prompts chan<- string, done chan<- R
 	}
 }
 
+// closePTY closes the PTY under the mutex so a concurrent Resize never touches
+// a closing fd.
+func (h *Handle) closePTY() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.ptmxClosed = true
+	h.ptmx.Close()
+}
+
 // Resize updates the child's PTY size so tty-aware programs (brew progress
 // bars, spinners) re-render to fit after the enclosing terminal is resized.
 // The kernel delivers SIGWINCH to the child as part of the ioctl. Safe to call
 // on a handle whose process failed to start or has already exited.
 func (h *Handle) Resize(rows, cols int) {
-	if h.ptmx == nil || rows <= 0 || cols <= 0 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.ptmx == nil || h.ptmxClosed || rows <= 0 || cols <= 0 {
 		return
 	}
 	_ = pty.Setsize(h.ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
@@ -197,8 +223,12 @@ func (h *Handle) WriteInput(s string) {
 	}
 }
 
-// Cancel interrupts the running process so it can unwind. Safe to call multiple
-// times and after completion.
+// Cancel interrupts the running process so it can unwind. The child runs as the
+// leader of its own session (the pty library sets Setsid), so the whole process
+// group is signalled — a bare Signal to the direct child would leave nested
+// processes (ansible under bash) running. If the group ignores SIGINT, Cancel
+// escalates to SIGKILL after a grace period. Safe to call multiple times and
+// after completion.
 func (h *Handle) Cancel() {
 	select {
 	case <-h.canceled:
@@ -206,8 +236,26 @@ func (h *Handle) Cancel() {
 	default:
 		close(h.canceled)
 	}
-	if h.cmd != nil && h.cmd.Process != nil {
-		_ = h.cmd.Process.Signal(os.Interrupt)
+	if h.cmd == nil || h.cmd.Process == nil {
+		return
+	}
+	pid := h.cmd.Process.Pid
+	signalGroup(pid, syscall.SIGINT)
+	grace := cancelGrace // read synchronously; the goroutine may outlive callers
+	go func() {
+		select {
+		case <-h.finished:
+		case <-time.After(grace):
+			signalGroup(pid, syscall.SIGKILL)
+		}
+	}()
+}
+
+// signalGroup signals the process group led by pid, falling back to the single
+// process if the group is already gone.
+func signalGroup(pid int, sig syscall.Signal) {
+	if err := syscall.Kill(-pid, sig); err != nil {
+		_ = syscall.Kill(pid, sig)
 	}
 }
 

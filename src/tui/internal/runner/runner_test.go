@@ -212,6 +212,22 @@ func indexOf(s, sub string) int {
 	return -1
 }
 
+func TestCancel_EscalatesToKillWhenSIGINTIgnored(t *testing.T) {
+	old := cancelGrace
+	cancelGrace = 100 * time.Millisecond
+	defer func() { cancelGrace = old }()
+
+	// The script ignores SIGINT; only the SIGKILL escalation can end it.
+	r := &Runner{Build: scriptBuilder(`trap '' INT; printf 'up\n'; sleep 30`)}
+	h := r.Start(context.Background(), Options{})
+	<-h.Output // wait until the trap is installed
+	h.Cancel()
+	_, res := drain(t, h) // drain fails the test after 5s if the child survives
+	if !res.Canceled {
+		t.Errorf("Result.Canceled = false, want true")
+	}
+}
+
 func TestResize_ReachesChildPTY(t *testing.T) {
 	// The child sleeps, then reports its terminal size; the resize must land.
 	r := &Runner{Build: scriptBuilder(`sleep 0.3; stty size`)}
