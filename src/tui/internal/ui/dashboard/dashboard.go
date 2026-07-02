@@ -77,6 +77,8 @@ type Model struct {
 	awaiting  map[string]bool // subsystem keys still being checked this round
 	checkedAt time.Time       // when the last round completed, for the age hint
 	now       func() time.Time
+
+	showHelp bool
 }
 
 // WithRestartHint marks that the running binary was updated, so the dashboard
@@ -176,6 +178,13 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.sysReady = true
 		return m, nil
 	case tea.KeyMsg:
+		if m.showHelp {
+			switch msg.String() {
+			case "?", "esc", "q", "enter":
+				m.showHelp = false
+			}
+			return m, nil
+		}
 		switch msg.String() {
 		case "up", "k":
 			m.move(-1)
@@ -185,6 +194,8 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m.Refresh()
 		case "d":
 			return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, "device") }
+		case "?":
+			m.showHelp = true
 		case "enter":
 			if it := m.current(); it != nil {
 				return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, it.id) }
@@ -193,6 +204,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	}
 	return m, nil
 }
+
+// HelpOpen reports whether the help overlay is showing, so the app can keep
+// global keys (like q-to-quit) from stealing the overlay's dismiss keys.
+func (m Model) HelpOpen() bool { return m.showHelp }
 
 // finishRound marks the current check round complete and stamps its time.
 func (m *Model) finishRound() {
@@ -383,12 +398,45 @@ func truncateBlock(block string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
+// helpView renders the key-reference overlay page.
+func (m Model) helpView(st theme.Styles, width int) string {
+	row := func(key, what string) string {
+		return "   " + st.SparkS.Render(fmt.Sprintf("%-7s", key)) + " " + st.Dim.Render(what)
+	}
+	sections := []string{
+		" " + st.Title.Render("keys") + st.Dim.Render("   ·   ? or esc to close"),
+		st.Dim.Render(strings.Repeat("─", width)),
+		"",
+		"  " + st.Group.Render("Dashboard"),
+		row("↑↓ j k", "move between actions"),
+		row("⏎", "run the selected action"),
+		row("r", "refresh status"),
+		row("d", "device info"),
+		row("?", "this help"),
+		row("q", "quit"),
+		"",
+		"  " + st.Group.Render("While a run is live"),
+		row("ctrl+c", "cancel the run"),
+		row("↑↓", "scroll output"),
+		row("type", "answer the program's prompts (y/n, …)"),
+		"",
+		"  " + st.Group.Render("After a run"),
+		row("l", "open the full log (y copies it)"),
+		row("r", "retry"),
+		row("esc", "back to the dashboard"),
+	}
+	return strings.Join(sections, "\n")
+}
+
 // View renders the dashboard.
 func (m Model) View() string {
 	st := theme.Default()
 	width := m.width
 	if width < 40 {
 		width = 40
+	}
+	if m.showHelp {
+		return m.helpView(st, width)
 	}
 	var b strings.Builder
 	b.WriteString(" " + st.SparkS.Render(theme.Spark) + " " + st.Title.Render("sparkdock") +
@@ -452,7 +500,7 @@ func (m Model) View() string {
 	sep := st.Dim.Render(" · ")
 	keys := strings.Join([]string{
 		hint("↑↓", "move"), hint("⏎", "select"), hint("r", "refresh"),
-		hint("d", "device"), hint("q", "quit"),
+		hint("d", "device"), hint("?", "help"), hint("q", "quit"),
 	}, sep) + " "
 	gap := max(width-lipgloss.Width(left)-lipgloss.Width(keys), 1)
 	b.WriteString(left + strings.Repeat(" ", gap) + keys)

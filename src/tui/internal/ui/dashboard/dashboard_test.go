@@ -6,10 +6,16 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
+
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/sysinfo"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
+
+func keyMsg(s string) tea.KeyMsg {
+	return tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(s)}
+}
 
 type fakeChecker struct{ keys []string }
 
@@ -74,6 +80,21 @@ func TestCheckedAgo(t *testing.T) {
 	m.now = func() time.Time { return base.Add(3 * time.Hour) }
 	if got := m.checkedAgo(); got != " · checked 3h ago" {
 		t.Errorf("checkedAgo() = %q, want ' · checked 3h ago'", got)
+	}
+}
+
+func TestHelpOverlayToggles(t *testing.T) {
+	m := newTestModel("sparkdock")
+	m, _ = m.Update(keyMsg("?"))
+	if !m.HelpOpen() {
+		t.Fatal("? must open the help overlay")
+	}
+	if !strings.Contains(m.View(), "keys") {
+		t.Error("help view must render the key reference")
+	}
+	m, _ = m.Update(keyMsg("q"))
+	if m.HelpOpen() {
+		t.Error("q must close the overlay (not quit) while help is open")
 	}
 }
 

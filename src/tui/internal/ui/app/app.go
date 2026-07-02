@@ -131,7 +131,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 		}
-		if m.page == ui.PageDashboard && msg.String() == "q" {
+		if m.page == ui.PageDashboard && msg.String() == "q" && !m.dashboard.HelpOpen() {
 			return m, tea.Quit
 		}
 
