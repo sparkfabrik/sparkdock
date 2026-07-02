@@ -202,7 +202,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			m.showHelp = true
 		case "enter":
 			if it := m.current(); it != nil {
-				return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, it.id) }
+				if it.id == "recipes" {
+					return m, func() tea.Msg { return ui.Navigate(ui.PageRecipes, "") }
+				}
+				id := it.id
+				return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, id) }
 			}
 		}
 	}
@@ -287,6 +291,7 @@ func (m *Model) rebuild() {
 		item{kind: kindAction, id: "provision", label: "Update everything", detail: "$ sparkdock", selectable: true},
 		item{kind: kindAction, id: "upgrade", label: "Upgrade Brew packages", detail: "$ brew upgrade", selectable: true},
 		item{kind: kindAction, id: "sync", label: "Sync AI harness", detail: "$ sjust sf-harness-sync", selectable: true},
+		item{kind: kindAction, id: "recipes", label: "Browse sjust recipes", detail: "$ sjust --list", selectable: true},
 		item{kind: kindGroup, label: "HTTP proxy"},
 		item{kind: kindAction, id: "proxy-status", label: "Check status", detail: "$ spark-http-proxy status", selectable: true},
 		item{kind: kindAction, id: "proxy-start", label: "Start", detail: "$ spark-http-proxy start", selectable: true},

@@ -10,6 +10,7 @@ import (
 
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/status"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/sysinfo"
+	"github.com/sparkfabrik/sparkdock/src/tui/internal/ui"
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
 
@@ -80,6 +81,29 @@ func TestCheckedAgo(t *testing.T) {
 	m.now = func() time.Time { return base.Add(3 * time.Hour) }
 	if got := m.checkedAgo(); got != " · checked 3h ago" {
 		t.Errorf("checkedAgo() = %q, want ' · checked 3h ago'", got)
+	}
+}
+
+func TestRecipesRowNavigatesToBrowser(t *testing.T) {
+	m := newTestModel("sparkdock")
+	// walk the cursor to the recipes row
+	for range 10 {
+		if it := m.current(); it != nil && it.id == "recipes" {
+			break
+		}
+		m.move(1)
+	}
+	it := m.current()
+	if it == nil || it.id != "recipes" {
+		t.Fatal("recipes action row not reachable with the cursor")
+	}
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("enter on the recipes row must emit a command")
+	}
+	nav, ok := cmd().(ui.NavigateMsg)
+	if !ok || nav.To != ui.PageRecipes {
+		t.Errorf("got %+v, want Navigate(PageRecipes)", nav)
 	}
 }
 
