@@ -184,7 +184,7 @@ cd src/tui
 gofmt -l .               # MUST print nothing. If it lists files, run: gofmt -w .
 go vet ./...             # static analysis; MUST be clean
 go build ./...           # MUST compile
-go test ./... -count=1   # -count=1 disables the test cache so results are real
+go test ./... -count=1 -race   # -count=1 defeats the test cache; -race matches CI
 ```
 
 - **Formatting is non-negotiable.** `gofmt -l .` listing a file fails CI. Never
@@ -321,8 +321,10 @@ go test ./... -count=1                                  # run the suite
 
 ### Not yet wired
 
-- The self-update action is hidden (not a dead button); run `sparkdock` to
-  self-update. The headless delegate (`sparkdock-tui update`) is a stub.
+- The dashboard's self-update action is hidden (not a dead button); the
+  `Update everything` action and bare `sparkdock` cover self-update. The
+  headless delegate (`sparkdock-tui update` / `--no-tui`) execs the `sparkdock`
+  bash entrypoint; a bare non-TTY invocation refuses with guidance.
 
 ## macOS System Defaults
 
