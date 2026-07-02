@@ -146,10 +146,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
-	case dashboard.StatusMsg:
+	case dashboard.StatusMsg, dashboard.SubsystemMsg:
 		var cmd tea.Cmd
 		m.dashboard, cmd = m.dashboard.Update(msg)
-		m.statusReady = true // status loaded in the background during the splash
+		if m.dashboard.Ready() {
+			m.statusReady = true // all rows loaded in the background during the splash
+		}
 		return m, tea.Batch(cmd, m.dismissSplashIfReady())
 
 	case dashboard.SysInfoMsg:
@@ -214,8 +216,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // immediately instead of showing stale dots until the next manual refresh.
 func (m Model) toDashboard() (tea.Model, tea.Cmd) {
 	m.page = ui.PageDashboard
-	m.dashboard = m.dashboard.MarkLoading()
-	return m, m.dashboard.Init()
+	var cmd tea.Cmd
+	m.dashboard, cmd = m.dashboard.Refresh()
+	return m, cmd
 }
 
 func (m Model) navigate(msg ui.NavigateMsg) (tea.Model, tea.Cmd) {

@@ -49,8 +49,40 @@ func TestCheck_MapsExitCodesAndBrewCount(t *testing.T) {
 		t.Errorf("skills health = %v, want Unconfigured", byKey["skills"].Health)
 	}
 	brew := byKey["brew"]
-	if brew.Health != Stale || brew.Detail != "3 to update" {
-		t.Errorf("brew = %+v, want Stale '3 to update'", brew)
+	if brew.Health != Stale || brew.Detail != "3 to update: docker, node, php" {
+		t.Errorf("brew = %+v, want Stale '3 to update: docker, node, php'", brew)
+	}
+}
+
+func TestBrew_ManyOutdatedFoldsIntoMore(t *testing.T) {
+	c := CmdChecker{
+		Run: fakeRunner(map[string]CommandResult{
+			"outdated": {Stdout: "a\nb\nc\nd\ne\n"},
+		}),
+	}
+	got := c.CheckOne(context.Background(), "brew")
+	if got.Detail != "5 to update: a, b, c +2 more" {
+		t.Errorf("brew detail = %q, want '5 to update: a, b, c +2 more'", got.Detail)
+	}
+}
+
+func TestCheckOne_UnknownKey(t *testing.T) {
+	c := CmdChecker{Run: fakeRunner(nil)}
+	if got := c.CheckOne(context.Background(), "nope"); got.Health != Unknown {
+		t.Errorf("unknown key health = %v, want Unknown", got.Health)
+	}
+}
+
+func TestSubsystems_Order(t *testing.T) {
+	got := CmdChecker{}.Subsystems()
+	want := []string{"sparkdock", "brew", "http-proxy", "skills"}
+	if len(got) != len(want) {
+		t.Fatalf("Subsystems() = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("Subsystems() = %v, want %v", got, want)
+		}
 	}
 }
 

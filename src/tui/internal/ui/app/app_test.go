@@ -17,7 +17,10 @@ import (
 
 type stubChecker struct{}
 
-func (stubChecker) Check(context.Context) []status.Subsystem { return nil }
+func (stubChecker) Subsystems() []string { return nil }
+func (stubChecker) CheckOne(context.Context, string) status.Subsystem {
+	return status.Subsystem{}
+}
 
 // newTestApp wires an app whose ansible runner is a fast, harmless fake so
 // starting a run never spawns ansible-playbook.

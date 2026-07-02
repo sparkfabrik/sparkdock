@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -20,8 +21,20 @@ import (
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/version"
 )
 
-// StatusMsg carries a completed status check back into the model.
+// StatusMsg carries a completed bulk status check back into the model (used
+// when no checker is wired; per-subsystem results arrive as SubsystemMsg).
 type StatusMsg []status.Subsystem
+
+// SubsystemMsg carries one completed subsystem check; rows stream in as each
+// check finishes instead of waiting for the slowest one.
+type SubsystemMsg status.Subsystem
+
+// statusTimeout bounds one subsystem check, and sysinfoTimeout one system-info
+// gather, so a hung command (network-stuck brew) can't pin a row on "…" forever.
+const (
+	statusTimeout  = 60 * time.Second
+	sysinfoTimeout = 60 * time.Second
+)
 
 type itemKind int
 
@@ -60,6 +73,10 @@ type Model struct {
 	cursor        int
 	loading       bool
 	restartHint   bool
+
+	awaiting  map[string]bool // subsystem keys still being checked this round
+	checkedAt time.Time       // when the last round completed, for the age hint
+	now       func() time.Time
 }
 
 // WithRestartHint marks that the running binary was updated, so the dashboard
@@ -69,35 +86,60 @@ func (m Model) WithRestartHint() Model {
 	return m
 }
 
-// MarkLoading shows the refreshing indicator until the next status arrives. The
-// app sets it when returning to the dashboard so a refresh is visibly in flight.
-func (m Model) MarkLoading() Model {
-	m.loading = true
-	return m
-}
-
 // New builds a dashboard bound to a status checker, a sysinfo gatherer, and
 // version info.
 func New(checker status.Checker, gatherer sysinfo.Gatherer, ver version.Info) Model {
-	m := Model{checker: checker, gatherer: gatherer, ver: ver, loading: true}
+	m := Model{checker: checker, gatherer: gatherer, ver: ver, loading: true, now: time.Now}
+	m.awaiting = m.allKeys()
 	m.rebuild()
 	return m
 }
 
-// Init triggers the first status load and system-info gather.
+// Init triggers the first status load and system-info gather (New already
+// marked every subsystem as awaiting).
 func (m Model) Init() tea.Cmd { return tea.Batch(m.refresh(), m.sysGather()) }
+
+// Refresh starts a new round of checks. Existing rows stay visible (with the
+// refreshing indicator) and update in place as fresh results stream in.
+func (m Model) Refresh() (Model, tea.Cmd) {
+	m.loading = true
+	m.awaiting = m.allKeys()
+	return m, tea.Batch(m.refresh(), m.sysGather())
+}
+
+// Ready reports whether the current round of checks has fully landed.
+func (m Model) Ready() bool { return !m.loading }
 
 // SetSize updates render dimensions.
 func (m *Model) SetSize(w, h int) { m.width, m.height = w, h }
 
+func (m Model) allKeys() map[string]bool {
+	keys := map[string]bool{}
+	if m.checker != nil {
+		for _, k := range m.checker.Subsystems() {
+			keys[k] = true
+		}
+	}
+	return keys
+}
+
+// refresh fans out one command per subsystem so each row lands as soon as its
+// check completes; a nil checker resolves to an empty bulk result.
 func (m Model) refresh() tea.Cmd {
 	checker := m.checker
-	return func() tea.Msg {
-		if checker == nil {
-			return StatusMsg(nil)
-		}
-		return StatusMsg(checker.Check(context.Background()))
+	if checker == nil {
+		return func() tea.Msg { return StatusMsg(nil) }
 	}
+	keys := checker.Subsystems()
+	cmds := make([]tea.Cmd, 0, len(keys))
+	for _, key := range keys {
+		cmds = append(cmds, func() tea.Msg {
+			ctx, cancel := context.WithTimeout(context.Background(), statusTimeout)
+			defer cancel()
+			return SubsystemMsg(checker.CheckOne(ctx, key))
+		})
+	}
+	return tea.Batch(cmds...)
 }
 
 func (m Model) sysGather() tea.Cmd {
@@ -106,7 +148,9 @@ func (m Model) sysGather() tea.Cmd {
 		if g.Run == nil {
 			return SysInfoMsg{}
 		}
-		return SysInfoMsg(g.Gather(context.Background()))
+		ctx, cancel := context.WithTimeout(context.Background(), sysinfoTimeout)
+		defer cancel()
+		return SysInfoMsg(g.Gather(ctx))
 	}
 }
 
@@ -115,7 +159,16 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case StatusMsg:
 		m.subs = []status.Subsystem(msg)
-		m.loading = false
+		m.awaiting = nil
+		m.finishRound()
+		m.rebuild()
+		return m, nil
+	case SubsystemMsg:
+		m.upsert(status.Subsystem(msg))
+		delete(m.awaiting, msg.Key)
+		if len(m.awaiting) == 0 {
+			m.finishRound()
+		}
 		m.rebuild()
 		return m, nil
 	case SysInfoMsg:
@@ -129,8 +182,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		case "down", "j":
 			m.move(1)
 		case "r":
-			m.loading = true
-			return m, tea.Batch(m.refresh(), m.sysGather())
+			return m.Refresh()
 		case "d":
 			return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, "device") }
 		case "enter":
@@ -140,6 +192,25 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 	}
 	return m, nil
+}
+
+// finishRound marks the current check round complete and stamps its time.
+func (m *Model) finishRound() {
+	m.loading = false
+	if m.now != nil {
+		m.checkedAt = m.now()
+	}
+}
+
+// upsert replaces the subsystem with the same key, or appends a new row.
+func (m *Model) upsert(s status.Subsystem) {
+	for i := range m.subs {
+		if m.subs[i].Key == s.Key {
+			m.subs[i] = s
+			return
+		}
+	}
+	m.subs = append(m.subs, s)
 }
 
 func (m *Model) move(d int) {
@@ -280,6 +351,23 @@ func (m Model) sysInfoBlock(st theme.Styles) string {
 	return strings.Join(lines, "\n")
 }
 
+// checkedAgo formats the age of the last completed check round for the footer,
+// or "" before the first round completes.
+func (m Model) checkedAgo() string {
+	if m.checkedAt.IsZero() || m.now == nil {
+		return ""
+	}
+	d := m.now().Sub(m.checkedAt)
+	switch {
+	case d < time.Minute:
+		return " · checked just now"
+	case d < time.Hour:
+		return fmt.Sprintf(" · checked %dm ago", int(d.Minutes()))
+	default:
+		return fmt.Sprintf(" · checked %dh ago", int(d.Hours()))
+	}
+}
+
 // gb formats a byte count as whole gigabytes.
 func gb(bytes uint64) string {
 	return fmt.Sprintf("%.0f GB", float64(bytes)/(1<<30))
@@ -356,7 +444,7 @@ func (m Model) View() string {
 	flushCols()
 
 	b.WriteString("\n" + st.Dim.Render(strings.Repeat("─", width)) + "\n")
-	left := " " + st.SparkS.Render(theme.Spark) + " " + st.Dim.Render(m.ver.Short())
+	left := " " + st.SparkS.Render(theme.Spark) + " " + st.Dim.Render(m.ver.Short()+m.checkedAgo())
 	if m.loading {
 		left = " " + st.Amber.Render("◐") + " " + st.Dim.Render("refreshing…")
 	}
