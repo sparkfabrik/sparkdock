@@ -140,17 +140,20 @@ func (m *Model) SetSize(w, h int) {
 func (m Model) bodyHeight() int { return max(m.height-chromeRows, 1) }
 
 // Start renders the run represented by h under the given title, scroll, and
-// render mode. A still-live previous run is cancelled first: its output is
-// drained in the background (so its pump can deliver EOF and reap the child
-// instead of blocking on a full channel) and its content finalized (stopping a
-// terminal emulator's response forwarder).
+// render mode. A still-live previous run is cancelled first and both its
+// channels are drained in the background, so its pump can flush any last
+// output or prompt and reap the child instead of blocking on a full channel.
 func (m Model) Start(title string, h *runner.Handle, scroll ScrollMode, mode RenderMode) (Model, tea.Cmd) {
 	if m.handle != nil && m.running {
 		m.handle.Cancel()
-		go func(old *runner.Handle) {
-			for range old.Output {
+		go func(out <-chan []byte) {
+			for range out {
 			}
-		}(m.handle)
+		}(m.handle.Output)
+		go func(prompts <-chan string) {
+			for range prompts {
+			}
+		}(m.handle.Prompts)
 		m.content.finalize()
 	}
 	m.gen++

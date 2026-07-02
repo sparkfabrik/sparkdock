@@ -8,6 +8,7 @@ package recipes
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os/exec"
 	"path/filepath"
@@ -33,6 +34,13 @@ func Load(ctx context.Context, root string) ([]Recipe, error) {
 	out, err := exec.CommandContext(ctx, "just",
 		"--dump", "--dump-format", "json", "--justfile", justfile).Output()
 	if err != nil {
+		// Output captures stderr on the exit error; it carries the actionable
+		// reason (missing justfile, parse error), so surface its first line.
+		var ee *exec.ExitError
+		if errors.As(err, &ee) && len(ee.Stderr) > 0 {
+			line, _, _ := strings.Cut(strings.TrimSpace(string(ee.Stderr)), "\n")
+			return nil, fmt.Errorf("just --dump failed: %s", line)
+		}
 		return nil, fmt.Errorf("just --dump failed: %w", err)
 	}
 	return Parse(out)
