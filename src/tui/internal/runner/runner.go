@@ -170,6 +170,17 @@ func (h *Handle) pump(output chan<- []byte, prompts chan<- string, done chan<- R
 	}
 }
 
+// Resize updates the child's PTY size so tty-aware programs (brew progress
+// bars, spinners) re-render to fit after the enclosing terminal is resized.
+// The kernel delivers SIGWINCH to the child as part of the ioctl. Safe to call
+// on a handle whose process failed to start or has already exited.
+func (h *Handle) Resize(rows, cols int) {
+	if h.ptmx == nil || rows <= 0 || cols <= 0 {
+		return
+	}
+	_ = pty.Setsize(h.ptmx, &pty.Winsize{Rows: uint16(rows), Cols: uint16(cols)})
+}
+
 // Answer writes a password (plus newline) to the running process's PTY in
 // response to a prompt. The secret travels only over the child's terminal.
 func (h *Handle) Answer(password string) {

@@ -212,6 +212,29 @@ func indexOf(s, sub string) int {
 	return -1
 }
 
+func TestResize_ReachesChildPTY(t *testing.T) {
+	// The child sleeps, then reports its terminal size; the resize must land.
+	r := &Runner{Build: scriptBuilder(`sleep 0.3; stty size`)}
+	h := r.Start(context.Background(), Options{PtyRows: 24, PtyCols: 80})
+	h.Resize(31, 99)
+	out, res := drain(t, h)
+	if res.Err != nil {
+		t.Fatalf("Result.Err = %v, want nil", res.Err)
+	}
+	if !contains(out, "31 99") {
+		t.Errorf("child size = %q, want it to contain \"31 99\"", strings.TrimSpace(out))
+	}
+}
+
+func TestResize_NoPTYIsNoop(t *testing.T) {
+	r := &Runner{Build: func(ctx context.Context, _ Options) *exec.Cmd {
+		return exec.CommandContext(ctx, "definitely-not-a-real-binary-xyz")
+	}}
+	h := r.Start(context.Background(), Options{})
+	h.Resize(30, 100) // must not panic on a handle that never got a PTY
+	_, _ = drain(t, h)
+}
+
 func TestIsBecomeAuthFailure(t *testing.T) {
 	if !IsBecomeAuthFailure([]string{"ok", "sudo: a password is required", "more"}) {
 		t.Error("should detect become auth failure")

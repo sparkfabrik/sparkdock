@@ -124,11 +124,16 @@ func New() Model {
 	return Model{sp: sp}
 }
 
-// SetSize updates dimensions and the active content renderer.
+// SetSize updates dimensions, the active content renderer, and a live child's
+// PTY (mirroring the sizing in app.start), so a mid-run terminal resize reaches
+// the running program instead of leaving it rendering at a stale width.
 func (m *Model) SetSize(w, h int) {
 	m.width, m.height = w, h
 	if m.content != nil {
 		m.content.resize(w, m.bodyHeight())
+	}
+	if m.running && m.handle != nil {
+		m.handle.Resize(max(h-chromeRows, 10), max(w-2, 20))
 	}
 }
 
