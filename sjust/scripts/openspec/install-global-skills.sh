@@ -2,14 +2,15 @@
 set -euo pipefail
 
 # Install or update OpenSpec skills and prompt commands in the home directory
-# for Claude Code (and any other already-configured tools).
+# for the requested AI coding tools.
 #
 # OpenSpec installs skills to ~/.claude/skills/openspec-* and prompt commands to
 # ~/.claude/commands/opsx/* relative to a project root. Using ${HOME} as the
 # root makes them global for the user. The home project lives at ~/openspec.
 #
 # Usage: install-global-skills.sh [tools]
-#   tools  — comma-separated tool list for first-time init (default: claude)
+#   tools  — comma-separated tool list (default: claude); OpenSpec identifiers,
+#            e.g. claude, opencode, github-copilot
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
@@ -22,15 +23,12 @@ if ! command -v openspec >/dev/null 2>&1; then
     exit 1
 fi
 
-# Already initialized: refresh skills + commands for every configured tool.
-if [[ -d "${HOME}/openspec" ]]; then
-    log_info "Updating global OpenSpec skills and prompts under ${HOME} (all configured tools)"
-    openspec update "${HOME}" --force
-    log_success "Global OpenSpec skills and prompts updated"
-    exit 0
-fi
-
-# First run: scaffold the home project and install the requested tools.
-log_info "Initializing global OpenSpec project at ${HOME}/openspec (tools: ${tools})"
+# Ensure the requested tools are configured. Re-running init is additive and
+# idempotent: it preserves openspec/changes, config.yaml edits, and any tools
+# configured previously (a narrower list never removes tools).
+log_info "Configuring global OpenSpec skills under ${HOME} (tools: ${tools})"
 openspec init "${HOME}" --tools "${tools}" --force
+
+# Refresh instruction files for every configured tool.
+openspec update "${HOME}" --force
 log_success "Global OpenSpec skills and prompts installed for: ${tools}"
