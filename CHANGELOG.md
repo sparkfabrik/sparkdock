@@ -158,6 +158,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed `sjust sf-openspec-install-global` ignoring the tool list once `~/openspec` exists: the script now always runs `openspec init` with the requested tools (additive and idempotent) before refreshing with `openspec update`, so new tools such as `opencode` or `github-copilot` can be added on already-provisioned machines
 - Fixed `sparkdock tui` late output from a cancelled run bleeding into the next run's view (or marking the new run finished): every runner message now carries a run generation stamp and stale messages are dropped
 - Fixed `sparkdock tui` child programs rendering at a stale width after a terminal resize: the child's PTY is now resized (with SIGWINCH) alongside the view
 - Gated the zoxide `cd` alias behind the `CLAUDECODE`/`AI_AGENT` markers so AI coding agents get a literal `cd` (a missing relative path errors instead of frecency-jumping the agent's persistent working directory); interactive shells keep zoxide-backed `cd`, and `zd`/`z`/`zi` stay available everywhere
