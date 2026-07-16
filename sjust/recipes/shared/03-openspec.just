@@ -11,3 +11,12 @@ sf-openspec-configure $force="":
 [group('ai-coding-harness')]
 sf-openspec-install-global $tools="claude":
     {{sparkdock_path}}/sjust/scripts/openspec/install-global-skills.sh "${tools}"
+
+# Remove OpenSpec-managed components (skills, commands, prompts) from the
+# current local project's .claude, .opencode and .github folders, keeping
+# the openspec/ folder untouched.
+# Pass 'dry-run' to only list what would be removed.
+[no-cd]
+[group('ai-coding-harness')]
+sf-openspec-cleanup-project $mode="":
+    {{sparkdock_path}}/sjust/scripts/openspec/cleanup-project.sh "${mode}"
