@@ -383,12 +383,12 @@ sync_agent_profile() {
 # Sync all agents from the upstream cache.
 sync_agents() {
     local system_dir="${CACHE_DIR}/${SYSTEM_AGENTS_SUBDIR}"
+    # An absent or empty agents/system/ is a valid state: upstream currently
+    # advertises no system agents (catalog "agents": {}). Return silently.
     if [[ ! -d "${system_dir}" ]]; then
-        log_warn "No '${SYSTEM_AGENTS_SUBDIR}/' directory found in upstream repo."
         return
     fi
 
-    local found=false
     for agent_dir in "${system_dir}"/*/; do
         [[ -d "${agent_dir}" ]] || continue
         local agent_name
@@ -407,14 +407,9 @@ sync_agents() {
                 continue
             fi
 
-            found=true
             sync_agent_profile "${agent_name}" "${tool_name}"
         done
     done
-
-    if [[ "${found}" = false ]]; then
-        log_warn "No valid agents found in '${SYSTEM_AGENTS_SUBDIR}/'."
-    fi
 }
 
 # --- Orphan cleanup ---
