@@ -159,6 +159,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed a mistyped sudo password only surfacing minutes into provisioning with a cryptic ansible-core error: the become password collected by `--ask-become-pass` is now probed against sudo at the start of the play, aborting in seconds with a clear message; skipped in CI/non-interactive runs
 - Fixed `sparkdock-agents-sync` printing a spurious `WARN No 'agents/system/' directory found in upstream repo.` on every run: upstream now advertises no system agents (`catalog.json` `"agents": {}`, the-architect removed), so an absent or empty `agents/system/` is a valid state and no longer warns
 - Fixed `sjust sf-openspec-install-global` ignoring the tool list once `~/openspec` exists: the script now always runs `openspec init` with the requested tools (additive and idempotent) before refreshing with `openspec update`, so new tools such as `opencode` or `github-copilot` can be added on already-provisioned machines
 - Fixed `sparkdock tui` late output from a cancelled run bleeding into the next run's view (or marking the new run finished): every runner message now carries a run generation stamp and stale messages are dropped
