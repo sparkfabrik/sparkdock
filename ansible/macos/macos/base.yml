@@ -1087,6 +1087,18 @@
           changed_when: "'already enabled' not in gh_gate_output.stdout"
           become: false
 
+    - name: Enable coding-agent SA gate for Claude Code
+      tags:
+        - claude-sa-gate
+        - ai-harness
+        - ai-harness-sync
+      block:
+        - name: Register coding-agent SA gate PreToolUse hook
+          command: "python3 {{ dev_env_dir }}/sjust/scripts/claude-sa-gate.py enable"
+          register: sa_gate_output
+          changed_when: "'already enabled' not in sa_gate_output.stdout"
+          become: false
+
     - name: Provision AI coding harness directories and permissions
       tags:
         - skills

@@ -4,6 +4,10 @@ http-proxy
 .build
 .claude/settings.local.json
 
+# Local, machine-specific sjust recipe drop-in (may hold private client IDs or
+# project names); never commit it.
+sjust/000-system.just
+
 # GitHuman - exclude generated code and data
 .githuman/
 # OpenSpec - exclude specs and changes (may contain private content)
