@@ -93,6 +93,7 @@ homebrew_packages:
   - gh
   - glab
   - rtk
+  - herdr
   - "node"
   - "php@8.2"
   - golang

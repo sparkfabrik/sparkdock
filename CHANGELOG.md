@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `herdr` (terminal multiplexer for coding agents, https://herdr.dev) to `homebrew_packages`
 - Added `sjust sf-openspec-cleanup-project` recipe to remove OpenSpec-managed components (skills, commands and prompts) from the current project's `.claude`, `.opencode` and `.github` folders, keeping the `openspec/` folder untouched; pass `dry-run` to only list what would be removed
 - Added an sjust recipe browser to `sparkdock tui` (press `s`): a filterable catalog of the public, argument-free recipes from `just --dump`, grouped and documented, with enter running the selection through the shared runner as `sjust <name>`
 - Added a `?` help overlay to the `sparkdock tui` dashboard with the full key reference for the dashboard, live runs, and finished runs
