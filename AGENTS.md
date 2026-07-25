@@ -361,6 +361,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `sf-harness-sync [force]` — Fast sync: skills + agent profiles from upstream
 - `sf-harness-upgrade [force]` — Full upgrade via Ansible (RTK + caveman + gh gate + skills)
 - `claude-gh-gate-{enable,disable,info}` — manage the Claude Code gh skill gate (blocks `gh` until the `gh` skill loads; bypass at runtime with `SPARKDOCK_GH_GATE=0`)
+- `claude-sa-gate-{enable,disable,info}` — manage the Claude Code coding-agent SA gate. Activation needs BOTH `SF_AGENT_SA_GUARD=warn|enforce` and `FSCLI_AGENT_SA_PROJECT=<project>` in the environment Claude Code starts with; either one missing leaves the gate inert (`claude-sa-gate-info` reports which). Disable by setting `SPARKDOCK_SA_GATE=0` before launching Claude Code (an inline prefix on the command does not reach the hook)
 
 ### Ansible Tags
 
@@ -368,6 +369,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `ai-harness` — alternate umbrella (includes sync + provision)
 - `ai-harness-sync` — no-sudo tasks (RTK + caveman + gh gate + skills sync)
 - `claude-gh-gate` — register only the Claude Code gh skill gate hook
+- `claude-sa-gate` — register only the Claude Code coding-agent SA gate hook
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
 - `skills` — backward-compat alias
 
