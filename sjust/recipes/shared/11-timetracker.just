@@ -9,8 +9,6 @@ sf-timetracker-info:
     source "{{source_directory()}}/../../libs/libformatting.sh"
     source "{{source_directory()}}/../../libs/libcolors.sh"
 
-    kb_url="https://sparkfabrik.peopleforce.io/knowledge_base/categories/8725"
-
     echo "${bold}Timetracker CLI${normal}"
     echo ""
 
@@ -24,9 +22,7 @@ sf-timetracker-info:
         echo "  ❌ Not installed."
         echo ""
         echo "  The CLI is distributed internally, so sparkdock cannot install it"
-        echo "  for you. Follow the setup instructions in the knowledge base:"
-        echo ""
-        echo "     📖 $(Urllink "${kb_url}" "Timetracker installation guide")"
+        echo "  for you. Follow the setup instructions in the internal knowledge base."
     fi
 
     echo ""
