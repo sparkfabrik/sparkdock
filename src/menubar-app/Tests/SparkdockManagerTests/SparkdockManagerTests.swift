@@ -104,14 +104,46 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "Http-proxy check command should be correct")
     }
 
-    func testTimetrackerCheckUpdatesSubsystem() {
-        let timetrackerCheckArguments = ["timetracker"]
-        XCTAssertEqual(timetrackerCheckArguments.first, "timetracker", "Timetracker check should pass the timetracker subsystem")
+    /// Commands declared in the shipped menu.json, so a changed string is caught here
+    /// rather than at the moment a user clicks the entry.
+    private func shippedMenuCommands() throws -> [String] {
+        // #filePath is Tests/SparkdockManagerTests/<this file>; three levels up is the
+        // package root.
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let menuURL = packageRoot
+            .appendingPathComponent("Sources/SparkdockManager/Resources/menu.json")
+
+        let data = try Data(contentsOf: menuURL)
+        let root = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let menu = root?["menu"] as? [String: Any]
+        let sections = menu?["sections"] as? [[String: Any]] ?? []
+        return sections
+            .compactMap { $0["items"] as? [[String: Any]] }
+            .flatMap { $0 }
+            .compactMap { $0["command"] as? String }
     }
 
-    func testTimetrackerUpgradeCommand() {
-        let timetrackerUpgradeCommand = "timetracker update --apply"
-        XCTAssertEqual(timetrackerUpgradeCommand, "timetracker update --apply", "Timetracker upgrade command should be correct")
+    func testTimetrackerMenuCommands() throws {
+        let commands = try shippedMenuCommands()
+
+        XCTAssertTrue(
+            commands.contains("timetracker tui"),
+            "menu.json should offer the timetracker terminal UI; found \(commands)"
+        )
+        // `timetracker update --apply` and not the `timetracker-update` shell function:
+        // executeTerminalCommand runs a non-interactive login shell, which does not
+        // source ~/.zshrc, so the function is undefined there.
+        XCTAssertTrue(
+            commands.contains("timetracker update --apply"),
+            "menu.json should update the CLI through the binary, not the shell function; found \(commands)"
+        )
+        XCTAssertFalse(
+            commands.contains("timetracker-update"),
+            "the bare shell function cannot run in a non-interactive login shell"
+        )
     }
 
     // MARK: - Darwin Recheck Notification Tests
