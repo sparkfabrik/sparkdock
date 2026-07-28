@@ -104,6 +104,16 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "Http-proxy check command should be correct")
     }
 
+    func testTimetrackerCheckUpdatesSubsystem() {
+        let timetrackerCheckArguments = ["timetracker"]
+        XCTAssertEqual(timetrackerCheckArguments.first, "timetracker", "Timetracker check should pass the timetracker subsystem")
+    }
+
+    func testTimetrackerUpgradeCommand() {
+        let timetrackerUpgradeCommand = "timetracker-update"
+        XCTAssertEqual(timetrackerUpgradeCommand, "timetracker-update", "Timetracker upgrade command should be correct")
+    }
+
     // MARK: - Darwin Recheck Notification Tests
 
     /// Expected notification names — must match RecheckNotification constants in main.swift.
@@ -111,7 +121,8 @@ final class SparkdockManagerTests: XCTestCase {
         "com.sparkfabrik.sparkdock.recheck.sparkdock",
         "com.sparkfabrik.sparkdock.recheck.brew",
         "com.sparkfabrik.sparkdock.recheck.http-proxy",
-        "com.sparkfabrik.sparkdock.recheck.agents"
+        "com.sparkfabrik.sparkdock.recheck.agents",
+        "com.sparkfabrik.sparkdock.recheck.timetracker"
     ]
 
     func testRecheckNotificationNamesAreUnique() {
@@ -128,7 +139,7 @@ final class SparkdockManagerTests: XCTestCase {
     }
 
     func testRecheckNotificationsHasOneEntryPerSubsystem() {
-        XCTAssertEqual(Self.expectedRecheckNotifications.count, 4, "Should have exactly 4 recheck notifications (one per subsystem)")
+        XCTAssertEqual(Self.expectedRecheckNotifications.count, 5, "Should have exactly 5 recheck notifications (one per subsystem)")
     }
 
     func testNotifyutilExists() {

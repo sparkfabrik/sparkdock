@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # sparkdock-check-updates — Dispatcher for update checks across sparkdock subsystems.
-# Usage: sparkdock-check-updates <sparkdock|http-proxy|skills>
+# Usage: sparkdock-check-updates <sparkdock|http-proxy|skills|timetracker>
 # Exit codes: 0 = updates available, 1 = no updates available, 2 = error/usage, 3 = not configured
 
 SCRIPT_NAME="$(basename "$0")"
@@ -111,6 +111,49 @@ check_skills_updates() (
     return 1
 )
 
+# Check for timetracker CLI updates
+# Uses subshell to isolate the PATH override
+check_timetracker_updates() (
+    set -euo pipefail
+
+    # The menubar app runs this script from a LaunchAgent, whose PATH is
+    # /usr/bin:/bin:/usr/sbin:/sbin — add the directories where user binaries
+    # live so an installed timetracker is discoverable.
+    export PATH="/opt/homebrew/bin:/usr/local/bin:${HOME}/.local/bin:${PATH}"
+
+    if ! command -v timetracker >/dev/null 2>&1; then
+        return 3
+    fi
+
+    # `timetracker update --check` mirrors this dispatcher's exit codes:
+    # 0 = update available, 1 = up to date or server unreachable, 3 = not configured.
+    local output rc=0
+    output=$(timetracker update --check 2>&1) || rc=$?
+
+    case "${rc}" in
+        0)
+            echo "Timetracker updates available:"
+            if [[ -n "${output}" ]]; then
+                echo "${output}"
+            fi
+            return 0
+            ;;
+        1)
+            # Also the graceful path for a CLI too old to know `update --check`:
+            # it exits 1 on an unknown command, reported here as "no updates".
+            return 1
+            ;;
+        3)
+            return 3
+            ;;
+        *)
+            # Any other status is an unknown failure — report "not configured"
+            # rather than claiming an update the user cannot act on.
+            return 3
+            ;;
+    esac
+)
+
 # Usage message
 usage() {
     echo "Usage: ${SCRIPT_NAME} <subsystem>"
@@ -122,6 +165,7 @@ usage() {
     echo "  http-proxy   Check for http-proxy updates"
     echo "  agents       Check for agent skills and agent profile updates"
     echo "  skills       (alias for agents)"
+    echo "  timetracker  Check for timetracker CLI updates"
     echo ""
     echo "Exit codes:"
     echo "  0  Updates available"
@@ -149,6 +193,9 @@ main() {
             ;;
         skills|agents)
             check_skills_updates || rc=$?
+            ;;
+        timetracker)
+            check_timetracker_updates || rc=$?
             ;;
         -h|--help)
             usage
