@@ -157,6 +157,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var upgradeTimetrackerMenuItem: NSMenuItem?
     private var pathMonitor: NWPathMonitor?
     fileprivate var menuConfig: MenuConfig?
+    /// Dynamic menu entries gated on `requires_binary`, kept so their visibility can
+    /// be re-evaluated on every UI refresh instead of only at menu construction.
+    fileprivate var dynamicMenuSections: [(header: NSMenuItem, separator: NSMenuItem, entries: [(menuItem: NSMenuItem, config: MenuItem)])] = []
     // Cache icons to avoid recreating them
     private var cachedNormalIcon: NSImage?
     private var cachedUpdateIcon: NSImage?
@@ -293,6 +296,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         let timetrackerStatusItem = NSMenuItem(title: "Checking for updates (Timetracker)...", action: #selector(checkTimetrackerUpdatesAction), keyEquivalent: "")
         timetrackerStatusItem.target = self
+        // Hidden from construction on machines without the CLI, so non-users never
+        // see a transient "Checking..." row before the first check completes.
+        timetrackerStatusItem.isHidden = Self.executablePath(for: "timetracker") == nil
         menu.addItem(timetrackerStatusItem)
         self.timetrackerStatusMenuItem = timetrackerStatusItem
 
@@ -362,23 +368,41 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func addDynamicMenuSections(_ sections: [MenuSection], to menu: NSMenu) {
         for section in sections {
-            let items = section.items.filter { itemIsAvailable($0) }
-            // A heading with nothing under it is noise, so a section whose every item
-            // was filtered out is skipped along with its separator.
-            if items.isEmpty { continue }
-
             let sectionItem = NSMenuItem(title: section.name, action: nil, keyEquivalent: "")
             sectionItem.isEnabled = false
             menu.addItem(sectionItem)
 
-            for item in items {
+            var entries: [(menuItem: NSMenuItem, config: MenuItem)] = []
+            for item in section.items {
                 let menuItem = NSMenuItem(title: item.title, action: #selector(handleDynamicMenuItem(_:)), keyEquivalent: "")
                 menuItem.target = self
                 menuItem.representedObject = item
                 menu.addItem(menuItem)
+                entries.append((menuItem, item))
             }
 
-            menu.addItem(.separator())
+            let separator = NSMenuItem.separator()
+            menu.addItem(separator)
+            dynamicMenuSections.append((sectionItem, separator, entries))
+        }
+        refreshDynamicMenuItems()
+    }
+
+    /// Re-applies the `requires_binary` gate to the configured menu entries, so
+    /// installing (or removing) a tool is reflected on the next refresh without
+    /// restarting the app.
+    private func refreshDynamicMenuItems() {
+        for section in dynamicMenuSections {
+            var anyVisible = false
+            for (menuItem, config) in section.entries {
+                let available = itemIsAvailable(config)
+                menuItem.isHidden = !available
+                if available { anyVisible = true }
+            }
+            // A heading with nothing under it is noise, so a section whose every item
+            // is gated off is hidden along with its separator.
+            section.header.isHidden = !anyVisible
+            section.separator.isHidden = !anyVisible
         }
     }
 
@@ -1057,6 +1081,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 upgradeTimetrackerItem.isHidden = true
             }
         }
+
+        refreshDynamicMenuItems()
     }
 
     @objc private func updateNow() {
