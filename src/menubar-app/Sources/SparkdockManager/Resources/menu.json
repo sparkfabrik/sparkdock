@@ -18,12 +18,14 @@
           {
             "title": "Open timetracker",
             "type": "command",
-            "command": "timetracker tui"
+            "command": "timetracker tui",
+            "requires_binary": "timetracker"
           },
           {
             "title": "Update timetracker",
             "type": "command",
-            "command": "timetracker update --apply"
+            "command": "timetracker update --apply",
+            "requires_binary": "timetracker"
           }
         ]
       },

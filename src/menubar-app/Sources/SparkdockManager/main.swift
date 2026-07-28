@@ -38,10 +38,20 @@ fileprivate struct MenuItem: Codable {
     let type: MenuItemType
     let command: String?
     let url: String?
+    /// Name of an executable this item depends on. When set and that executable is
+    /// not on the machine, the item is left out of the menu entirely: an entry that
+    /// only produces "command not found" is worse than no entry, and every developer
+    /// would otherwise carry menu items for tools they have not installed.
+    let requiresBinary: String?
 
     enum MenuItemType: String, Codable {
         case command = "command"
         case url = "url"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case title, type, command, url
+        case requiresBinary = "requires_binary"
     }
 }
 
@@ -352,11 +362,16 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func addDynamicMenuSections(_ sections: [MenuSection], to menu: NSMenu) {
         for section in sections {
+            let items = section.items.filter { itemIsAvailable($0) }
+            // A heading with nothing under it is noise, so a section whose every item
+            // was filtered out is skipped along with its separator.
+            if items.isEmpty { continue }
+
             let sectionItem = NSMenuItem(title: section.name, action: nil, keyEquivalent: "")
             sectionItem.isEnabled = false
             menu.addItem(sectionItem)
 
-            for item in section.items {
+            for item in items {
                 let menuItem = NSMenuItem(title: item.title, action: #selector(handleDynamicMenuItem(_:)), keyEquivalent: "")
                 menuItem.target = self
                 menuItem.representedObject = item
@@ -365,6 +380,29 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
             menu.addItem(.separator())
         }
+    }
+
+    /// Whether a configured menu item should appear on this machine.
+    private func itemIsAvailable(_ item: MenuItem) -> Bool {
+        guard let binary = item.requiresBinary else { return true }
+        return Self.executablePath(for: binary) != nil
+    }
+
+    /// Locates an executable the way the update checks do. The app inherits
+    /// launchd's PATH (/usr/bin:/bin:/usr/sbin:/sbin), which contains none of the
+    /// places developer tools install to, so the usual prefixes are searched
+    /// explicitly rather than trusting the environment.
+    static func executablePath(for binary: String) -> String? {
+        var prefixes = ["/opt/homebrew/bin", "/usr/local/bin"]
+        prefixes.append(NSHomeDirectory() + "/.local/bin")
+        if let envPath = ProcessInfo.processInfo.environment["PATH"] {
+            prefixes.append(contentsOf: envPath.split(separator: ":").map(String.init))
+        }
+        for prefix in prefixes {
+            let candidate = prefix + "/" + binary
+            if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
+        }
+        return nil
     }
 
     @objc private func handleDynamicMenuItem(_ sender: NSMenuItem) {
@@ -942,9 +980,15 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             agentsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills: up to date", color: .systemGreen)
         }
 
-        // Update Timetracker status line
-        if !timetrackerConfigured {
-            timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Timetracker: not installed", color: .systemGray)
+        // Update Timetracker status line. Hidden outright when the CLI is not on the
+        // machine: a permanent "not installed" row would sit in every developer's
+        // menu advertising a tool they have not adopted.
+        let timetrackerInstalled = Self.executablePath(for: "timetracker") != nil
+        timetrackerStatusMenuItem?.isHidden = !timetrackerInstalled
+        if !timetrackerInstalled {
+            // nothing to report
+        } else if !timetrackerConfigured {
+            timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Timetracker: not set up", color: .systemGray)
         } else if hasTimetrackerUpdates {
             timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Timetracker updates available", color: .systemOrange)
         } else {

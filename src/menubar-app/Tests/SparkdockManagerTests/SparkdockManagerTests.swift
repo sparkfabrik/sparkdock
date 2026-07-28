@@ -104,11 +104,11 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "Http-proxy check command should be correct")
     }
 
-    /// Commands declared in the shipped menu.json, so a changed string is caught here
-    /// rather than at the moment a user clicks the entry.
-    private func shippedMenuCommands() throws -> [String] {
-        // #filePath is Tests/SparkdockManagerTests/<this file>; three levels up is the
-        // package root.
+    /// Items declared in the shipped menu.json, so a changed command string or a
+    /// missing binary requirement is caught here rather than when a user clicks.
+    /// #filePath is Tests/SparkdockManagerTests/<this file>; three levels up is the
+    /// package root.
+    private func shippedMenuItems() throws -> [[String: Any]] {
         let packageRoot = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
             .deletingLastPathComponent()
@@ -123,7 +123,25 @@ final class SparkdockManagerTests: XCTestCase {
         return sections
             .compactMap { $0["items"] as? [[String: Any]] }
             .flatMap { $0 }
-            .compactMap { $0["command"] as? String }
+    }
+
+    private func shippedMenuCommands() throws -> [String] {
+        try shippedMenuItems().compactMap { $0["command"] as? String }
+    }
+
+    /// Every timetracker entry declares the binary it needs, so a machine without the
+    /// CLI does not carry menu items that can only fail.
+    func testTimetrackerMenuItemsRequireTheBinary() throws {
+        let items = try shippedMenuItems()
+        let timetrackerItems = items.filter { ($0["command"] as? String)?.hasPrefix("timetracker") == true }
+
+        XCTAssertFalse(timetrackerItems.isEmpty, "expected timetracker entries in menu.json")
+        for item in timetrackerItems {
+            XCTAssertEqual(
+                item["requires_binary"] as? String, "timetracker",
+                "\(item["title"] ?? "item") must be conditional on the timetracker binary"
+            )
+        }
     }
 
     func testTimetrackerMenuCommands() throws {
