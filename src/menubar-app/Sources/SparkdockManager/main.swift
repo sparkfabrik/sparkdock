@@ -385,7 +385,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     /// Whether a configured menu item should appear on this machine.
     private func itemIsAvailable(_ item: MenuItem) -> Bool {
         guard let binary = item.requiresBinary else { return true }
-        return Self.executablePath(for: binary) != nil
+        if Self.executablePath(for: binary) != nil { return true }
+        // Logged, not silent: "my menu entry is missing" is otherwise indistinguishable
+        // from a broken menu file, and this is the answer to that support question.
+        AppConstants.logger.info("Hiding menu item '\(item.title, privacy: .public)': \(binary, privacy: .public) is not installed")
+        return false
     }
 
     /// Locates an executable the way the update checks do. The app inherits
