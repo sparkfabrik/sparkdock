@@ -38,10 +38,20 @@ fileprivate struct MenuItem: Codable {
     let type: MenuItemType
     let command: String?
     let url: String?
+    /// Name of an executable this item depends on. When set and that executable is
+    /// not on the machine, the item is left out of the menu entirely: an entry that
+    /// only produces "command not found" is worse than no entry, and every developer
+    /// would otherwise carry menu items for tools they have not installed.
+    let requiresBinary: String?
 
     enum MenuItemType: String, Codable {
         case command = "command"
         case url = "url"
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case title, type, command, url
+        case requiresBinary = "requires_binary"
     }
 }
 
@@ -52,7 +62,8 @@ private enum RecheckNotification {
     static let brew = "\(prefix).brew"
     static let httpProxy = "\(prefix).http-proxy"
     static let agents = "\(prefix).agents"
-    static let all = [sparkdock, brew, httpProxy, agents]
+    static let timetracker = "\(prefix).timetracker"
+    static let all = [sparkdock, brew, httpProxy, agents, timetracker]
 }
 
 // MARK: - Menu Item Tags
@@ -62,6 +73,7 @@ private enum MenuItemTag: Int {
     case upgradeBrew = 3
     case upgradeHttpProxy = 4
     case upgradeAgents = 5
+    case upgradeTimetracker = 6
 }
 
 // MARK: - Brew Package Types
@@ -125,6 +137,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var hasHttpProxyUpdates = false
     var hasAgentUpdates = false
     var agentsLastStatus: Int32? = nil
+    var hasTimetrackerUpdates = false
+    var timetrackerLastStatus: Int32? = nil
     var outdatedBrewFormulaeCount = 0
     var outdatedBrewCasksCount = 0
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
@@ -135,12 +149,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var brewStatusMenuItem: NSMenuItem?
     var httpProxyStatusMenuItem: NSMenuItem?
     var agentsStatusMenuItem: NSMenuItem?
+    var timetrackerStatusMenuItem: NSMenuItem?
     var updateNowMenuItem: NSMenuItem?
     var upgradeBrewMenuItem: NSMenuItem?
     var upgradeHttpProxyMenuItem: NSMenuItem?
     var upgradeAgentsMenuItem: NSMenuItem?
+    var upgradeTimetrackerMenuItem: NSMenuItem?
     private var pathMonitor: NWPathMonitor?
     fileprivate var menuConfig: MenuConfig?
+    /// Dynamic menu entries gated on `requires_binary`, kept so their visibility can
+    /// be re-evaluated on every UI refresh instead of only at menu construction.
+    fileprivate var dynamicMenuSections: [(header: NSMenuItem, separator: NSMenuItem, entries: [(menuItem: NSMenuItem, config: MenuItem)])] = []
     // Cache icons to avoid recreating them
     private var cachedNormalIcon: NSImage?
     private var cachedUpdateIcon: NSImage?
@@ -197,6 +216,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
         agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -274,6 +294,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(agentsStatusItem)
         self.agentsStatusMenuItem = agentsStatusItem
 
+        let timetrackerStatusItem = NSMenuItem(title: "Checking for updates (Timetracker)...", action: #selector(checkTimetrackerUpdatesAction), keyEquivalent: "")
+        timetrackerStatusItem.target = self
+        // Hidden from construction on machines without the CLI, so non-users never
+        // see a transient "Checking..." row before the first check completes.
+        timetrackerStatusItem.isHidden = Self.executablePath(for: "timetracker") == nil
+        menu.addItem(timetrackerStatusItem)
+        self.timetrackerStatusMenuItem = timetrackerStatusItem
+
         menu.addItem(.separator())
 
         let updateItem = NSMenuItem(title: "", action: #selector(updateNow), keyEquivalent: "")
@@ -312,6 +340,15 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(upgradeAgentsItem)
         upgradeAgentsMenuItem = upgradeAgentsItem
 
+        let upgradeTimetrackerItem = NSMenuItem(title: "", action: #selector(upgradeTimetracker), keyEquivalent: "")
+        upgradeTimetrackerItem.target = self
+        upgradeTimetrackerItem.tag = MenuItemTag.upgradeTimetracker.rawValue
+        upgradeTimetrackerItem.attributedTitle = NSAttributedString(string: "Upgrade Timetracker", attributes: [
+            .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
+        ])
+        menu.addItem(upgradeTimetrackerItem)
+        upgradeTimetrackerMenuItem = upgradeTimetrackerItem
+
         menu.addItem(.separator())
 
         // Add dynamic menu sections from configuration
@@ -335,15 +372,65 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             sectionItem.isEnabled = false
             menu.addItem(sectionItem)
 
+            var entries: [(menuItem: NSMenuItem, config: MenuItem)] = []
             for item in section.items {
                 let menuItem = NSMenuItem(title: item.title, action: #selector(handleDynamicMenuItem(_:)), keyEquivalent: "")
                 menuItem.target = self
                 menuItem.representedObject = item
                 menu.addItem(menuItem)
+                entries.append((menuItem, item))
             }
 
-            menu.addItem(.separator())
+            let separator = NSMenuItem.separator()
+            menu.addItem(separator)
+            dynamicMenuSections.append((sectionItem, separator, entries))
         }
+        refreshDynamicMenuItems()
+    }
+
+    /// Re-applies the `requires_binary` gate to the configured menu entries, so
+    /// installing (or removing) a tool is reflected on the next refresh without
+    /// restarting the app.
+    private func refreshDynamicMenuItems() {
+        for section in dynamicMenuSections {
+            var anyVisible = false
+            for (menuItem, config) in section.entries {
+                let available = itemIsAvailable(config)
+                menuItem.isHidden = !available
+                if available { anyVisible = true }
+            }
+            // A heading with nothing under it is noise, so a section whose every item
+            // is gated off is hidden along with its separator.
+            section.header.isHidden = !anyVisible
+            section.separator.isHidden = !anyVisible
+        }
+    }
+
+    /// Whether a configured menu item should appear on this machine.
+    private func itemIsAvailable(_ item: MenuItem) -> Bool {
+        guard let binary = item.requiresBinary else { return true }
+        if Self.executablePath(for: binary) != nil { return true }
+        // Logged, not silent: "my menu entry is missing" is otherwise indistinguishable
+        // from a broken menu file, and this is the answer to that support question.
+        AppConstants.logger.info("Hiding menu item '\(item.title, privacy: .public)': \(binary, privacy: .public) is not installed")
+        return false
+    }
+
+    /// Locates an executable the way the update checks do. The app inherits
+    /// launchd's PATH (/usr/bin:/bin:/usr/sbin:/sbin), which contains none of the
+    /// places developer tools install to, so the usual prefixes are searched
+    /// explicitly rather than trusting the environment.
+    static func executablePath(for binary: String) -> String? {
+        var prefixes = ["/opt/homebrew/bin", "/usr/local/bin"]
+        prefixes.append(NSHomeDirectory() + "/.local/bin")
+        if let envPath = ProcessInfo.processInfo.environment["PATH"] {
+            prefixes.append(contentsOf: envPath.split(separator: ":").map(String.init))
+        }
+        for prefix in prefixes {
+            let candidate = prefix + "/" + binary
+            if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
+        }
+        return nil
     }
 
     @objc private func handleDynamicMenuItem(_ sender: NSMenuItem) {
@@ -409,6 +496,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                     self?.brewStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
                     self?.httpProxyStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
                     self?.agentsStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+                    self?.timetrackerStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
                     self?.checkForUpdates()
                 }
             }
@@ -433,6 +521,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
         agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -441,6 +530,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
         agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -461,6 +551,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     @objc private func checkAgentUpdatesAction() {
         agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        checkForUpdates()
+    }
+
+    @objc private func checkTimetrackerUpdatesAction() {
+        timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -488,7 +583,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 RecheckNotification.sparkdock: self.recheckSparkdock,
                 RecheckNotification.brew: self.recheckBrew,
                 RecheckNotification.httpProxy: self.recheckHttpProxy,
-                RecheckNotification.agents: self.recheckAgents
+                RecheckNotification.agents: self.recheckAgents,
+                RecheckNotification.timetracker: self.recheckTimetracker
             ]
             handlers[name]?()
         }
@@ -543,6 +639,18 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func recheckTimetracker() {
+        checkGeneration += 1
+        timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
+        Task(priority: .background) {
+            let result = await runTimetrackerCheck()
+            await MainActor.run {
+                self.hasTimetrackerUpdates = result
+                self.refreshUI()
+            }
+        }
+    }
+
     /// Refresh UI using current instance state (safe for per-subsystem updates)
     private func refreshUI() {
         updateUI(
@@ -551,7 +659,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             outdatedBrewCasks: outdatedBrewCasksCount,
             hasHttpProxyUpdates: hasHttpProxyUpdates,
             hasAgentUpdates: hasAgentUpdates,
-            agentsConfigured: isAgentsConfigured()
+            agentsConfigured: isAgentsConfigured(),
+            hasTimetrackerUpdates: hasTimetrackerUpdates,
+            timetrackerConfigured: isTimetrackerConfigured()
         )
     }
 
@@ -564,13 +674,15 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             let hasHttpProxyUpdates = await runHttpProxyCheck()
             let hasAgentUpdates = await runAgentsCheck()
             let agentsConfigured = isAgentsConfigured()
+            let hasTimetrackerUpdates = await runTimetrackerCheck()
+            let timetrackerConfigured = isTimetrackerConfigured()
             await MainActor.run {
                 // Discard results if a per-subsystem recheck started after this full check
                 guard self.checkGeneration == expectedGeneration else {
                     AppConstants.logger.info("Discarding stale full-check results (generation \(expectedGeneration) != \(self.checkGeneration))")
                     return
                 }
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured)
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured)
             }
         }
     }
@@ -782,6 +894,21 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status == 0
     }
 
+    private func runTimetrackerCheck() async -> Bool {
+        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
+            AppConstants.logger.info("sparkdock-check-updates not found, timetracker check skipped")
+            timetrackerLastStatus = nil
+            return false
+        }
+        let status = await runCheckUpdatesCommandStatus("timetracker")
+        timetrackerLastStatus = status
+        // Exit code 3 = not configured (CLI not installed yet)
+        if status == 3 {
+            return false
+        }
+        return status == 0
+    }
+
     /// Agent resources are considered configured when script exists AND last check returned a known good status.
     /// Returns false for: missing script, nil (error/timeout), or exit 3 (not configured).
     private func isAgentsConfigured() -> Bool {
@@ -795,15 +922,29 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status != 3
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true) {
+    /// Timetracker is considered configured when the CLI is installed and reachable.
+    /// Returns false for: missing script, nil (error/timeout), or exit 3 (CLI absent or not set up).
+    private func isTimetrackerConfigured() -> Bool {
+        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
+            return false
+        }
+        guard let status = timetrackerLastStatus else {
+            // Unknown/failed status — treat as not configured to avoid misleading green UI
+            return false
+        }
+        return status != 3
+    }
+
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true) {
         self.hasUpdates = hasUpdates
         self.hasHttpProxyUpdates = hasHttpProxyUpdates
         self.hasAgentUpdates = hasAgentUpdates
+        self.hasTimetrackerUpdates = hasTimetrackerUpdates
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
         self.outdatedBrewCasksCount = outdatedBrewCasks
         let totalBrewCount = totalOutdatedBrewCount
 
-        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates || hasAgentUpdates
+        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates || hasAgentUpdates || hasTimetrackerUpdates
         statusItem?.button?.image = loadIcon(hasUpdates: hasAnyUpdates)
 
         // Create more detailed tooltip
@@ -816,6 +957,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
         if hasAgentUpdates {
             tooltipParts.append("Agent Skills updates available")
+        }
+        if hasTimetrackerUpdates {
+            tooltipParts.append("Timetracker updates available")
         }
         if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
             tooltipParts.append("\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks outdated")
@@ -862,6 +1006,21 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             agentsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills updates available", color: .systemOrange)
         } else {
             agentsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills: up to date", color: .systemGreen)
+        }
+
+        // Update Timetracker status line. Hidden outright when the CLI is not on the
+        // machine: a permanent "not installed" row would sit in every developer's
+        // menu advertising a tool they have not adopted.
+        let timetrackerInstalled = Self.executablePath(for: "timetracker") != nil
+        timetrackerStatusMenuItem?.isHidden = !timetrackerInstalled
+        if !timetrackerInstalled {
+            // nothing to report
+        } else if !timetrackerConfigured {
+            timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Timetracker: not set up", color: .systemGray)
+        } else if hasTimetrackerUpdates {
+            timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Timetracker updates available", color: .systemOrange)
+        } else {
+            timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Timetracker: up to date", color: .systemGreen)
         }
 
         // Update the "Upgrade Sparkdock" menu item visibility
@@ -911,6 +1070,19 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 upgradeAgentsItem.isHidden = true
             }
         }
+
+        // Update the "Upgrade Timetracker" menu item visibility
+        if let upgradeTimetrackerItem = upgradeTimetrackerMenuItem {
+            if hasTimetrackerUpdates {
+                upgradeTimetrackerItem.title = "Upgrade Timetracker"
+                upgradeTimetrackerItem.isEnabled = true
+                upgradeTimetrackerItem.isHidden = false
+            } else {
+                upgradeTimetrackerItem.isHidden = true
+            }
+        }
+
+        refreshDynamicMenuItems()
     }
 
     @objc private func updateNow() {
@@ -935,6 +1107,15 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         let agentsConfigured = isAgentsConfigured()
         guard hasAgentUpdates || !agentsConfigured else { return }
         executeTerminalCommand("sjust sf-harness-sync", recheckNotification: RecheckNotification.agents)
+    }
+
+    @objc private func upgradeTimetracker() {
+        guard hasTimetrackerUpdates else { return }
+        // `timetracker update --apply` and not the `timetracker-update` shell
+        // function: executeTerminalCommand runs a non-interactive login shell, and
+        // zsh sources ~/.zshrc only for interactive shells, so the function is not
+        // defined there. The binary knows how to update itself.
+        executeTerminalCommand("timetracker update --apply", recheckNotification: RecheckNotification.timetracker)
     }
 
 

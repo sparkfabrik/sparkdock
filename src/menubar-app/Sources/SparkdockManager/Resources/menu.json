@@ -14,6 +14,18 @@
             "title": "Open http-proxy dashboard",
             "type": "command",
             "command": "spark-http-proxy dashboard"
+          },
+          {
+            "title": "Open timetracker",
+            "type": "command",
+            "command": "timetracker tui",
+            "requires_binary": "timetracker"
+          },
+          {
+            "title": "Update timetracker",
+            "type": "command",
+            "command": "timetracker update --apply",
+            "requires_binary": "timetracker"
           }
         ]
       },

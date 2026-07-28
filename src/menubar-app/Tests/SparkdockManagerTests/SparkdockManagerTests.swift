@@ -104,6 +104,66 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "Http-proxy check command should be correct")
     }
 
+    /// Items declared in the shipped menu.json, so a changed command string or a
+    /// missing binary requirement is caught here rather than when a user clicks.
+    /// #filePath is Tests/SparkdockManagerTests/<this file>; three levels up is the
+    /// package root.
+    private func shippedMenuItems() throws -> [[String: Any]] {
+        let packageRoot = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+        let menuURL = packageRoot
+            .appendingPathComponent("Sources/SparkdockManager/Resources/menu.json")
+
+        let data = try Data(contentsOf: menuURL)
+        let root = try JSONSerialization.jsonObject(with: data) as? [String: Any]
+        let menu = root?["menu"] as? [String: Any]
+        let sections = menu?["sections"] as? [[String: Any]] ?? []
+        return sections
+            .compactMap { $0["items"] as? [[String: Any]] }
+            .flatMap { $0 }
+    }
+
+    private func shippedMenuCommands() throws -> [String] {
+        try shippedMenuItems().compactMap { $0["command"] as? String }
+    }
+
+    /// Every timetracker entry declares the binary it needs, so a machine without the
+    /// CLI does not carry menu items that can only fail.
+    func testTimetrackerMenuItemsRequireTheBinary() throws {
+        let items = try shippedMenuItems()
+        let timetrackerItems = items.filter { ($0["command"] as? String)?.hasPrefix("timetracker") == true }
+
+        XCTAssertFalse(timetrackerItems.isEmpty, "expected timetracker entries in menu.json")
+        for item in timetrackerItems {
+            XCTAssertEqual(
+                item["requires_binary"] as? String, "timetracker",
+                "\(item["title"] ?? "item") must be conditional on the timetracker binary"
+            )
+        }
+    }
+
+    func testTimetrackerMenuCommands() throws {
+        let commands = try shippedMenuCommands()
+
+        XCTAssertTrue(
+            commands.contains("timetracker tui"),
+            "menu.json should offer the timetracker terminal UI; found \(commands)"
+        )
+        // `timetracker update --apply` and not the `timetracker-update` shell function:
+        // executeTerminalCommand runs a non-interactive login shell, which does not
+        // source ~/.zshrc, so the function is undefined there.
+        XCTAssertTrue(
+            commands.contains("timetracker update --apply"),
+            "menu.json should update the CLI through the binary, not the shell function; found \(commands)"
+        )
+        XCTAssertFalse(
+            commands.contains("timetracker-update"),
+            "the bare shell function cannot run in a non-interactive login shell"
+        )
+    }
+
     // MARK: - Darwin Recheck Notification Tests
 
     /// Expected notification names — must match RecheckNotification constants in main.swift.
@@ -111,7 +171,8 @@ final class SparkdockManagerTests: XCTestCase {
         "com.sparkfabrik.sparkdock.recheck.sparkdock",
         "com.sparkfabrik.sparkdock.recheck.brew",
         "com.sparkfabrik.sparkdock.recheck.http-proxy",
-        "com.sparkfabrik.sparkdock.recheck.agents"
+        "com.sparkfabrik.sparkdock.recheck.agents",
+        "com.sparkfabrik.sparkdock.recheck.timetracker"
     ]
 
     func testRecheckNotificationNamesAreUnique() {
@@ -128,7 +189,7 @@ final class SparkdockManagerTests: XCTestCase {
     }
 
     func testRecheckNotificationsHasOneEntryPerSubsystem() {
-        XCTAssertEqual(Self.expectedRecheckNotifications.count, 4, "Should have exactly 4 recheck notifications (one per subsystem)")
+        XCTAssertEqual(Self.expectedRecheckNotifications.count, 5, "Should have exactly 5 recheck notifications (one per subsystem)")
     }
 
     func testNotifyutilExists() {
