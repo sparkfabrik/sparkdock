@@ -101,6 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved `google-cloud-sdk` from `cask_packages` to `cask_latest_packages`, so an existing Google Cloud SDK is upgraded on every provisioning pass instead of staying pinned at the version installed on first provision
 - Changed `sparkdock tui` status checks to run in parallel and stream into the dashboard row by row, each under a 60-second timeout so a hung command can never pin a row on the loading ellipsis; returning to the dashboard keeps the previous rows visible while the new round refreshes in the background
 - Changed `sparkdock-tui update` and `--no-tui` to exec the `sparkdock` bash entrypoint (self-update plus provisioning) instead of printing a stub; a bare non-TTY invocation now refuses with guidance rather than provisioning implicitly
 - Changed `sparkdock tui` run cancellation to signal the child's whole process group (nested processes included) and escalate to SIGKILL after a five-second grace period if SIGINT is ignored
