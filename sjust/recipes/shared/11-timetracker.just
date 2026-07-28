@@ -19,7 +19,7 @@ sf-timetracker-info:
         echo "     Version:   $(timetracker version 2>/dev/null || echo "unknown")"
         echo ""
         echo "  Start the terminal UI with: ${bold}timetracker tui${normal}"
-        echo "  Update the CLI with:        ${bold}timetracker-update${normal}"
+        echo "  Update the CLI with:        ${bold}timetracker update --apply${normal}"
     else
         echo "  ❌ Not installed."
         echo ""

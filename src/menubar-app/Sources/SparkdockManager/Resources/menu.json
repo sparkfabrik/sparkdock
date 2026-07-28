@@ -23,7 +23,7 @@
           {
             "title": "Update timetracker",
             "type": "command",
-            "command": "timetracker-update"
+            "command": "timetracker update --apply"
           }
         ]
       },

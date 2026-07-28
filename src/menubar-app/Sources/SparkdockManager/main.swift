@@ -1037,9 +1037,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     @objc private func upgradeTimetracker() {
         guard hasTimetrackerUpdates else { return }
-        // timetracker-update is a shell function the CLI installs, so it resolves
-        // in the login shell used by executeTerminalCommand.
-        executeTerminalCommand("timetracker-update", recheckNotification: RecheckNotification.timetracker)
+        // `timetracker update --apply` and not the `timetracker-update` shell
+        // function: executeTerminalCommand runs a non-interactive login shell, and
+        // zsh sources ~/.zshrc only for interactive shells, so the function is not
+        // defined there. The binary knows how to update itself.
+        executeTerminalCommand("timetracker update --apply", recheckNotification: RecheckNotification.timetracker)
     }
 
 

@@ -110,8 +110,8 @@ final class SparkdockManagerTests: XCTestCase {
     }
 
     func testTimetrackerUpgradeCommand() {
-        let timetrackerUpgradeCommand = "timetracker-update"
-        XCTAssertEqual(timetrackerUpgradeCommand, "timetracker-update", "Timetracker upgrade command should be correct")
+        let timetrackerUpgradeCommand = "timetracker update --apply"
+        XCTAssertEqual(timetrackerUpgradeCommand, "timetracker update --apply", "Timetracker upgrade command should be correct")
     }
 
     // MARK: - Darwin Recheck Notification Tests
