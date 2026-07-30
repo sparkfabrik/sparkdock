@@ -162,6 +162,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed provisioning failing late with `sudo: a terminal is required to read the password` on pkg-based casks (e.g. `docker-desktop`, `zoom`) when the `BECOME password:` prompt was answered with an empty or wrong password: the become password is now validated against `sudo` right at the start of the playbook (`no_log`, never echoed) and the run aborts immediately with a clear re-run message instead of half-provisioning the machine
 - Fixed `sparkdock-agents-sync` printing a spurious `WARN No 'agents/system/' directory found in upstream repo.` on every run: upstream now advertises no system agents (`catalog.json` `"agents": {}`, the-architect removed), so an absent or empty `agents/system/` is a valid state and no longer warns
 - Fixed `sjust sf-openspec-install-global` ignoring the tool list once `~/openspec` exists: the script now always runs `openspec init` with the requested tools (additive and idempotent) before refreshing with `openspec update`, so new tools such as `opencode` or `github-copilot` can be added on already-provisioned machines
 - Fixed `sparkdock tui` late output from a cancelled run bleeding into the next run's view (or marking the new run finished): every runner message now carries a run generation stamp and stale messages are dropped
