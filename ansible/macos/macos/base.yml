@@ -22,6 +22,36 @@
       set_fact:
         is_non_interactive: "{{ ansible_facts['env'].CI is defined or ansible_facts['env'].GITHUB_ACTIONS is defined or ansible_facts['env'].RUNNER_OS is defined or ansible_facts['env'].HOME == '/var/root' or ansible_facts['env'].ANSIBLE_SUDO_PASSWORD is defined }}"
 
+    # Casks like docker-desktop and zoom shell out to their own internal `sudo`
+    # (mkdir /usr/local/bin, `installer -pkg`) instead of honoring the
+    # homebrew_cask module's sudo_password/SUDO_ASKPASS. Priming the sudo
+    # ticket here, then refreshing it in the background, lets those internal
+    # calls succeed on the existing cache instead of failing with
+    # "a terminal is required to read the password".
+    - name: Prime sudo credential cache for cask/pkg installers
+      ansible.builtin.command: sudo -S -v
+      args:
+        stdin: "{{ ansible_become_pass }}"
+      when:
+        - not is_non_interactive
+        - ansible_become_pass is defined
+      changed_when: false
+      become: false
+      tags: always
+
+    - name: Keep sudo credential cache warm during package installation
+      ansible.builtin.shell: |
+        nohup bash -c 'for i in $(seq 1 60); do sudo -n -v 2>/dev/null || break; sleep 60; done' >/dev/null 2>&1 &
+        disown
+      args:
+        executable: /bin/bash
+      when:
+        - not is_non_interactive
+        - ansible_become_pass is defined
+      changed_when: false
+      become: false
+      tags: always
+
     - name: Load all packages
       include_vars:
         file: "{{ dev_env_dir }}/config/packages/all-packages.yml"
