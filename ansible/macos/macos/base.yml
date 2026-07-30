@@ -5,6 +5,21 @@
   gather_facts: yes
   become: no
 
+  # The become password must be collected here, as a play variable, and not
+  # via --ask-become-pass: the CLI flag feeds ansible's become machinery but
+  # never defines the ansible_become_pass template variable, so every
+  # "{{ ansible_become_pass }}" reference below (homebrew_cask sudo_password,
+  # the fail-fast validation) silently resolved to undefined and pkg-based
+  # casks failed mid-run with "sudo: a terminal is required to read the
+  # password". vars_prompt defines the variable, which also feeds become for
+  # privileged tasks. Without a TTY the prompt is skipped (the variable is
+  # None, falsy everywhere it is used), and callers that must not prompt
+  # pass -e ansible_become_pass= explicitly.
+  vars_prompt:
+    - name: ansible_become_pass
+      prompt: "BECOME password"
+      private: true
+
   # Every brew/cask task inherits this, so brew never upgrades casks that manage
   # their own updates (auto_updates true) — see https://github.com/Homebrew/brew/pull/21882.
   environment:
@@ -17,17 +32,10 @@
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
 
   tasks:
-    # A become password is collected exactly when the run is interactive:
-    # the justfile passes --ask-become-pass for interactive runs and
-    # --become (passwordless sudo) in CI. Deriving the fact from the
-    # password's presence keeps the playbook's idea of "interactive"
-    # aligned with the shell entrypoint (is_ci_environment in
-    # bin/common/utils.sh) by construction — the two can no longer
-    # disagree when a CI-style variable leaks into a developer's shell.
     - name: Check if running in non-interactive environment
       tags: always
       set_fact:
-        is_non_interactive: "{{ ansible_become_pass is not defined }}"
+        is_non_interactive: "{{ ansible_facts['env'].CI is defined or ansible_facts['env'].GITHUB_ACTIONS is defined or ansible_facts['env'].RUNNER_OS is defined or ansible_facts['env'].HOME == '/var/root' }}"
 
     # Pkg-based casks (docker-desktop, zoom, ...) run sudo during install.
     # Homebrew wires that sudo to an askpass helper (SUDO_ASKPASS + -A) that
@@ -37,11 +45,14 @@
     # therefore surfaces much later as a cryptic "sudo: a terminal is
     # required to read the password" failure inside the cask install.
     # Validate the password up front and fail fast with a clear message.
-    # Skipped when no password was collected (CI, or tag-only runs such as
-    # `--tags tui` that contain no privileged tasks).
+    # Runs only when cask work is on the menu (full runs or explicit cask
+    # tags); tag-only runs that suppress the prompt (e.g. --tags tui with
+    # -e ansible_become_pass=) are left alone.
     - name: Validate become password (fail fast for cask installers)
       tags: always
-      when: not is_non_interactive
+      when:
+        - not is_non_interactive
+        - ('all' in ansible_run_tags) or ('cask' in ansible_run_tags)
       block:
         - name: Check the become password against sudo
           ansible.builtin.command: sudo -S -k -v

@@ -332,8 +332,8 @@ func (m Model) planFor(action string) (runSpec, bool) {
 		// Canonical path: the recipe git-updates the http-proxy repo, then
 		// re-provisions. Run it with the sparkdock callback env so its nested
 		// ansible emits the structured feed too; render Structured (the decoder's
-		// \r handling keeps git's progress clean). The nested --ask-become-pass
-		// prompt is answered via the password page.
+		// \r handling keeps git's progress clean). The nested vars_prompt
+		// "BECOME password:" prompt is answered via the password page.
 		return runSpec{title: "HTTP proxy · upgrade", rnr: runner.ForCommandEnv(m.callbackEnv(), "sjust", "http-proxy-install-update"), scroll: runview.FollowTail, render: runview.Structured}, true
 	case "device":
 		return runSpec{title: "Device info", rnr: runner.ForCommand("ayse-get-sm"), scroll: runview.PinTop, render: runview.Structured}, true

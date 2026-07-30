@@ -285,7 +285,9 @@ sparkdock-install-tags tags:
     # Ensure Python3 is installed and available at the expected location
     sparkdock ensure-python3
 
-    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}" --ask-become-pass
+    # The play's vars_prompt collects the become password (--ask-become-pass
+    # never defines the ansible_become_pass template variable the cask tasks use).
+    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "{{tags}}"
 
 # Build and install the Sparkdock terminal hub (sparkdock-tui). The 'tui' tag is become: false, so no sudo password is required.
 [group('sparkdock')]
@@ -294,7 +296,7 @@ sparkdock-tui-install:
     set -euo pipefail
     cd {{ sparkdock_path }}
     sparkdock ensure-python3
-    ansible-playbook -i ansible/inventory.ini ansible/macos.yml --tags tui
+    ansible-playbook -i ansible/inventory.ini ansible/macos.yml --tags tui -e ansible_become_pass=
     echo "✓ sparkdock-tui installed. Launch it with 'sparkdock tui'."
 
 # Fetch latest Sparkdock updates from git repository without running system configuration. Useful for getting the newest sjust recipes and commands without triggering a full system update.
@@ -358,7 +360,7 @@ sparkdock-menubar-install:
     echo "🔧 Running ansible with menubar tag to rebuild and install..."
     # No sudo needed: binary installs to user-owned /opt/homebrew/bin and the
     # LaunchAgent is user-level, so no become password is required.
-    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar"
+    ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e ansible_become_pass=
     echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
     echo "💡 The app should now be running via LaunchAgent"
 
@@ -413,7 +415,7 @@ sparkdock-menubar-reinstall:
     cd {{ sparkdock_path }}
 
     # Try to build the menubar app
-    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" --ask-become-pass; then
+    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e ansible_become_pass=; then
         echo ""
         echo "🎉 Success! Sparkdock menu bar app has been rebuilt and installed!"
         echo "💡 The app should now be running via LaunchAgent"

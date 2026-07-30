@@ -18,20 +18,24 @@ run-ansible-playbook TAGS="all":
     # Single shell-side CI-detection source of truth.
     source ./bin/common/utils.sh
 
-    # CI runs with --become and no prompt; interactive runs prompt once via
-    # --ask-become-pass, which populates ansible_become_pass natively (no env var).
+    # CI runs with --become and no prompt; interactive runs are prompted once
+    # by the play's vars_prompt, which defines ansible_become_pass as a real
+    # template variable (--ask-become-pass never does, so the cask
+    # sudo_password wiring and the fail-fast validation would not see it).
+    # Seeded with -v so the array is never empty: expanding an empty array
+    # under `set -u` errors on the stock /bin/bash 3.2 of a fresh Mac.
+    BECOME_ARGS=(-v)
     if is_ci_environment; then
         echo "Running in CI mode, skipping sudo password prompt"
-        BECOME_FLAG="--become"
+        BECOME_ARGS+=(--become)
     else
         echo "Interactive run: enter your macOS user password at the BECOME prompt"
-        BECOME_FLAG="--ask-become-pass"
     fi
 
     if [ -z "${TAGS}" ]; then
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini "${BECOME_FLAG}" -v
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini "${BECOME_ARGS[@]}"
     else
-        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --tags=${TAGS} "${BECOME_FLAG}" -v
+        ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini --tags=${TAGS} "${BECOME_ARGS[@]}"
     fi
 
 # Run Python unit tests (stdlib unittest only; no third-party deps).

@@ -97,7 +97,7 @@ func TestAnsibleBuilder_Flags(t *testing.T) {
 	if !contains(joined, "force_fail=true") {
 		t.Errorf("argv missing force_fail: %v", cmd.Args)
 	}
-	// no become password env, and no --ask-become-pass (sudo is primed instead)
+	// no become password in the environment
 	for _, kv := range cmd.Env {
 		if contains(kv, "ANSIBLE_BECOME_PASS") {
 			t.Errorf("env must not carry a become password: %q", kv)
@@ -105,20 +105,36 @@ func TestAnsibleBuilder_Flags(t *testing.T) {
 	}
 }
 
-func TestAnsibleBuilder_SudoAsksBecomePass(t *testing.T) {
+func TestAnsibleBuilder_SudoLetsVarsPromptAsk(t *testing.T) {
 	cmd := AnsibleBuilder(context.Background(), Options{Playbook: "playbook.yml", Sudo: true})
 	joined := ""
 	for _, a := range cmd.Args {
 		joined += a + " "
 	}
-	if !contains(joined, "--ask-become-pass") {
-		t.Errorf("sudo run must add --ask-become-pass: %v", cmd.Args)
+	// The play's vars_prompt asks for the password; no CLI flag, and no
+	// prompt suppression either.
+	if contains(joined, "--ask-become-pass") {
+		t.Errorf("sudo run must not add --ask-become-pass (vars_prompt asks): %v", cmd.Args)
+	}
+	if contains(joined, "ansible_become_pass=") {
+		t.Errorf("sudo run must not suppress the vars_prompt: %v", cmd.Args)
 	}
 	// no password anywhere in env or argv
 	for _, kv := range cmd.Env {
 		if contains(kv, "ANSIBLE_BECOME_PASS") {
 			t.Errorf("env must not carry a become password: %q", kv)
 		}
+	}
+}
+
+func TestAnsibleBuilder_NoSudoSuppressesVarsPrompt(t *testing.T) {
+	cmd := AnsibleBuilder(context.Background(), Options{Playbook: "playbook.yml"})
+	joined := ""
+	for _, a := range cmd.Args {
+		joined += a + " "
+	}
+	if !contains(joined, "ansible_become_pass=") {
+		t.Errorf("non-sudo run must suppress the vars_prompt with -e ansible_become_pass=: %v", cmd.Args)
 	}
 }
 
@@ -148,7 +164,7 @@ func TestAnsibleBuilder_SelfUpdateWrapsInGuardedGit(t *testing.T) {
 	for _, a := range cmd.Args {
 		joined += a + " "
 	}
-	if !contains(joined, "ansible/macos.yml") || !contains(joined, "--ask-become-pass") {
+	if !contains(joined, "ansible/macos.yml") {
 		t.Errorf("ansible args missing from positional args: %v", cmd.Args)
 	}
 	var hasDir bool
