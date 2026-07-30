@@ -17,6 +17,7 @@ sf-harness-sync $force="":
 #           sf-harness-category enable angular
 #           sf-harness-category disable angular --force
 [group('ai-coding-harness')]
+[no-exit-message]
 sf-harness-category $action="list" $category="" $force="":
     #!/usr/bin/env bash
     set -euo pipefail
