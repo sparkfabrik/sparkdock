@@ -35,7 +35,7 @@
     - name: Check if running in non-interactive environment
       tags: always
       set_fact:
-        is_non_interactive: "{{ ansible_facts['env'].CI is defined or ansible_facts['env'].GITHUB_ACTIONS is defined or ansible_facts['env'].RUNNER_OS is defined or ansible_facts['env'].HOME == '/var/root' }}"
+        is_non_interactive: "{{ ansible_facts['env'].CI is defined or ansible_facts['env'].GITHUB_ACTIONS is defined or ansible_facts['env'].RUNNER_OS is defined or ansible_facts['env'].CIRRUS_CI is defined or ansible_facts['env'].HOME == '/var/root' }}"
 
     # Pkg-based casks (docker-desktop, zoom, ...) run sudo during install.
     # Homebrew wires that sudo to an askpass helper (SUDO_ASKPASS + -A) that
