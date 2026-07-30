@@ -125,6 +125,37 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
         self.assertRegex(output, r"system\s+required\s+always\s+1")
         self.assertIn("sf-harness-category enable <category>", output)
 
+    def test_status_lists_unmanaged_skill_paths(self) -> None:
+        self.run_sync()
+        skills_dir = self.home / ".agents" / "skills"
+        unmanaged_skill = skills_dir / "custom-skill"
+        unmanaged_skill.mkdir()
+        (unmanaged_skill / "SKILL.md").write_text("---\nname: custom-skill\n---\n")
+
+        external_skill = self.home / ".external" / "linked-skill"
+        external_skill.mkdir(parents=True)
+        (external_skill / "SKILL.md").write_text("---\nname: linked-skill\n---\n")
+        (skills_dir / "linked-skill").symlink_to(
+            external_skill, target_is_directory=True
+        )
+
+        status_environment = self.environment | {"SPARKDOCK_SKIP_FETCH": "true"}
+        status = subprocess.run(
+            [str(STATUS_SCRIPT)],
+            env=status_environment,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        output = ANSI_ESCAPE.sub("", status.stdout + status.stderr).replace("│", " ")
+        self.assertIn("Unmanaged skills", output)
+        self.assertRegex(output, r"custom-skill\s+-\s+~/.agents/skills/custom-skill")
+        self.assertRegex(
+            output,
+            r"linked-skill\s+-\s+~/.agents/skills/linked-skill"
+            r"\s+->\s+~/.external/linked-skill",
+        )
+
     def test_enable_and_disable_are_idempotent(self) -> None:
         self.run_sync("category", "enable", "angular")
         self.run_sync("category", "enable", "angular")

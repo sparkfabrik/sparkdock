@@ -367,6 +367,8 @@ for _tid in "${sorted_tool_ids[@]}"; do
     skills_header+="${SEP}$(echo "${_tid}" | tr '[:lower:]' '[:upper:]')"
     empty_tool_cols+="${SEP}"
 done
+unmanaged_skills_table="NAME${SEP}STATUS${SEP}PATH"
+unmanaged_skills_found=false
 
 skills_found=false
 declare -A seen_skills=()
@@ -381,6 +383,30 @@ append_skill_row() {
     fi
     skills_csv_by_group["${group}"]+=$'\n'"${row}"
     skills_found_by_group["${group}"]=1
+    skills_found=true
+}
+
+append_unmanaged_skill_row() {
+    local skill_name="$1"
+    local status="$2"
+    local skill_path="$3"
+    local display_path="${skill_path}"
+    local link_target
+
+    if [[ "${display_path}" == "${HOME}/"* ]]; then
+        printf -v display_path '%s/%s' '~' "${display_path#"${HOME}/"}"
+    fi
+
+    if [[ -L "${skill_path}" ]]; then
+        link_target="$(readlink "${skill_path}")"
+        if [[ "${link_target}" == "${HOME}/"* ]]; then
+            printf -v link_target '%s/%s' '~' "${link_target#"${HOME}/"}"
+        fi
+        display_path+=" -> ${link_target}"
+    fi
+
+    unmanaged_skills_table+=$'\n'"${skill_name}${SEP}${status}${SEP}${display_path}"
+    unmanaged_skills_found=true
     skills_found=true
 }
 
@@ -407,8 +433,12 @@ if [[ -d "${SKILLS_DIR}" ]]; then
         fi
 
         if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
-            append_skill_row "${skill_group}" \
-                "${skill_name}${SEP}incomplete${SEP}no SKILL.md${SEP}${empty_tool_cols}"
+            if [[ -z "${manifest_section}" ]]; then
+                append_unmanaged_skill_row "${skill_name}" "no SKILL.md" "${skill_dir%/}"
+            else
+                append_skill_row "${skill_group}" \
+                    "${skill_name}${SEP}incomplete${SEP}no SKILL.md${SEP}${empty_tool_cols}"
+            fi
             continue
         fi
 
@@ -452,11 +482,10 @@ if [[ -d "${SKILLS_DIR}" ]]; then
             fi
 
             if has_upstream_conflict "${conflict_path}"; then
-                append_skill_row "user" \
-                    "${skill_name}${SEP}user${SEP}conflicts with upstream${SEP}${empty_tool_cols}"
+                append_unmanaged_skill_row \
+                    "${skill_name}" "conflicts with upstream" "${skill_dir%/}"
             else
-                append_skill_row "user" \
-                    "${skill_name}${SEP}user${SEP}${SEP}${empty_tool_cols}"
+                append_unmanaged_skill_row "${skill_name}" "-" "${skill_dir%/}"
             fi
         fi
     done
@@ -515,10 +544,10 @@ else
         render_table "${skills_csv_by_group[${skill_group}]}"
     done
 
-    if [[ -n "${skills_found_by_group[user]+_}" ]]; then
+    if [[ "${unmanaged_skills_found}" == "true" ]]; then
         echo ""
-        print_label "User-managed skills"
-        render_table "${skills_csv_by_group[user]}"
+        print_label "Unmanaged skills"
+        render_table "${unmanaged_skills_table}"
     fi
 fi
 
