@@ -17,10 +17,17 @@
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
 
   tasks:
+    # A become password is collected exactly when the run is interactive:
+    # the justfile passes --ask-become-pass for interactive runs and
+    # --become (passwordless sudo) in CI. Deriving the fact from the
+    # password's presence keeps the playbook's idea of "interactive"
+    # aligned with the shell entrypoint (is_ci_environment in
+    # bin/common/utils.sh) by construction — the two can no longer
+    # disagree when a CI-style variable leaks into a developer's shell.
     - name: Check if running in non-interactive environment
       tags: always
       set_fact:
-        is_non_interactive: "{{ ansible_facts['env'].CI is defined or ansible_facts['env'].GITHUB_ACTIONS is defined or ansible_facts['env'].RUNNER_OS is defined or ansible_facts['env'].HOME == '/var/root' }}"
+        is_non_interactive: "{{ ansible_become_pass is not defined }}"
 
     # Pkg-based casks (docker-desktop, zoom, ...) run sudo during install.
     # Homebrew wires that sudo to an askpass helper (SUDO_ASKPASS + -A) that
@@ -34,9 +41,7 @@
     # `--tags tui` that contain no privileged tasks).
     - name: Validate become password (fail fast for cask installers)
       tags: always
-      when:
-        - not is_non_interactive
-        - ansible_become_pass is defined
+      when: not is_non_interactive
       block:
         - name: Check the become password against sudo
           ansible.builtin.command: sudo -S -k -v

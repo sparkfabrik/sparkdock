@@ -264,12 +264,18 @@ ensure_python3() {
 
 # Check if we're running in a CI environment
 is_ci_environment() {
+    # An interactive terminal always means an interactive run: a stray
+    # CI-style variable in a developer's shell must not silently disable
+    # the become password prompt (casks that run sudo internally would
+    # then fail late with "a terminal is required to read the password").
+    if [[ -t 0 ]]; then
+        return 1
+    fi
     [[ -n "${CI:-}" ]] || \
     [[ -n "${GITHUB_ACTIONS:-}" ]] || \
     [[ -n "${RUNNER_OS:-}" ]] || \
     [[ -n "${CIRRUS_CI:-}" ]] || \
-    [[ "${HOME}" == "/var/root" ]] || \
-    [[ -n "${ANSIBLE_SUDO_PASSWORD:-}" ]]
+    [[ "${HOME}" == "/var/root" ]]
 }
 
 # Keep old function name for backward compatibility

@@ -24,6 +24,7 @@ run-ansible-playbook TAGS="all":
         echo "Running in CI mode, skipping sudo password prompt"
         BECOME_FLAG="--become"
     else
+        echo "Interactive run: enter your macOS user password at the BECOME prompt"
         BECOME_FLAG="--ask-become-pass"
     fi
 
