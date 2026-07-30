@@ -67,6 +67,7 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
             {
                 "HOME": str(self.home),
                 "TERM": "dumb",
+                "XDG_CONFIG_HOME": str(self.home / ".config"),
             }
         )
 
@@ -210,10 +211,10 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
             text=True,
             capture_output=True,
         )
-        output = ANSI_ESCAPE.sub("", status.stdout + status.stderr)
+        output = ANSI_ESCAPE.sub("", status.stdout + status.stderr).replace("│", " ")
         self.assertRegex(
             output,
-            r"angular\s*│\s*optional\s*│\s*disabled\s*│\s*1/2\s*│\s*preserved conflict",
+            r"angular\s+optional\s+disabled\s+1/2\s+preserved conflict",
         )
         self.assertIn("Skills: angular (disabled, preserved)", output)
 
