@@ -362,12 +362,13 @@ echo ""
 sorted_tool_ids=()
 mapfile -t sorted_tool_ids < <(printf '%s\n' "${!TOOL_SKILLS_DIR[@]}" | sort)
 skills_header="NAME${SEP}TYPE${SEP}STATUS${SEP}DESCRIPTION"
+unmanaged_skills_table="NAME${SEP}STATUS${SEP}PATH"
 empty_tool_cols=""
 for _tid in "${sorted_tool_ids[@]}"; do
     skills_header+="${SEP}$(echo "${_tid}" | tr '[:lower:]' '[:upper:]')"
+    unmanaged_skills_table+="${SEP}$(echo "${_tid}" | tr '[:lower:]' '[:upper:]')"
     empty_tool_cols+="${SEP}"
 done
-unmanaged_skills_table="NAME${SEP}STATUS${SEP}PATH"
 unmanaged_skills_found=false
 
 skills_found=false
@@ -386,12 +387,28 @@ append_skill_row() {
     skills_found=true
 }
 
+check_unmanaged_tool_availability() {
+    local tool_id="$1"
+    local skill_name="$2"
+    local native
+
+    for native in "${TOOLS_NATIVE_DISCOVERY[@]}"; do
+        if [[ "${tool_id}" == "${native}" ]]; then
+            [[ -f "${SKILLS_DIR}/${skill_name}/SKILL.md" ]] && TOOL_AVAILABLE="ok" || TOOL_AVAILABLE="-"
+            return
+        fi
+    done
+
+    [[ -f "${TOOL_SKILLS_DIR[${tool_id}]}/${skill_name}/SKILL.md" ]] && TOOL_AVAILABLE="ok" || TOOL_AVAILABLE="-"
+}
+
 append_unmanaged_skill_row() {
     local skill_name="$1"
     local status="$2"
     local skill_path="$3"
     local display_path="${skill_path}"
     local link_target
+    local availability_cols=""
 
     if [[ "${display_path}" == "${HOME}/"* ]]; then
         printf -v display_path '%s/%s' '~' "${display_path#"${HOME}/"}"
@@ -405,7 +422,12 @@ append_unmanaged_skill_row() {
         display_path+=" -> ${link_target}"
     fi
 
-    unmanaged_skills_table+=$'\n'"${skill_name}${SEP}${status}${SEP}${display_path}"
+    for _tid in "${sorted_tool_ids[@]}"; do
+        check_unmanaged_tool_availability "${_tid}" "${skill_name}"
+        availability_cols+="${SEP}${TOOL_AVAILABLE}"
+    done
+
+    unmanaged_skills_table+=$'\n'"${skill_name}${SEP}${status}${SEP}${display_path}${availability_cols}"
     unmanaged_skills_found=true
     skills_found=true
 }

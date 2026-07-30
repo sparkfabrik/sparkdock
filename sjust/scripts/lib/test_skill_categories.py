@@ -138,6 +138,9 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
         (skills_dir / "linked-skill").symlink_to(
             external_skill, target_is_directory=True
         )
+        (self.home / ".claude" / "skills" / "linked-skill").symlink_to(
+            external_skill, target_is_directory=True
+        )
 
         status_environment = self.environment | {"SPARKDOCK_SKIP_FETCH": "true"}
         status = subprocess.run(
@@ -149,11 +152,14 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
         )
         output = ANSI_ESCAPE.sub("", status.stdout + status.stderr).replace("│", " ")
         self.assertIn("Unmanaged skills", output)
-        self.assertRegex(output, r"custom-skill\s+-\s+~/.agents/skills/custom-skill")
+        self.assertRegex(
+            output,
+            r"custom-skill\s+-\s+~/.agents/skills/custom-skill\s+-\s+-\s+ok",
+        )
         self.assertRegex(
             output,
             r"linked-skill\s+-\s+~/.agents/skills/linked-skill"
-            r"\s+->\s+~/.external/linked-skill",
+            r"\s+->\s+~/.external/linked-skill\s+ok\s+-\s+ok",
         )
 
     def test_enable_and_disable_are_idempotent(self) -> None:
