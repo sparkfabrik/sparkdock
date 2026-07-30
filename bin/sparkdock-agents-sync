@@ -427,6 +427,7 @@ print_skill_categories() {
         categories_table+=$'\n'"${category}"$'\t'"optional"$'\t'"enabled"$'\t'"unavailable"
     done
 
+    echo ""
     if [[ "${HAS_GUM}" = true ]]; then
         gum style --bold --foreground 99 "Skill Categories"
     else

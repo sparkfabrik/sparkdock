@@ -119,6 +119,7 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
 
         result = self.run_sync("category", "list")
         output = ANSI_ESCAPE.sub("", result.stdout).replace("│", " ")
+        self.assertTrue(output.startswith("\nSkill Categories"), output)
         self.assertRegex(output, r"angular\s+optional\s+disabled\s+2")
         self.assertRegex(output, r"drupal\s+optional\s+disabled\s+1")
         self.assertRegex(output, r"system\s+required\s+always\s+1")
