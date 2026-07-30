@@ -766,6 +766,11 @@
           become: yes
           become_method: sudo
 
+        - name: Check for existing _sjust completion file
+          stat:
+            path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
+          register: sjust_completion
+
         - name: Ensure _sjust completion file has correct ownership (if present)
           file:
             path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
@@ -774,7 +779,7 @@
             mode: "0644"
           become: yes
           become_method: sudo
-          ignore_errors: yes
+          when: sjust_completion.stat.exists
 
         - name: Install sjust zsh completion
           copy:
