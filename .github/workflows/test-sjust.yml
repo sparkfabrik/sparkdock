@@ -75,6 +75,7 @@ jobs:
             bin/sparkdock-agents-sync \
             bin/sparkdock-agents-status
           just --justfile sjust/justfile --dry-run sf-harness-category list
+          just --justfile sjust/justfile --dry-run sf-harness-category
           just --justfile sjust/justfile --dry-run sf-harness-category enable angular
 
       - name: Test make install-sjust with git check disabled

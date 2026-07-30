@@ -118,9 +118,11 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
         self.assertNotIn("optional_skills", manifest)
 
         result = self.run_sync("category", "list")
-        self.assertRegex(result.stdout, r"angular\s+optional\s+disabled\s+2")
-        self.assertRegex(result.stdout, r"drupal\s+optional\s+disabled\s+1")
-        self.assertRegex(result.stdout, r"system\s+required\s+always\s+1")
+        output = ANSI_ESCAPE.sub("", result.stdout).replace("│", " ")
+        self.assertRegex(output, r"angular\s+optional\s+disabled\s+2")
+        self.assertRegex(output, r"drupal\s+optional\s+disabled\s+1")
+        self.assertRegex(output, r"system\s+required\s+always\s+1")
+        self.assertIn("sf-harness-category enable <category>", output)
 
     def test_enable_and_disable_are_idempotent(self) -> None:
         self.run_sync("category", "enable", "angular")

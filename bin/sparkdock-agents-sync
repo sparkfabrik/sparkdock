@@ -373,6 +373,26 @@ sync_optional_skills() {
     done
 }
 
+render_category_table() {
+    local table_data="$1"
+    if [[ "${HAS_GUM}" = true ]]; then
+        if command -v perl &>/dev/null; then
+            echo "${table_data}" | gum table --print \
+                --separator=$'\t' \
+                --border.foreground 240 \
+                | perl -pe 's/\e\[1m//g'
+        else
+            echo "${table_data}" | gum table --print \
+                --separator=$'\t' \
+                --border.foreground 240
+        fi
+    elif command -v column &>/dev/null; then
+        echo "${table_data}" | column -t -s $'\t'
+    else
+        echo "${table_data}"
+    fi
+}
+
 print_skill_categories() {
     local enabled_output
     enabled_output="$(list_enabled_skill_categories)"
@@ -384,8 +404,8 @@ print_skill_categories() {
         done <<< "${enabled_output}"
     fi
 
-    printf '%-20s %-10s %-10s %s\n' "CATEGORY" "POLICY" "STATE" "SKILLS"
-    printf '%-20s %-10s %-10s %s\n' "system" "required" "always" "$(count_category_skills "system")"
+    local categories_table="CATEGORY"$'\t'"POLICY"$'\t'"STATE"$'\t'"SKILLS"
+    categories_table+=$'\n'"system"$'\t'"required"$'\t'"always"$'\t'"$(count_category_skills "system")"
 
     local available_output
     available_output="$(list_available_skill_categories)"
@@ -399,17 +419,31 @@ print_skill_categories() {
     for category in $(printf '%s\n' "${!available_categories[@]}" | sort); do
         local state="disabled"
         [[ -n "${enabled_categories[${category}]+_}" ]] && state="enabled"
-        printf '%-20s %-10s %-10s %s\n' \
-            "${category}" "optional" "${state}" "$(count_category_skills "${category}")"
+        categories_table+=$'\n'"${category}"$'\t'"optional"$'\t'"${state}"$'\t'"$(count_category_skills "${category}")"
     done
 
     for category in $(printf '%s\n' "${!enabled_categories[@]}" | sort); do
         [[ -n "${available_categories[${category}]+_}" ]] && continue
-        printf '%-20s %-10s %-10s %s\n' "${category}" "optional" "enabled" "unavailable"
+        categories_table+=$'\n'"${category}"$'\t'"optional"$'\t'"enabled"$'\t'"unavailable"
     done
 
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --bold --foreground 99 "Skill Categories"
+    else
+        echo "Skill Categories"
+    fi
+    render_category_table "${categories_table}"
     echo ""
-    printf 'Configuration: %s\n' "${HARNESS_CONFIG_PATH}"
+    local config_line="Configuration: ${HARNESS_CONFIG_PATH}"
+    local tip_line
+    tip_line="Tip: $(get_harness_runner) sf-harness-category enable <category>"
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --faint "${config_line}"
+        gum style --faint "${tip_line}"
+    else
+        echo "${config_line}"
+        echo "${tip_line}"
+    fi
 }
 
 apply_category_action() {
