@@ -120,7 +120,7 @@ if [ "$1" = "tui" ] ; then
     fi
     if [ "$needs_build" = true ]; then
         print_info "Building sparkdock-tui (no sudo required)..."
-        if ! ( cd "$SPARKDOCK_ROOT" && ensure_python3 && ansible-playbook -i ansible/inventory.ini ansible/macos.yml --tags tui ); then
+        if ! ( cd "$SPARKDOCK_ROOT" && ensure_python3 && ansible-playbook -i ansible/inventory.ini ansible/macos.yml --tags tui -e ansible_become_pass= ); then
             print_error "Failed to build sparkdock-tui. Run 'sparkdock' to provision."
             exit 1
         fi

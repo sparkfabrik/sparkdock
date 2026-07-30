@@ -5,6 +5,21 @@
   gather_facts: yes
   become: no
 
+  # The become password must be collected here, as a play variable, and not
+  # via --ask-become-pass: the CLI flag feeds ansible's become machinery but
+  # never defines the ansible_become_pass template variable, so every
+  # "{{ ansible_become_pass }}" reference below (homebrew_cask sudo_password,
+  # the fail-fast validation) silently resolved to undefined and pkg-based
+  # casks failed mid-run with "sudo: a terminal is required to read the
+  # password". vars_prompt defines the variable, which also feeds become for
+  # privileged tasks. Without a TTY the prompt is skipped (the variable is
+  # None, falsy everywhere it is used), and callers that must not prompt
+  # pass -e ansible_become_pass= explicitly.
+  vars_prompt:
+    - name: ansible_become_pass
+      prompt: "BECOME password"
+      private: true
+
   # Every brew/cask task inherits this, so brew never upgrades casks that manage
   # their own updates (auto_updates true) — see https://github.com/Homebrew/brew/pull/21882.
   environment:
@@ -20,7 +35,7 @@
     - name: Check if running in non-interactive environment
       tags: always
       set_fact:
-        is_non_interactive: "{{ ansible_facts['env'].CI is defined or ansible_facts['env'].GITHUB_ACTIONS is defined or ansible_facts['env'].RUNNER_OS is defined or ansible_facts['env'].HOME == '/var/root' }}"
+        is_non_interactive: "{{ ansible_facts['env'].CI is defined or ansible_facts['env'].GITHUB_ACTIONS is defined or ansible_facts['env'].RUNNER_OS is defined or ansible_facts['env'].CIRRUS_CI is defined or ansible_facts['env'].HOME == '/var/root' }}"
 
     # Pkg-based casks (docker-desktop, zoom, ...) run sudo during install.
     # Homebrew wires that sudo to an askpass helper (SUDO_ASKPASS + -A) that
@@ -30,13 +45,14 @@
     # therefore surfaces much later as a cryptic "sudo: a terminal is
     # required to read the password" failure inside the cask install.
     # Validate the password up front and fail fast with a clear message.
-    # Skipped when no password was collected (CI, or tag-only runs such as
-    # `--tags tui` that contain no privileged tasks).
+    # Runs only when cask work is on the menu (full runs or explicit cask
+    # tags); tag-only runs that suppress the prompt (e.g. --tags tui with
+    # -e ansible_become_pass=) are left alone.
     - name: Validate become password (fail fast for cask installers)
       tags: always
       when:
         - not is_non_interactive
-        - ansible_become_pass is defined
+        - ('all' in ansible_run_tags) or ('cask' in ansible_run_tags)
       block:
         - name: Check the become password against sudo
           ansible.builtin.command: sudo -S -k -v
@@ -55,6 +71,33 @@
               which otherwise fail late with "sudo: a terminal is required to
               read the password". Re-run sparkdock and enter your macOS user
               password at the prompt.
+
+    # Self-heal a root-owned ~/.local (seen on machines set up via Migration
+    # Assistant or after an old sudo-run tool created it): every become: false
+    # task writing under it (zsh site-functions, macos-defaults overrides,
+    # http-proxy certs) fails with EACCES otherwise. Same pattern as the
+    # http-proxy directory ownership fix below.
+    - name: Check ownership of ~/.local
+      tags: always
+      stat:
+        path: "{{ ansible_facts['env']['HOME'] }}/.local"
+      register: user_local_dir
+
+    - name: Fix root-owned ~/.local
+      tags: always
+      file:
+        path: "{{ ansible_facts['env']['HOME'] }}/.local"
+        state: directory
+        owner: "{{ ansible_facts['user_id'] }}"
+        group: staff
+        recurse: yes
+      become: yes
+      become_method: sudo
+      when:
+        - not is_non_interactive
+        - "'all' in ansible_run_tags"
+        - user_local_dir.stat.exists
+        - user_local_dir.stat.pw_name == 'root'
 
     - name: Load all packages
       include_vars:
@@ -723,6 +766,11 @@
           become: yes
           become_method: sudo
 
+        - name: Check for existing _sjust completion file
+          stat:
+            path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
+          register: sjust_completion
+
         - name: Ensure _sjust completion file has correct ownership (if present)
           file:
             path: "{{ brew_prefix.stdout }}/share/zsh/site-functions/_sjust"
@@ -731,7 +779,7 @@
             mode: "0644"
           become: yes
           become_method: sudo
-          ignore_errors: yes
+          when: sjust_completion.stat.exists
 
         - name: Install sjust zsh completion
           copy:

@@ -34,7 +34,7 @@ type Options struct {
 	Playbook          string   // playbook filename (relative to Dir)
 	Inventory         string   // inventory spec, e.g. "localhost,"
 	Tags              []string // optional --tags
-	Sudo              bool     // prime the sudo timestamp first (sudo -v), so become works via sudo -n
+	Sudo              bool     // let the play's vars_prompt ask for the become password (suppressed otherwise)
 	ForceFail         bool     // demo/testing: -e force_fail=true
 	Verbose           bool     // pass -v
 	CallbackPluginDir string   // dir containing the sparkdock callback
@@ -306,12 +306,14 @@ func IsBecomeAuthFailure(lines []string) bool {
 }
 
 // AnsibleBuilder builds a real ansible-playbook invocation with the sparkdock
-// stdout callback. When Sudo is set, --ask-become-pass is added so ansible
-// prompts once for the become password and feeds it to every become task itself
-// (reliable regardless of the tty's sudo timestamp). The UI answers the prompt
-// on the PTY via the masked password page; the password is never cached. When
-// SelfUpdate is set, the run first force-syncs the install to upstream master
-// (see selfUpdateWrap), so "Update everything" matches bare `sparkdock`.
+// stdout callback. When Sudo is set, the play's vars_prompt asks once for the
+// become password ("BECOME password:") and defines it as the template variable
+// the cask sudo wiring uses (--ask-become-pass never defines the variable, so
+// it is not passed). The UI answers the prompt on the PTY via the masked
+// password page; the password is never cached. When Sudo is not set, the
+// prompt is suppressed with -e ansible_become_pass=. When SelfUpdate is set,
+// the run first force-syncs the install to upstream master (see
+// selfUpdateWrap), so "Update everything" matches bare `sparkdock`.
 func AnsibleBuilder(ctx context.Context, opts Options) *exec.Cmd {
 	args := ansibleArgs(opts)
 	env := ansibleEnv(opts)
@@ -341,8 +343,8 @@ func ansibleArgs(opts Options) []string {
 	if len(opts.Tags) > 0 {
 		args = append(args, "--tags", strings.Join(opts.Tags, ","))
 	}
-	if opts.Sudo {
-		args = append(args, "--ask-become-pass")
+	if !opts.Sudo {
+		args = append(args, "-e", "ansible_become_pass=")
 	}
 	if opts.Verbose {
 		args = append(args, "-v")
