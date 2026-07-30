@@ -72,6 +72,33 @@
               read the password". Re-run sparkdock and enter your macOS user
               password at the prompt.
 
+    # Self-heal a root-owned ~/.local (seen on machines set up via Migration
+    # Assistant or after an old sudo-run tool created it): every become: false
+    # task writing under it (zsh site-functions, macos-defaults overrides,
+    # http-proxy certs) fails with EACCES otherwise. Same pattern as the
+    # http-proxy directory ownership fix below.
+    - name: Check ownership of ~/.local
+      tags: always
+      stat:
+        path: "{{ ansible_facts['env']['HOME'] }}/.local"
+      register: user_local_dir
+
+    - name: Fix root-owned ~/.local
+      tags: always
+      file:
+        path: "{{ ansible_facts['env']['HOME'] }}/.local"
+        state: directory
+        owner: "{{ ansible_facts['user_id'] }}"
+        group: staff
+        recurse: yes
+      become: yes
+      become_method: sudo
+      when:
+        - not is_non_interactive
+        - "'all' in ansible_run_tags"
+        - user_local_dir.stat.exists
+        - user_local_dir.stat.pw_name == 'root'
+
     - name: Load all packages
       include_vars:
         file: "{{ dev_env_dir }}/config/packages/all-packages.yml"
