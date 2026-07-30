@@ -12,6 +12,25 @@ sf-harness-sync $force="":
         {{sparkdock_path}}/bin/sparkdock-agents-sync
     fi
 
+# List, enable, or disable globally managed optional skill categories.
+# Examples: sf-harness-category list
+#           sf-harness-category enable angular
+#           sf-harness-category disable angular --force
+[group('ai-coding-harness')]
+[no-exit-message]
+sf-harness-category $action="list" $category="" $force="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    args=(category "${action}")
+    if [[ "${action}" != "list" ]]; then
+        [[ -n "${category}" ]] || { echo "ERROR: category name is required for ${action}."; exit 2; }
+        args+=("${category}")
+    fi
+    if [[ "${force}" == "force" || "${force}" == "--force" ]]; then
+        args+=(--force)
+    fi
+    {{sparkdock_path}}/bin/sparkdock-agents-sync "${args[@]}"
+
 # Upgrade the full AI coding harness: brew formulae, skills, agent profiles,
 # RTK hooks, caveman, and the OpenSpec CLI + global skills. Runs via Ansible (no sudo required).
 # Pass "force" or "--force" to overwrite locally modified resources.

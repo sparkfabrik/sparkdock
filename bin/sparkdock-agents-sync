@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-# sparkdock-agents-sync — Sync SparkFabrik system agent skills and agent profiles
+# sparkdock-agents-sync — Sync SparkFabrik agent skills and agent profiles
 #                         from the upstream sf-awesome-copilot repository.
-# Usage: sparkdock-agents-sync [--force]
+# Usage: sparkdock-agents-sync [--force] [category <list|enable|disable> [name]]
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 SCRIPT_NAME="$(basename "$0")"
@@ -12,6 +12,10 @@ SCRIPT_NAME="$(basename "$0")"
 # Source shared utility library (provides logging + compute_sha256)
 # shellcheck source=common/utils.sh
 source "${SCRIPT_DIR}/common/utils.sh"
+
+# Source optional skill category configuration helpers
+# shellcheck source=common/skill-categories.sh
+source "${SCRIPT_DIR}/common/skill-categories.sh"
 
 # Source skills symlink shim (temporary — see shim header for removal instructions)
 # shellcheck source=common/skills-symlink-shim.sh
@@ -21,6 +25,8 @@ UPSTREAM_REPO="https://github.com/sparkfabrik/sf-awesome-copilot.git"
 CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
 FORCE=false
+CATEGORY_ACTION=""
+CATEGORY_NAME=""
 
 # Support SPARKDOCK_AGENTS_FORCE env var (used by Ansible integration)
 if [[ "${SPARKDOCK_AGENTS_FORCE:-}" == "true" ]]; then
@@ -30,6 +36,8 @@ fi
 # --- Skills configuration ---
 SKILLS_TARGET_DIR="${HOME}/.agents/skills"
 SYSTEM_SKILLS_SUBDIR="skills/system"
+declare -A ACTIVE_OPTIONAL_SKILL_KEYS=()
+declare -A ACTIVE_OPTIONAL_SKILL_NAMES=()
 
 # --- Agents configuration ---
 SYSTEM_AGENTS_SUBDIR="agents/system"
@@ -119,8 +127,8 @@ try:
     else:
         data = {}
 
-    # Ensure v2 shape
-    data['version'] = 2
+    # Preserve v2 compatibility while adding the optional_skills section in v3.
+    data['version'] = 3
     if section not in data:
         data[section] = {}
 
@@ -202,9 +210,12 @@ get_source_commit() (
 # --- Skill sync ---
 
 # Sync a single skill from cache to target.
+# Args: <name> <source_dir> <manifest_section> <manifest_key>
 sync_skill() {
     local skill_name="$1"
-    local source_dir="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}"
+    local source_dir="$2"
+    local manifest_section="$3"
+    local manifest_key="$4"
     local target_dir="${SKILLS_TARGET_DIR}/${skill_name}"
     local source_skill_md="${source_dir}/SKILL.md"
     local target_skill_md="${target_dir}/SKILL.md"
@@ -218,7 +229,7 @@ sync_skill() {
     if [[ ! -d "${target_dir}" ]]; then
         mkdir -p "${target_dir}"
         cp -R "${source_dir}/"* "${target_dir}/"
-        manifest_set "skills" "${skill_name}" "${source_sha}" "${source_commit}"
+        manifest_set "${manifest_section}" "${manifest_key}" "${source_sha}" "${source_commit}"
         SKILLS_ADDED=$((SKILLS_ADDED + 1))
         log_success "Skill added: ${skill_name}"
         return
@@ -229,12 +240,12 @@ sync_skill() {
         local installed_sha
         installed_sha="$(compute_sha256 "${target_skill_md}")"
         local manifest_sha
-        manifest_sha="$(manifest_get_sha "skills" "${skill_name}")"
+        manifest_sha="$(manifest_get_sha "${manifest_section}" "${manifest_key}")"
 
         # If source matches installed, nothing to do (but ensure manifest exists)
         if [[ "${source_sha}" = "${installed_sha}" ]]; then
             if [[ -z "${manifest_sha}" ]]; then
-                manifest_set "skills" "${skill_name}" "${source_sha}" "${source_commit}"
+                manifest_set "${manifest_section}" "${manifest_key}" "${source_sha}" "${source_commit}"
             fi
             SKILLS_UNCHANGED=$((SKILLS_UNCHANGED + 1))
             return
@@ -243,7 +254,7 @@ sync_skill() {
         # If manifest SHA matches installed SHA, safe to update (user hasn't modified)
         if [[ -n "${manifest_sha}" ]] && [[ "${manifest_sha}" = "${installed_sha}" ]]; then
             cp -R "${source_dir}/"* "${target_dir}/"
-            manifest_set "skills" "${skill_name}" "${source_sha}" "${source_commit}"
+            manifest_set "${manifest_section}" "${manifest_key}" "${source_sha}" "${source_commit}"
             SKILLS_UPDATED=$((SKILLS_UPDATED + 1))
             log_success "Skill updated: ${skill_name}"
             return
@@ -252,7 +263,7 @@ sync_skill() {
         # Conflict: user has modified the skill
         if [[ "${FORCE}" = true ]]; then
             cp -R "${source_dir}/"* "${target_dir}/"
-            manifest_set "skills" "${skill_name}" "${source_sha}" "${source_commit}"
+            manifest_set "${manifest_section}" "${manifest_key}" "${source_sha}" "${source_commit}"
             SKILLS_UPDATED=$((SKILLS_UPDATED + 1))
             log_warn "Skill force-updated: ${skill_name} (local modifications overwritten)"
             return
@@ -265,7 +276,7 @@ sync_skill() {
 
     # Target directory exists but no SKILL.md — treat as new
     cp -R "${source_dir}/"* "${target_dir}/"
-    manifest_set "skills" "${skill_name}" "${source_sha}" "${source_commit}"
+    manifest_set "${manifest_section}" "${manifest_key}" "${source_sha}" "${source_commit}"
     SKILLS_ADDED=$((SKILLS_ADDED + 1))
     log_success "Skill added: ${skill_name}"
 }
@@ -287,12 +298,182 @@ sync_skills() {
         skill_name="$(basename "${skill_dir}")"
         [[ -f "${skill_dir}/SKILL.md" ]] || continue
         found=true
-        sync_skill "${skill_name}"
+        sync_skill "${skill_name}" "${skill_dir}" "skills" "${skill_name}"
     done
 
     if [[ "${found}" = false ]]; then
         log_warn "No valid skills found in '${SYSTEM_SKILLS_SUBDIR}/'."
     fi
+}
+
+# Prepare enabled optional skills and reject flat-install name collisions before
+# any installed resources are changed.
+prepare_optional_skills() {
+    local requested_action="${1:-}"
+    local requested_category="${2:-}"
+    local enabled_output
+    enabled_output="$(list_enabled_skill_categories)"
+    declare -A enabled_category_set=()
+    local category
+    if [[ -n "${enabled_output}" ]]; then
+        while IFS= read -r category; do
+            [[ -n "${category}" ]] && enabled_category_set["${category}"]=1
+        done <<< "${enabled_output}"
+    fi
+
+    case "${requested_action}" in
+        enable)
+            enabled_category_set["${requested_category}"]=1
+            ;;
+        disable)
+            unset 'enabled_category_set['"${requested_category}"']'
+            ;;
+    esac
+
+    ACTIVE_OPTIONAL_SKILL_KEYS=()
+    ACTIVE_OPTIONAL_SKILL_NAMES=()
+
+    declare -A skill_owner=()
+    local skill_dir skill_name category_dir
+
+    for skill_dir in "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}"/*/; do
+        [[ -f "${skill_dir}/SKILL.md" ]] || continue
+        skill_name="$(basename "${skill_dir}")"
+        skill_owner["${skill_name}"]="system"
+    done
+
+    for category in $(printf '%s\n' "${!enabled_category_set[@]}" | sort); do
+        if ! category_has_skills "${category}"; then
+            log_warn "Enabled skill category unavailable upstream: ${category}"
+            continue
+        fi
+
+        category_dir="${CACHE_DIR}/${SKILLS_ROOT_SUBDIR}/${category}"
+        for skill_dir in "${category_dir}"/*/; do
+            [[ -f "${skill_dir}/SKILL.md" ]] || continue
+            skill_name="$(basename "${skill_dir}")"
+            if [[ -n "${skill_owner[${skill_name}]+_}" ]]; then
+                log_error "Skill name collision: ${skill_name} exists in ${skill_owner[${skill_name}]} and ${category}"
+                return 1
+            fi
+            skill_owner["${skill_name}"]="${category}"
+            ACTIVE_OPTIONAL_SKILL_KEYS["${category}/${skill_name}"]=1
+            ACTIVE_OPTIONAL_SKILL_NAMES["${skill_name}"]=1
+        done
+    done
+}
+
+sync_optional_skills() {
+    local manifest_key category skill_name source_dir
+    for manifest_key in $(printf '%s\n' "${!ACTIVE_OPTIONAL_SKILL_KEYS[@]}" | sort); do
+        category="${manifest_key%%/*}"
+        skill_name="${manifest_key#*/}"
+        source_dir="${CACHE_DIR}/${SKILLS_ROOT_SUBDIR}/${category}/${skill_name}"
+        sync_skill "${skill_name}" "${source_dir}" "${OPTIONAL_SKILLS_MANIFEST_SECTION}" "${manifest_key}"
+    done
+}
+
+render_category_table() {
+    local table_data="$1"
+    if [[ "${HAS_GUM}" = true ]]; then
+        if command -v perl &>/dev/null; then
+            echo "${table_data}" | gum table --print \
+                --separator=$'\t' \
+                --border.foreground 240 \
+                | perl -pe 's/\e\[1m//g'
+        else
+            echo "${table_data}" | gum table --print \
+                --separator=$'\t' \
+                --border.foreground 240
+        fi
+    elif command -v column &>/dev/null; then
+        echo "${table_data}" | column -t -s $'\t'
+    else
+        echo "${table_data}"
+    fi
+}
+
+print_skill_categories() {
+    local enabled_output
+    enabled_output="$(list_enabled_skill_categories)"
+    declare -A enabled_categories=()
+    local category
+    if [[ -n "${enabled_output}" ]]; then
+        while IFS= read -r category; do
+            [[ -n "${category}" ]] && enabled_categories["${category}"]=1
+        done <<< "${enabled_output}"
+    fi
+
+    local categories_table="CATEGORY"$'\t'"POLICY"$'\t'"STATE"$'\t'"SKILLS"
+    categories_table+=$'\n'"system"$'\t'"required"$'\t'"always"$'\t'"$(count_category_skills "system")"
+
+    local available_output
+    available_output="$(list_available_skill_categories)"
+    declare -A available_categories=()
+    if [[ -n "${available_output}" ]]; then
+        while IFS= read -r category; do
+            [[ -n "${category}" ]] && available_categories["${category}"]=1
+        done <<< "${available_output}"
+    fi
+
+    for category in $(printf '%s\n' "${!available_categories[@]}" | sort); do
+        local state="disabled"
+        [[ -n "${enabled_categories[${category}]+_}" ]] && state="enabled"
+        categories_table+=$'\n'"${category}"$'\t'"optional"$'\t'"${state}"$'\t'"$(count_category_skills "${category}")"
+    done
+
+    for category in $(printf '%s\n' "${!enabled_categories[@]}" | sort); do
+        [[ -n "${available_categories[${category}]+_}" ]] && continue
+        categories_table+=$'\n'"${category}"$'\t'"optional"$'\t'"enabled"$'\t'"unavailable"
+    done
+
+    echo ""
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --bold --foreground 99 "Skill Categories"
+    else
+        echo "Skill Categories"
+    fi
+    render_category_table "${categories_table}"
+    echo ""
+    local config_line="Configuration: ${HARNESS_CONFIG_PATH}"
+    local tip_line
+    tip_line="Tip: $(get_harness_runner) sf-harness-category enable <category>"
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --faint "${config_line}"
+        gum style --faint "${tip_line}"
+    else
+        echo "${config_line}"
+        echo "${tip_line}"
+    fi
+}
+
+apply_category_action() {
+    local action="$1"
+    local category="$2"
+
+    if ! validate_skill_category_name "${category}"; then
+        log_error "Invalid skill category name: ${category}"
+        return 2
+    fi
+
+    if [[ "${category}" == "system" ]]; then
+        if [[ "${action}" == "disable" ]]; then
+            log_error "The system skill category is required and cannot be disabled."
+            return 2
+        fi
+        log_info "The system skill category is always enabled."
+        prepare_optional_skills
+        return
+    fi
+
+    if [[ "${action}" == "enable" ]] && ! category_has_skills "${category}"; then
+        log_error "Unknown skill category: ${category}"
+        return 2
+    fi
+
+    prepare_optional_skills "${action}" "${category}"
+    set_skill_category_state "${action}" "${category}"
+    log_success "Skill category ${action}d: ${category}"
 }
 
 # --- Agent sync ---
@@ -440,6 +621,14 @@ cleanup_orphan_skills() {
         # Skip if still in upstream
         [[ -n "${upstream_skills[${skill_name}]+_}" ]] && continue
 
+        # The skill moved from system to an enabled optional category. Transfer
+        # ownership without removing the shared flat install target.
+        if [[ -n "${ACTIVE_OPTIONAL_SKILL_NAMES[${skill_name}]+_}" ]]; then
+            manifest_remove "skills" "${skill_name}"
+            log_info "Skill ownership moved from system: ${skill_name}"
+            continue
+        fi
+
         local target_dir="${SKILLS_TARGET_DIR}/${skill_name}"
 
         # Check if user has locally modified the orphaned skill
@@ -472,6 +661,58 @@ cleanup_orphan_skills() {
         SKILLS_REMOVED=$((SKILLS_REMOVED + 1))
         log_success "Orphan removed: ${skill_name} (no longer in upstream)"
     done <<< "${managed_skill_names}"
+}
+
+# Remove optional skills that are disabled or no longer available upstream.
+cleanup_optional_skills() {
+    local managed_keys
+    managed_keys="$(manifest_list_keys "${OPTIONAL_SKILLS_MANIFEST_SECTION}")"
+    [[ -z "${managed_keys}" ]] && return
+
+    local manifest_key category skill_name target_dir
+    while IFS= read -r manifest_key; do
+        [[ -z "${manifest_key}" ]] && continue
+        [[ -n "${ACTIVE_OPTIONAL_SKILL_KEYS[${manifest_key}]+_}" ]] && continue
+
+        category="${manifest_key%%/*}"
+        skill_name="${manifest_key#*/}"
+
+        # Another active category or system now owns this flat target.
+        if [[ -n "${ACTIVE_OPTIONAL_SKILL_NAMES[${skill_name}]+_}" ]] || \
+           [[ -f "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md" ]]; then
+            manifest_remove "${OPTIONAL_SKILLS_MANIFEST_SECTION}" "${manifest_key}"
+            log_info "Skill ownership moved from ${category}: ${skill_name}"
+            continue
+        fi
+
+        target_dir="${SKILLS_TARGET_DIR}/${skill_name}"
+        if [[ -f "${target_dir}/SKILL.md" ]]; then
+            local installed_sha manifest_sha
+            installed_sha="$(compute_sha256 "${target_dir}/SKILL.md")"
+            manifest_sha="$(manifest_get_sha "${OPTIONAL_SKILLS_MANIFEST_SECTION}" "${manifest_key}")"
+
+            if [[ -n "${manifest_sha}" ]] && [[ "${manifest_sha}" != "${installed_sha}" ]] && [[ "${FORCE}" != true ]]; then
+                SKILLS_ORPHAN_SKIPPED=$((SKILLS_ORPHAN_SKIPPED + 1))
+                log_warn "Category removal skipped: ${category}/${skill_name} (locally modified — use --force to remove)"
+                continue
+            fi
+        fi
+
+        if [[ -d "${target_dir}" ]]; then
+            local resolved_path resolved_base
+            resolved_path="$(cd "${target_dir}" 2>/dev/null && pwd -P)" || resolved_path=""
+            resolved_base="$(cd "${SKILLS_TARGET_DIR}" 2>/dev/null && pwd -P)" || resolved_base=""
+            if [[ -z "${resolved_path}" || -z "${resolved_base}" || "${resolved_path}" != "${resolved_base}/"* ]]; then
+                log_error "refusing to remove path outside skills directory: ${target_dir}"
+                continue
+            fi
+            rm -rf "${resolved_path}"
+        fi
+
+        manifest_remove "${OPTIONAL_SKILLS_MANIFEST_SECTION}" "${manifest_key}"
+        SKILLS_REMOVED=$((SKILLS_REMOVED + 1))
+        log_success "Category skill removed: ${category}/${skill_name}"
+    done <<< "${managed_keys}"
 }
 
 # Remove managed agent profiles that no longer exist in upstream.
@@ -609,14 +850,17 @@ print_summary() {
 
 usage() {
     echo "Usage: ${SCRIPT_NAME} [--force]"
+    echo "       ${SCRIPT_NAME} category list"
+    echo "       ${SCRIPT_NAME} category <enable|disable> <name> [--force]"
     echo ""
-    echo "Sync SparkFabrik system agent skills and agent profiles to local paths."
+    echo "Sync SparkFabrik system resources and enabled optional skill categories."
     echo ""
     echo "Skills are installed to:  ${SKILLS_TARGET_DIR}/"
     echo "Agent profiles are installed to per-tool paths (see tool registry)."
     echo ""
     echo "Options:"
     echo "  --force    Overwrite locally modified managed resources"
+    echo "  category   List, enable, or disable optional skill categories"
     echo "  -h, --help Show this help message"
 }
 
@@ -626,6 +870,21 @@ main() {
             --force)
                 FORCE=true
                 shift
+                ;;
+            category)
+                shift
+                CATEGORY_ACTION="${1:-}"
+                if [[ "${CATEGORY_ACTION}" == "enable" || "${CATEGORY_ACTION}" == "disable" ]]; then
+                    shift
+                    CATEGORY_NAME="${1:-}"
+                    [[ $# -gt 0 ]] && shift
+                elif [[ "${CATEGORY_ACTION}" == "list" ]]; then
+                    shift
+                else
+                    log_error "Category action must be list, enable, or disable."
+                    usage
+                    exit 2
+                fi
                 ;;
             -h|--help)
                 usage
@@ -644,15 +903,33 @@ main() {
     # Clone or update the repo
     sync_repo
 
+    if [[ "${CATEGORY_ACTION}" == "list" ]]; then
+        print_skill_categories
+        exit 0
+    fi
+
+    if [[ -n "${CATEGORY_ACTION}" ]]; then
+        if [[ -z "${CATEGORY_NAME}" ]]; then
+            log_error "Category name is required for ${CATEGORY_ACTION}."
+            usage
+            exit 2
+        fi
+        apply_category_action "${CATEGORY_ACTION}" "${CATEGORY_NAME}"
+    else
+        prepare_optional_skills
+    fi
+
     # Ensure cache directory is ready
     mkdir -p "${SKILLS_TARGET_DIR}"
 
     # Sync both resource types
     sync_skills
+    sync_optional_skills
     sync_agents
 
     # Clean up orphaned resources (managed locally but removed from upstream)
     cleanup_orphan_skills
+    cleanup_optional_skills
     cleanup_orphan_agents
 
     # Create skill symlinks for all registered tools
