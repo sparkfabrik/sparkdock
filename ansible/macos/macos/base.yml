@@ -22,35 +22,39 @@
       set_fact:
         is_non_interactive: "{{ ansible_facts['env'].CI is defined or ansible_facts['env'].GITHUB_ACTIONS is defined or ansible_facts['env'].RUNNER_OS is defined or ansible_facts['env'].HOME == '/var/root' or ansible_facts['env'].ANSIBLE_SUDO_PASSWORD is defined }}"
 
-    # Casks like docker-desktop and zoom shell out to their own internal `sudo`
-    # (mkdir /usr/local/bin, `installer -pkg`) instead of honoring the
-    # homebrew_cask module's sudo_password/SUDO_ASKPASS. Priming the sudo
-    # ticket here, then refreshing it in the background, lets those internal
-    # calls succeed on the existing cache instead of failing with
-    # "a terminal is required to read the password".
-    - name: Prime sudo credential cache for cask/pkg installers
-      ansible.builtin.command: sudo -S -v
-      args:
-        stdin: "{{ ansible_become_pass }}"
+    # Pkg-based casks (docker-desktop, zoom, ...) run sudo during install.
+    # Homebrew wires that sudo to an askpass helper (SUDO_ASKPASS + -A) that
+    # the homebrew_cask module builds from ansible_become_pass via its
+    # sudo_password option — but only when the collected password is
+    # non-empty. An empty or wrong password at the "BECOME password:" prompt
+    # therefore surfaces much later as a cryptic "sudo: a terminal is
+    # required to read the password" failure inside the cask install.
+    # Validate the password up front and fail fast with a clear message.
+    # Skipped when no password was collected (CI, or tag-only runs such as
+    # `--tags tui` that contain no privileged tasks).
+    - name: Validate become password (fail fast for cask installers)
+      tags: always
       when:
         - not is_non_interactive
         - ansible_become_pass is defined
-      changed_when: false
-      become: false
-      tags: always
-
-    - name: Keep sudo credential cache warm during package installation
-      ansible.builtin.shell: |
-        nohup bash -c 'for i in $(seq 1 60); do sudo -n -v 2>/dev/null || break; sleep 60; done' >/dev/null 2>&1 &
-        disown
-      args:
-        executable: /bin/bash
-      when:
-        - not is_non_interactive
-        - ansible_become_pass is defined
-      changed_when: false
-      become: false
-      tags: always
+      block:
+        - name: Check the become password against sudo
+          ansible.builtin.command: sudo -S -k -v
+          args:
+            stdin: "{{ ansible_become_pass }}"
+          changed_when: false
+          become: false
+          no_log: true
+      rescue:
+        - name: Explain the become password failure
+          ansible.builtin.fail:
+            msg: >-
+              The password entered at the "BECOME password:" prompt was empty
+              or incorrect. Package installation needs it for privileged
+              install steps (pkg-based casks such as docker-desktop or zoom),
+              which otherwise fail late with "sudo: a terminal is required to
+              read the password". Re-run sparkdock and enter your macOS user
+              password at the prompt.
 
     - name: Load all packages
       include_vars:
