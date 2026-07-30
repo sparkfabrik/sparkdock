@@ -67,6 +67,16 @@ jobs:
           # 00-default.just and so cannot be parsed standalone. It is exercised
           # via the unified justfile a few lines above and `--evaluate` below.
 
+      - name: Test skill category scripts
+        run: |
+          bash -n \
+            bin/common/skill-categories.sh \
+            bin/common/skills-symlink-shim.sh \
+            bin/sparkdock-agents-sync \
+            bin/sparkdock-agents-status
+          just --justfile sjust/justfile --dry-run sf-harness-category list
+          just --justfile sjust/justfile --dry-run sf-harness-category enable angular
+
       - name: Test make install-sjust with git check disabled
         run: |
           echo "Testing make install-sjust command..."

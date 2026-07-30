@@ -65,7 +65,10 @@ unset _tool_id
 # List all managed skill names from the manifest (one per line).
 # Delegates to the shared manifest_list_keys() from utils.sh.
 get_managed_skill_names() {
-    manifest_list_keys "skills"
+    {
+        manifest_list_keys "skills"
+        manifest_list_keys "optional_skills" | sed 's@.*/@@'
+    } | sort -u
 }
 
 # Create per-skill symlinks in a tool's skills directory for managed skills.
@@ -243,7 +246,7 @@ print_tool_issues() {
         lines+=("  • ${issue}")
     done
     lines+=("")
-    lines+=("Run 'sjust sf-harness-sync force' to fix.")
+    lines+=("Run '$(get_harness_runner) sf-harness-sync force' to fix.")
 
     local body
     body="$(printf '%s\n' "${lines[@]}")"

@@ -88,6 +88,14 @@ compute_sha256() {
     fi
 }
 
+get_harness_runner() {
+    if [[ "$(uname -s)" == "Linux" ]] && command -v ajust &>/dev/null; then
+        printf '%s\n' "ajust"
+    else
+        printf '%s\n' "sjust"
+    fi
+}
+
 # List all keys from a manifest section (one per line).
 # Requires MANIFEST_PATH to be set by the caller.
 # Usage: manifest_list_keys <section>

@@ -11,6 +11,10 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 # shellcheck source=common/utils.sh
 source "${SCRIPT_DIR}/common/utils.sh"
 
+# Source optional skill category configuration helpers
+# shellcheck source=common/skill-categories.sh
+source "${SCRIPT_DIR}/common/skill-categories.sh"
+
 # Source skills symlink shim (temporary — see shim header for removal instructions)
 # shellcheck source=common/skills-symlink-shim.sh
 source "${SCRIPT_DIR}/common/skills-symlink-shim.sh"
@@ -21,6 +25,7 @@ CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
 SYSTEM_SKILLS_SUBDIR="skills/system"
 SYSTEM_AGENTS_SUBDIR="agents/system"
 CATALOG_PATH="${CACHE_DIR}/config/catalog.json"
+HARNESS_RUNNER="$(get_harness_runner)"
 
 # Delimiter for table data (tab avoids conflicts with commas in descriptions)
 SEP=$'\t'
@@ -164,7 +169,12 @@ render_table() {
             | perl -pe '
                 s/\e\[1m//g;
                 s/update available/\e[38;5;40mupdate available\e[0m/g;
+                s/up to date/\e[38;5;40mup to date\e[0m/g;
                 s/locally modified/\e[38;5;220mlocally modified\e[0m/g;
+                s/preserved conflict/\e[38;5;220mpreserved conflict\e[0m/g;
+                s/pending removal/\e[38;5;220mpending removal\e[0m/g;
+                s/\bincomplete\b/\e[38;5;220mincomplete\e[0m/g;
+                s/\bunavailable\b/\e[38;5;196munavailable\e[0m/g;
                 s/conflicts with upstream/\e[38;5;220mconflicts with upstream\e[0m/g;
                 s/removed from upstream/\e[38;5;196mremoved from upstream\e[0m/g;
                 s/\borphan\b/\e[38;5;196morphan\e[0m/g;
@@ -176,6 +186,138 @@ render_table() {
     else
         echo "${csv_data}" | column -t -s $'\t'
     fi
+}
+
+get_category_health() {
+    local category="$1"
+    local state="$2"
+    local manifest_section="$3"
+    local category_dir="${CACHE_DIR}/${SKILLS_ROOT_SUBDIR}/${category}"
+    local total
+    total="$(count_category_skills "${category}")"
+    local installed=0
+    local has_missing=false
+    local has_modified=false
+    local has_update=false
+    local skill_dir skill_name manifest_key manifest_sha installed_sha upstream_sha target_file
+
+    if [[ "${state}" == "disabled" ]]; then
+        local optional_keys
+        optional_keys="$(manifest_list_keys "${OPTIONAL_SKILLS_MANIFEST_SECTION}")"
+        while IFS= read -r manifest_key; do
+            [[ "${manifest_key}" == "${category}/"* ]] || continue
+            skill_name="${manifest_key#*/}"
+            target_file="${SKILLS_DIR}/${skill_name}/SKILL.md"
+            [[ -f "${target_file}" ]] || continue
+            installed=$((installed + 1))
+            manifest_sha="$(get_manifest_sha "${OPTIONAL_SKILLS_MANIFEST_SECTION}" "${manifest_key}")"
+            installed_sha="$(compute_sha256 "${target_file}")"
+            [[ "${manifest_sha}" != "${installed_sha}" ]] && has_modified=true
+        done <<< "${optional_keys}"
+
+        CATEGORY_INSTALLED="${installed}/${total}"
+        CATEGORY_HEALTH="-"
+        if [[ "${installed}" -gt 0 ]]; then
+            CATEGORY_HEALTH="pending removal"
+            [[ "${has_modified}" == "true" ]] && CATEGORY_HEALTH="preserved conflict"
+        fi
+        return
+    fi
+
+    if [[ ! -d "${category_dir}" ]]; then
+        CATEGORY_INSTALLED="0/0"
+        CATEGORY_HEALTH="unavailable"
+        return
+    fi
+
+    for skill_dir in "${category_dir}"/*/; do
+        [[ -f "${skill_dir}/SKILL.md" ]] || continue
+        skill_name="$(basename "${skill_dir}")"
+        manifest_key="${skill_name}"
+        [[ "${manifest_section}" == "${OPTIONAL_SKILLS_MANIFEST_SECTION}" ]] && manifest_key="${category}/${skill_name}"
+        target_file="${SKILLS_DIR}/${skill_name}/SKILL.md"
+        manifest_sha="$(get_manifest_sha "${manifest_section}" "${manifest_key}")"
+
+        if [[ ! -f "${target_file}" || -z "${manifest_sha}" ]]; then
+            has_missing=true
+            continue
+        fi
+
+        installed=$((installed + 1))
+        installed_sha="$(compute_sha256 "${target_file}")"
+        if [[ "${manifest_sha}" != "${installed_sha}" ]]; then
+            has_modified=true
+            continue
+        fi
+
+        upstream_sha="$(compute_sha256 "${skill_dir}/SKILL.md")"
+        [[ "${upstream_sha}" != "${installed_sha}" ]] && has_update=true
+    done
+
+    CATEGORY_INSTALLED="${installed}/${total}"
+    CATEGORY_HEALTH="up to date"
+    if [[ "${has_update}" == "true" ]]; then
+        CATEGORY_HEALTH="update available"
+        UPDATES_AVAILABLE=true
+    fi
+    [[ "${has_missing}" == "true" ]] && CATEGORY_HEALTH="incomplete"
+    [[ "${has_modified}" == "true" ]] && CATEGORY_HEALTH="locally modified"
+    return 0
+}
+
+print_skill_categories() {
+    local enabled_output
+    enabled_output="$(list_enabled_skill_categories)"
+    declare -gA ENABLED_SKILL_CATEGORIES=()
+    local category
+    if [[ -n "${enabled_output}" ]]; then
+        while IFS= read -r category; do
+            [[ -n "${category}" ]] && ENABLED_SKILL_CATEGORIES["${category}"]=1
+        done <<< "${enabled_output}"
+    fi
+
+    local categories_csv="CATEGORY${SEP}POLICY${SEP}STATE${SEP}INSTALLED${SEP}HEALTH"
+    get_category_health "system" "always" "skills"
+    categories_csv+=$'\n'"system${SEP}required${SEP}always${SEP}${CATEGORY_INSTALLED}${SEP}${CATEGORY_HEALTH}"
+
+    local available_output
+    available_output="$(list_available_skill_categories)"
+    declare -A available_categories=()
+    if [[ -n "${available_output}" ]]; then
+        while IFS= read -r category; do
+            [[ -n "${category}" ]] && available_categories["${category}"]=1
+        done <<< "${available_output}"
+    fi
+
+    for category in $(printf '%s\n' "${!available_categories[@]}" | sort); do
+        local state="disabled"
+        [[ -n "${ENABLED_SKILL_CATEGORIES[${category}]+_}" ]] && state="enabled"
+        get_category_health "${category}" "${state}" "${OPTIONAL_SKILLS_MANIFEST_SECTION}"
+        categories_csv+=$'\n'"${category}${SEP}optional${SEP}${state}${SEP}${CATEGORY_INSTALLED}${SEP}${CATEGORY_HEALTH}"
+    done
+
+    for category in $(printf '%s\n' "${!ENABLED_SKILL_CATEGORIES[@]}" | sort); do
+        [[ -n "${available_categories[${category}]+_}" ]] && continue
+        get_category_health "${category}" "enabled" "${OPTIONAL_SKILLS_MANIFEST_SECTION}"
+        categories_csv+=$'\n'"${category}${SEP}optional${SEP}enabled${SEP}${CATEGORY_INSTALLED}${SEP}${CATEGORY_HEALTH}"
+    done
+
+    declare -A manifest_categories=()
+    local manifest_key
+    while IFS= read -r manifest_key; do
+        [[ -n "${manifest_key}" ]] || continue
+        manifest_categories["${manifest_key%%/*}"]=1
+    done < <(manifest_list_keys "${OPTIONAL_SKILLS_MANIFEST_SECTION}")
+    for category in $(printf '%s\n' "${!manifest_categories[@]}" | sort); do
+        [[ -n "${available_categories[${category}]+_}" ]] && continue
+        [[ -n "${ENABLED_SKILL_CATEGORIES[${category}]+_}" ]] && continue
+        get_category_health "${category}" "disabled" "${OPTIONAL_SKILLS_MANIFEST_SECTION}"
+        categories_csv+=$'\n'"${category}${SEP}optional${SEP}disabled${SEP}${CATEGORY_INSTALLED}${SEP}${CATEGORY_HEALTH}"
+    done
+
+    print_label "Skill Categories"
+    render_table "${categories_csv}"
+    print_faint "Configuration: ${HARNESS_CONFIG_PATH}"
 }
 
 # --- Upstream cache ---
@@ -203,38 +345,81 @@ fi
 # --- Skills section ---
 
 managed_skills="$(manifest_list_keys "skills")"
+managed_optional_skills="$(manifest_list_keys "${OPTIONAL_SKILLS_MANIFEST_SECTION}")"
+declare -A optional_skill_keys=()
+declare -A optional_skill_categories=()
+while IFS= read -r manifest_key; do
+    [[ -n "${manifest_key}" ]] || continue
+    skill_name="${manifest_key#*/}"
+    optional_skill_keys["${skill_name}"]="${manifest_key}"
+    optional_skill_categories["${skill_name}"]="${manifest_key%%/*}"
+done <<< "${managed_optional_skills}"
+
+print_skill_categories
+echo ""
 
 # Build CSV header dynamically from tool registry (sorted for stable column order)
 sorted_tool_ids=()
 mapfile -t sorted_tool_ids < <(printf '%s\n' "${!TOOL_SKILLS_DIR[@]}" | sort)
-skills_csv="NAME${SEP}TYPE${SEP}STATUS${SEP}DESCRIPTION"
+skills_header="NAME${SEP}TYPE${SEP}STATUS${SEP}DESCRIPTION"
 empty_tool_cols=""
 for _tid in "${sorted_tool_ids[@]}"; do
-    skills_csv+="${SEP}$(echo "${_tid}" | tr '[:lower:]' '[:upper:]')"
+    skills_header+="${SEP}$(echo "${_tid}" | tr '[:lower:]' '[:upper:]')"
     empty_tool_cols+="${SEP}"
 done
 
 skills_found=false
 declare -A seen_skills=()
+declare -A skills_csv_by_group=()
+declare -A skills_found_by_group=()
+
+append_skill_row() {
+    local group="$1"
+    local row="$2"
+    if [[ -z "${skills_csv_by_group[${group}]+_}" ]]; then
+        skills_csv_by_group["${group}"]="${skills_header}"
+    fi
+    skills_csv_by_group["${group}"]+=$'\n'"${row}"
+    skills_found_by_group["${group}"]=1
+    skills_found=true
+}
 
 if [[ -d "${SKILLS_DIR}" ]]; then
     for skill_dir in "${SKILLS_DIR}"/*/; do
         [[ -d "${skill_dir}" ]] || continue
-        skills_found=true
         skill_name=$(basename "${skill_dir}")
         seen_skills["${skill_name}"]=1
 
+        skill_group="user"
+        manifest_section=""
+        manifest_key=""
+        upstream_file=""
+        if echo "${managed_skills}" | grep -Fqx "${skill_name}"; then
+            skill_group="system"
+            manifest_section="skills"
+            manifest_key="${skill_name}"
+            upstream_file="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
+        elif [[ -n "${optional_skill_keys[${skill_name}]+_}" ]]; then
+            skill_group="${optional_skill_categories[${skill_name}]}"
+            manifest_section="${OPTIONAL_SKILLS_MANIFEST_SECTION}"
+            manifest_key="${optional_skill_keys[${skill_name}]}"
+            upstream_file="${CACHE_DIR}/${SKILLS_ROOT_SUBDIR}/${skill_group}/${skill_name}/SKILL.md"
+        fi
+
         if [[ ! -f "${skill_dir}/SKILL.md" ]]; then
-            skills_csv+=$'\n'"${skill_name}${SEP}incomplete${SEP}no SKILL.md${SEP}${empty_tool_cols}"
+            append_skill_row "${skill_group}" \
+                "${skill_name}${SEP}incomplete${SEP}no SKILL.md${SEP}${empty_tool_cols}"
             continue
         fi
 
-        if echo "${managed_skills}" | grep -Fqx "${skill_name}"; then
+        if [[ -n "${manifest_section}" ]]; then
             # Check if this managed skill is orphaned (no longer in upstream)
             if [[ "${CACHE_AVAILABLE}" == "true" ]] && \
-               [[ ! -f "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md" ]]; then
+               [[ ! -f "${upstream_file}" ]] && \
+               [[ "${skill_group}" == "system" || -n "${ENABLED_SKILL_CATEGORIES[${skill_group}]+_}" ]]; then
                 ORPHANS_FOUND=true
-                skills_csv+=$'\n'"${skill_name},orphan,removed from upstream${empty_tool_cols}"
+                append_skill_row "${skill_group}" \
+                    "${skill_name}${SEP}orphan${SEP}removed from upstream${SEP}${empty_tool_cols}"
                 continue
             fi
 
@@ -245,23 +430,39 @@ if [[ -d "${SKILLS_DIR}" ]]; then
                 availability_cols+="${SEP}${TOOL_AVAILABLE}"
             done
 
-            upstream_file="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
             [[ "${CACHE_AVAILABLE}" != "true" || ! -f "${upstream_file}" ]] && upstream_file=""
-            status=$(resolve_managed_status "skills" "${skill_name}" "${skill_dir}/SKILL.md" "${upstream_file}")
+            status=$(resolve_managed_status "${manifest_section}" "${manifest_key}" "${skill_dir}/SKILL.md" "${upstream_file}")
+            if [[ "${skill_group}" != "system" ]] && [[ -z "${ENABLED_SKILL_CATEGORIES[${skill_group}]+_}" ]]; then
+                status="preserved conflict"
+            fi
             [[ "${status}" == "update available" ]] && UPDATES_AVAILABLE=true
             skill_desc=$(get_catalog_description "skills" "${skill_name}")
-            skills_csv+=$'\n'"${skill_name}${SEP}managed${SEP}${status}${SEP}${skill_desc}${availability_cols}"
+            append_skill_row "${skill_group}" \
+                "${skill_name}${SEP}managed${SEP}${status}${SEP}${skill_desc}${availability_cols}"
         else
-            if has_upstream_conflict "${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"; then
-                skills_csv+=$'\n'"${skill_name}${SEP}user${SEP}conflicts with upstream${SEP}${empty_tool_cols}"
+            conflict_path="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}/${skill_name}/SKILL.md"
+            if [[ ! -f "${conflict_path}" ]]; then
+                for category in "${!ENABLED_SKILL_CATEGORIES[@]}"; do
+                    candidate_path="${CACHE_DIR}/${SKILLS_ROOT_SUBDIR}/${category}/${skill_name}/SKILL.md"
+                    if [[ -f "${candidate_path}" ]]; then
+                        conflict_path="${candidate_path}"
+                        break
+                    fi
+                done
+            fi
+
+            if has_upstream_conflict "${conflict_path}"; then
+                append_skill_row "user" \
+                    "${skill_name}${SEP}user${SEP}conflicts with upstream${SEP}${empty_tool_cols}"
             else
-                skills_csv+=$'\n'"${skill_name}${SEP}user${SEP}${SEP}${empty_tool_cols}"
+                append_skill_row "user" \
+                    "${skill_name}${SEP}user${SEP}${SEP}${empty_tool_cols}"
             fi
         fi
     done
 fi
 
-# Show skills available upstream but not installed locally
+# Show required system skills available upstream but not installed locally.
 if [[ "${CACHE_AVAILABLE}" == "true" ]]; then
     upstream_skills_dir="${CACHE_DIR}/${SYSTEM_SKILLS_SUBDIR}"
     if [[ -d "${upstream_skills_dir}" ]]; then
@@ -271,19 +472,54 @@ if [[ "${CACHE_AVAILABLE}" == "true" ]]; then
             [[ -f "${skill_dir}/SKILL.md" ]] || continue
             # Skip if already seen locally
             [[ -n "${seen_skills[${skill_name}]+_}" ]] && continue
-            skills_found=true
             NEW_RESOURCES_AVAILABLE=true
             new_skill_desc=$(get_catalog_description "skills" "${skill_name}")
-            skills_csv+=$'\n'"${skill_name}${SEP}available${SEP}not installed${SEP}${new_skill_desc}${empty_tool_cols}"
+            append_skill_row "system" \
+                "${skill_name}${SEP}available${SEP}not installed${SEP}${new_skill_desc}${empty_tool_cols}"
         done
     fi
 fi
 
-print_label "Skills"
-if [[ "${skills_found}" = true ]]; then
-    render_table "${skills_csv}"
-else
+# Show missing skills only for enabled optional categories.
+if [[ "${CACHE_AVAILABLE}" == "true" ]]; then
+    for category in $(printf '%s\n' "${!ENABLED_SKILL_CATEGORIES[@]}" | sort); do
+        upstream_skills_dir="${CACHE_DIR}/${SKILLS_ROOT_SUBDIR}/${category}"
+        [[ -d "${upstream_skills_dir}" ]] || continue
+        for skill_dir in "${upstream_skills_dir}"/*/; do
+            [[ -f "${skill_dir}/SKILL.md" ]] || continue
+            skill_name="$(basename "${skill_dir}")"
+            [[ -n "${seen_skills[${skill_name}]+_}" ]] && continue
+            NEW_RESOURCES_AVAILABLE=true
+            new_skill_desc=$(get_catalog_description "skills" "${skill_name}")
+            append_skill_row "${category}" \
+                "${skill_name}${SEP}available${SEP}not installed${SEP}${new_skill_desc}${empty_tool_cols}"
+        done
+    done
+fi
+
+if [[ "${skills_found}" != true ]]; then
+    print_label "Skills"
     echo "  (no skills installed)"
+else
+    if [[ -n "${skills_found_by_group[system]+_}" ]]; then
+        print_label "Skills: system (always enabled)"
+        render_table "${skills_csv_by_group[system]}"
+    fi
+
+    for skill_group in $(printf '%s\n' "${!skills_found_by_group[@]}" | sort); do
+        [[ "${skill_group}" == "system" || "${skill_group}" == "user" ]] && continue
+        echo ""
+        group_state="disabled, preserved"
+        [[ -n "${ENABLED_SKILL_CATEGORIES[${skill_group}]+_}" ]] && group_state="enabled"
+        print_label "Skills: ${skill_group} (${group_state})"
+        render_table "${skills_csv_by_group[${skill_group}]}"
+    done
+
+    if [[ -n "${skills_found_by_group[user]+_}" ]]; then
+        echo ""
+        print_label "User-managed skills"
+        render_table "${skills_csv_by_group[user]}"
+    fi
 fi
 
 # --- Agents section ---
@@ -392,20 +628,20 @@ echo ""
 if [[ -f "${MANIFEST_PATH}" ]]; then
     print_faint "Manifest: ${MANIFEST_PATH}"
 else
-    log_warn "No manifest found. Run 'sjust sf-harness-sync' to sync."
+    log_warn "No manifest found. Run '${HARNESS_RUNNER} sf-harness-sync' to sync."
 fi
 if [[ "${CACHE_AVAILABLE}" == "false" ]]; then
-    log_warn "No upstream cache found. Run 'sjust sf-harness-sync' to enable update checks."
+    log_warn "No upstream cache found. Run '${HARNESS_RUNNER} sf-harness-sync' to enable update checks."
 fi
 if [[ "${CONFLICTS_FOUND}" == "true" ]]; then
-    log_warn "Some user resources conflict with upstream. Run 'sjust sf-harness-sync force' to overwrite."
+    log_warn "Some user resources conflict with upstream. Run '${HARNESS_RUNNER} sf-harness-sync force' to overwrite."
 fi
 if [[ "${ORPHANS_FOUND}" == "true" ]]; then
-    log_warn "Orphaned resources detected (removed from upstream). Run 'sjust sf-harness-sync' to clean up."
+    log_warn "Orphaned resources detected (removed from upstream). Run '${HARNESS_RUNNER} sf-harness-sync' to clean up."
 fi
 if [[ "${UPDATES_AVAILABLE}" == "true" ]]; then
-    log_warn "Updates available. Run 'sjust sf-harness-sync' to update."
+    log_warn "Updates available. Run '${HARNESS_RUNNER} sf-harness-sync' to update."
 fi
 if [[ "${NEW_RESOURCES_AVAILABLE}" == "true" ]]; then
-    log_warn "New resources available. Run 'sjust sf-harness-sync' to install."
+    log_warn "New resources available. Run '${HARNESS_RUNNER} sf-harness-sync' to install."
 fi
