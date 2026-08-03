@@ -47,6 +47,7 @@ homebrew_packages:
   # on Homebrew's bash being first on PATH; making the dependency explicit here.
   - bash
   - coreutils
+  - flock
   # Cloud Tools
   - awscli
   - chafa
