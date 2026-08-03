@@ -133,7 +133,7 @@ setup_claude() {
     fi
 
     log_info "Setting up caveman for Claude Code..."
-    if ! node "${CAVEMAN_CACHE_DIR}/bin/install.js" \
+    if ! node "${CAVEMAN_CACHE_DIR}/cli/install.js" \
         --only claude --force --non-interactive --no-mcp-shrink; then
         log_error "Caveman installer failed for Claude Code"
         return 1
@@ -150,7 +150,7 @@ setup_opencode() {
     fi
 
     log_info "Setting up caveman for OpenCode..."
-    if ! node "${CAVEMAN_CACHE_DIR}/bin/install.js" \
+    if ! node "${CAVEMAN_CACHE_DIR}/cli/install.js" \
         --only opencode --force --non-interactive --no-mcp-shrink; then
         log_error "Caveman installer failed for OpenCode"
         return 1
@@ -309,8 +309,8 @@ uninstall() {
     log_info "Removing caveman from all AI coding tools..."
 
     # Delegate to native uninstaller for Claude Code and OpenCode
-    if [[ -f "${CAVEMAN_CACHE_DIR}/bin/install.js" ]]; then
-        node "${CAVEMAN_CACHE_DIR}/bin/install.js" --uninstall --non-interactive || true
+    if [[ -f "${CAVEMAN_CACHE_DIR}/cli/install.js" ]]; then
+        node "${CAVEMAN_CACHE_DIR}/cli/install.js" --uninstall --non-interactive || true
     fi
 
     # Clean up Copilot markers
