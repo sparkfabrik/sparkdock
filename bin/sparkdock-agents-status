@@ -358,9 +358,13 @@ done <<< "${managed_optional_skills}"
 print_skill_categories
 echo ""
 
-# Build CSV header dynamically from tool registry (sorted for stable column order)
+# Build CSV header dynamically from tool registry (sorted for stable column order).
+# Optional tools absent from this machine get no column at all.
 sorted_tool_ids=()
-mapfile -t sorted_tool_ids < <(printf '%s\n' "${!TOOL_SKILLS_DIR[@]}" | sort)
+while IFS= read -r _tid; do
+    tool_is_enabled "${_tid}" || continue
+    sorted_tool_ids+=("${_tid}")
+done < <(printf '%s\n' "${!TOOL_SKILLS_DIR[@]}" | sort)
 skills_header="NAME${SEP}TYPE${SEP}STATUS${SEP}DESCRIPTION"
 unmanaged_skills_table="NAME${SEP}STATUS${SEP}PATH"
 empty_tool_cols=""

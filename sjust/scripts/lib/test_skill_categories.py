@@ -153,6 +153,8 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
         )
         output = ANSI_ESCAPE.sub("", status.stdout + status.stderr).replace("│", " ")
         self.assertIn("Unmanaged skills", output)
+        # Tool columns are ordered alphabetically. Codex is gated on ~/.codex, which
+        # this fixture does not create, so the columns are claude, copilot, opencode.
         self.assertRegex(
             output,
             r"custom-skill\s+-\s+~/.agents/skills/custom-skill\s+-\s+-\s+ok",
@@ -162,6 +164,45 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
             r"linked-skill\s+-\s+~/.agents/skills/linked-skill"
             r"\s+->\s+~/.external/linked-skill\s+ok\s+-\s+ok",
         )
+
+    def run_status(self) -> str:
+        status = subprocess.run(
+            [str(STATUS_SCRIPT)],
+            env=self.environment | {"SPARKDOCK_SKIP_FETCH": "true"},
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        return ANSI_ESCAPE.sub("", status.stdout + status.stderr).replace("│", " ")
+
+    def test_optional_tool_is_ignored_when_its_marker_directory_is_absent(self) -> None:
+        self.run_sync()
+
+        self.assertFalse((self.home / ".codex").exists())
+        self.assertNotIn("CODEX", self.run_status())
+
+    def test_optional_tool_is_wired_up_when_its_marker_directory_exists(self) -> None:
+        codex_home = self.home / ".codex"
+        codex_home.mkdir()
+
+        self.run_sync()
+
+        link = codex_home / "skills" / "core"
+        self.assertTrue(link.is_symlink())
+        self.assertEqual(
+            str(self.home / ".agents" / "skills" / "core"), os.readlink(link)
+        )
+        self.assertRegex(self.run_status(), r"core\s+managed\s+up to date\s+.*\s+ok")
+        self.assertIn("CODEX", self.run_status())
+
+    def test_optional_tool_bundled_skills_are_left_alone(self) -> None:
+        bundled = self.home / ".codex" / "skills" / ".system" / "bundled"
+        bundled.mkdir(parents=True)
+        (bundled / "SKILL.md").write_text("---\nname: bundled\n---\n")
+
+        self.run_sync()
+
+        self.assertTrue((bundled / "SKILL.md").is_file())
 
     def test_enable_and_disable_are_idempotent(self) -> None:
         self.run_sync("category", "enable", "angular")

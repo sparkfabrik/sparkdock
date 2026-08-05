@@ -10,11 +10,13 @@
 #
 # ADDING A NEW TOOL:
 #   1. Add entries to TOOL_SKILLS_DIR and TOOL_LABEL below.
-#   2. In ansible/macos/macos/base.yml, add a directory-ensure task for
-#      the new tool's skills directory.
+#   2. For a tool that is not installed on every machine, add an entry to
+#      TOOL_REQUIRES_DIR so it is wired up only where that directory exists.
+#   3. In ansible/macos/macos/base.yml, add a directory-ensure task for
+#      the new tool's skills directory (guarded the same way if optional).
 #
 # REMOVING A TOOL:
-#   1. Remove its entries from TOOL_SKILLS_DIR and TOOL_LABEL.
+#   1. Remove its entries from TOOL_SKILLS_DIR, TOOL_LABEL and TOOL_REQUIRES_DIR.
 #   2. Optionally remove the directory-ensure task from base.yml.
 #   3. If no tools remain, delete this file and remove the source lines
 #      from sparkdock-agents-sync and sparkdock-agents-status.
@@ -33,17 +35,38 @@ _SPARKDOCK_SKILLS_SHIM_LOADED=1
 declare -A TOOL_SKILLS_DIR=(
     [copilot]="${HOME}/.copilot/skills"
     [claude]="${HOME}/.claude/skills"
+    # Codex CLI ships its own bundled skills in ~/.codex/skills/.system/. The
+    # loops below glob "${tool_skills_dir}"/* which never matches dotfiles, so
+    # .system is left alone.
+    [codex]="${HOME}/.codex/skills"
     [opencode]="${HOME}/.config/opencode/skills"
 )
 
 declare -A TOOL_LABEL=(
     [copilot]="Copilot CLI"
     [claude]="Claude Code"
+    [codex]="Codex CLI"
     [opencode]="OpenCode"
 )
 
 # Tools that discover ~/.agents/skills/ natively (no symlinks needed).
 TOOLS_NATIVE_DISCOVERY=(opencode)
+
+# Optional tools: wired up only when this directory already exists, which acts as
+# the "user has this tool" marker. Tools absent from this array are always wired
+# up. The tool's own skills subdirectory is still created on demand.
+declare -A TOOL_REQUIRES_DIR=(
+    [codex]="${HOME}/.codex"
+)
+
+# Whether a tool should be wired up on this machine.
+# Args: <tool_id>
+tool_is_enabled() {
+    local tool_id="$1"
+    local required_dir="${TOOL_REQUIRES_DIR[${tool_id}]:-}"
+    [[ -z "${required_dir}" ]] && return 0
+    [[ -d "${required_dir}" ]]
+}
 
 # ============================================================================
 # Used by sparkdock-agents-sync
@@ -83,6 +106,11 @@ ensure_tool_symlinks() {
     local managed_names="${2:-}"
     local tool_label="${TOOL_LABEL[${tool_id}]}"
     local tool_skills_dir="${TOOL_SKILLS_DIR[${tool_id}]}"
+
+    # Skip optional tools whose marker directory is absent — nothing is created.
+    if ! tool_is_enabled "${tool_id}"; then
+        return
+    fi
 
     # Skip tools that discover ~/.agents/skills/ natively.
     local native
@@ -183,6 +211,13 @@ TOOL_AVAILABLE=""
 check_tool_availability() {
     local tool_id="$1"
     local skill_name="$2"
+
+    # A disabled optional tool is not a problem to report — callers normally filter
+    # these out before building their table, so this is only a safety net.
+    if ! tool_is_enabled "${tool_id}"; then
+        TOOL_AVAILABLE="-"
+        return
+    fi
 
     # Tools with native discovery read ~/.agents/skills/ directly — no symlink needed.
     local native
