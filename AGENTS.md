@@ -105,7 +105,7 @@ sjust install-tags "docker,keyboard"
 - Package definitions: `config/packages/all-packages.yml`
 - Supports tagging for selective installation
 
-**Privilege escalation (`become`/sudo).** The play in `ansible/macos/macos/base.yml` runs **unprivileged** (`become: no`); root work is elevated per-task, so the run never forces a sudo password for the whole playbook. The become password is collected natively by `ansible-playbook` itself: the `just run-ansible-playbook` recipe passes `--ask-become-pass` for interactive runs (prompts once, populating `ansible_become_pass`) and `--become` in CI (no prompt, gated by `CI`/`GITHUB_ACTIONS`). There is no `ANSIBLE_BECOME_PASS` env var anymore — the password is held in memory, never exported. Because Homebrew refuses to run as root, the brew/cask/npm tasks stay `become: false`; cask tasks (which can't use Ansible's become at all) pass the same natively-collected password to the module via `sudo_password: "{{ ansible_become_pass | default(omit) }}"`. **To run a task as root, add `become: yes` to that task** (the play does not elevate, so root tasks must opt in explicitly). Guard root tasks that must not run in CI with `when: not is_non_interactive`.
+**Privilege escalation (`become`/sudo).** The play in `ansible/macos/macos/base.yml` runs **unprivileged** (`become: no`); root work is elevated per-task, so the run never forces a sudo password for the whole playbook. The become password is collected by the play's own `vars_prompt` (prompts once, interactive runs only); `just run-ansible-playbook` adds `--become` in CI so nothing is prompted there (gated by `CI`/`GITHUB_ACTIONS` via `is_ci_environment`). **Do not switch this to `--ask-become-pass`**: that flag feeds Ansible's become machinery but never defines the `ansible_become_pass` template variable, so every `{{ ansible_become_pass }}` reference below would break. `vars_prompt` defines the variable and feeds become. There is no `ANSIBLE_BECOME_PASS` env var anymore — the password is held in memory, never exported. Non-interactive callers that must not prompt pass `-e ansible_become_pass=` explicitly. Because Homebrew refuses to run as root, the brew/cask/npm tasks stay `become: false`; cask tasks (which can't use Ansible's become at all) pass the same natively-collected password to the module via `sudo_password: "{{ ansible_become_pass | default(omit) }}"`. **To run a task as root, add `become: yes` to that task** (the play does not elevate, so root tasks must opt in explicitly). Guard root tasks that must not run in CI with `when: not is_non_interactive`.
 
 **SparkJust Task Runner:**
 
@@ -296,9 +296,12 @@ upgrade`), `Sync AI harness` (`sjust sf-harness-sync`), the `HTTP proxy` group
   behind one interface: **structured** (decodes the `ansible/callback_plugins/sparkdock.py`
   stdout callback's `@@PHASE`/`@@TASK`/`@@STAT`/`@@DONE` markers) and **terminal**
   (a VT emulator for programs that redraw in place, like `brew`).
-- Privileged runs use `--ask-become-pass`; the password is entered on a masked
-  page and written to the process PTY. **It is never cached, never put in the
+- Privileged runs answer the play's `vars_prompt` (`BECOME password:`) rather than
+  passing `--ask-become-pass`; the password is entered on a masked page and
+  written to the process PTY. **It is never cached, never put in the
   environment, argv, or a file, and is asked for each time.** Do not add caching.
+  `internal/runner/runner_test.go` asserts both the absent flag and the absent
+  `ANSIBLE_BECOME_PASS` env var, so those guarantees are enforced by tests.
 
 ### Building and testing
 
@@ -370,10 +373,6 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `claude-gh-gate` — register only the Claude Code gh skill gate hook
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
 - `skills` — backward-compat alias
-
-### OpenSpec Change
-
-Full design artifacts at `openspec/changes/unified-agents-sync/` (proposal, design, specs, tasks).
 
 ## Git Workflow
 

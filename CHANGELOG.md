@@ -103,6 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed `sjust system-install-mkcert` to only install the mkcert local CA; the `mkcert` and `nss` formulae are already in `homebrew_packages`, so the recipe no longer runs a redundant `brew install`
 - Moved `google-cloud-sdk` from `cask_packages` to `cask_latest_packages`, so an existing Google Cloud SDK is upgraded on every provisioning pass instead of staying pinned at the version installed on first provision
 - Changed `sparkdock tui` status checks to run in parallel and stream into the dashboard row by row, each under a 60-second timeout so a hung command can never pin a row on the loading ellipsis; returning to the dashboard keeps the previous rows visible while the new round refreshes in the background
 - Changed `sparkdock-tui update` and `--no-tui` to exec the `sparkdock` bash entrypoint (self-update plus provisioning) instead of printing a stub; a bare non-TTY invocation now refuses with guidance rather than provisioning implicitly
@@ -158,6 +159,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed the dinghy-proxy to http-proxy transition, 14 months after it landed: the `run-http-proxy` and `run-dinghy-proxy` compatibility symlinks are no longer created, and the block that deleted old dinghy binaries and copied `~/.dinghy/certs` is gone (`spark-http-proxy` creates its own config and certs directories on every run). Symlinks already present on a machine keep working; they are simply no longer managed
+- Removed `config/bin/test-dnsdock`, a 2022 smoke test for the pre-Traefik dnsdock DNS layer that nothing referenced and provisioning never installed
+- Removed the `docker-prune` recipe, which duplicated the Docker half of `system-cleanup`
+- Removed the unused `uid` and `shell` variables from `sjust/recipes/00-default.just`; both were backtick assignments evaluated on every `sjust` invocation, and `shell` read `/etc/passwd`, which holds no regular user on macOS
+- Removed the AGENTS.md "OpenSpec Change" pointer to `openspec/changes/unified-agents-sync/`, a path that `.gitignore` excludes, so it never resolved for anyone cloning the repository
 - Removed the GitHub Copilot quota and model-limit tooling now that Copilot has moved to a different billing model: the `sf-copilot-model-limits`, `sf-copilot-model-list` and `sf-copilot-premium-usage` recipes, the `copilot-models.mjs`, `copilot-usage.mjs`, `lib/copilot-auth.mjs` and now-orphaned `lib/gum.mjs` scripts, and the hand-maintained `provider.github-copilot` model limit overrides in `config/macos/opencode.json`, which OpenCode now resolves from models.dev
 - Removed the stale Docker Desktop recipes, leaving `docker-desktop-diagnose` as the only one in the group: `docker-desktop-enable-host-networking` and `docker-desktop-disable-host-networking` wrote the `EnableHostNetworking` key that Docker Desktop no longer reads, `docker-desktop-install-version-4412` pinned a May 2025 build, `docker-desktop-restart` only wrapped `docker desktop restart`, and the kernel-networking-for-UDP pair is superseded by the toggle in Docker Desktop's own network settings; the now-unused `_docker_desktop_*` private helpers and the `docker_settings_file` variable are gone with them
 - Removed the Lima VM integration: the `01-lima.just` recipe file and all `lima-*`, `switch-to-lima-docker-context` and `switch-to-docker-desktop-context` recipes are gone, and the `lima` Homebrew formula is now uninstalled during provisioning
@@ -167,6 +173,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the AGENTS.md privilege-escalation section, which described the become password as being collected via `--ask-become-pass`. The play uses `vars_prompt` instead, precisely because `--ask-become-pass` never defines the `ansible_become_pass` template variable the cask tasks depend on. The TUI section carried the same error, contradicting the test that asserts the flag is absent
+- Fixed the OpenCode deploy message reporting 175 permission rules when the config holds 172
 - Fixed caveman setup failing with `Cannot find module .../caveman/bin/install.js` after upstream moved the installer from `bin/` to `cli/`; the setup and uninstall paths now point at `cli/install.js`
 - Fixed a spurious ignored `ERROR` on fresh installs from the `_sjust` completion ownership task running before the file exists: it is now guarded by a stat check instead of `ignore_errors`
 - Fixed provisioning aborting with `Permission denied` on user-level tasks (zsh site-functions, macos-defaults overrides) when `~/.local` is root-owned (e.g. after a Migration Assistant transfer): full interactive runs now detect the wrong ownership and chown the tree back to the user before any task writes under it

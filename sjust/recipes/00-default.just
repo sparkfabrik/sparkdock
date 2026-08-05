@@ -1,7 +1,5 @@
 # vim: set ft=make :
 
-uid := `id -u`
-shell := `grep :$(id -u): /etc/passwd | cut -d: -f7`
 sparkdock_path := "/opt/sparkdock"
 default_branch := "master"
 sparkdock_menubar_plist_path := "${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
@@ -122,14 +120,15 @@ system-upgrade:
     brew update && brew upgrade && brew cleanup
     echo "System packages updated successfully!"
 
-# Install mkcert for local SSL certificate generation.
+# Install the mkcert local CA into the system and browser trust stores.
+# The mkcert and nss formulae themselves are installed during provisioning.
 [group('system')]
 system-install-mkcert:
     #!/usr/bin/env bash
-    echo "Installing mkcert..."
-    brew install mkcert nss
+    set -euo pipefail
+    echo "Installing the mkcert local CA..."
     mkcert -install
-    echo "mkcert installed successfully!"
+    echo "mkcert local CA installed successfully!"
 
 # Configure Google Cloud SDK and install required components.
 [group('system')]
@@ -242,11 +241,6 @@ system-cleanup:
 [group('docker')]
 docker-ps:
     @docker ps --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}'
-
-# Clean up unused Docker resources to free disk space.
-[group('docker')]
-docker-prune:
-    @docker system prune -f
 
 [group('sparkdock')]
 sparkdock-install-tags tags:
