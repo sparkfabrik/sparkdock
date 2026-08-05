@@ -345,7 +345,14 @@ Sparkdock syncs AI coding resources from the upstream `sf-awesome-copilot` repos
 
 ### Tool Registry
 
-The sync script uses associative arrays to map each coding tool to its install directory and filename pattern. Adding support for a new tool requires only 2 lines (one in each array). Current tools: `claude`, `copilot`, `opencode`.
+Two independent registries drive the harness, each an associative array mapping a coding tool to its install directory. Adding support for a new tool requires only 2 lines (one in each array).
+
+- **Agent profiles** (`AGENT_TOOL_INSTALL_DIR` / `AGENT_TOOL_FILENAME` in `bin/sparkdock-agents-sync`): `claude`, `copilot`, `opencode`. Profiles are written as real files, with a per-tool filename pattern (`%s.agent.md` for Copilot, `%s.md` for the others).
+- **Skill symlinks** (`TOOL_SKILLS_DIR` / `TOOL_LABEL` in `bin/common/skills-symlink-shim.sh`): `claude`, `copilot`, `codex`, `opencode`. Skills are installed once to `~/.agents/skills/<name>/` and symlinked per tool. `opencode` is listed in `TOOLS_NATIVE_DISCOVERY` and reads `~/.agents/skills/` directly, so it gets no symlinks.
+
+A third array, `TOOL_REQUIRES_DIR`, marks a tool as **optional**: it is wired up only on machines where that directory already exists. Tools absent from the array are always wired up. `tool_is_enabled <tool_id>` is the shared predicate. A disabled tool gets nothing created and no column in `sf-harness-status`, so machines without the tool see no output about it.
+
+Codex CLI is in the skills registry only (`~/.codex/skills`), and it is optional, gated on `~/.codex`. When that directory exists, `~/.codex/skills` is created on demand and populated with symlinks; when it does not, sync and status ignore Codex entirely. Codex has no agent-profile directory, so it stays out of the agent-profile registry. Codex's own bundled skills live in `~/.codex/skills/.system/` and are never touched, because the shim's globs skip dotfiles.
 
 ### Manifest
 

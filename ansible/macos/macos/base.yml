@@ -1211,6 +1211,24 @@
             mode: "0755"
           become: no
 
+        # Codex CLI is optional: ~/.codex is the marker that the user has it, and
+        # matches the TOOL_REQUIRES_DIR gate in bin/common/skills-symlink-shim.sh.
+        - name: Check whether Codex CLI is present
+          stat:
+            path: "{{ ansible_facts['env']['HOME'] }}/.codex"
+            follow: true
+          register: codex_home
+          become: no
+          changed_when: false
+
+        - name: Ensure Codex skills directory exists
+          file:
+            path: "{{ ansible_facts['env']['HOME'] }}/.codex/skills"
+            state: directory
+            mode: "0755"
+          become: no
+          when: codex_home.stat.exists and codex_home.stat.isdir
+
         - name: Make sparkdock-agents-sync executable
           file:
             path: "{{ dev_env_dir }}/bin/sparkdock-agents-sync"
