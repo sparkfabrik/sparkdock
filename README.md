@@ -156,26 +156,6 @@ After configuration, you can verify the plugin is working:
 gke-gcloud-auth-plugin --version
 ```
 
-### Sparkdock AI Assistant (Preview)
-
-Sparkdock includes an experimental `sparkdock-ai` helper built with [llm](https://github.com/simonw/llm), OpenAI models, and [gum](https://github.com/charmbracelet/gum). It lets you ask interactive questions about your local Sparkdock checkout (for example: “What packages are installed?” or “What aliases are defined?”).
-
-Before launching it, export an `OPENAI_API_KEY` with the internal key material (ping Sparkdock internal support — e.g. `#support-tech` on Slack — if you need retrieval instructions). One approach is to define an `export_openai_key` helper in `${HOME}/.config/spark/shell.zsh` that reads the secret from Google Cloud and exports it for your shell session.
-
-Run it from the repository root or `/opt/sparkdock`:
-
-```bash
-bin/sparkdock-ai
-```
-
-On first launch, the script removes any legacy GitHub Copilot plugin, wipes stored `llm` keys, and verifies that `OPENAI_API_KEY` is present. Answers cite the relevant files so you can follow up directly in the repo.
-
-The assistant calls the fast OpenAI `gpt-4.1-nano` model for contextual answers and `gpt-5-nano` for quick direct responses. During long-running calls the CLI shows a `gum spin` progress indicator, and it falls back to plain text messaging if gum is unavailable.
-
-Pick “Help” in the menu at any time to read a quick overview of how the assistant works, including the classifier/direct-answer flow diagram.
-
-Logs live at `~/.config/spark/sparkdock/ai.log`. Set `SPARKDOCK_AI_LOG_LEVEL=TRACE` for verbose tracing or `SPARKDOCK_AI_LOG_FILE` to override the destination.
-
 ### Shell Enhancements
 
 Sparkdock provides a modern shell experience with oh-my-zsh, starship prompt, and a curated set of modern Unix tools with convenient aliases.

@@ -1,7 +1,7 @@
 You are preparing a daily Slack digest for Sparkdock, a macOS development environment provisioner used by developers at SparkFabrik.
 
 Sparkdock automates the setup of development environments on macOS, including:
-- Container runtimes (Docker Desktop, Lima)
+- Container runtimes (Docker Desktop)
 - Shell enhancements (zsh, starship prompt, eza, fzf)
 - HTTP proxy for local development (.loc domains)
 - Development tools (CLI utilities, editors, languages)

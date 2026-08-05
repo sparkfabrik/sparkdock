@@ -59,7 +59,6 @@ homebrew_packages:
   - kubectx
   - skaffold
   - stern
-  - lima
   - atuin
   - bat
   - bc
@@ -102,7 +101,6 @@ homebrew_packages:
   - gitleaks
   - pre-commit
   - uv
-  - llm
   - anomalyco/tap/opencode
   - openspec
   - playwright-cli
@@ -126,6 +124,8 @@ removed_homebrew_packages:
   - docker-compose
   - "php@8.3"
   - tmate
+  - lima
+  - llm
 
 removed_taps:
   - koekeishiya/formulae

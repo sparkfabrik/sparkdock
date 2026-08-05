@@ -139,22 +139,6 @@ sparkdock_has_fzf() {
     fi
 }
 
-sparkdock_print_openai_key_instructions() {
-    cat <<'EOF'
-⚠️  OPENAI_API_KEY is required for sparkdock-ai
-
-   ⚠️  IMPORTANT: Replace YOUR_SECRET_NAME and YOUR_GCP_PROJECT with your actual values!
-
-   • Add to ${HOME}/.config/spark/shell.zsh:
-       function export_openai_key() {
-         export OPENAI_API_KEY=$(gcloud secrets versions access "latest" --secret YOUR_SECRET_NAME --project YOUR_GCP_PROJECT)
-       }
-
-   • Run `export_openai_key` before launching sparkdock-ai.
-   • Need help? Check in on #support-tech (Slack).
-EOF
-}
-
 # Compute default values for shell enhancements based on existing configuration
 # Arguments:
 #   $1 - Path to user's zshrc

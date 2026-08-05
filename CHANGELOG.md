@@ -158,6 +158,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed the Lima VM integration: the `01-lima.just` recipe file and all `lima-*`, `switch-to-lima-docker-context` and `switch-to-docker-desktop-context` recipes are gone, and the `lima` Homebrew formula is now uninstalled during provisioning
+- Removed the experimental Sparkdock AI assistant: `bin/sparkdock-ai`, the `src/sparkdock-ai` Python engine, the `sjust sparkdock-ai` and `sjust sparkdock-configure-llm` recipes, and the `llm` Homebrew formula (now uninstalled during provisioning)
 - Removed `sjust sf-skills-refresh` backward-compatible alias (use `sf-agents-refresh` instead)
 - Removed `sjust sf-skills-status` backward-compatible alias (use `sf-agents-status` instead)
 

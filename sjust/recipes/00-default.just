@@ -248,34 +248,6 @@ docker-ps:
 docker-prune:
     @docker system prune -f
 
-# Run the experimental sparkdock-ai command.
-[group('sparkdock')]
-sparkdock-ai:
-    @"{{source_directory()}}/../../bin/sparkdock-ai"
-
-# Configure llm for Sparkdock AI (OpenAI-backed).
-[group('sparkdock')]
-sparkdock-configure-llm:
-    #!/usr/bin/env bash
-    set -e
-    source "{{source_directory()}}/../libs/libshell.sh"
-    if llm plugins 2>/dev/null | grep -Fq 'llm-github-copilot'; then
-        echo 'Removing llm-github-copilot plugin...'
-        llm uninstall llm-github-copilot
-    else
-        echo 'llm-github-copilot plugin not present; nothing to uninstall.'
-    fi
-    keys_path=$(llm keys path 2>/dev/null || true)
-    if [[ -n "${keys_path}" && -f "${keys_path}" ]]; then
-        echo "Deleting llm key store at ${keys_path}..."
-        rm -f "${keys_path}"
-    fi
-    echo 'Setting default llm model to gpt-4.1-nano...'
-    llm models default gpt-4.1-nano
-    echo '✅ llm default model set to gpt-4.1-nano.'
-    echo ""
-    sparkdock_print_openai_key_instructions
-
 [group('sparkdock')]
 sparkdock-install-tags tags:
     #!/usr/bin/env bash
