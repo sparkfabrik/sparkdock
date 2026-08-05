@@ -1,7 +1,5 @@
 # vim: set ft=make :
 
-uid := `id -u`
-shell := `grep :$(id -u): /etc/passwd | cut -d: -f7`
 sparkdock_path := "/opt/sparkdock"
 default_branch := "master"
 sparkdock_menubar_plist_path := "${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
@@ -122,14 +120,15 @@ system-upgrade:
     brew update && brew upgrade && brew cleanup
     echo "System packages updated successfully!"
 
-# Install mkcert for local SSL certificate generation.
+# Install the mkcert local CA into the system and browser trust stores.
+# The mkcert and nss formulae themselves are installed during provisioning.
 [group('system')]
 system-install-mkcert:
     #!/usr/bin/env bash
-    echo "Installing mkcert..."
-    brew install mkcert nss
+    set -euo pipefail
+    echo "Installing the mkcert local CA..."
     mkcert -install
-    echo "mkcert installed successfully!"
+    echo "mkcert local CA installed successfully!"
 
 # Configure Google Cloud SDK and install required components.
 [group('system')]
@@ -242,39 +241,6 @@ system-cleanup:
 [group('docker')]
 docker-ps:
     @docker ps --format 'table {{"{{"}}.Names{{"}}"}}\t{{"{{"}}.Status{{"}}"}}\t{{"{{"}}.Ports{{"}}"}}'
-
-# Clean up unused Docker resources to free disk space.
-[group('docker')]
-docker-prune:
-    @docker system prune -f
-
-# Run the experimental sparkdock-ai command.
-[group('sparkdock')]
-sparkdock-ai:
-    @"{{source_directory()}}/../../bin/sparkdock-ai"
-
-# Configure llm for Sparkdock AI (OpenAI-backed).
-[group('sparkdock')]
-sparkdock-configure-llm:
-    #!/usr/bin/env bash
-    set -e
-    source "{{source_directory()}}/../libs/libshell.sh"
-    if llm plugins 2>/dev/null | grep -Fq 'llm-github-copilot'; then
-        echo 'Removing llm-github-copilot plugin...'
-        llm uninstall llm-github-copilot
-    else
-        echo 'llm-github-copilot plugin not present; nothing to uninstall.'
-    fi
-    keys_path=$(llm keys path 2>/dev/null || true)
-    if [[ -n "${keys_path}" && -f "${keys_path}" ]]; then
-        echo "Deleting llm key store at ${keys_path}..."
-        rm -f "${keys_path}"
-    fi
-    echo 'Setting default llm model to gpt-4.1-nano...'
-    llm models default gpt-4.1-nano
-    echo '✅ llm default model set to gpt-4.1-nano.'
-    echo ""
-    sparkdock_print_openai_key_instructions
 
 [group('sparkdock')]
 sparkdock-install-tags tags:

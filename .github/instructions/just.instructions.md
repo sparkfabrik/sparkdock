@@ -59,7 +59,6 @@ All shell scripts in recipes must follow these patterns:
 ### Recipe File Organization
 
 - `00-default.just`: Core system tasks (cleanup, updates, device info)
-- `01-lima.just`: Lima container environment tasks
 - `02-docker-desktop.just`: Docker Desktop specific tasks
 - `03-shell.just`: Shell configuration and setup tasks
 - `~/.config/sjust/100-custom.just`: User customizations (optional import)

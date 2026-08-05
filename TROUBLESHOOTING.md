@@ -7,10 +7,12 @@ Please find hints and troubleshooting information on our company playbook: http:
 ### System Requirements
 
 **Supported macOS Versions:**
+
 - macOS Sequoia (15.x)
 - macOS Tahoe (26.x)
 
 **Prerequisites:**
+
 - Administrator privileges required for installation
 - Stable internet connection for downloading packages
 - At least 5GB free disk space for development tools
@@ -21,12 +23,14 @@ Please find hints and troubleshooting information on our company playbook: http:
 Sparkdock includes the `sjust` task runner for common development tasks. If you encounter issues:
 
 **Check available commands:**
+
 ```bash
 sjust                    # Show welcome message and basic info
 sjust --list             # List all available tasks
 ```
 
 **Common sjust commands:**
+
 ```bash
 sjust system-device-info      # Display system information
 sjust docker-ps              # Show running Docker containers
@@ -38,42 +42,27 @@ sjust http-proxy-stop        # Stop the HTTP proxy system
 **Custom tasks:**
 Add your own tasks to `~/.config/sjust/100-custom.just` for project-specific automation.
 
-### Docker Desktop Network Issues
-
-Docker Desktop can experience network connectivity issues that affect containerized applications. Use the following sjust commands to resolve common network problems:
-
-#### Network Connectivity Issues
-
-If you experience network connectivity problems with containers:
-
-**Enable kernel networking for UDP (may not be compatible with VPN software):**
-```bash
-sjust docker-desktop-enable-kernel-udp
-```
-
-**Disable kernel networking for UDP:**
-```bash
-sjust docker-desktop-disable-kernel-udp
-```
-
-#### General Docker Desktop Issues
-
-**Restart Docker Desktop to resolve common issues:**
-```bash
-sjust docker-desktop-restart
-```
+### Docker Desktop Issues
 
 **Run Docker Desktop diagnostics to collect system information:**
+
 ```bash
 sjust docker-desktop-diagnose
 ```
 
 **Run diagnostics and upload to Docker support:**
+
 ```bash
 sjust docker-desktop-diagnose true
 ```
 
-**Note:** These settings are automatically backed up before changes are made. If you experience issues after enabling these features, you can disable them using the corresponding disable commands.
+**Restart Docker Desktop to resolve common issues:**
+
+```bash
+docker desktop restart
+```
+
+**Network connectivity problems with containers:** the kernel networking for UDP and host networking options now live in Docker Desktop under Settings, Resources, Network. Toggle them there rather than editing `settings-store.json`.
 
 ### Linux
 
@@ -112,10 +101,12 @@ MulticastDNS setting: no
 #### Installation Problems
 
 **Permission errors during installation:**
+
 - Ensure you have administrator privileges on your macOS system
 - Installation requires `sudo` access for some system modifications
 
 **Network connectivity issues:**
+
 - Check your internet connection
 - Verify access to GitHub and Homebrew repositories
 - Some corporate networks may block required domains
@@ -123,6 +114,7 @@ MulticastDNS setting: no
 #### Update Problems
 
 **Failed updates:**
+
 - Sparkdock automatically rolls back failed updates
 - Check `/opt/sparkdock` directory exists and has proper permissions
 - Ensure git repository in `/opt/sparkdock` is in a clean state
@@ -130,33 +122,38 @@ MulticastDNS setting: no
 #### HTTP Proxy Issues
 
 **Proxy services not starting:**
+
 ```bash
 spark-http-proxy status    # Check service status
 spark-http-proxy restart   # Restart all proxy services
 ```
 
 **`.loc` domains not resolving:**
+
 ```bash
 sjust http-proxy-restart        # Restart HTTP proxy system
 sjust dns-flush-cache          # Clear macOS DNS cache
 ```
+
 - Verify DNS resolver configuration in `/etc/resolver/loc`
 
 #### Package Installation Issues
 
 **Homebrew formula conflicts:**
+
 ```bash
 sjust system-upgrade      # Update all Homebrew packages
 brew doctor               # Check for Homebrew issues
 ```
 
 **Cask installation failures:**
+
 - Some casks require manual intervention or have specific system requirements
 - Check the specific error message and consult Homebrew cask documentation
 
 ### MacOS Quick Checks
 
-* Clear the system DNS cache with the following commands:
+- Clear the system DNS cache with the following commands:
 
 ```
 sudo dscacheutil -flushcache
@@ -165,8 +162,8 @@ sudo killall -HUP mDNSResponder
 
 ### Ubuntu quick checks
 
-* Check if dnsmasq can actually start or dnsdock is binding port 53 on 0.0.0.0
-* Check the other way around
-* Check you are running dnsmasq with the default configuration in `/etc/dnsmasq.conf` (you really should use `/etc/dnsmasq.d` to store personal config files!)
-* Are your user in the `docker` group?
-* Did your read the last notice about loggin' out, then in again to make unix know your user was added to such group?
+- Check if dnsmasq can actually start or dnsdock is binding port 53 on 0.0.0.0
+- Check the other way around
+- Check you are running dnsmasq with the default configuration in `/etc/dnsmasq.conf` (you really should use `/etc/dnsmasq.d` to store personal config files!)
+- Are your user in the `docker` group?
+- Did your read the last notice about loggin' out, then in again to make unix know your user was added to such group?
