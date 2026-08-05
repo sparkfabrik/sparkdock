@@ -257,7 +257,7 @@ If you are still blocked after trying the steps above:
 ### Common Issues
 
 - **Permission Errors**: Ensure administrator privileges
-- **Docker Desktop Network Problems**: Use `sjust docker-desktop-*` commands for UDP and host networking issues
+- **Docker Desktop Problems**: Use `sjust docker-desktop-diagnose` to collect diagnostics; network options live in Docker Desktop under Settings, Resources, Network
 - **Update Failures**: System automatically rolls back failed updates
 - **Lock File Issues**: Remove `/tmp/sparkdock.lock` if installation appears stuck
 - **DNS Resolution**: Use `sjust system-clear-dns-cache` to clear DNS cache

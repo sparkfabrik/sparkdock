@@ -158,6 +158,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed the stale Docker Desktop recipes, leaving `docker-desktop-diagnose` as the only one in the group: `docker-desktop-enable-host-networking` and `docker-desktop-disable-host-networking` wrote the `EnableHostNetworking` key that Docker Desktop no longer reads, `docker-desktop-install-version-4412` pinned a May 2025 build, `docker-desktop-restart` only wrapped `docker desktop restart`, and the kernel-networking-for-UDP pair is superseded by the toggle in Docker Desktop's own network settings; the now-unused `_docker_desktop_*` private helpers and the `docker_settings_file` variable are gone with them
 - Removed the Lima VM integration: the `01-lima.just` recipe file and all `lima-*`, `switch-to-lima-docker-context` and `switch-to-docker-desktop-context` recipes are gone, and the `lima` Homebrew formula is now uninstalled during provisioning
 - Removed the experimental Sparkdock AI assistant: `bin/sparkdock-ai`, the `src/sparkdock-ai` Python engine, the `sjust sparkdock-ai` and `sjust sparkdock-configure-llm` recipes, and the `llm` Homebrew formula (now uninstalled during provisioning)
 - Removed `sjust sf-skills-refresh` backward-compatible alias (use `sf-agents-refresh` instead)

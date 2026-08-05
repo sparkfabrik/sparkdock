@@ -1,8 +1,6 @@
 set allow-duplicate-recipes := true
 set ignore-comments := true
 
-docker_settings_file := "${HOME}/Library/Group Containers/group.com.docker/settings-store.json"
-
 _default:
     #!/usr/bin/env bash
     source /opt/sparkdock/sjust/libs/libformatting.sh
