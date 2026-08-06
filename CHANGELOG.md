@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added remote URL self-healing to `sparkdock-agents-sync`: the cached upstream clone's `origin` is repointed to the configured repository URL before every fetch, so upstream repository renames are absorbed without re-cloning; the upstream URL is overridable via `SPARKDOCK_AGENTS_UPSTREAM_REPO` for tests and local development
 - Added Codex CLI to the AI coding harness skills registry as an optional tool gated on `~/.codex`: where that directory exists, `sf-harness-sync` creates `~/.codex/skills` and symlinks managed skills into it and `sf-harness-status` reports a `CODEX` column; machines without it are left untouched and show no Codex column
 - Added globally managed optional AI harness skill categories with styled, visually separated `sf-harness-category [list]|enable|disable` output, concise failure messages, persistent user selection, conflict-safe removal, category health plus unmanaged skill paths and tool availability in `sf-harness-status`, and shared `sjust`/Linux `ajust` support; system skills remain mandatory and existing manifests migrate without reinstalling optional categories
 - Added timetracker to the update-notification system: `sparkdock-check-updates timetracker` delegates to the CLI's own `timetracker update --check` (exit 3 when the CLI is not installed), the menu bar app gained a Timetracker status row plus an `Upgrade Timetracker` action that runs `timetracker update --apply` and tints the icon when an update is pending, the Tools menu gained "Open timetracker" and "Update timetracker" entries, and `sjust sf-timetracker-info` reports the local install state; the Timetracker menu entries and status row appear only on machines where the CLI is installed, via a new optional `requires_binary` field on menu items re-evaluated on every refresh, so installing the CLI surfaces them without restarting the app
@@ -104,6 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed the AI coding harness upstream repository URL from `sparkfabrik/sf-awesome-copilot` to `sparkfabrik/sf-agents-harness` following the upstream rename
 - Changed `sjust system-install-mkcert` to only install the mkcert local CA; the `mkcert` and `nss` formulae are already in `homebrew_packages`, so the recipe no longer runs a redundant `brew install`
 - Moved `google-cloud-sdk` from `cask_packages` to `cask_latest_packages`, so an existing Google Cloud SDK is upgraded on every provisioning pass instead of staying pinned at the version installed on first provision
 - Changed `sparkdock tui` status checks to run in parallel and stream into the dashboard row by row, each under a 60-second timeout so a hung command can never pin a row on the loading ellipsis; returning to the dashboard keeps the previous rows visible while the new round refreshes in the background

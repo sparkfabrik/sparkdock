@@ -335,7 +335,7 @@ go test ./... -count=1                                  # run the suite
 
 ## AI Coding Agents System
 
-Sparkdock syncs AI coding resources from the upstream `sf-awesome-copilot` repository. This covers two resource types managed by a unified sync system:
+Sparkdock syncs AI coding resources from the upstream `sf-agents-harness` repository. This covers two resource types managed by a unified sync system:
 
 - **Skills**: Tool-specific instruction files (e.g., `glab`) installed to `~/.agents/skills/<name>/SKILL.md`
 - **Agent profiles**: Per-tool agent configurations (e.g., "The Architect") installed to tool-specific directories (`~/.copilot/agents/`, `~/.config/opencode/agents/`)

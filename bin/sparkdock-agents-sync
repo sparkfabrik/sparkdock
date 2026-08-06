@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # sparkdock-agents-sync — Sync SparkFabrik agent skills and agent profiles
-#                         from the upstream sf-awesome-copilot repository.
+#                         from the upstream sf-agents-harness repository.
 # Usage: sparkdock-agents-sync [--force] [category <list|enable|disable> [name]]
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
@@ -21,7 +21,8 @@ source "${SCRIPT_DIR}/common/skill-categories.sh"
 # shellcheck source=common/skills-symlink-shim.sh
 source "${SCRIPT_DIR}/common/skills-symlink-shim.sh"
 
-UPSTREAM_REPO="https://github.com/sparkfabrik/sf-awesome-copilot.git"
+# Overridable so tests and local development can point at a fixture repo.
+UPSTREAM_REPO="${SPARKDOCK_AGENTS_UPSTREAM_REPO:-https://github.com/sparkfabrik/sf-agents-harness.git}"
 CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
 FORCE=false
@@ -187,6 +188,13 @@ sync_repo() (
     set -euo pipefail
     if [[ -d "${CACHE_DIR}/.git" ]]; then
         cd "${CACHE_DIR}"
+        # Self-heal: repoint origin if the upstream repo URL changed (e.g. rename)
+        local current_url
+        current_url="$(git remote get-url origin 2>/dev/null || echo "")"
+        if [[ "${current_url}" != "${UPSTREAM_REPO}" ]]; then
+            log_info "Updating cache remote URL: ${current_url:-<none>} -> ${UPSTREAM_REPO}"
+            git remote set-url origin "${UPSTREAM_REPO}"
+        fi
         run_with_spinner "Updating cached repository..." \
             git fetch origin -q
         local default_branch
