@@ -21,7 +21,8 @@ source "${SCRIPT_DIR}/common/skill-categories.sh"
 # shellcheck source=common/skills-symlink-shim.sh
 source "${SCRIPT_DIR}/common/skills-symlink-shim.sh"
 
-UPSTREAM_REPO="https://github.com/sparkfabrik/sf-agents-harness.git"
+# Overridable so tests and local development can point at a fixture repo.
+UPSTREAM_REPO="${SPARKDOCK_AGENTS_UPSTREAM_REPO:-https://github.com/sparkfabrik/sf-agents-harness.git}"
 CACHE_DIR="${HOME}/.cache/sparkdock/agent-skills"
 MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
 FORCE=false

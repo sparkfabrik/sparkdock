@@ -68,6 +68,7 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
                 "HOME": str(self.home),
                 "TERM": "dumb",
                 "XDG_CONFIG_HOME": str(self.home / ".config"),
+                "SPARKDOCK_AGENTS_UPSTREAM_REPO": str(self.upstream),
             }
         )
 
