@@ -23,6 +23,12 @@ macos-non-native-fullscreen = true
 font-thicken = false
 
 # Keybindings
+# Option+Backspace sends ESC DEL so shells and TUIs delete the previous word.
+# Bound as a single chord on purpose: macos-option-as-alt would fix this too, but
+# it stops Option composing @ # [ ] { } on the Italian Mac layout.
+# This file is shared with Linux (ajust), where Alt+Backspace already sends the
+# same bytes, so the bind is a no-op there apart from pinning the legacy encoding.
+keybind = alt+backspace=text:\x1b\x7f
 keybind = ctrl+shift+n=new_window
 keybind = cmd+c=copy_to_clipboard
 keybind = cmd+v=paste_from_clipboard
