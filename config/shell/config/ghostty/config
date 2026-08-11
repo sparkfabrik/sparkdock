@@ -21,6 +21,7 @@ mouse-scroll-multiplier = 2
 # MacOS Specific
 macos-non-native-fullscreen = true
 font-thicken = false
+macos-option-as-alt = left
 
 # Keybindings
 keybind = ctrl+shift+n=new_window
