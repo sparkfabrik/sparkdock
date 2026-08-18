@@ -152,17 +152,32 @@ fi
 
 docker_running=false
 docker_safe_bytes=0
+docker_stopped=0
 if command -v docker >/dev/null 2>&1 && docker system df --format '{{json .}}' >/dev/null 2>&1; then
     docker_running=true
     while IFS=$'\t' read -r kind human bytes total active; do
         [[ -n "${kind}" ]] || continue
+
+        # A stopped container can hold zero reclaimable bytes and still exist, so
+        # count them before the byte filter below discards the row. Gating the
+        # prune on bytes alone would leave stopped containers behind.
+        if [[ "${kind}" == "Containers" && "${total}" =~ ^[0-9]+$ && "${active}" =~ ^[0-9]+$ ]]; then
+            docker_stopped=$((total - active))
+            if [[ "${docker_stopped}" -gt 0 ]]; then
+                targets+="Docker"$'\t'"${docker_stopped} stopped container(s)"$'\t'"${human}"$'\t'"removed, images kept"$'\n'
+            fi
+        fi
+
         [[ "${bytes}" -gt 0 ]] || continue
 
         case "${kind}" in
-            "Build Cache" | Containers)
-                # Both are removed by docker system prune -f.
+            "Build Cache")
                 docker_safe_bytes=$((docker_safe_bytes + bytes))
-                targets+="Docker"$'\t'"${kind,,}"$'\t'"${human}"$'\t'"rebuilt on next build"$'\n'
+                targets+="Docker"$'\t'"build cache"$'\t'"${human}"$'\t'"rebuilt on next build"$'\n'
+                ;;
+            Containers)
+                # Already listed above by count; only add its bytes to the total.
+                docker_safe_bytes=$((docker_safe_bytes + bytes))
                 ;;
             Images)
                 # prune -f removes only DANGLING images. The rest, usually the bulk,
@@ -257,13 +272,11 @@ if [[ -n "${advisories}" ]]; then
 fi
 
 if [[ -z "${targets}" ]]; then
-    printf 'SYSTEM_CLEANUP_STATUS: cleanup=nothing mode=%s\n' "${mode}"
     exit 0
 fi
 
 if [[ "${mode}" == "dry-run" ]]; then
     log_info "Apply it with: sjust system-cleanup"
-    printf 'SYSTEM_CLEANUP_STATUS: cleanup=dry-run mode=dry-run reclaimable_kb=%d\n' "${total_kb}"
     exit 0
 fi
 
@@ -274,7 +287,6 @@ fi
 log_warn "This cannot be undone. Everything above re-downloads or rebuilds when next needed."
 if ! sc_confirm "Reclaim roughly $(sc_human_kb "${total_kb}")?"; then
     log_info "Cancelled."
-    printf 'SYSTEM_CLEANUP_STATUS: cleanup=cancelled mode=%s\n' "${mode}"
     exit 0
 fi
 
@@ -293,7 +305,7 @@ if [[ "${brew_free_bytes}" -gt 0 ]]; then
     fi
 fi
 
-if [[ "${docker_running}" == true && "${docker_safe_bytes}" -gt 0 ]]; then
+if [[ "${docker_running}" == true ]] && [[ "${docker_safe_bytes}" -gt 0 || "${docker_stopped}" -gt 0 ]]; then
     sc_section "Docker"
     if docker system prune -f 2>&1 | tail -2; then
         freed_kb=$((freed_kb + docker_safe_bytes / 1024))
@@ -350,9 +362,7 @@ fi
 printf '\n'
 if [[ "${rc}" -ne 0 ]]; then
     log_warn "Reclaimed roughly $(sc_human_kb "${freed_kb}"), with errors above."
-    printf 'SYSTEM_CLEANUP_STATUS: cleanup=partial mode=%s freed_kb=%d\n' "${mode}" "${freed_kb}"
     exit "${rc}"
 fi
 
 log_success "Reclaimed roughly $(sc_human_kb "${freed_kb}")."
-printf 'SYSTEM_CLEANUP_STATUS: cleanup=done mode=%s freed_kb=%d\n' "${mode}" "${freed_kb}"

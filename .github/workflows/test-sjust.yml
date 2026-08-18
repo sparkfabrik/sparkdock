@@ -179,26 +179,29 @@ jobs:
         run: |
           set -euo pipefail
 
-          # apply mode is never exercised: it removes things, and its confirmation
-          # declines without a TTY by design, which is asserted below.
+          # apply mode is never exercised for real: it removes things, and its
+          # confirmation declines without a TTY by design, asserted below.
+          #
+          # Assertions read combined output because logging goes to stderr.
 
           echo "::group::dry-run surveys and changes nothing"
-          out=$(sjust system-cleanup dry-run)
+          out=$(sjust system-cleanup dry-run 2>&1)
           echo "$out"
-          echo "$out" | grep -qE '^SYSTEM_CLEANUP_STATUS: cleanup=(dry-run|nothing) mode=dry-run'
+          echo "$out" | grep -qE 'Dry run: nothing will be changed|Nothing to reclaim'
           echo "::endgroup::"
 
           echo "::group::an unknown mode exits 2"
-          rc=0; sjust system-cleanup bogus-mode || rc=$?
+          rc=0; sjust system-cleanup bogus-mode >/dev/null 2>&1 || rc=$?
           test "$rc" = "2"
           echo "::endgroup::"
 
           echo "::group::apply mode without a TTY never removes anything"
-          # The safety property: sc_confirm declines when stdin is not a terminal,
-          # so an unattended caller cannot consent. cleanup=done must never appear.
-          out=$(sjust system-cleanup || true)
-          echo "$out" | grep -o 'cleanup=[a-z-]*' | tail -1
-          printf '%s\n' "$out" | grep -q 'cleanup=done' && { echo "DANGER: cleaned without a TTY"; exit 1; }
+          # sc_confirm declines when stdin is not a terminal, so an unattended
+          # caller cannot consent. Either it found nothing, or it cancelled.
+          out=$(sjust system-cleanup 2>&1 || true)
+          echo "$out" | tail -5
+          echo "$out" | grep -qE 'Cancelled|Nothing to reclaim'
+          echo "$out" | grep -q 'Reclaimed roughly' && { echo "DANGER: cleaned without a TTY"; exit 1; }
           echo "::endgroup::"
 
           echo "✅ system-cleanup verified (survey / dry-run / exit codes / no TTY means no removal)"
