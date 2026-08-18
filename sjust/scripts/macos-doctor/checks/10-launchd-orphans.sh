@@ -156,6 +156,23 @@ doctor_detect() {
     done < <(_lo_scan)
 }
 
+# Only the unambiguous orphans, and only those in scope. The report also lists the
+# review bucket and root-owned plists, neither of which this fix touches without
+# an explicit scope, so confirming against the findings would overstate it.
+doctor_fix_targets() {
+    local label plist kind target owner
+    while IFS=$'\t' read -r label plist kind target; do
+        [[ -n "${label}" ]] || continue
+        [[ "${kind}" == "orphan" ]] || continue
+
+        owner="user"
+        [[ "${plist}" == /Library/* ]] && owner="root"
+        [[ "${owner}" == "root" && "${MDOC_SCOPE:-}" != "system" ]] && continue
+
+        printf '%s\t%s\n' "${label}" "${plist}"
+    done < <(_lo_scan)
+}
+
 doctor_fix() {
     local label plist kind target owner uid rc=0
     uid="$(id -u)"

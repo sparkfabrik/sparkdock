@@ -100,7 +100,30 @@ if [[ "$(mdoc_severity_count)" -eq 0 ]]; then
     exit 0
 fi
 
-mdoc_render_findings "${id}"
+# --- Show what the fix will actually touch ------------------------------------
+#
+# Not the findings. A check's findings and its fix targets differ: dev-caches
+# reports every cache directory but deletes only the regenerable subset, and
+# launchd-orphans reports root-owned plists but skips them without the system
+# scope. Confirming against the wrong list makes the prompt a rubber stamp.
+
+targets="$(mdoc_fix_targets "${check_file}" "${id}" "${scope}")"
+
+if [[ -z "${targets}" ]]; then
+    log_success "Nothing for ${id} to act on."
+    log_info "It reports findings, but none of them are things this fix removes."
+    log_info "See what it does and does not touch: sjust macos-doctor-info ${id}"
+    printf 'MACOS_DOCTOR_STATUS: fix=nothing check=%s mode=%s\n' "${id}" "${mode}"
+    exit 0
+fi
+
+if [[ "${mode}" == "dry-run" ]]; then
+    log_info "These are the only things this fix acts on:"
+else
+    log_warn "These will be removed:"
+fi
+printf '\n'
+render_table <<<"TARGET"$'\t'"DETAIL"$'\n'"${targets}"
 printf '\n'
 
 # --- Confirm -----------------------------------------------------------------

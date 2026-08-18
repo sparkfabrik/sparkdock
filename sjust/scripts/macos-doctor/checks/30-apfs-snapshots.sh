@@ -52,6 +52,17 @@ doctor_detect() {
         "sjust macos-doctor-fix apfs-snapshots"
 }
 
+# Every snapshot is a target here, so this mirrors the findings. It is declared
+# anyway so the confirmation lists the individual snapshots rather than a count.
+doctor_fix_targets() {
+    local snap name
+    while IFS= read -r snap; do
+        [[ -n "${snap}" ]] || continue
+        name="${snap#com.apple.TimeMachine.}"
+        printf '%s\t%s\n' "${name%.local}" "local snapshot, cannot be recreated"
+    done < <(_tm_list)
+}
+
 doctor_fix() {
     local -a snaps
     mapfile -t snaps < <(_tm_list)

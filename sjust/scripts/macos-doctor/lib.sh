@@ -156,6 +156,32 @@ mdoc_run_detect() {
     ) || return 1
 }
 
+# Print what a check's fix would actually act on, one "<subject>\t<detail>" row
+# per target, or nothing when there is nothing to do.
+#
+# This exists because a check's findings and its fix targets are not the same set.
+# dev-caches reports every cache directory but only deletes the regenerable
+# subset; launchd-orphans reports root-owned plists but skips them without the
+# system scope. Confirming an irreversible action against the wrong list is how a
+# prompt becomes a rubber stamp, so fix.sh asks about these rows, not the findings.
+#
+# A check without the hook falls back to its findings, which is correct for checks
+# whose fix acts on everything it reports.
+mdoc_fix_targets() {
+    local file="$1" id="$2" scope="${3:-}"
+    (
+        export MDOC_CURRENT_CHECK="${id}"
+        export MDOC_SCOPE="${scope}"
+        # shellcheck source=/dev/null
+        source "${file}"
+        if declare -F doctor_fix_targets >/dev/null 2>&1; then
+            doctor_fix_targets
+        else
+            mdoc_findings_for "${id}" | cut -f3,4
+        fi
+    )
+}
+
 # Print a check's doctor_explain markdown body.
 mdoc_explain() {
     local file="$1"

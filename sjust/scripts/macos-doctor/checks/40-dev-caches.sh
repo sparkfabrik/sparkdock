@@ -99,11 +99,27 @@ doctor_detect() {
     doctor_finding info "total" "$(_dc_human "${total_kb}") across all known cache paths" ""
 }
 
+# Only the safe subset, and only the entries that actually hold something. The
+# report lists every cache directory including the ones this fix will never touch,
+# so confirming against the findings would misrepresent the action.
+doctor_fix_targets() {
+    local path kb
+    while IFS= read -r path; do
+        [[ -n "${path}" && -d "${path}" ]] || continue
+        [[ -n "$(find "${path}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]] || continue
+        kb="$(du -sk "${path}" 2>/dev/null | awk 'NR == 1 { print $1 }' || true)"
+        printf '%s\t%s\n' "${path/#"${HOME}"/\~}" "$(_dc_human "${kb:-0}")"
+    done < <(_dc_safe_paths)
+}
+
 doctor_fix() {
     local path kb freed_kb=0 rc=0
 
     while IFS= read -r path; do
         [[ -n "${path}" && -d "${path}" ]] || continue
+
+        # An empty directory is not worth a line of output claiming it was cleared.
+        [[ -n "$(find "${path}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]] || continue
 
         # Never step outside the home directory, whatever the list says.
         if [[ "${path}" != "${HOME}/"* ]]; then

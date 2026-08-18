@@ -321,6 +321,18 @@ jobs:
           test "$snaps_before" = "$snaps_after"
           echo "::endgroup::"
 
+          echo "::group::apply mode without a TTY never applies"
+          # The safety property: mdoc_confirm declines when stdin is not a TTY, so an
+          # unattended caller can never consent to a destructive fix. Whether the
+          # runner has anything to act on or not, the one outcome that must never
+          # appear here is fix=applied.
+          for check in apfs-snapshots dev-caches launchd-orphans; do
+            out=$(sjust macos-doctor-fix "${check}" || true)
+            echo "${check}: $(printf '%s\n' "$out" | grep -o 'fix=[a-z-]*' | tail -1)"
+            printf '%s\n' "$out" | grep -q 'fix=applied' && { echo "DANGER: applied without a TTY"; exit 1; }
+          done
+          echo "::endgroup::"
+
           echo "::group::info accepts a check id"
           out=$(sjust macos-doctor-info memory-pressure)
           echo "$out" | head -5
