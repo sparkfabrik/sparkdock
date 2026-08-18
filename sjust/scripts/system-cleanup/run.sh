@@ -72,7 +72,7 @@ log_section "Sparkdock system cleanup"
 # =============================================================================
 
 targets=""  # SECTION \t ITEM \t SIZE \t CONSEQUENCE
-advisories="" # ITEM \t DETAIL \t COMMAND
+advisories="" # ITEM \t SIZE \t WHY NOT AUTOMATIC \t COMMAND
 total_kb=0
 
 # --- Homebrew ----------------------------------------------------------------
@@ -100,7 +100,7 @@ if command -v brew >/dev/null 2>&1; then
     outdated="$(brew outdated --quiet 2>/dev/null || true)"
     n_outdated="$(printf '%s' "${outdated}" | grep -c . || true)"
     if [[ "${n_outdated}" -gt 0 ]]; then
-        advisories+="outdated packages"$'\t'"${n_outdated} behind"$'\t'"brew upgrade"$'\n'
+        advisories+="outdated packages"$'\t'"${n_outdated} behind"$'\t'"upgrading changes software versions, not disk use"$'\t'"brew upgrade"$'\n'
     fi
 
     # A cask whose .app is gone from /Applications: brew still believes it is
@@ -111,10 +111,10 @@ if command -v brew >/dev/null 2>&1; then
             [[ -n "${kind}" ]] || continue
             case "${kind}" in
                 missing_app)
-                    advisories+="${value%%|*}"$'\t'"cask installed, ${value#*|} missing"$'\t'"brew reinstall --cask ${value%%|*}"$'\n'
+                    advisories+="${value%%|*}"$'\t'"app missing"$'\t'"reinstall or uninstall is your call, ${value#*|} is gone"$'\t'"brew reinstall --cask ${value%%|*}"$'\n'
                     ;;
                 unused_tap)
-                    advisories+="${value}"$'\t'"tap with nothing installed from it"$'\t'"brew untap ${value}"$'\n'
+                    advisories+="${value}"$'\t'"unused tap"$'\t'"you may still want it for future installs"$'\t'"brew untap ${value}"$'\n'
                     ;;
             esac
         done < <(
@@ -187,10 +187,10 @@ if command -v docker >/dev/null 2>&1 && docker system df --format '{{json .}}' >
             Images)
                 # prune -f removes only DANGLING images. The rest, usually the bulk,
                 # needs -a, which is a re-pull rather than a cache eviction.
-                advisories+="docker images"$'\t'"${human} reclaimable, ${active} of ${total} in use"$'\t'"docker image prune -a"$'\n'
+                advisories+="docker images"$'\t'"${human}"$'\t'"unused but tagged (${active} of ${total} in use), removing means re-pulling"$'\t'"docker image prune -a"$'\n'
                 ;;
             "Local Volumes")
-                advisories+="docker volumes"$'\t'"${human} in ${total} volume(s), holds DATA"$'\t'"docker volume ls   # inspect, do not bulk prune"$'\n'
+                advisories+="docker volumes"$'\t'"${human}"$'\t'"holds DATA not cache (${total} volumes), never safe in bulk"$'\t'"docker volume ls"$'\n'
                 ;;
         esac
     done < <(
@@ -253,8 +253,17 @@ total_kb=$((total_kb + cache_kb))
 if [[ -d "${HOME}/Library/Caches" ]]; then
     lc_kb="$(sc_size_kb "${HOME}/Library/Caches")"
     if [[ -n "${lc_kb}" && "${lc_kb}" -gt 1048576 ]]; then
+        # The Homebrew download cache sits inside this tree and IS managed by brew,
+        # so calling the whole figure "live app state" overstates it.
+        brew_cache_kb=0
+        bc="$(brew --cache 2>/dev/null || true)"
+        [[ -n "${bc}" && -d "${bc}" ]] && brew_cache_kb="$(sc_size_kb "${bc}")"
+        if [[ "${brew_cache_kb:-0}" -gt 1048576 ]]; then
+            # shellcheck disable=SC2088  # a literal tilde for display, not a path to expand
+            advisories+="~/Library/Caches/Homebrew"$'\t'"$(sc_human_kb "${brew_cache_kb}")"$'\t'"downloads for versions you still have installed"$'\t'"brew cleanup --prune=all"$'\n'
+        fi
         # shellcheck disable=SC2088  # a literal tilde for display, not a path to expand
-        advisories+="~/Library/Caches"$'\t'"$(sc_human_kb "${lc_kb}"), live app state not a cache"$'\t'"clear per application"$'\n'
+        advisories+="~/Library/Caches"$'\t'"$(sc_human_kb "${lc_kb}") total"$'\t'"mostly live app state, no safe bulk operation exists"$'\t'"clear it per application"$'\n'
     fi
 fi
 
@@ -273,11 +282,9 @@ else
 fi
 
 if [[ -n "${advisories}" ]]; then
-    sc_section "Reported, NOT removed by this command"
+    sc_section "Not touched: each needs a decision this command should not make"
     printf '\n'
-    render_table <<<"ITEM"$'\t'"DETAIL"$'\t'"RUN THIS INSTEAD"$'\n'"${advisories%$'\n'}"
-    printf '\n'
-    sc_faint "    These either delete data rather than cache, or need a decision only you can make."
+    render_table <<<"ITEM"$'\t'"SIZE"$'\t'"WHY NOT AUTOMATIC"$'\t'"COMMAND"$'\n'"${advisories%$'\n'}"
     printf '\n'
 fi
 
@@ -306,9 +313,21 @@ rc=0
 
 if [[ "${brew_present}" == true ]]; then
     sc_section "Homebrew"
+
+    # Measured, not estimated: brew's own dry-run figure is advisory and its output
+    # shape has changed across versions, so the cache directory is sized before and
+    # after instead.
+    brew_cache_dir="$(brew --cache 2>/dev/null || true)"
+    brew_before_kb=0
+    [[ -n "${brew_cache_dir}" && -d "${brew_cache_dir}" ]] && brew_before_kb="$(sc_size_kb "${brew_cache_dir}")"
+
     if brew cleanup 2>&1 | tail -3; then
-        freed_kb=$((freed_kb + brew_free_bytes / 1024))  # 0 when unmeasured
-        log_success "brew cleanup done"
+        brew_after_kb="${brew_before_kb}"
+        [[ -n "${brew_cache_dir}" && -d "${brew_cache_dir}" ]] && brew_after_kb="$(sc_size_kb "${brew_cache_dir}")"
+        brew_delta_kb=$(( ${brew_before_kb:-0} - ${brew_after_kb:-0} ))
+        [[ "${brew_delta_kb}" -lt 0 ]] && brew_delta_kb=0
+        freed_kb=$((freed_kb + brew_delta_kb))
+        log_success "brew cleanup done, reclaimed $(sc_human_kb "${brew_delta_kb}")"
     else
         log_warn "brew cleanup reported errors"
         rc=1
@@ -317,13 +336,31 @@ fi
 
 if [[ "${docker_running}" == true ]]; then
     sc_section "Docker"
-    if docker system prune -f 2>&1 | tail -2; then
-        freed_kb=$((freed_kb + docker_safe_bytes / 1024))
-        log_success "docker system prune done"
-    else
-        log_warn "docker system prune reported errors"
-        rc=1
-    fi
+
+    # Two commands, because they cover different things. `system prune` takes
+    # stopped containers, dangling images and unused networks. It removes only
+    # DANGLING build cache, so the reclaimable build-cache figure `docker system
+    # df` reports survives it: that needs `builder prune`. Reporting the figure
+    # and then not reclaiming it is how this looked broken.
+    docker_freed_bytes=0
+    for docker_cmd in "system prune -f" "builder prune -f"; do
+        # shellcheck disable=SC2086  # deliberate word splitting of the subcommand
+        if out="$(docker ${docker_cmd} 2>&1)"; then
+            printf '%s\n' "${out}" | tail -2
+            reclaimed="$(printf '%s\n' "${out}" |
+                sed -nE 's/.*Total reclaimed space: *([0-9.]+[A-Za-z]+).*/\1/p' | tail -1)"
+            if [[ -n "${reclaimed}" ]]; then
+                docker_freed_bytes=$((docker_freed_bytes + $(sc_docker_bytes "${reclaimed}")))
+            fi
+        else
+            log_warn "docker ${docker_cmd} reported errors"
+            rc=1
+        fi
+    done
+
+    # The real figure from docker itself, not the pre-run estimate.
+    freed_kb=$((freed_kb + docker_freed_bytes / 1024))
+    log_success "docker prune done, reclaimed $(sc_human_bytes "${docker_freed_bytes}")"
 fi
 
 if [[ "${cache_kb}" -gt 0 ]]; then
