@@ -175,6 +175,34 @@ jobs:
 
           echo "✅ All recipe imports work correctly"
 
+      - name: Test system-cleanup survey and dry run
+        run: |
+          set -euo pipefail
+
+          # apply mode is never exercised: it removes things, and its confirmation
+          # declines without a TTY by design, which is asserted below.
+
+          echo "::group::dry-run surveys and changes nothing"
+          out=$(sjust system-cleanup dry-run)
+          echo "$out"
+          echo "$out" | grep -qE '^SYSTEM_CLEANUP_STATUS: cleanup=(dry-run|nothing) mode=dry-run'
+          echo "::endgroup::"
+
+          echo "::group::an unknown mode exits 2"
+          rc=0; sjust system-cleanup bogus-mode || rc=$?
+          test "$rc" = "2"
+          echo "::endgroup::"
+
+          echo "::group::apply mode without a TTY never removes anything"
+          # The safety property: sc_confirm declines when stdin is not a terminal,
+          # so an unattended caller cannot consent. cleanup=done must never appear.
+          out=$(sjust system-cleanup || true)
+          echo "$out" | grep -o 'cleanup=[a-z-]*' | tail -1
+          printf '%s\n' "$out" | grep -q 'cleanup=done' && { echo "DANGER: cleaned without a TTY"; exit 1; }
+          echo "::endgroup::"
+
+          echo "✅ system-cleanup verified (survey / dry-run / exit codes / no TTY means no removal)"
+
       - name: Test macos-defaults sjust commands
         run: |
           set -euo pipefail
@@ -243,120 +271,6 @@ jobs:
           echo "::endgroup::"
 
           echo "✅ macos-defaults full lifecycle (info / init-overrides / apply / dry-run / undo) verified"
-
-      - name: Test macos-doctor sjust commands
-        run: |
-          set -euo pipefail
-
-          # The fix path is deliberately not exercised: it mutates the machine and
-          # its confirmation prompt declines without a TTY by design.
-
-          echo "::group::macos-doctor-info raw lists every check"
-          out=$(sjust macos-doctor-info raw)
-          echo "$out" | head -30
-          echo "$out" | grep -q "Sparkdock macOS doctor"
-          for id in launchd-orphans cpu-load memory-pressure disk-space \
-                    apfs-snapshots dev-caches brew-health spotlight-index \
-                    docker-disk shell-startup; do
-            echo "$out" | grep -q "(\`${id}\`)" || { echo "missing check: ${id}"; exit 1; }
-          done
-          echo "::endgroup::"
-
-          echo "::group::count mode prints only a parseable status line"
-          out=$(sjust macos-doctor count)
-          echo "$out"
-          test "$(printf '%s\n' "$out" | grep -c .)" = "1"
-          echo "$out" | grep -qE '^MACOS_DOCTOR_STATUS: findings=[0-9]+ .*checks=[0-9]+ '
-          echo "::endgroup::"
-
-          echo "::group::a single cheap check runs and reports a status line"
-          out=$(sjust macos-doctor launchd-orphans)
-          echo "$out"
-          echo "$out" | grep -qE '^MACOS_DOCTOR_STATUS: .*checks=1 '
-          echo "::endgroup::"
-
-          echo "::group::an unknown check id exits 2"
-          rc=0; sjust macos-doctor definitely-not-a-check || rc=$?
-          test "$rc" = "2"
-          echo "::endgroup::"
-
-          echo "::group::fix with no check id exits 2"
-          rc=0; sjust macos-doctor-fix || rc=$?
-          test "$rc" = "2"
-          echo "::endgroup::"
-
-          echo "::group::fix on a report-only check exits 2"
-          rc=0; sjust macos-doctor-fix docker-disk || rc=$?
-          test "$rc" = "2"
-          echo "::endgroup::"
-
-          echo "::group::fix with an unknown mode exits 2"
-          rc=0; sjust macos-doctor-fix launchd-orphans bogus-mode || rc=$?
-          test "$rc" = "2"
-          echo "::endgroup::"
-
-          echo "::group::dry-run changes nothing and needs no TTY"
-          # launchd-orphans is the reversible fix, so a dry run must neither move a
-          # plist nor create a quarantine snapshot.
-          #
-          # Assert on the status line only. Logging goes to stderr by design, so a
-          # command substitution never captures it, and fix=nothing is the expected
-          # outcome on a clean runner that has no orphaned agents.
-          rm -rf "${HOME}/.local/spark/macos-doctor"
-          before=$(launchctl list | cut -f2,3 | sort)
-          out=$(sjust macos-doctor-fix launchd-orphans dry-run)
-          echo "$out"
-          echo "$out" | grep -qE '^MACOS_DOCTOR_STATUS: fix=(dry-run|nothing) '
-          test ! -d "${HOME}/.local/spark/macos-doctor/quarantine" \
-            || test -z "$(find "${HOME}/.local/spark/macos-doctor/quarantine" -name manifest.tsv -size +0 -print -quit)"
-          after=$(launchctl list | cut -f2,3 | sort)
-          test "$before" = "$after" || echo "note: launchd statuses shifted during the run"
-          echo "::endgroup::"
-
-          echo "::group::an irreversible fix also previews without touching anything"
-          snaps_before=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c TimeMachine || true)
-          out=$(sjust macos-doctor-fix apfs-snapshots dry-run)
-          echo "$out" | grep -qE '^MACOS_DOCTOR_STATUS: fix=(dry-run|nothing) '
-          snaps_after=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c TimeMachine || true)
-          test "$snaps_before" = "$snaps_after"
-          echo "::endgroup::"
-
-          echo "::group::apply mode without a TTY never applies"
-          # The safety property: mdoc_confirm declines when stdin is not a TTY, so an
-          # unattended caller can never consent to a destructive fix. Whether the
-          # runner has anything to act on or not, the one outcome that must never
-          # appear here is fix=applied.
-          for check in apfs-snapshots dev-caches launchd-orphans; do
-            out=$(sjust macos-doctor-fix "${check}" || true)
-            echo "${check}: $(printf '%s\n' "$out" | grep -o 'fix=[a-z-]*' | tail -1)"
-            printf '%s\n' "$out" | grep -q 'fix=applied' && { echo "DANGER: applied without a TTY"; exit 1; }
-          done
-          echo "::endgroup::"
-
-          echo "::group::info accepts a check id"
-          out=$(sjust macos-doctor-info memory-pressure)
-          echo "$out" | head -5
-          echo "$out" | grep -qi "memory"
-          rc=0; sjust macos-doctor-info not-a-check || rc=$?
-          test "$rc" = "2"
-          echo "::endgroup::"
-
-          echo "::group::undo with no quarantine exits 1 and mutates nothing"
-          rc=0; sjust macos-doctor-undo || rc=$?
-          test "$rc" = "1"
-          echo "::endgroup::"
-
-          echo "::group::the report path leaves launchd untouched"
-          before=$(launchctl list | sort)
-          sjust macos-doctor launchd-orphans >/dev/null
-          after=$(launchctl list | sort)
-          # PIDs churn between calls, so compare labels and exit statuses only.
-          diff <(printf '%s\n' "$before" | cut -f2,3) \
-               <(printf '%s\n' "$after" | cut -f2,3) >/dev/null \
-            || echo "note: launchd job statuses changed during the run (background activity)"
-          echo "::endgroup::"
-
-          echo "✅ macos-doctor verified (info / count / single check / exit codes / read-only report)"
 
       - name: Clean up test installations
         if: always()

@@ -50,7 +50,6 @@ func main() {
 		Checker: status.CmdChecker{
 			CheckUpdatesBin: root + "/bin/sparkdock-check-updates",
 			BrewBin:         "brew",
-			DoctorBin:       root + "/sjust/scripts/macos-doctor/run.sh",
 			Run:             execRunner,
 		},
 		Gatherer: sysinfo.Gatherer{Run: execRunner},

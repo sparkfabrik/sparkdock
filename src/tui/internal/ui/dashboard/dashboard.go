@@ -181,8 +181,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			return m.Refresh()
 		case "d":
 			return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, "device") }
-		case "D":
-			return m, func() tea.Msg { return ui.Navigate(ui.PageRunner, "doctor") }
 		case "s":
 			return m, func() tea.Msg { return ui.Navigate(ui.PageRecipes, "") }
 		case "?":
@@ -260,7 +258,6 @@ func (m *Model) rebuild() {
 		statusItem(m.subByKey("brew"), "Brew packages"),
 		statusItem(m.subByKey("http-proxy"), "HTTP proxy"),
 		statusItem(m.subByKey("skills"), "AI harness"),
-		statusItem(m.subByKey("doctor"), "macOS doctor"),
 		{kind: kindRule},
 	}
 	// When sparkdock itself is stale, the amber status dot on the Sparkdock row
@@ -279,8 +276,6 @@ func (m *Model) rebuild() {
 		item{kind: kindAction, id: "proxy-start", label: "Start", detail: "$ spark-http-proxy start", selectable: true},
 		item{kind: kindAction, id: "proxy-stop", label: "Stop", detail: "$ spark-http-proxy stop", selectable: true},
 		item{kind: kindAction, id: "proxy-upgrade", label: "Upgrade", detail: "$ sjust http-proxy-install-update", selectable: true},
-		item{kind: kindGroup, label: "macOS doctor"},
-		item{kind: kindAction, id: "doctor", label: "Run diagnostics", detail: "$ sjust macos-doctor", selectable: true},
 	)
 	m.items = items
 	if m.current() == nil {
@@ -406,7 +401,6 @@ func (m Model) helpView(st theme.Styles, width int) string {
 		row("r", "refresh status"),
 		row("s", "browse and run sjust recipes"),
 		row("d", "device info"),
-		row("D", "run macOS doctor"),
 		row("?", "this help"),
 		row("q", "quit"),
 		"",
@@ -488,8 +482,7 @@ func (m Model) View() string {
 	sep := st.Dim.Render(" · ")
 	keys := strings.Join([]string{
 		hint("↑↓", "move"), hint("⏎", "select"), hint("r", "refresh"),
-		hint("s", "recipes"), hint("d", "device"), hint("D", "doctor"),
-		hint("?", "help"), hint("q", "quit"),
+		hint("s", "recipes"), hint("d", "device"), hint("?", "help"), hint("q", "quit"),
 	}, sep) + " "
 	gap := max(width-lipgloss.Width(left)-lipgloss.Width(keys), 1)
 	b.WriteString(left + strings.Repeat(" ", gap) + keys)
