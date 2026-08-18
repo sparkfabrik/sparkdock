@@ -297,18 +297,27 @@ jobs:
           echo "::group::dry-run changes nothing and needs no TTY"
           # launchd-orphans is the reversible fix, so a dry run must neither move a
           # plist nor create a quarantine snapshot.
+          #
+          # Assert on the status line only. Logging goes to stderr by design, so a
+          # command substitution never captures it, and fix=nothing is the expected
+          # outcome on a clean runner that has no orphaned agents.
           rm -rf "${HOME}/.local/spark/macos-doctor"
           before=$(launchctl list | cut -f2,3 | sort)
           out=$(sjust macos-doctor-fix launchd-orphans dry-run)
           echo "$out"
-          echo "$out" | grep -qE 'MACOS_DOCTOR_STATUS: fix=(dry-run|applied)' || {
-            # No findings on a clean runner is the expected case and exits 0 early.
-            echo "$out" | grep -q "Nothing to fix"
-          }
+          echo "$out" | grep -qE '^MACOS_DOCTOR_STATUS: fix=(dry-run|nothing) '
           test ! -d "${HOME}/.local/spark/macos-doctor/quarantine" \
             || test -z "$(find "${HOME}/.local/spark/macos-doctor/quarantine" -name manifest.tsv -size +0 -print -quit)"
           after=$(launchctl list | cut -f2,3 | sort)
           test "$before" = "$after" || echo "note: launchd statuses shifted during the run"
+          echo "::endgroup::"
+
+          echo "::group::an irreversible fix also previews without touching anything"
+          snaps_before=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c TimeMachine || true)
+          out=$(sjust macos-doctor-fix apfs-snapshots dry-run)
+          echo "$out" | grep -qE '^MACOS_DOCTOR_STATUS: fix=(dry-run|nothing) '
+          snaps_after=$(tmutil listlocalsnapshots / 2>/dev/null | grep -c TimeMachine || true)
+          test "$snaps_before" = "$snaps_after"
           echo "::endgroup::"
 
           echo "::group::info accepts a check id"

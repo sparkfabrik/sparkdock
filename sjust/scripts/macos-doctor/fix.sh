@@ -83,13 +83,20 @@ else
     log_section "Sparkdock macOS doctor · fix · ${title}"
 fi
 
+# Every terminal path below prints a MACOS_DOCTOR_STATUS line on stdout. Logging
+# goes to stderr, so stdout is all a caller can parse: a path that exits without
+# one leaves a script with nothing to key on, which is exactly how the CI check
+# for this script first broke.
+
 if ! mdoc_run_detect "${check_file}" "${id}"; then
     log_error "${id}: detect failed, refusing to fix."
+    printf 'MACOS_DOCTOR_STATUS: fix=detect-failed check=%s mode=%s\n' "${id}" "${mode}"
     exit 1
 fi
 
 if [[ "$(mdoc_severity_count)" -eq 0 ]]; then
     log_success "Nothing to fix: ${id} reports no findings."
+    printf 'MACOS_DOCTOR_STATUS: fix=nothing check=%s mode=%s\n' "${id}" "${mode}"
     exit 0
 fi
 
@@ -108,16 +115,19 @@ elif [[ "${reversible}" == "yes" ]]; then
     log_info "Affected paths are moved to ${MDOC_QUARANTINE_ROOT} and can be restored with 'sjust macos-doctor-undo restore'."
     if ! mdoc_confirm "Apply the fix for ${id}?"; then
         log_info "Cancelled."
+        printf 'MACOS_DOCTOR_STATUS: fix=cancelled check=%s mode=%s\n' "${id}" "${mode}"
         exit 0
     fi
 else
     log_warn "This fix is NOT reversible. What it removes cannot be recovered by 'sjust macos-doctor-undo'."
     if ! mdoc_confirm "Apply the irreversible fix for ${id}?"; then
         log_info "Cancelled."
+        printf 'MACOS_DOCTOR_STATUS: fix=cancelled check=%s mode=%s\n' "${id}" "${mode}"
         exit 0
     fi
     if ! mdoc_confirm "Confirm again: permanently remove what was listed above?"; then
         log_info "Cancelled."
+        printf 'MACOS_DOCTOR_STATUS: fix=cancelled check=%s mode=%s\n' "${id}" "${mode}"
         exit 0
     fi
 fi
@@ -133,6 +143,7 @@ if [[ "${mode}" == "apply" ]] && command -v flock >/dev/null 2>&1; then
     exec 9>"${MDOC_LOCK_FILE}"
     if ! flock -n 9; then
         log_error "Another macos-doctor fix is in progress (lock: ${MDOC_LOCK_FILE})."
+        printf 'MACOS_DOCTOR_STATUS: fix=locked check=%s mode=%s\n' "${id}" "${mode}"
         exit 1
     fi
 fi
