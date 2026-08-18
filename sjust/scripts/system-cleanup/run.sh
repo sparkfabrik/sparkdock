@@ -77,17 +77,24 @@ total_kb=0
 
 # --- Homebrew ----------------------------------------------------------------
 
+brew_present=false
 brew_free_bytes=0
 if command -v brew >/dev/null 2>&1; then
-    # brew cleanup -n reports what it would remove and the space it would free.
+    brew_present=true
+
+    # The size is an estimate for display only. `brew cleanup -n` output has
+    # changed shape across versions, so a failed parse must never stop the cleanup
+    # from running: the survey informs, it does not gate.
     brew_dry="$(brew cleanup -n 2>/dev/null || true)"
     brew_free_human="$(printf '%s' "${brew_dry}" |
         sed -nE 's/.*would free (approximately )?([0-9.]+[A-Za-z]+).*/\2/p' | tail -1)"
     if [[ -n "${brew_free_human}" ]]; then
         brew_free_bytes="$(sc_docker_bytes "${brew_free_human}")"
-        targets+="Homebrew"$'\t'"stale downloads and old versions"$'\t'"${brew_free_human}"$'\t'"re-downloads if needed"$'\n'
         total_kb=$((total_kb + brew_free_bytes / 1024))
+    else
+        brew_free_human="nothing measurable"
     fi
+    targets+="Homebrew"$'\t'"stale downloads and old versions"$'\t'"${brew_free_human}"$'\t'"re-downloads if needed"$'\n'
 
     # Advisories: real findings that cleanup does not and should not act on.
     outdated="$(brew outdated --quiet 2>/dev/null || true)"
@@ -153,6 +160,7 @@ fi
 docker_running=false
 docker_safe_bytes=0
 docker_stopped=0
+docker_cache_human=""
 if command -v docker >/dev/null 2>&1 && docker system df --format '{{json .}}' >/dev/null 2>&1; then
     docker_running=true
     while IFS=$'\t' read -r kind human bytes total active; do
@@ -163,9 +171,6 @@ if command -v docker >/dev/null 2>&1 && docker system df --format '{{json .}}' >
         # prune on bytes alone would leave stopped containers behind.
         if [[ "${kind}" == "Containers" && "${total}" =~ ^[0-9]+$ && "${active}" =~ ^[0-9]+$ ]]; then
             docker_stopped=$((total - active))
-            if [[ "${docker_stopped}" -gt 0 ]]; then
-                targets+="Docker"$'\t'"${docker_stopped} stopped container(s)"$'\t'"${human}"$'\t'"removed, images kept"$'\n'
-            fi
         fi
 
         [[ "${bytes}" -gt 0 ]] || continue
@@ -173,7 +178,7 @@ if command -v docker >/dev/null 2>&1 && docker system df --format '{{json .}}' >
         case "${kind}" in
             "Build Cache")
                 docker_safe_bytes=$((docker_safe_bytes + bytes))
-                targets+="Docker"$'\t'"build cache"$'\t'"${human}"$'\t'"rebuilt on next build"$'\n'
+                docker_cache_human="${human}"
                 ;;
             Containers)
                 # Already listed above by count; only add its bytes to the total.
@@ -223,6 +228,11 @@ for raw in sys.stdin:
 '
     )
     total_kb=$((total_kb + docker_safe_bytes / 1024))
+
+    docker_detail="stopped containers, dangling images, unused networks, build cache"
+    docker_size="${docker_cache_human:-nothing measurable}"
+    [[ "${docker_stopped}" -gt 0 ]] && docker_detail="${docker_stopped} stopped container(s), ${docker_detail}"
+    targets+="Docker"$'\t'"${docker_detail}"$'\t'"${docker_size}"$'\t'"rebuilt or re-pulled on next use"$'\n'
 fi
 
 # --- Developer caches --------------------------------------------------------
@@ -294,10 +304,10 @@ printf '\n'
 freed_kb=0
 rc=0
 
-if [[ "${brew_free_bytes}" -gt 0 ]]; then
+if [[ "${brew_present}" == true ]]; then
     sc_section "Homebrew"
     if brew cleanup 2>&1 | tail -3; then
-        freed_kb=$((freed_kb + brew_free_bytes / 1024))
+        freed_kb=$((freed_kb + brew_free_bytes / 1024))  # 0 when unmeasured
         log_success "brew cleanup done"
     else
         log_warn "brew cleanup reported errors"
@@ -305,7 +315,7 @@ if [[ "${brew_free_bytes}" -gt 0 ]]; then
     fi
 fi
 
-if [[ "${docker_running}" == true ]] && [[ "${docker_safe_bytes}" -gt 0 || "${docker_stopped}" -gt 0 ]]; then
+if [[ "${docker_running}" == true ]]; then
     sc_section "Docker"
     if docker system prune -f 2>&1 | tail -2; then
         freed_kb=$((freed_kb + docker_safe_bytes / 1024))
