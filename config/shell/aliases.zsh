@@ -84,20 +84,43 @@ if command_exists eza; then
   unalias ls 2>/dev/null || true
 
   function ls() {
-    local filtered_args=("${@[@]//-ltr/}")
-    filtered_args=("${filtered_args[@]//-lt/}")
+    # Only dress up interactive use. Scripts, pipelines, editors and coding
+    # agents get the real ls, so `ls -d some/path` returns a path rather than a
+    # formatted table with a header row.
+    if [[ ! -o interactive || ! -t 1 ]]; then
+      command ls "$@"
+      return
+    fi
 
-    case "$*" in
-      *ltr*)
-        eza -lag --icons=auto --sort=modified ${filtered_args[@]}
-        ;;
-      *lt*)
-        eza -lag --icons=auto --sort=modified --reverse ${filtered_args[@]}
-        ;;
-      *)
-        eza -lhg --group-directories-first --icons=auto "$@"
-        ;;
-    esac
+    # Inspect options only. Matching against "$*" tested the whole argument
+    # string, so any path containing "lt" or "ltr" silently switched to
+    # sort-by-modified and revealed hidden files: ls faults/, ls halt.txt,
+    # ls results/ all took the wrong branch.
+    local -a rest
+    local sort_modified=0 reverse=1 arg stripped
+    for arg in "$@"; do
+      case $arg in
+        -[!-]*)
+          stripped=$arg
+          case $arg in
+            *ltr*) sort_modified=1; reverse=0; stripped=${arg//[ltr]/} ;;
+            *lt*)  sort_modified=1; reverse=1; stripped=${arg//[lt]/} ;;
+          esac
+          [[ $stripped != - ]] && rest+=("$stripped")
+          ;;
+        *) rest+=("$arg") ;;
+      esac
+    done
+
+    if (( sort_modified )); then
+      if (( reverse )); then
+        eza -lag --icons=auto --sort=modified --reverse "${rest[@]}"
+      else
+        eza -lag --icons=auto --sort=modified "${rest[@]}"
+      fi
+    else
+      eza -lhg --group-directories-first --icons=auto "$@"
+    fi
   }
   alias lsa='ls -a'
   alias lt='eza --tree --level=2 --long --icons --git'
