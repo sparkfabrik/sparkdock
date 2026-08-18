@@ -1,17 +1,30 @@
 #!/usr/bin/env bash
 # shellcheck shell=bash
 #
-# checks/70-docker-disk.sh — reclaimable Docker disk space.
+# checks/70-docker-disk.sh — reclaimable Docker disk space, broken down by type.
 #
-# Report-only by design. `sjust system-cleanup` already owns the prune, and
-# duplicating a destructive operation in two places is how the two drift apart.
-# This check surfaces the number and names the command that acts on it.
+# The breakdown is the whole point. `docker system df` reports one Reclaimable
+# figure per type, and the command that reclaims each one is different:
+#
+#   Images        `docker system prune -f` removes only DANGLING images. Unused
+#                 but tagged images, which is usually the bulk of it, need
+#                 `docker image prune -a`.
+#   Build Cache   removed by `docker system prune -f`.
+#   Containers    stopped containers are removed by `docker system prune -f`.
+#   Local Volumes NOT touched by `docker system prune -f` at all. Needs
+#                 `--volumes`, and that deletes data, not cache.
+#
+# An earlier version of this check summed all four and pointed at
+# `sjust system-cleanup`, which runs `docker system prune -f`. On a real machine
+# that reported 40 GB reclaimable and recovered almost none of it, because the
+# bulk sat in unused-but-tagged images and in volumes. Reporting a number next to
+# a command that does not reclaim it is worse than reporting nothing.
 
-# Reclaimable bytes worth reporting (about 5 GB).
-_DD_WARN_BYTES=5368709120
+# Report a type once its reclaimable size reaches this many bytes (about 1 GB).
+_DD_WARN_BYTES=1073741824
 
 doctor_meta() {
-    printf 'docker-disk\tDocker disk usage\treclaimable space held by images, containers and build cache\tno\tno\tno\n'
+    printf 'docker-disk\tDocker disk usage\treclaimable space per type, with the command that reclaims each\tno\tno\tno\n'
 }
 
 doctor_detect() {
@@ -22,10 +35,40 @@ doctor_detect() {
         return 0
     fi
 
-    local total_reclaimable=0 line
-    while IFS=$'\t' read -r line; do
-        [[ -n "${line}" ]] || continue
-        total_reclaimable=$((total_reclaimable + line))
+    local reported=0 volumes_seen=0
+    local kind human bytes total active
+
+    while IFS=$'\t' read -r kind human bytes total active; do
+        [[ -n "${kind}" ]] || continue
+        [[ "${bytes}" -ge "${_DD_WARN_BYTES}" ]] || continue
+        reported=$((reported + 1))
+
+        case "${kind}" in
+            Images)
+                doctor_finding info "images" \
+                    "${human} reclaimable (${active} of ${total} in use)" \
+                    "docker image prune -a"
+                ;;
+            "Build Cache")
+                doctor_finding info "build cache" \
+                    "${human} reclaimable (${total} entries)" \
+                    "docker builder prune"
+                ;;
+            Containers)
+                doctor_finding info "stopped containers" \
+                    "${human} reclaimable (${active} of ${total} running)" \
+                    "docker container prune"
+                ;;
+            "Local Volumes")
+                volumes_seen=1
+                doctor_finding warn "volumes" \
+                    "${human} in ${total} volume(s), ${active} in use, holds DATA not cache" \
+                    "inspect first: docker volume ls"
+                ;;
+            *)
+                doctor_finding info "${kind}" "${human} reclaimable" ""
+                ;;
+        esac
     done < <(
         docker system df --format '{{json .}}' 2>/dev/null | python3 -c '
 import json, re, sys
@@ -34,7 +77,7 @@ UNITS = {"B": 1, "KB": 10**3, "MB": 10**6, "GB": 10**9, "TB": 10**12,
          "KIB": 2**10, "MIB": 2**20, "GIB": 2**30, "TIB": 2**40}
 
 def to_bytes(text):
-    # Reclaimable looks like "8.104GB (94%)" or "0B".
+    # Reclaimable looks like "27.52GB (58%)" or "0B".
     m = re.match(r"\s*([0-9.]+)\s*([A-Za-z]+)", text or "")
     if not m:
         return 0
@@ -42,6 +85,10 @@ def to_bytes(text):
         return int(float(m.group(1)) * UNITS.get(m.group(2).upper(), 1))
     except ValueError:
         return 0
+
+def human(text):
+    # Keep the size docker printed, minus its percentage suffix.
+    return re.sub(r"\s*\(.*\)\s*$", "", (text or "").strip()) or "0B"
 
 for raw in sys.stdin:
     raw = raw.strip()
@@ -51,33 +98,57 @@ for raw in sys.stdin:
         row = json.loads(raw)
     except Exception:
         continue
-    print(to_bytes(row.get("Reclaimable")))
+    rec = row.get("Reclaimable")
+    print("\t".join([
+        str(row.get("Type") or "?"),
+        human(rec),
+        str(to_bytes(rec)),
+        str(row.get("TotalCount") or "?"),
+        str(row.get("Active") or "?"),
+    ]))
 '
     )
 
-    [[ "${total_reclaimable}" -ge "${_DD_WARN_BYTES}" ]] || return 0
+    [[ "${reported}" -gt 0 ]] || return 0
 
-    doctor_finding info "docker" \
-        "$(python3 -c 'import sys; print("%.1f GB" % (float(sys.argv[1]) / 1e9))' "${total_reclaimable}") reclaimable" \
-        "sjust system-cleanup"
+    doctor_note "Each row above names the command that actually reclaims it."
+    doctor_note "\`sjust system-cleanup\` runs \`docker system prune -f\`, which removes only"
+    doctor_note "dangling images, stopped containers and unused build cache. It does not"
+    doctor_note "remove unused-but-tagged images, and it never removes volumes."
+    if [[ "${volumes_seen}" -eq 1 ]]; then
+        doctor_note ""
+        doctor_note "Volumes hold application data (databases, uploads). Removing one is not a"
+        doctor_note "cache eviction, so list them and decide per volume rather than pruning."
+    fi
 }
 
 doctor_explain() {
     cat <<'MD'
-Sums the `RECLAIMABLE` column from `docker system df` across images, containers,
-volumes and build cache, and reports it once the total is at or above roughly
-5 GB.
+Reports reclaimable Docker space **per type**, because the command that reclaims
+each type is different and conflating them is misleading.
 
-A stopped Docker daemon is not reported. Docker Desktop being off is a normal
-state, not a fault.
+| type | reclaimed by |
+| --- | --- |
+| Images (dangling only) | `docker system prune -f` |
+| Images (unused but tagged) | `docker image prune -a` |
+| Stopped containers | `docker system prune -f` |
+| Build cache | `docker system prune -f` or `docker builder prune` |
+| Local volumes | nothing above; needs `--volumes`, and that deletes data |
 
-Report-only on purpose. `sjust system-cleanup` already runs `brew cleanup` and
-`docker system prune -f` behind its own confirmation, and duplicating a
-destructive operation in two places is how the two versions drift apart. This
-check gives you the number and points at the command that acts on it.
+An earlier version summed all four into one figure and pointed at
+`sjust system-cleanup`. On a real machine that read 40 GB while the cleanup
+recovered almost none of it, because the bulk sat in unused-but-tagged images and
+in volumes. That is why the breakdown exists.
 
-Note that `docker system prune` removes stopped containers, dangling images,
-unused networks and unused build cache. It does not remove named volumes unless
-you ask it to, but it is still not reversible.
+Volumes are reported as `warn` rather than `info`, and with no prune command
+attached. A volume holds application data such as a database or uploaded files.
+Removing one is not a cache eviction, so the remedy is to list them and decide
+per volume.
+
+A stopped Docker daemon produces no findings: Docker Desktop being off is a
+normal state, not a fault.
+
+Report-only. Every command it names is destructive to some degree, and which
+images or volumes you still want is a judgement this check cannot make.
 MD
 }

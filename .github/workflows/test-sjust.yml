@@ -289,6 +289,36 @@ jobs:
           test "$rc" = "2"
           echo "::endgroup::"
 
+          echo "::group::fix with an unknown mode exits 2"
+          rc=0; sjust macos-doctor-fix launchd-orphans bogus-mode || rc=$?
+          test "$rc" = "2"
+          echo "::endgroup::"
+
+          echo "::group::dry-run changes nothing and needs no TTY"
+          # launchd-orphans is the reversible fix, so a dry run must neither move a
+          # plist nor create a quarantine snapshot.
+          rm -rf "${HOME}/.local/spark/macos-doctor"
+          before=$(launchctl list | cut -f2,3 | sort)
+          out=$(sjust macos-doctor-fix launchd-orphans dry-run)
+          echo "$out"
+          echo "$out" | grep -qE 'MACOS_DOCTOR_STATUS: fix=(dry-run|applied)' || {
+            # No findings on a clean runner is the expected case and exits 0 early.
+            echo "$out" | grep -q "Nothing to fix"
+          }
+          test ! -d "${HOME}/.local/spark/macos-doctor/quarantine" \
+            || test -z "$(find "${HOME}/.local/spark/macos-doctor/quarantine" -name manifest.tsv -size +0 -print -quit)"
+          after=$(launchctl list | cut -f2,3 | sort)
+          test "$before" = "$after" || echo "note: launchd statuses shifted during the run"
+          echo "::endgroup::"
+
+          echo "::group::info accepts a check id"
+          out=$(sjust macos-doctor-info windowserver-load)
+          echo "$out" | head -5
+          echo "$out" | grep -q "WindowServer"
+          rc=0; sjust macos-doctor-info not-a-check || rc=$?
+          test "$rc" = "2"
+          echo "::endgroup::"
+
           echo "::group::undo with no quarantine exits 1 and mutates nothing"
           rc=0; sjust macos-doctor-undo || rc=$?
           test "$rc" = "1"

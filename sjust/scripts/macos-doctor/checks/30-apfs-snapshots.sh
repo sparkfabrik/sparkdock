@@ -64,6 +64,7 @@ doctor_fix() {
     for snap in "${snaps[@]}"; do
         name="${snap#com.apple.TimeMachine.}"
         name="${name%.local}"
+        mdoc_would "delete local snapshot ${name} (permanent)" && continue
         if sudo tmutil deletelocalsnapshots "${name}" >/dev/null 2>&1; then
             log_success "deleted snapshot ${name}"
         else

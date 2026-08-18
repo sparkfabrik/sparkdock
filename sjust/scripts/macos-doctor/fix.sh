@@ -3,11 +3,14 @@ set -euo pipefail
 #
 # sjust/scripts/macos-doctor/fix.sh — apply one check's fix, with confirmation.
 #
-# Usage: fix.sh <check-id> [system]
+# Usage: fix.sh <check-id> [mode] [scope]
 #   <check-id>  the single check to fix. There is deliberately no fix-all.
-#   system      also act on root-owned paths under /Library. Without it, only
-#               user-owned paths are touched and root-owned findings are listed
-#               for a second, explicit run.
+#   mode        apply (default) or dry-run. A dry run prints every mutation it
+#               would make and changes nothing, so a destructive fix can always
+#               be previewed before it is trusted.
+#   scope       system, to also act on root-owned paths under /Library. Without
+#               it only user-owned paths are touched and root-owned findings are
+#               listed for a second, explicit run.
 #
 # Two safety properties are worth stating plainly.
 #
@@ -24,12 +27,28 @@ source "${SCRIPT_DIR}/lib.sh"
 mdoc_require_macos
 
 check_id="${1:-}"
-scope="${2:-}"
+mode="${2:-apply}"
+scope="${3:-}"
 
 if [[ -z "${check_id}" ]]; then
-    log_error "a check id is required. Usage: sjust macos-doctor-fix <check-id> [system]"
+    log_error "a check id is required. Usage: sjust macos-doctor-fix <check-id> [dry-run] [system]"
     exit 2
 fi
+
+# "system" in the mode slot is a natural mistake, so accept it there rather than
+# rejecting a command that clearly means what it says.
+if [[ "${mode}" == "system" && -z "${scope}" ]]; then
+    scope="system"
+    mode="apply"
+fi
+
+case "${mode}" in
+    apply | dry-run) ;;
+    *)
+        log_error "unknown mode '${mode}'. Valid: apply (default), dry-run."
+        exit 2
+        ;;
+esac
 
 case "${scope}" in
     "" | system) ;;
@@ -56,9 +75,13 @@ fi
 # --- Detect first: the fix only ever acts on findings just shown -------------
 
 mdoc_findings_init
-trap 'rm -f "${MDOC_FINDINGS_FILE}"' EXIT
+trap 'rm -f "${MDOC_FINDINGS_FILE}" "${MDOC_NOTES_FILE}"' EXIT
 
-log_section "macOS doctor · fix · ${title}"
+if [[ "${mode}" == "dry-run" ]]; then
+    log_section "Sparkdock macOS doctor · dry run · ${title}"
+else
+    log_section "Sparkdock macOS doctor · fix · ${title}"
+fi
 
 if ! mdoc_run_detect "${check_file}" "${id}"; then
     log_error "${id}: detect failed, refusing to fix."
@@ -74,8 +97,14 @@ mdoc_render_findings "${id}"
 printf '\n'
 
 # --- Confirm -----------------------------------------------------------------
+#
+# A dry run mutates nothing, so it asks nothing. Skipping straight to the apply
+# block with MDOC_DRY_RUN set means the preview walks exactly the same code path
+# the real run would, which is the only way a preview is worth trusting.
 
-if [[ "${reversible}" == "yes" ]]; then
+if [[ "${mode}" == "dry-run" ]]; then
+    log_info "Dry run: nothing will be changed."
+elif [[ "${reversible}" == "yes" ]]; then
     log_info "Affected paths are moved to ${MDOC_QUARANTINE_ROOT} and can be restored with 'sjust macos-doctor-undo restore'."
     if ! mdoc_confirm "Apply the fix for ${id}?"; then
         log_info "Cancelled."
@@ -99,7 +128,7 @@ fi
 # rather than fatal (it is in config/packages/all-packages.yml, but a machine may
 # predate that).
 
-if command -v flock >/dev/null 2>&1; then
+if [[ "${mode}" == "apply" ]] && command -v flock >/dev/null 2>&1; then
     mkdir -p "$(dirname "${MDOC_LOCK_FILE}")"
     exec 9>"${MDOC_LOCK_FILE}"
     if ! flock -n 9; then
@@ -111,15 +140,21 @@ fi
 # --- Apply -------------------------------------------------------------------
 
 quarantine_dir=""
-if [[ "${reversible}" == "yes" ]]; then
+if [[ "${reversible}" == "yes" && "${mode}" == "apply" ]]; then
     quarantine_dir="$(mdoc_quarantine_new)"
     log_info "Quarantine: ${quarantine_dir}"
 fi
+
+printf '\n'
+
+dry_run=0
+[[ "${mode}" == "dry-run" ]] && dry_run=1
 
 rc=0
 (
     export MDOC_CURRENT_CHECK="${id}"
     export MDOC_QUARANTINE_DIR="${quarantine_dir}"
+    export MDOC_DRY_RUN="${dry_run}"
     export MDOC_SCOPE="${scope}"
     # shellcheck source=/dev/null
     source "${check_file}"
@@ -139,11 +174,23 @@ if [[ -n "${quarantine_dir}" ]]; then
 fi
 
 if [[ "${rc}" -ne 0 ]]; then
-    log_error "${id}: fix reported errors (exit ${rc})."
-    printf 'MACOS_DOCTOR_STATUS: fix=failed check=%s\n' "${id}"
+    log_error "${id}: ${mode} reported errors (exit ${rc})."
+    printf 'MACOS_DOCTOR_STATUS: fix=failed check=%s mode=%s\n' "${id}" "${mode}"
     exit "${rc}"
 fi
 
+printf '\n'
+
+if [[ "${mode}" == "dry-run" ]]; then
+    log_success "Dry run complete. Nothing was changed."
+    log_info "Apply it with: sjust macos-doctor-fix ${id}$([[ "${scope}" == "system" ]] && printf ' apply system')"
+    printf 'MACOS_DOCTOR_STATUS: fix=dry-run check=%s\n' "${id}"
+    exit 0
+fi
+
 log_success "Applied the fix for ${id}."
+if [[ "${reversible}" == "yes" ]]; then
+    log_info "Undo it with: sjust macos-doctor-undo restore"
+fi
 log_info "Re-run 'sjust macos-doctor ${id}' to confirm."
 printf 'MACOS_DOCTOR_STATUS: fix=applied check=%s reversible=%s\n' "${id}" "${reversible}"

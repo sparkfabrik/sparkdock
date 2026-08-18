@@ -72,21 +72,18 @@ doctor_detect() {
     fi
 
     doctor_finding warn "WindowServer" \
-        "${pct}% of one core over ${_WS_WINDOW}s (idle is normally 1-5%)" \
-        "sample it: see 'sjust macos-doctor-info'"
+        "${pct}% of one core while idle (normal is 1-5%), causes scroll and animation lag" \
+        "sjust macos-doctor-info windowserver-load"
 
-    # The full recipe is too long for a table cell, so print it directly. The
-    # line range is derived from the sample file rather than hardcoded: thread
-    # boundaries move between captures, and reusing a stale range silently
-    # reports zero.
-    printf '\n'
-    mdoc_faint "  Find the cause (needs sudo, does not change anything):"
-    mdoc_faint "    sudo sample WindowServer 5 -file /tmp/ws.txt"
-    mdoc_faint "    R=\$(grep -nE '^ +[0-9]+ Thread_' /tmp/ws.txt | sed -n '1p;2p' | cut -d: -f1 | paste -sd' ' -)"
-    mdoc_faint "    set -- \$R"
-    mdoc_faint "    awk -v a=\"\$1\" -v b=\"\$2\" 'NR>a && NR<b' /tmp/ws.txt | grep -c add_event_vector_to_tap"
-    mdoc_faint "  A count in the hundreds means an input tap chain, not compositing."
-    printf '\n'
+    # Say what this means and what the next step is, in prose. The sampling recipe
+    # itself lives in doctor_explain: it is five lines of shell that nobody can
+    # read from a report, and printing it here buried the actual finding.
+    doctor_note "This is felt as jerky scrolling, because WindowServer dispatches input"
+    doctor_note "events and composites frames on the same thread."
+    doctor_note ""
+    doctor_note "The cause is a third-party program, and identifying which one needs a"
+    doctor_note "stack sample. The command above prints the recipe plus how to read it."
+    doctor_note "It is read-only and needs sudo."
 }
 
 doctor_explain() {
@@ -98,8 +95,9 @@ process lifetime. On a WindowServer that has been alive for a week it can read
 under 1% while the process is actually burning 50%, which sends you looking in
 the wrong place.
 
-Above 15% of one core with an idle screen, the finding prints the sampling recipe
-that identifies the cause:
+Above 15% of one core with an idle screen it reports a `warn` and sends you here.
+The cause is always a third-party program, and identifying which one needs a
+stack sample. This is read-only and needs sudo:
 
 ```bash
 sudo sample WindowServer 5 -file /tmp/ws.txt

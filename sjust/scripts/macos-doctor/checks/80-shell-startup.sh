@@ -47,13 +47,29 @@ doctor_detect() {
     ms="$(_ss_best_ms)"
     [[ -n "${ms}" ]] || return 0
 
+    # A bare number is not actionable, so every finding says what the number means
+    # and what to run next.
+    local profile="zsh -i -c 'zmodload zsh/zprof; zprof | head -20'"
+
     if [[ "${ms}" -ge "${_SS_WARN_MS}" ]]; then
-        doctor_finding warn "zsh -i" \
-            "${ms} ms to start (best of ${_SS_RUNS} runs)" \
-            "profile with: zsh -i -c 'zmodload zsh/zprof; exit' or zsh -xv"
+        doctor_finding warn "zsh startup" \
+            "${ms} ms, slow enough to feel on every new tab (best of ${_SS_RUNS})" \
+            "${profile}"
+        doctor_note "Every new terminal tab and every shell a script spawns pays this."
     elif [[ "${ms}" -ge "${_SS_INFO_MS}" ]]; then
-        doctor_finding info "zsh -i" "${ms} ms to start (best of ${_SS_RUNS} runs)" ""
+        doctor_finding info "zsh startup" \
+            "${ms} ms, noticeable but not painful (under ${_SS_INFO_MS} ms is comfortable)" \
+            "${profile}"
+    else
+        return 0
     fi
+
+    doctor_note "The command above prints the 20 slowest init steps, worst first."
+    doctor_note "The usual culprits, in rough order of how often they are the answer:"
+    doctor_note "  nvm, rbenv or pyenv initialising eagerly instead of lazily"
+    doctor_note "  compinit rebuilding the completion cache on every start"
+    doctor_note "  a prompt or plugin making a network call (version checks, git remotes)"
+    doctor_note "  Homebrew shellenv being evaluated more than once"
 }
 
 doctor_explain() {

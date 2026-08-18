@@ -113,17 +113,27 @@ doctor_fix() {
 
         kb="$(du -sk "${path}" 2>/dev/null | awk 'NR == 1 { print $1 }' || true)"
 
+        # Counted before the dry-run guard so a preview can total up what it would
+        # free, rather than reporting zero.
+        freed_kb=$((freed_kb + ${kb:-0}))
+
+        mdoc_would "clear ${path/#"${HOME}"/\~} ($(_dc_human "${kb:-0}"), permanent)" && continue
+
         # Remove the contents, keep the directory: some tools expect it to exist.
         if find "${path}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + 2>/dev/null; then
-            freed_kb=$((freed_kb + ${kb:-0}))
             log_success "cleared ${path/#"${HOME}"/\~} ($(_dc_human "${kb:-0}"))"
         else
             log_warn "failed to clear ${path}"
+            freed_kb=$((freed_kb - ${kb:-0}))
             rc=1
         fi
     done < <(_dc_safe_paths)
 
-    log_info "Freed roughly $(_dc_human "${freed_kb}")."
+    if mdoc_is_dry_run; then
+        log_info "Would free roughly $(_dc_human "${freed_kb}")."
+    else
+        log_info "Freed roughly $(_dc_human "${freed_kb}")."
+    fi
     return "${rc}"
 }
 

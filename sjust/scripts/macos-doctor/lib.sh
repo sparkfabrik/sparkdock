@@ -170,11 +170,31 @@ mdoc_explain() {
 
 # --- Findings collector ------------------------------------------------------
 
-# Create the collector and export its path so checks running in subshells can
-# append to it. Caller owns cleanup via `trap 'rm -f "${MDOC_FINDINGS_FILE}"' EXIT`.
+# Create the collectors and export their paths so checks running in subshells can
+# append to them. Caller owns cleanup via
+# `trap 'rm -f "${MDOC_FINDINGS_FILE}" "${MDOC_NOTES_FILE}"' EXIT`.
 mdoc_findings_init() {
     MDOC_FINDINGS_FILE="$(mktemp -t macos-doctor.XXXXXX)"
-    export MDOC_FINDINGS_FILE
+    MDOC_NOTES_FILE="$(mktemp -t macos-doctor-notes.XXXXXX)"
+    export MDOC_FINDINGS_FILE MDOC_NOTES_FILE
+}
+
+# Record a line of guidance for the current check, rendered underneath its table.
+#
+# A check must never print to stdout itself. Detection and rendering are separate
+# phases, so anything a check writes directly lands before its own section header
+# and reads as though it belonged to the previous check.
+doctor_note() {
+    local text="$*"
+    text="${text//$'\t'/ }"
+    printf '%s\t%s\n' "${MDOC_CURRENT_CHECK:-unknown}" "${text}" >>"${MDOC_NOTES_FILE}"
+}
+
+# Print the notes belonging to one check.
+mdoc_notes_for() {
+    local id="$1"
+    [[ -f "${MDOC_NOTES_FILE:-}" ]] || return 0
+    awk -F'\t' -v id="${id}" '$1 == id { sub(/^[^\t]*\t/, ""); print }' "${MDOC_NOTES_FILE}"
 }
 
 # Record a finding. Called from inside a check's doctor_detect.
@@ -269,12 +289,49 @@ mdoc_render_findings() {
     fi
 
     # Remedies are printed under the table: they are commands, and a command in a
-    # table cell either wraps badly or blows the column width out.
-    local severity subject detail remedy
-    while IFS=$'\t' read -r _ severity subject detail remedy; do
-        [[ -n "${remedy}" ]] || continue
-        mdoc_faint "  ${subject}: ${remedy}"
-    done <<<"${rows}"
+    # table cell either wraps badly or blows the column width out. Identical
+    # remedies are collapsed, because repeating the same command once per row is
+    # noise rather than information.
+    local remedies
+    remedies="$(printf '%s\n' "${rows}" | cut -f5 | grep -v '^$' | sort -u || true)"
+    if [[ -n "${remedies}" ]]; then
+        printf '\n'
+        local remedy
+        while IFS= read -r remedy; do
+            [[ -n "${remedy}" ]] || continue
+            mdoc_faint "    ${remedy}"
+        done <<<"${remedies}"
+    fi
+
+    # Then any longer-form guidance the check recorded with doctor_note.
+    local notes
+    notes="$(mdoc_notes_for "${id}")"
+    if [[ -n "${notes}" ]]; then
+        printf '\n'
+        local note
+        while IFS= read -r note; do
+            mdoc_faint "    ${note}"
+        done <<<"${notes}"
+    fi
+}
+
+# --- Dry run -----------------------------------------------------------------
+
+# Report whether the current fix run is a dry run.
+mdoc_is_dry_run() {
+    [[ "${MDOC_DRY_RUN:-0}" == "1" ]]
+}
+
+# In a dry run, describe the mutation and return 0 so the caller skips it. In a
+# real run, return 1 so the caller proceeds.
+#
+# Usage:
+#   mdoc_would "delete snapshot ${name}" && continue
+#   sudo tmutil deletelocalsnapshots "${name}"
+mdoc_would() {
+    mdoc_is_dry_run || return 1
+    log_info "would ${*}"
+    return 0
 }
 
 # --- Exclusions --------------------------------------------------------------
@@ -341,6 +398,8 @@ mdoc_quarantine_store() {
         log_warn "nothing to quarantine at ${path}"
         return 1
     fi
+
+    mdoc_would "move ${path} into quarantine" && return 0
 
     # Preserve the original absolute path inside files/ so restore is a plain
     # move back with no path reconstruction.

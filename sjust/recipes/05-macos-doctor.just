@@ -16,19 +16,23 @@ macos-doctor $check="":
     @{{ sparkdock_path }}/sjust/scripts/macos-doctor/run.sh "${check}"
 
 # Document every registered check, its flags and how to read its findings.
+#   macos-doctor-info                    # all checks, paged
+#   macos-doctor-info raw                # all checks, no pager
+#   macos-doctor-info windowserver-load  # just one check
 [group('macos')]
-[doc('Explain every macos-doctor check. Modes: pretty (default), raw.')]
+[doc('Explain the macos-doctor checks. Pass raw for no pager, or a check id for just that one.')]
 macos-doctor-info $mode="pretty":
     @{{ sparkdock_path }}/sjust/scripts/macos-doctor/info.sh "${mode}"
 
 # Apply one check's fix, after showing what it found and asking for confirmation.
 # There is deliberately no fix-all.
-#   macos-doctor-fix launchd-orphans          # user-owned paths only
-#   macos-doctor-fix launchd-orphans system   # also root-owned paths under /Library
+#   macos-doctor-fix launchd-orphans                 # user-owned paths only
+#   macos-doctor-fix launchd-orphans dry-run         # preview, changes nothing
+#   macos-doctor-fix launchd-orphans apply system    # also root-owned paths
 [group('macos')]
-[doc('Fix one macos-doctor finding set (confirmation required). Pass "system" to include root-owned paths.')]
-macos-doctor-fix $check="" $scope="":
-    @{{ sparkdock_path }}/sjust/scripts/macos-doctor/fix.sh "${check}" "${scope}"
+[doc('Fix one macos-doctor finding set. Pass dry-run to preview, or "apply system" to include root-owned paths.')]
+macos-doctor-fix $check="" $mode="apply" $scope="":
+    @{{ sparkdock_path }}/sjust/scripts/macos-doctor/fix.sh "${check}" "${mode}" "${scope}"
 
 # List or restore quarantine snapshots. Only fixes from checks that declare
 # themselves reversible produce a snapshot.
