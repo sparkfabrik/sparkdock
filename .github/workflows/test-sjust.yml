@@ -255,8 +255,9 @@ jobs:
           out=$(sjust macos-doctor-info raw)
           echo "$out" | head -30
           echo "$out" | grep -q "Sparkdock macOS doctor"
-          for id in launchd-orphans windowserver-load apfs-snapshots dev-caches \
-                    brew-health spotlight-index docker-disk shell-startup; do
+          for id in launchd-orphans cpu-load memory-pressure disk-space \
+                    apfs-snapshots dev-caches brew-health spotlight-index \
+                    docker-disk shell-startup; do
             echo "$out" | grep -q "(\`${id}\`)" || { echo "missing check: ${id}"; exit 1; }
           done
           echo "::endgroup::"
@@ -321,9 +322,9 @@ jobs:
           echo "::endgroup::"
 
           echo "::group::info accepts a check id"
-          out=$(sjust macos-doctor-info windowserver-load)
+          out=$(sjust macos-doctor-info memory-pressure)
           echo "$out" | head -5
-          echo "$out" | grep -q "WindowServer"
+          echo "$out" | grep -qi "memory"
           rc=0; sjust macos-doctor-info not-a-check || rc=$?
           test "$rc" = "2"
           echo "::endgroup::"
