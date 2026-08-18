@@ -163,13 +163,23 @@ doctor_fix_targets() {
     local label plist kind target owner
     while IFS=$'\t' read -r label plist kind target; do
         [[ -n "${label}" ]] || continue
-        [[ "${kind}" == "orphan" ]] || continue
+
+        # The review bucket is never touched automatically, and saying so is more
+        # useful than omitting it: it is why a reported job was left alone.
+        if [[ "${kind}" != "orphan" ]]; then
+            printf '%s\t%s\tno\n' "${label}" "needs manual review, not auto-classified"
+            continue
+        fi
 
         owner="user"
         [[ "${plist}" == /Library/* ]] && owner="root"
-        [[ "${owner}" == "root" && "${MDOC_SCOPE:-}" != "system" ]] && continue
 
-        printf '%s\t%s\n' "${label}" "${plist}"
+        if [[ "${owner}" == "root" && "${MDOC_SCOPE:-}" != "system" ]]; then
+            printf '%s\t%s\tno\n' "${label}" "root-owned, needs: macos-doctor-fix launchd-orphans apply system"
+            continue
+        fi
+
+        printf '%s\t%s\tyes\n' "${label}" "${plist}"
     done < <(_lo_scan)
 }
 

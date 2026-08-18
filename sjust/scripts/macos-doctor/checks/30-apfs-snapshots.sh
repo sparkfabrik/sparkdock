@@ -59,7 +59,7 @@ doctor_fix_targets() {
     while IFS= read -r snap; do
         [[ -n "${snap}" ]] || continue
         name="${snap#com.apple.TimeMachine.}"
-        printf '%s\t%s\n' "${name%.local}" "local snapshot, cannot be recreated"
+        printf '%s\t%s\tyes\n' "${name%.local}" "local snapshot, cannot be recreated"
     done < <(_tm_list)
 }
 

@@ -108,11 +108,21 @@ fi
 # scope. Confirming against the wrong list makes the prompt a rubber stamp.
 
 targets="$(mdoc_fix_targets "${check_file}" "${id}" "${scope}")"
+actionable="$(printf '%s\n' "${targets}" | mdoc_fix_actionable || true)"
 
-if [[ -z "${targets}" ]]; then
-    log_success "Nothing for ${id} to act on."
-    log_info "It reports findings, but none of them are things this fix removes."
-    log_info "See what it does and does not touch: sjust macos-doctor-info ${id}"
+if [[ -z "${actionable}" ]]; then
+    # Show what the fix manages even when none of it needs doing, so "nothing to
+    # do" is a statement about those specific things rather than a riddle.
+    if [[ -n "${targets}" ]]; then
+        log_success "Nothing to remove."
+        printf '\n'
+        render_table <<<"MANAGED BY THIS FIX"$'\t'"STATE"$'\n'"$(printf '%s\n' "${targets}" | cut -f1,2)"
+        printf '\n'
+    else
+        log_success "Nothing to remove: ${id} has nothing this fix acts on."
+    fi
+    log_info "Anything else ${id} reports is outside what this fix touches, on purpose."
+    log_info "What it covers and what it leaves alone: sjust macos-doctor-info ${id}"
     printf 'MACOS_DOCTOR_STATUS: fix=nothing check=%s mode=%s\n' "${id}" "${mode}"
     exit 0
 fi
@@ -123,8 +133,18 @@ else
     log_warn "These will be removed:"
 fi
 printf '\n'
-render_table <<<"TARGET"$'\t'"DETAIL"$'\n'"${targets}"
+render_table <<<"TARGET"$'\t'"DETAIL"$'\n'"$(printf '%s\n' "${actionable}" | cut -f1,2)"
 printf '\n'
+
+# Anything the fix knows about but is skipping this run, with the reason, so a
+# root-owned plist is not silently dropped after the user has consented.
+skipped_targets="$(printf '%s\n' "${targets}" | awk -F'\t' '$3 == "no"' | cut -f1,2 || true)"
+if [[ -n "${skipped_targets}" ]]; then
+    log_info "Not touched by this run:"
+    printf '\n'
+    render_table <<<"SKIPPED"$'\t'"REASON"$'\n'"${skipped_targets}"
+    printf '\n'
+fi
 
 # --- Confirm -----------------------------------------------------------------
 #

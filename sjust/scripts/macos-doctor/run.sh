@@ -152,17 +152,25 @@ if [[ "${mode}" == "report" ]]; then
 
         printf '\n'
 
-        # Only checks that can actually act on their findings get a fix command.
-        # Offering one for a report-only check sends you to an exit 2.
+        # Only checks that can actually act on something right now get a fix
+        # command. Offering one for a report-only check sends you to an exit 2, and
+        # offering one whose targets are all already clean sends you to a fix that
+        # reports "nothing to remove" and looks broken.
         next=()
         for id in "${report_order[@]}"; do
             file="$(mdoc_file_for_id "${id}")" || continue
             IFS=$'\t' read -r _ _ _ _ fixable reversible < <(mdoc_meta "${file}")
             [[ "${fixable}" == "yes" ]] || continue
+
+            actionable="$(mdoc_fix_targets "${file}" "${id}" "" | mdoc_fix_actionable || true)"
+            [[ -n "${actionable}" ]] || continue
+
+            count=""
+            count="$(printf '%s\n' "${actionable}" | grep -c . || true)"
             if [[ "${reversible}" == "yes" ]]; then
-                next+=("sjust macos-doctor-fix ${id}   (reversible, undo with macos-doctor-undo)")
+                next+=("sjust macos-doctor-fix ${id}   (${count} item(s), reversible)")
             else
-                next+=("sjust macos-doctor-fix ${id}   (NOT reversible, asks twice)")
+                next+=("sjust macos-doctor-fix ${id}   (${count} item(s), NOT reversible)")
             fi
         done
 

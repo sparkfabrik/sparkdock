@@ -156,8 +156,16 @@ mdoc_run_detect() {
     ) || return 1
 }
 
-# Print what a check's fix would actually act on, one "<subject>\t<detail>" row
-# per target, or nothing when there is nothing to do.
+# Print what a check's fix manages, one "<subject>\t<detail>\t<actionable>" row
+# each, where actionable is yes or no.
+#
+# Rows with actionable=no are things the fix knows about but will not touch on this
+# run: an already-empty cache, or a root-owned plist without the system scope.
+# Listing them is what makes "nothing to do" comprehensible instead of mysterious,
+# and it is where the user learns the command that would widen the scope.
+#
+# An omitted third column is treated as actionable, so the findings fallback below
+# keeps working for checks whose fix acts on everything they report.
 #
 # This exists because a check's findings and its fix targets are not the same set.
 # dev-caches reports every cache directory but only deletes the regenerable
@@ -179,7 +187,12 @@ mdoc_fix_targets() {
         else
             mdoc_findings_for "${id}" | cut -f3,4
         fi
-    )
+    ) | awk -F'\t' 'NF > 0 { if ($3 == "") $3 = "yes"; print $1 "\t" $2 "\t" $3 }' OFS='\t'
+}
+
+# Keep only the rows a fix will actually act on.
+mdoc_fix_actionable() {
+    awk -F'\t' '$3 == "yes"'
 }
 
 # Print a check's doctor_explain markdown body.

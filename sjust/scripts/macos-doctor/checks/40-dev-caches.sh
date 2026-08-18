@@ -99,16 +99,26 @@ doctor_detect() {
     doctor_finding info "total" "$(_dc_human "${total_kb}") across all known cache paths" ""
 }
 
-# Only the safe subset, and only the entries that actually hold something. The
-# report lists every cache directory including the ones this fix will never touch,
-# so confirming against the findings would misrepresent the action.
+# Every path in the safe subset, actionable only when it actually holds something.
+# The report lists all cache directories including the large ones this fix will
+# never touch, so confirming against the findings would misrepresent the action.
+# Listing the empty ones too is what makes "nothing to remove" legible.
 doctor_fix_targets() {
     local path kb
     while IFS= read -r path; do
-        [[ -n "${path}" && -d "${path}" ]] || continue
-        [[ -n "$(find "${path}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]] || continue
+        [[ -n "${path}" ]] || continue
+
+        if [[ ! -d "${path}" ]]; then
+            printf '%s\t%s\tno\n' "${path/#"${HOME}"/\~}" "does not exist"
+            continue
+        fi
+        if [[ -z "$(find "${path}" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+            printf '%s\t%s\tno\n' "${path/#"${HOME}"/\~}" "already empty"
+            continue
+        fi
+
         kb="$(du -sk "${path}" 2>/dev/null | awk 'NR == 1 { print $1 }' || true)"
-        printf '%s\t%s\n' "${path/#"${HOME}"/\~}" "$(_dc_human "${kb:-0}")"
+        printf '%s\t%s\tyes\n' "${path/#"${HOME}"/\~}" "$(_dc_human "${kb:-0}")"
     done < <(_dc_safe_paths)
 }
 
