@@ -138,3 +138,41 @@ func TestUnhandledActionReturnsToDashboard(t *testing.T) {
 		t.Errorf("page = %v, want PageDashboard for unhandled action", m.page)
 	}
 }
+
+// The doctor report is read-only, so it must not request sudo, and it is read
+// from the top rather than followed like a build log.
+func TestPlanForDoctor(t *testing.T) {
+	m := New(Config{Root: "/opt/sparkdock"}, version.Info{}, Deps{Checker: stubChecker{}})
+
+	spec, ok := m.planFor("doctor")
+	if !ok {
+		t.Fatal("planFor(\"doctor\") must be wired")
+	}
+	if spec.scroll != runview.PinTop {
+		t.Errorf("scroll = %v, want PinTop for a one-shot report", spec.scroll)
+	}
+	if spec.render != runview.Structured {
+		t.Errorf("render = %v, want Structured", spec.render)
+	}
+	if spec.sudo {
+		t.Error("the doctor report path must never request sudo")
+	}
+	if spec.title != "macOS doctor" {
+		t.Errorf("title = %q, want %q", spec.title, "macOS doctor")
+	}
+}
+
+// The report script is resolved against Config.Root so a dev checkout runs its
+// own checks instead of the /opt install's.
+func TestPlanForDoctorUsesConfiguredRoot(t *testing.T) {
+	m := New(Config{Root: "/tmp/checkout"}, version.Info{}, Deps{Checker: stubChecker{}})
+
+	spec, ok := m.planFor("doctor")
+	if !ok {
+		t.Fatal("planFor(\"doctor\") must be wired")
+	}
+	cmd := spec.rnr.Build(context.Background(), runner.Options{})
+	if len(cmd.Args) == 0 || cmd.Args[0] != "/tmp/checkout/sjust/scripts/macos-doctor/run.sh" {
+		t.Errorf("cmd args = %v, want the run.sh under Config.Root", cmd.Args)
+	}
+}

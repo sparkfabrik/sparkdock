@@ -7,6 +7,7 @@ package status
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 )
 
@@ -55,6 +56,11 @@ type CmdChecker struct {
 	CheckUpdatesBin string
 	// BrewBin is the path to brew.
 	BrewBin string
+	// DoctorBin is the path to the macos-doctor run script. It is invoked with
+	// "count", which runs only the checks marked cheap and prints nothing but the
+	// MACOS_DOCTOR_STATUS line: this row refreshes on every dashboard load and on
+	// 'r', so it must not sample over time or walk large directory trees.
+	DoctorBin string
 	// Run executes commands; must be non-nil.
 	Run CommandRunner
 }
@@ -78,7 +84,7 @@ func healthFromCheckUpdates(r CommandResult) Health {
 }
 
 // subsystemOrder is the display order of the checkable subsystems.
-var subsystemOrder = []string{"sparkdock", "brew", "http-proxy", "skills"}
+var subsystemOrder = []string{"sparkdock", "brew", "http-proxy", "skills", "doctor"}
 
 // Subsystems lists the checkable subsystem keys in display order.
 func (c CmdChecker) Subsystems() []string {
@@ -96,6 +102,8 @@ func (c CmdChecker) CheckOne(ctx context.Context, key string) Subsystem {
 		return c.checkUpdatesSubsystem(ctx, "http-proxy", "HTTP proxy", "http-proxy")
 	case "skills":
 		return c.checkUpdatesSubsystem(ctx, "skills", "Agent skills", "skills")
+	case "doctor":
+		return c.doctorSubsystem(ctx)
 	default:
 		return Subsystem{Key: key, Health: Unknown, Detail: "unknown"}
 	}
@@ -125,6 +133,74 @@ func (c CmdChecker) brewSubsystem(ctx context.Context) Subsystem {
 	}
 	sub.Health = Stale
 	sub.Detail = fmt.Sprintf("%d to update: %s", len(names), summarizeNames(names, 3))
+	return sub
+}
+
+// doctorStatusPrefix marks the machine-readable summary line that run.sh prints
+// on stdout. Everything the script logs goes to stderr, so this line is the only
+// contract between the shell backend and this row.
+const doctorStatusPrefix = "MACOS_DOCTOR_STATUS:"
+
+// parseDoctorStatus pulls findings count and check ids out of the status line.
+// Returns ok=false when no such line is present, which is what a crashed or
+// missing backend looks like.
+func parseDoctorStatus(stdout string) (findings int, ids []string, ok bool) {
+	for _, ln := range nonEmptyLines(stdout) {
+		if !strings.HasPrefix(ln, doctorStatusPrefix) {
+			continue
+		}
+		for _, field := range strings.Fields(strings.TrimPrefix(ln, doctorStatusPrefix)) {
+			key, value, found := strings.Cut(field, "=")
+			if !found {
+				continue
+			}
+			switch key {
+			case "findings":
+				n, err := strconv.Atoi(value)
+				if err != nil {
+					return 0, nil, false
+				}
+				findings = n
+			case "ids":
+				if value != "" {
+					ids = strings.Split(value, ",")
+				}
+			}
+		}
+		return findings, ids, true
+	}
+	return 0, nil, false
+}
+
+func (c CmdChecker) doctorSubsystem(ctx context.Context) Subsystem {
+	sub := Subsystem{Key: "doctor", Name: "macOS doctor"}
+
+	// An unset DoctorBin means the caller did not wire this row up; report it as
+	// unconfigured rather than running an empty command.
+	if c.DoctorBin == "" {
+		sub.Health = Unconfigured
+		sub.Detail = "not configured"
+		return sub
+	}
+
+	res := c.Run(ctx, c.DoctorBin, "count")
+	findings, ids, ok := parseDoctorStatus(res.Stdout)
+	if !ok {
+		sub.Health = Unknown
+		sub.Detail = failDetail(res)
+		return sub
+	}
+	if findings == 0 {
+		sub.Health = OK
+		sub.Detail = "no findings"
+		return sub
+	}
+
+	sub.Health = Stale
+	sub.Detail = fmt.Sprintf("%d finding(s)", findings)
+	if len(ids) > 0 {
+		sub.Detail += ": " + summarizeNames(ids, 2)
+	}
 	return sub
 }
 

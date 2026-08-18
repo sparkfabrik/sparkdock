@@ -121,3 +121,84 @@ func TestHelpOverlayToggles(t *testing.T) {
 		t.Error("q must close the overlay (not quit) while help is open")
 	}
 }
+
+// --- macOS doctor ------------------------------------------------------------
+
+// cursorTo walks the cursor to the row with the given id, bounded by the item
+// count so a missing row fails the test instead of looping forever.
+func cursorTo(t *testing.T, m *Model, id string) {
+	t.Helper()
+	for range len(m.items) + 1 {
+		if it := m.current(); it != nil && it.id == id {
+			return
+		}
+		m.move(1)
+	}
+	t.Fatalf("row %q not reachable with the cursor", id)
+}
+
+func TestDoctorRowNavigatesToRunner(t *testing.T) {
+	m := newTestModel("doctor")
+	cursorTo(t, &m, "doctor")
+
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmd == nil {
+		t.Fatal("enter on the doctor row must emit a command")
+	}
+	nav, ok := cmd().(ui.NavigateMsg)
+	if !ok || nav.To != ui.PageRunner || nav.Action != "doctor" {
+		t.Errorf("got %+v, want Navigate(PageRunner, \"doctor\")", nav)
+	}
+}
+
+// Shift+D is the shortcut. Lowercase d is device info and must stay that way.
+func TestDoctorShortcutKeys(t *testing.T) {
+	m := newTestModel("doctor")
+
+	_, cmd := m.Update(keyMsg("D"))
+	if cmd == nil {
+		t.Fatal("D must emit a command")
+	}
+	if nav, ok := cmd().(ui.NavigateMsg); !ok || nav.Action != "doctor" {
+		t.Errorf("D gave %+v, want action \"doctor\"", nav)
+	}
+
+	_, cmd = m.Update(keyMsg("d"))
+	if cmd == nil {
+		t.Fatal("d must still emit a command")
+	}
+	if nav, ok := cmd().(ui.NavigateMsg); !ok || nav.Action != "device" {
+		t.Errorf("d gave %+v, want action \"device\" (unchanged)", nav)
+	}
+}
+
+// The doctor health row belongs in the status group above the rule, not among
+// the actions.
+func TestDoctorStatusRowIsInStatusGroup(t *testing.T) {
+	m := newTestModel("doctor")
+	m, _ = m.Update(SubsystemMsg{Key: "doctor", Health: status.Stale, Detail: "4 finding(s)"})
+
+	ruleAt := -1
+	for i, it := range m.items {
+		if it.kind == kindRule {
+			ruleAt = i
+			break
+		}
+	}
+	if ruleAt < 0 {
+		t.Fatal("no rule separating status rows from actions")
+	}
+
+	found := false
+	for _, it := range m.items[:ruleAt] {
+		if it.kind == kindStatus && it.id == "doctor" {
+			found = true
+			if it.detail != "4 finding(s)" {
+				t.Errorf("doctor status detail = %q, want the checker's detail", it.detail)
+			}
+		}
+	}
+	if !found {
+		t.Error("doctor status row missing from the status group")
+	}
+}

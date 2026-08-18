@@ -337,6 +337,15 @@ func (m Model) planFor(action string) (runSpec, bool) {
 		return runSpec{title: "HTTP proxy · upgrade", rnr: runner.ForCommandEnv(m.callbackEnv(), "sjust", "http-proxy-install-update"), scroll: runview.FollowTail, render: runview.Structured}, true
 	case "device":
 		return runSpec{title: "Device info", rnr: runner.ForCommand("ayse-get-sm"), scroll: runview.PinTop, render: runview.Structured}, true
+	case "doctor":
+		// The report script is invoked directly at m.cfg.Root rather than through
+		// `sjust macos-doctor`, because sjust always resolves to the /opt install
+		// and this way a dev checkout runs its own checks. The dashboard detail
+		// still shows the sjust command, which is the one to type by hand.
+		//
+		// Read-only, so no sudo: the run never elevates. PinTop because a report
+		// is read from the top, not followed like a build log.
+		return runSpec{title: "macOS doctor", rnr: runner.ForCommand(m.cfg.Root + "/sjust/scripts/macos-doctor/run.sh"), scroll: runview.PinTop, render: runview.Structured}, true
 	default:
 		// Recipe browser selections arrive as "sjust:<recipe>". Rendered as a
 		// terminal since a recipe can run any program.

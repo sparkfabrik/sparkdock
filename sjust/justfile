@@ -19,6 +19,7 @@ import "recipes/00-default.just"
 import "recipes/02-docker-desktop.just"
 import "recipes/03-macos-defaults.just"
 import "recipes/04-shared.just"
+import "recipes/05-macos-doctor.just"
 
 # this is optional and let the user to add custom tasks.
 import? "~/.config/sjust/100-custom.just"

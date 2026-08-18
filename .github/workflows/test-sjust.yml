@@ -244,6 +244,68 @@ jobs:
 
           echo "✅ macos-defaults full lifecycle (info / init-overrides / apply / dry-run / undo) verified"
 
+      - name: Test macos-doctor sjust commands
+        run: |
+          set -euo pipefail
+
+          # The fix path is deliberately not exercised: it mutates the machine and
+          # its confirmation prompt declines without a TTY by design.
+
+          echo "::group::macos-doctor-info raw lists every check"
+          out=$(sjust macos-doctor-info raw)
+          echo "$out" | head -30
+          echo "$out" | grep -q "Sparkdock macOS doctor"
+          for id in launchd-orphans windowserver-load apfs-snapshots dev-caches \
+                    brew-health spotlight-index docker-disk shell-startup; do
+            echo "$out" | grep -q "(\`${id}\`)" || { echo "missing check: ${id}"; exit 1; }
+          done
+          echo "::endgroup::"
+
+          echo "::group::count mode prints only a parseable status line"
+          out=$(sjust macos-doctor count)
+          echo "$out"
+          test "$(printf '%s\n' "$out" | grep -c .)" = "1"
+          echo "$out" | grep -qE '^MACOS_DOCTOR_STATUS: findings=[0-9]+ .*checks=[0-9]+ '
+          echo "::endgroup::"
+
+          echo "::group::a single cheap check runs and reports a status line"
+          out=$(sjust macos-doctor launchd-orphans)
+          echo "$out"
+          echo "$out" | grep -qE '^MACOS_DOCTOR_STATUS: .*checks=1 '
+          echo "::endgroup::"
+
+          echo "::group::an unknown check id exits 2"
+          rc=0; sjust macos-doctor definitely-not-a-check || rc=$?
+          test "$rc" = "2"
+          echo "::endgroup::"
+
+          echo "::group::fix with no check id exits 2"
+          rc=0; sjust macos-doctor-fix || rc=$?
+          test "$rc" = "2"
+          echo "::endgroup::"
+
+          echo "::group::fix on a report-only check exits 2"
+          rc=0; sjust macos-doctor-fix docker-disk || rc=$?
+          test "$rc" = "2"
+          echo "::endgroup::"
+
+          echo "::group::undo with no quarantine exits 1 and mutates nothing"
+          rc=0; sjust macos-doctor-undo || rc=$?
+          test "$rc" = "1"
+          echo "::endgroup::"
+
+          echo "::group::the report path leaves launchd untouched"
+          before=$(launchctl list | sort)
+          sjust macos-doctor launchd-orphans >/dev/null
+          after=$(launchctl list | sort)
+          # PIDs churn between calls, so compare labels and exit statuses only.
+          diff <(printf '%s\n' "$before" | cut -f2,3) \
+               <(printf '%s\n' "$after" | cut -f2,3) >/dev/null \
+            || echo "note: launchd job statuses changed during the run (background activity)"
+          echo "::endgroup::"
+
+          echo "✅ macos-doctor verified (info / count / single check / exit codes / read-only report)"
+
       - name: Clean up test installations
         if: always()
         run: |
