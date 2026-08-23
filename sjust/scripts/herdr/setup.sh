@@ -118,7 +118,7 @@ main() {
     case "${action}" in
         install)
             if ! command -v herdr &> /dev/null; then
-                log_warn "herdr is not installed — skipping herdr skill setup"
+                log_warn "herdr is not installed, skipping herdr skill setup"
                 return 0
             fi
             write_skill
