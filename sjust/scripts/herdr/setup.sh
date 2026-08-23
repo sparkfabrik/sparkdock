@@ -6,7 +6,8 @@ set -euo pipefail
 # herdr ships its own skill: `herdr --skill` prints the SKILL.md on stdout, so
 # the skill is generated from the installed binary instead of being synced from
 # the upstream harness repo. Both provisioners call this script (sparkdock on
-# macOS, sf-toolbox on Linux), which is why it must stay POSIX-portable.
+# macOS, sf-toolbox on Linux), so it sticks to bash plus tools that behave the
+# same on BSD and GNU userlands.
 #
 # Usage: setup.sh [install|uninstall]
 
