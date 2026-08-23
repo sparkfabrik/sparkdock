@@ -83,7 +83,14 @@ link_skill() {
         local link="${tool_dir}/${SKILL_NAME}"
         mkdir -p "${tool_dir}"
 
-        if [[ -e "${link}" && ! -L "${link}" ]]; then
+        if [[ -L "${link}" ]]; then
+            local link_target
+            link_target="$(readlink "${link}")"
+            if [[ "${link_target}" != "${SKILL_DIR}" ]]; then
+                log_warn "${TOOL_LABEL[${tool_id}]}: skipped ${SKILL_NAME} (symlink points to ${link_target})"
+                continue
+            fi
+        elif [[ -e "${link}" ]]; then
             log_warn "${TOOL_LABEL[${tool_id}]}: skipped ${SKILL_NAME} (user content exists at ${link})"
             continue
         fi
@@ -99,11 +106,16 @@ uninstall() {
     local tool_id
     for tool_id in "${!TOOL_SKILLS_DIR[@]}"; do
         local link="${TOOL_SKILLS_DIR[${tool_id}]}/${SKILL_NAME}"
-        if [[ -L "${link}" ]]; then
+        if [[ -L "${link}" ]] && [[ "$(readlink "${link}")" == "${SKILL_DIR}" ]]; then
             rm -f "${link}"
             log_success "${TOOL_LABEL[${tool_id}]}: removed ${SKILL_NAME} symlink"
         fi
     done
+
+    if [[ -L "${SKILL_DIR}" ]]; then
+        log_warn "herdr skill is managed elsewhere (${SKILL_DIR} -> $(readlink "${SKILL_DIR}")), leaving it in place"
+        return 0
+    fi
 
     if [[ -d "${SKILL_DIR}" ]]; then
         rm -rf "${SKILL_DIR}"
@@ -120,6 +132,14 @@ main() {
         install)
             if ! command -v herdr &> /dev/null; then
                 log_warn "herdr is not installed, skipping herdr skill setup"
+                return 0
+            fi
+            # A symlinked skill directory means the skill is managed elsewhere (a
+            # checkout, a dotfiles repo). Writing through the link would overwrite
+            # content this script does not own, so leave the whole thing alone.
+            # Not an error: provisioning must not fail over a deliberate local setup.
+            if [[ -L "${SKILL_DIR}" ]]; then
+                log_warn "herdr skill is managed elsewhere (${SKILL_DIR} -> $(readlink "${SKILL_DIR}")), skipping"
                 return 0
             fi
             write_skill
