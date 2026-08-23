@@ -1077,6 +1077,17 @@
           changed_when: true
           become: false
 
+    - name: Install the herdr agent skill for AI coding tools
+      tags:
+        - herdr
+        - ai-harness
+        - ai-harness-sync
+      block:
+        - name: Run herdr skill setup script
+          command: "{{ dev_env_dir }}/sjust/scripts/herdr/setup.sh"
+          changed_when: true
+          become: false
+
     - name: Enable gh skill gate for Claude Code
       tags:
         - claude-gh-gate
