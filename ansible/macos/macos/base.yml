@@ -746,8 +746,6 @@
             creates: "{{ ansible_facts['env']['HOME'] }}/.local/bin/claude-usage"
           environment:
             CLAUDE_USAGE_READER: "0"
-          register: claude_usage_install
-          changed_when: "'CHANGED:' in claude_usage_install.stdout"
           become: false
 
         - name: Build menu bar app

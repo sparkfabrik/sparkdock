@@ -121,6 +121,31 @@ private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async
     }
 }
 
+func runProcessWithTimeout(_ process: Process, seconds: TimeInterval) async throws -> Int32 {
+    try await withTimeout(seconds: seconds) {
+        try await withTaskCancellationHandler(
+            operation: {
+                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+                    process.terminationHandler = { proc in
+                        continuation.resume(returning: proc.terminationStatus)
+                    }
+
+                    do {
+                        try process.run()
+                    } catch {
+                        continuation.resume(throwing: error)
+                    }
+                }
+            },
+            onCancel: {
+                if process.isRunning {
+                    process.terminate()
+                }
+            }
+        )
+    }
+}
+
 // MARK: - Darwin Notification Callback (C-compatible, must be top-level)
 private let darwinRecheckCallback: CFNotificationCallback = { _, observer, name, _, _ in
     guard let observer = observer else { return }
@@ -138,7 +163,7 @@ private final class MenuSectionHeaderView: NSView {
         set { label.stringValue = newValue }
     }
 
-    init(title: String) {
+    init(title: String, trailingView: NSView? = nil) {
         super.init(frame: NSRect(x: 0, y: 0, width: 320, height: 34))
         autoresizingMask = [.width]
 
@@ -148,11 +173,24 @@ private final class MenuSectionHeaderView: NSView {
         label.textColor = .secondaryLabelColor
         addSubview(label)
 
-        NSLayoutConstraint.activate([
+        var constraints = [
             label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
             label.centerYAnchor.constraint(equalTo: centerYAnchor)
-        ])
+        ]
+
+        if let trailingView = trailingView {
+            trailingView.translatesAutoresizingMaskIntoConstraints = false
+            addSubview(trailingView)
+            constraints.append(contentsOf: [
+                label.trailingAnchor.constraint(lessThanOrEqualTo: trailingView.leadingAnchor, constant: -8),
+                trailingView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+                trailingView.centerYAnchor.constraint(equalTo: centerYAnchor)
+            ])
+        } else {
+            constraints.append(label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12))
+        }
+
+        NSLayoutConstraint.activate(constraints)
     }
 
     required init?(coder: NSCoder) {
@@ -258,6 +296,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
     /// Generation counter to discard stale full-check results after a per-subsystem recheck
     private var checkGeneration: Int = 0
+    private var claudeUsageCheckGeneration: Int = 0
     var statusMenuItem: NSMenuItem?
     var sparkdockStatusMenuItem: NSMenuItem?
     var brewStatusMenuItem: NSMenuItem?
@@ -266,7 +305,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var claudeUsageSectionMenuItem: NSMenuItem?
     var claudeCurrentUsageMenuItem: NSMenuItem?
     var claudeWeeklyUsageMenuItem: NSMenuItem?
-    var refreshClaudeUsageMenuItem: NSMenuItem?
     var refreshClaudeUsageButton: NSButton?
     var claudeUsageSectionSeparator: NSMenuItem?
     var timetrackerStatusMenuItem: NSMenuItem?
@@ -330,9 +368,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return image
     }
 
-    private func makeSectionHeader(title: String) -> NSMenuItem {
+    private func makeSectionHeader(title: String, trailingView: NSView? = nil) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
-        item.view = MenuSectionHeaderView(title: title)
+        item.view = MenuSectionHeaderView(title: title, trailingView: trailingView)
         return item
     }
 
@@ -459,10 +497,16 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
 
         let claudeUsageInstalled = Self.executablePath(for: "claude-usage") != nil
-        let claudeUsageSectionItem = makeSectionHeader(title: "Claude Code")
+        let refreshButton = NSButton(title: "Refresh", target: self, action: #selector(checkClaudeUsageAction))
+        refreshButton.bezelStyle = .inline
+        refreshButton.controlSize = .small
+        refreshButton.image = menuSymbol(named: "arrow.clockwise", description: "Refresh Claude Code usage")
+        refreshButton.imagePosition = .imageLeading
+        let claudeUsageSectionItem = makeSectionHeader(title: "Claude Code", trailingView: refreshButton)
         claudeUsageSectionItem.isHidden = !claudeUsageInstalled
         menu.addItem(claudeUsageSectionItem)
         claudeUsageSectionMenuItem = claudeUsageSectionItem
+        refreshClaudeUsageButton = refreshButton
 
         let claudeCurrentUsageItem = NSMenuItem(title: "Current session", action: #selector(checkClaudeUsageAction), keyEquivalent: "")
         claudeCurrentUsageItem.target = self
@@ -477,23 +521,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         claudeWeeklyUsageItem.isHidden = !claudeUsageInstalled
         menu.addItem(claudeWeeklyUsageItem)
         claudeWeeklyUsageMenuItem = claudeWeeklyUsageItem
-
-        let refreshClaudeUsageItem = NSMenuItem(title: "Refresh usage", action: nil, keyEquivalent: "")
-        let refreshContainer = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 34))
-        let refreshButton = NSButton(title: "Refresh usage", target: self, action: #selector(checkClaudeUsageAction))
-        refreshButton.frame = NSRect(x: 12, y: 5, width: 256, height: 24)
-        refreshButton.autoresizingMask = [.width]
-        refreshButton.alignment = .left
-        refreshButton.bezelStyle = .recessed
-        refreshButton.controlSize = .small
-        refreshButton.image = menuSymbol(named: "arrow.clockwise", description: "Refresh Claude Code usage")
-        refreshButton.imagePosition = .imageLeading
-        refreshContainer.addSubview(refreshButton)
-        refreshClaudeUsageItem.view = refreshContainer
-        refreshClaudeUsageItem.isHidden = !claudeUsageInstalled
-        menu.addItem(refreshClaudeUsageItem)
-        refreshClaudeUsageMenuItem = refreshClaudeUsageItem
-        refreshClaudeUsageButton = refreshButton
 
         let claudeUsageSeparator = NSMenuItem.separator()
         claudeUsageSeparator.isHidden = !claudeUsageInstalled
@@ -664,12 +691,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         if FileManager.default.fileExists(atPath: chromePath) {
             let process = Process()
             process.executableURL = URL(fileURLWithPath: chromePath)
-            
+
             // Use Google Chrome with --app flag to open as a web app
             process.arguments = [
                 "--app=\(urlString)"
             ]
-            
+
             do {
                 try process.run()
                 AppConstants.logger.info("Opened URL as Chrome web app: \(urlString)")
@@ -839,13 +866,19 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func recheckClaudeUsage(forcePoll: Bool = false) {
         checkGeneration += 1
+        claudeUsageCheckGeneration += 1
+        let expectedClaudeUsageGeneration = claudeUsageCheckGeneration
         updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Current session", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(claudeWeeklyUsageMenuItem, title: "Weekly limit", badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
             let result = await runClaudeUsageCheck(forcePoll: forcePoll)
             await MainActor.run {
+                guard self.claudeUsageCheckGeneration == expectedClaudeUsageGeneration else {
+                    AppConstants.logger.info("Discarding stale Claude usage result (generation \(expectedClaudeUsageGeneration) != \(self.claudeUsageCheckGeneration))")
+                    return
+                }
                 self.claudeUsageStatus = result
-                self.refreshClaudeUsageButton?.title = "Refresh usage"
+                self.refreshClaudeUsageButton?.title = "Refresh"
                 self.refreshClaudeUsageButton?.isEnabled = true
                 self.refreshUI()
             }
@@ -882,6 +915,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private func checkForUpdates() {
         checkGeneration += 1
         let expectedGeneration = checkGeneration
+        claudeUsageCheckGeneration += 1
+        refreshClaudeUsageButton?.title = "Refresh"
+        refreshClaudeUsageButton?.isEnabled = true
         Task(priority: .background) {
             let hasUpdates = await runSparkdockCheck()
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
@@ -942,36 +978,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         let pipe = Pipe()
         process.standardOutput = pipe
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
 
-        var terminationStatus: Int32 = -1
-        let finished: Bool = await withTaskCancellationHandler(
-            operation: {
-                do {
-                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
-                            process.terminationHandler = { proc in
-                                continuation.resume(returning: proc.terminationStatus)
-                            }
-
-                            do {
-                                try process.run()
-                            } catch {
-                                continuation.resume(throwing: error)
-                            }
-                        }
-                    }
-                    return true
-                } catch {
-                    return false
-                }
-            },
-            onCancel: {
-                process.terminate()
-            }
-        )
-
-        if !finished {
+        let terminationStatus: Int32
+        do {
+            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
+        } catch {
             AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.processTimeout) seconds")
             return 0
         }
@@ -998,35 +1010,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.executableURL = URL(fileURLWithPath: AppConstants.sparkdockExecutablePath)
         process.arguments = [command]
 
-        var terminationStatus: Int32 = -1
-        // Await process termination with timeout
-        let finished: Bool = await withTaskCancellationHandler(
-            operation: {
-                do {
-                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
-                            process.terminationHandler = { proc in
-                                continuation.resume(returning: proc.terminationStatus)
-                            }
-
-                            do {
-                                try process.run()
-                            } catch {
-                                continuation.resume(throwing: error)
-                            }
-                        }
-                    }
-                    return true
-                } catch {
-                    return false
-                }
-            },
-            onCancel: {
-                // If cancelled, terminate the process
-                process.terminate()
-            }
-        )
-        if !finished {
+        let terminationStatus: Int32
+        do {
+            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
+        } catch {
             AppConstants.logger.error("Sparkdock command '\(command)' process timed out after \(AppConstants.processTimeout) seconds")
             return false
         }
@@ -1060,33 +1047,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.executableURL = URL(fileURLWithPath: checkUpdatesPath)
         process.arguments = [subsystem]
 
-        var terminationStatus: Int32 = -1
-        let finished: Bool = await withTaskCancellationHandler(
-            operation: {
-                do {
-                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
-                            process.terminationHandler = { proc in
-                                continuation.resume(returning: proc.terminationStatus)
-                            }
-
-                            do {
-                                try process.run()
-                            } catch {
-                                continuation.resume(throwing: error)
-                            }
-                        }
-                    }
-                    return true
-                } catch {
-                    return false
-                }
-            },
-            onCancel: {
-                process.terminate()
-            }
-        )
-        if !finished {
+        let terminationStatus: Int32
+        do {
+            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
+        } catch {
             AppConstants.logger.error("sparkdock-check-updates '\(subsystem)' timed out after \(AppConstants.processTimeout) seconds")
             return nil
         }
@@ -1136,36 +1100,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         let outputPipe = Pipe()
         process.standardOutput = outputPipe
-        process.standardError = Pipe()
+        process.standardError = FileHandle.nullDevice
 
-        var terminationStatus: Int32 = -1
-        let finished: Bool = await withTaskCancellationHandler(
-            operation: {
-                do {
-                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
-                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
-                            process.terminationHandler = { proc in
-                                continuation.resume(returning: proc.terminationStatus)
-                            }
-
-                            do {
-                                try process.run()
-                            } catch {
-                                continuation.resume(throwing: error)
-                            }
-                        }
-                    }
-                    return true
-                } catch {
-                    return false
-                }
-            },
-            onCancel: {
-                process.terminate()
-            }
-        )
-
-        guard finished else {
+        let terminationStatus: Int32
+        do {
+            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
+        } catch {
             AppConstants.logger.error("Claude usage check timed out after \(AppConstants.processTimeout) seconds")
             return nil
         }
@@ -1259,7 +1199,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         // Update Brew status line
         if totalBrewCount > 0 {
-            updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "\(totalBrewCount) updates", color: .systemOrange)
+            let updateLabel = totalBrewCount == 1 ? "1 update" : "\(totalBrewCount) updates"
+            updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: updateLabel, color: .systemOrange)
             brewStatusMenuItem?.toolTip = "\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks"
         } else {
             updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Up to date", color: .systemGreen)
@@ -1373,7 +1314,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         claudeUsageSectionMenuItem?.isHidden = !installed
         claudeCurrentUsageMenuItem?.isHidden = !installed
         claudeWeeklyUsageMenuItem?.isHidden = !installed
-        refreshClaudeUsageMenuItem?.isHidden = !installed
         claudeUsageSectionSeparator?.isHidden = !installed
         guard installed else { return }
 
@@ -1610,7 +1550,7 @@ private func checkForExistingInstance() -> Bool {
 
     let pipe = Pipe()
     process.standardOutput = pipe
-    process.standardError = Pipe()
+    process.standardError = FileHandle.nullDevice
 
     do {
         try process.run()

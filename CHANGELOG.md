@@ -107,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Moved the Sparkdock Manager Claude usage refresh control beside its section title
 - Changed the AI coding harness upstream repository URL from `sparkfabrik/sf-awesome-copilot` to `sparkfabrik/sf-agents-harness` following the upstream rename
 - Changed `sjust system-install-mkcert` to only install the mkcert local CA; the `mkcert` and `nss` formulae are already in `homebrew_packages`, so the recipe no longer runs a redundant `brew install`
 - Moved `google-cloud-sdk` from `cask_packages` to `cask_latest_packages`, so an existing Google Cloud SDK is upgraded on every provisioning pass instead of staying pinned at the version installed on first provision
@@ -178,6 +179,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed Sparkdock Manager process checks leaving timed-out commands running, stale Claude usage refreshes overwriting newer results, incorrect single-update grammar, and menubar provisioning under-reporting Claude provider installations
 - Fixed overlapping Claude Code usage rows in Sparkdock Manager and adjusted menu heading sizes for clearer hierarchy
 - Fixed Option+Backspace deleting a single character instead of the previous word in the Ghostty base config, by binding `alt+backspace` to `ESC DEL` rather than setting `macos-option-as-alt`, which would stop Option composing `@`, `#`, `[`, `]`, `{` and `}` on the Italian Mac layout
 - Fixed the AGENTS.md privilege-escalation section, which described the become password as being collected via `--ask-become-pass`. The play uses `vars_prompt` instead, precisely because `--ask-become-pass` never defines the `ansible_become_pass` template variable the cask tasks depend on. The TUI section carried the same error, contradicting the test that asserts the flag is absent
