@@ -130,6 +130,89 @@ private let darwinRecheckCallback: CFNotificationCallback = { _, observer, name,
     app.handleRecheckNotification(notificationName)
 }
 
+private final class ClaudeUsageRowView: NSView {
+    private let statusImageView = NSImageView()
+    private let titleField = NSTextField(labelWithString: "")
+    private let subtitleField = NSTextField(labelWithString: "")
+    private let badgeField = NSTextField(labelWithString: "")
+    private var badgeWidthConstraint: NSLayoutConstraint!
+
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: 320, height: 48))
+        autoresizingMask = [.width]
+
+        statusImageView.translatesAutoresizingMaskIntoConstraints = false
+        statusImageView.imageScaling = .scaleProportionallyDown
+
+        titleField.font = NSFont.menuFont(ofSize: 0)
+        titleField.textColor = .labelColor
+        titleField.lineBreakMode = .byTruncatingTail
+
+        subtitleField.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        subtitleField.textColor = .secondaryLabelColor
+        subtitleField.lineBreakMode = .byTruncatingTail
+
+        let textStack = NSStackView(views: [titleField, subtitleField])
+        textStack.translatesAutoresizingMaskIntoConstraints = false
+        textStack.orientation = .vertical
+        textStack.alignment = .leading
+        textStack.spacing = 0
+
+        badgeField.translatesAutoresizingMaskIntoConstraints = false
+        badgeField.font = NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+        badgeField.textColor = .labelColor
+        badgeField.alignment = .center
+        badgeField.wantsLayer = true
+        badgeField.layer?.cornerRadius = 11
+        badgeField.layer?.masksToBounds = true
+
+        addSubview(statusImageView)
+        addSubview(textStack)
+        addSubview(badgeField)
+
+        badgeWidthConstraint = badgeField.widthAnchor.constraint(equalToConstant: 44)
+        NSLayoutConstraint.activate([
+            statusImageView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            statusImageView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            statusImageView.widthAnchor.constraint(equalToConstant: 10),
+            statusImageView.heightAnchor.constraint(equalToConstant: 10),
+            textStack.leadingAnchor.constraint(equalTo: statusImageView.trailingAnchor, constant: 12),
+            textStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            textStack.trailingAnchor.constraint(lessThanOrEqualTo: badgeField.leadingAnchor, constant: -12),
+            badgeField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            badgeField.centerYAnchor.constraint(equalTo: centerYAnchor),
+            badgeField.heightAnchor.constraint(equalToConstant: 22),
+            badgeWidthConstraint
+        ])
+
+        updateBadgeAppearance()
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateBadgeAppearance()
+    }
+
+    func update(title: String, badge: String, subtitle: String?, statusImage: NSImage) {
+        titleField.stringValue = title
+        badgeField.stringValue = badge
+        subtitleField.stringValue = subtitle ?? ""
+        subtitleField.isHidden = subtitle == nil
+        statusImageView.image = statusImage
+        badgeWidthConstraint.constant = max(44, ceil(badgeField.intrinsicContentSize.width) + 16)
+    }
+
+    private func updateBadgeAppearance() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            badgeField.layer?.backgroundColor = NSColor.quaternaryLabelColor.cgColor
+        }
+    }
+}
+
 class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var menu: NSMenu?
@@ -199,15 +282,16 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func updateStatusMenuItem(_ item: NSMenuItem?, title: String, badge: String, subtitle: String? = nil, color: NSColor) {
         guard let item = item else { return }
+        let dot = statusDot(color: color)
+        if let usageRow = item.view as? ClaudeUsageRowView {
+            usageRow.update(title: title, badge: badge, subtitle: subtitle, statusImage: dot)
+            return
+        }
+
         item.attributedTitle = nil
         item.title = title
-        if #available(macOS 14.4, *) {
-            item.subtitle = subtitle
-        } else if let subtitle {
-            item.title += " · \(subtitle)"
-        }
         item.badge = NSMenuItemBadge(string: badge)
-        item.image = statusDot(color: color)
+        item.image = dot
     }
 
     private func menuSymbol(named name: String, description: String) -> NSImage? {
@@ -288,7 +372,21 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu = NSMenu()
         guard let menu = menu else { return }
 
-        menu.addItem(NSMenuItem.sectionHeader(title: "Sparkdock Manager"))
+        let titleItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        let titleContainer = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 46))
+        titleContainer.autoresizingMask = [.width]
+        let titleLabel = NSTextField(labelWithString: "Sparkdock Manager")
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.font = NSFont.systemFont(ofSize: 17, weight: .semibold)
+        titleLabel.textColor = .labelColor
+        titleContainer.addSubview(titleLabel)
+        NSLayoutConstraint.activate([
+            titleLabel.leadingAnchor.constraint(equalTo: titleContainer.leadingAnchor, constant: 12),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: titleContainer.trailingAnchor, constant: -12),
+            titleLabel.centerYAnchor.constraint(equalTo: titleContainer.centerYAnchor)
+        ])
+        titleItem.view = titleContainer
+        menu.addItem(titleItem)
         menu.addItem(.separator())
 
         menu.addItem(NSMenuItem.sectionHeader(title: "System status"))
@@ -332,12 +430,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         let claudeCurrentUsageItem = NSMenuItem(title: "Current session", action: #selector(checkClaudeUsageAction), keyEquivalent: "")
         claudeCurrentUsageItem.target = self
+        claudeCurrentUsageItem.view = ClaudeUsageRowView()
         claudeCurrentUsageItem.isHidden = !claudeUsageInstalled
         menu.addItem(claudeCurrentUsageItem)
         claudeCurrentUsageMenuItem = claudeCurrentUsageItem
 
         let claudeWeeklyUsageItem = NSMenuItem(title: "Weekly limit", action: #selector(checkClaudeUsageAction), keyEquivalent: "")
         claudeWeeklyUsageItem.target = self
+        claudeWeeklyUsageItem.view = ClaudeUsageRowView()
         claudeWeeklyUsageItem.isHidden = !claudeUsageInstalled
         menu.addItem(claudeWeeklyUsageItem)
         claudeWeeklyUsageMenuItem = claudeWeeklyUsageItem
