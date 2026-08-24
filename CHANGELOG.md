@@ -178,7 +178,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed overlapping Claude Code usage rows in Sparkdock Manager and enlarged the menu title for clearer hierarchy
+- Fixed overlapping Claude Code usage rows in Sparkdock Manager and adjusted menu heading sizes for clearer hierarchy
 - Fixed Option+Backspace deleting a single character instead of the previous word in the Ghostty base config, by binding `alt+backspace` to `ESC DEL` rather than setting `macos-option-as-alt`, which would stop Option composing `@`, `#`, `[`, `]`, `{` and `}` on the Italian Mac layout
 - Fixed the AGENTS.md privilege-escalation section, which described the become password as being collected via `--ask-become-pass`. The play uses `vars_prompt` instead, precisely because `--ask-become-pass` never defines the `ansible_become_pass` template variable the cask tasks depend on. The TUI section carried the same error, contradicting the test that asserts the flag is absent
 - Fixed the OpenCode deploy message reporting 175 permission rules when the config holds 172

@@ -130,6 +130,36 @@ private let darwinRecheckCallback: CFNotificationCallback = { _, observer, name,
     app.handleRecheckNotification(notificationName)
 }
 
+private final class MenuSectionHeaderView: NSView {
+    private let label = NSTextField(labelWithString: "")
+
+    var title: String {
+        get { label.stringValue }
+        set { label.stringValue = newValue }
+    }
+
+    init(title: String) {
+        super.init(frame: NSRect(x: 0, y: 0, width: 320, height: 34))
+        autoresizingMask = [.width]
+
+        label.stringValue = title
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        label.textColor = .secondaryLabelColor
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
+    }
+}
+
 private final class ClaudeUsageRowView: NSView {
     private let statusImageView = NSImageView()
     private let titleField = NSTextField(labelWithString: "")
@@ -148,7 +178,7 @@ private final class ClaudeUsageRowView: NSView {
         titleField.textColor = .labelColor
         titleField.lineBreakMode = .byTruncatingTail
 
-        subtitleField.font = NSFont.systemFont(ofSize: NSFont.smallSystemFontSize)
+        subtitleField.font = NSFont.systemFont(ofSize: 12)
         subtitleField.textColor = .secondaryLabelColor
         subtitleField.lineBreakMode = .byTruncatingTail
 
@@ -300,6 +330,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return image
     }
 
+    private func makeSectionHeader(title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.view = MenuSectionHeaderView(title: title)
+        return item
+    }
+
     private func showAllStatusesChecking() {
         updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Checking", color: .systemYellow)
@@ -373,11 +409,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         guard let menu = menu else { return }
 
         let titleItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-        let titleContainer = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 46))
+        let titleContainer = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 40))
         titleContainer.autoresizingMask = [.width]
         let titleLabel = NSTextField(labelWithString: "Sparkdock Manager")
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = NSFont.systemFont(ofSize: 17, weight: .semibold)
+        titleLabel.font = NSFont.systemFont(ofSize: 15, weight: .semibold)
         titleLabel.textColor = .labelColor
         titleContainer.addSubview(titleLabel)
         NSLayoutConstraint.activate([
@@ -389,7 +425,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(titleItem)
         menu.addItem(.separator())
 
-        menu.addItem(NSMenuItem.sectionHeader(title: "System status"))
+        menu.addItem(makeSectionHeader(title: "System status"))
 
         // Create separate status menu items (clickable to trigger specific checks)
         let sparkdockStatusItem = NSMenuItem(title: "Sparkdock", action: #selector(checkSparkdockUpdatesAction), keyEquivalent: "")
@@ -423,7 +459,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
 
         let claudeUsageInstalled = Self.executablePath(for: "claude-usage") != nil
-        let claudeUsageSectionItem = NSMenuItem.sectionHeader(title: "Claude Code")
+        let claudeUsageSectionItem = makeSectionHeader(title: "Claude Code")
         claudeUsageSectionItem.isHidden = !claudeUsageInstalled
         menu.addItem(claudeUsageSectionItem)
         claudeUsageSectionMenuItem = claudeUsageSectionItem
@@ -464,7 +500,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(claudeUsageSeparator)
         claudeUsageSectionSeparator = claudeUsageSeparator
 
-        let updateActionsSectionItem = NSMenuItem.sectionHeader(title: "Actions")
+        let updateActionsSectionItem = makeSectionHeader(title: "Actions")
         updateActionsSectionItem.isHidden = true
         menu.addItem(updateActionsSectionItem)
         updateActionsSectionMenuItem = updateActionsSectionItem
@@ -531,7 +567,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func addDynamicMenuSections(_ sections: [MenuSection], to menu: NSMenu) {
         for section in sections {
-            let sectionItem = NSMenuItem.sectionHeader(title: section.name)
+            let sectionItem = makeSectionHeader(title: section.name)
             menu.addItem(sectionItem)
 
             var entries: [(menuItem: NSMenuItem, config: MenuItem)] = []
@@ -1341,7 +1377,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         claudeUsageSectionSeparator?.isHidden = !installed
         guard installed else { return }
 
-        claudeUsageSectionMenuItem?.title = status?.stale == true ? "Claude Code · stale" : "Claude Code"
+        let sectionTitle = status?.stale == true ? "Claude Code · stale" : "Claude Code"
+        claudeUsageSectionMenuItem?.title = sectionTitle
+        (claudeUsageSectionMenuItem?.view as? MenuSectionHeaderView)?.title = sectionTitle
         claudeUsageSectionMenuItem?.toolTip = status?.error
 
         guard let status = status else {
