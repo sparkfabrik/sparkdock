@@ -68,12 +68,7 @@ private enum RecheckNotification {
 
 // MARK: - Menu Item Tags
 private enum MenuItemTag: Int {
-    case updateNow = 1
-    case loginItem = 2
-    case upgradeBrew = 3
-    case upgradeHttpProxy = 4
-    case upgradeAgents = 5
-    case upgradeTimetracker = 6
+    case loginItem = 1
 }
 
 // MARK: - Brew Package Types
@@ -332,8 +327,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
     /// Generation counter to discard stale full-check results after a per-subsystem recheck
     private var checkGeneration: Int = 0
+    private var systemStatusCheckGeneration: Int = 0
     private var claudeUsageCheckGeneration: Int = 0
     var statusMenuItem: NSMenuItem?
+    var refreshSystemStatusButton: NSButton?
     var sparkdockStatusMenuItem: NSMenuItem?
     var brewStatusMenuItem: NSMenuItem?
     var httpProxyStatusMenuItem: NSMenuItem?
@@ -344,13 +341,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var refreshClaudeUsageButton: NSButton?
     var claudeUsageSectionSeparator: NSMenuItem?
     var timetrackerStatusMenuItem: NSMenuItem?
-    var updateActionsSectionMenuItem: NSMenuItem?
-    var updateActionsSectionSeparator: NSMenuItem?
-    var updateNowMenuItem: NSMenuItem?
-    var upgradeBrewMenuItem: NSMenuItem?
-    var upgradeHttpProxyMenuItem: NSMenuItem?
-    var upgradeAgentsMenuItem: NSMenuItem?
-    var upgradeTimetrackerMenuItem: NSMenuItem?
     private var pathMonitor: NWPathMonitor?
     fileprivate var menuConfig: MenuConfig?
     /// Dynamic menu entries gated on `requires_binary`, kept so their visibility can
@@ -398,6 +388,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         item.image = dot
     }
 
+    private func setStatusMenuItemAction(_ item: NSMenuItem?, action: Selector?) {
+        item?.action = action
+        item?.target = action == nil ? nil : self
+        item?.isEnabled = action != nil
+    }
+
     private func menuSymbol(named name: String, description: String) -> NSImage? {
         let image = NSImage(systemSymbolName: name, accessibilityDescription: description)
         image?.isTemplate = true
@@ -411,6 +407,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func showAllStatusesChecking() {
+        refreshSystemStatusButton?.title = "Refreshing…"
+        refreshSystemStatusButton?.isEnabled = false
         updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Checking", color: .systemYellow)
@@ -418,6 +416,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Current session", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(claudeWeeklyUsageMenuItem, title: "Weekly limit", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Checking", color: .systemYellow)
+        setStatusMenuItemAction(sparkdockStatusMenuItem, action: nil)
+        setStatusMenuItemAction(brewStatusMenuItem, action: nil)
+        setStatusMenuItemAction(httpProxyStatusMenuItem, action: nil)
+        setStatusMenuItemAction(agentsStatusMenuItem, action: nil)
+        setStatusMenuItemAction(timetrackerStatusMenuItem, action: nil)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -499,31 +502,31 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(titleItem)
         menu.addItem(.separator())
 
-        menu.addItem(makeSectionHeader(title: "System status"))
+        let refreshSystemButton = NSButton(title: "Refresh", target: self, action: #selector(checkForUpdatesAction))
+        refreshSystemButton.bezelStyle = .rounded
+        refreshSystemButton.controlSize = .small
+        refreshSystemButton.image = menuSymbol(named: "arrow.clockwise", description: "Refresh system status")
+        refreshSystemButton.imagePosition = .imageLeading
+        menu.addItem(makeSectionHeader(title: "System status", trailingView: refreshSystemButton))
+        refreshSystemStatusButton = refreshSystemButton
 
-        // Create separate status menu items (clickable to trigger specific checks)
-        let sparkdockStatusItem = NSMenuItem(title: "Sparkdock", action: #selector(checkSparkdockUpdatesAction), keyEquivalent: "")
-        sparkdockStatusItem.target = self
+        let sparkdockStatusItem = NSMenuItem(title: "Sparkdock", action: nil, keyEquivalent: "")
         menu.addItem(sparkdockStatusItem)
         self.sparkdockStatusMenuItem = sparkdockStatusItem
 
-        let brewStatusItem = NSMenuItem(title: "Homebrew", action: #selector(checkBrewUpdatesAction), keyEquivalent: "")
-        brewStatusItem.target = self
+        let brewStatusItem = NSMenuItem(title: "Homebrew", action: nil, keyEquivalent: "")
         menu.addItem(brewStatusItem)
         self.brewStatusMenuItem = brewStatusItem
 
-        let httpProxyStatusItem = NSMenuItem(title: "HTTP proxy", action: #selector(checkHttpProxyUpdatesAction), keyEquivalent: "")
-        httpProxyStatusItem.target = self
+        let httpProxyStatusItem = NSMenuItem(title: "HTTP proxy", action: nil, keyEquivalent: "")
         menu.addItem(httpProxyStatusItem)
         self.httpProxyStatusMenuItem = httpProxyStatusItem
 
-        let agentsStatusItem = NSMenuItem(title: "Agent skills", action: #selector(checkAgentUpdatesAction), keyEquivalent: "")
-        agentsStatusItem.target = self
+        let agentsStatusItem = NSMenuItem(title: "Agent skills", action: nil, keyEquivalent: "")
         menu.addItem(agentsStatusItem)
         self.agentsStatusMenuItem = agentsStatusItem
 
-        let timetrackerStatusItem = NSMenuItem(title: "Timetracker", action: #selector(checkTimetrackerUpdatesAction), keyEquivalent: "")
-        timetrackerStatusItem.target = self
+        let timetrackerStatusItem = NSMenuItem(title: "Timetracker", action: nil, keyEquivalent: "")
         // Hidden from construction on machines without the CLI, so non-users never
         // see a transient "Checking..." row before the first check completes.
         timetrackerStatusItem.isHidden = Self.executablePath(for: "timetracker") == nil
@@ -562,56 +565,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         claudeUsageSeparator.isHidden = !claudeUsageInstalled
         menu.addItem(claudeUsageSeparator)
         claudeUsageSectionSeparator = claudeUsageSeparator
-
-        let updateActionsSectionItem = makeSectionHeader(title: "Actions")
-        updateActionsSectionItem.isHidden = true
-        menu.addItem(updateActionsSectionItem)
-        updateActionsSectionMenuItem = updateActionsSectionItem
-
-        let updateItem = NSMenuItem(title: "Upgrade Sparkdock", action: #selector(updateNow), keyEquivalent: "")
-        updateItem.target = self
-        updateItem.tag = MenuItemTag.updateNow.rawValue
-        updateItem.image = menuSymbol(named: "arrow.up.circle", description: "Upgrade")
-        updateItem.isHidden = true
-        menu.addItem(updateItem)
-        updateNowMenuItem = updateItem
-
-        let upgradeBrewItem = NSMenuItem(title: "Upgrade Homebrew", action: #selector(upgradeBrew), keyEquivalent: "")
-        upgradeBrewItem.target = self
-        upgradeBrewItem.tag = MenuItemTag.upgradeBrew.rawValue
-        upgradeBrewItem.image = menuSymbol(named: "arrow.up.circle", description: "Upgrade")
-        upgradeBrewItem.isHidden = true
-        menu.addItem(upgradeBrewItem)
-        upgradeBrewMenuItem = upgradeBrewItem
-
-        let upgradeHttpProxyItem = NSMenuItem(title: "Upgrade HTTP proxy", action: #selector(upgradeHttpProxy), keyEquivalent: "")
-        upgradeHttpProxyItem.target = self
-        upgradeHttpProxyItem.tag = MenuItemTag.upgradeHttpProxy.rawValue
-        upgradeHttpProxyItem.image = menuSymbol(named: "arrow.up.circle", description: "Upgrade")
-        upgradeHttpProxyItem.isHidden = true
-        menu.addItem(upgradeHttpProxyItem)
-        upgradeHttpProxyMenuItem = upgradeHttpProxyItem
-
-        let upgradeAgentsItem = NSMenuItem(title: "Refresh agent skills", action: #selector(upgradeAgents), keyEquivalent: "")
-        upgradeAgentsItem.target = self
-        upgradeAgentsItem.tag = MenuItemTag.upgradeAgents.rawValue
-        upgradeAgentsItem.image = menuSymbol(named: "arrow.up.circle", description: "Refresh")
-        upgradeAgentsItem.isHidden = true
-        menu.addItem(upgradeAgentsItem)
-        upgradeAgentsMenuItem = upgradeAgentsItem
-
-        let upgradeTimetrackerItem = NSMenuItem(title: "Upgrade Timetracker", action: #selector(upgradeTimetracker), keyEquivalent: "")
-        upgradeTimetrackerItem.target = self
-        upgradeTimetrackerItem.tag = MenuItemTag.upgradeTimetracker.rawValue
-        upgradeTimetrackerItem.image = menuSymbol(named: "arrow.up.circle", description: "Upgrade")
-        upgradeTimetrackerItem.isHidden = true
-        menu.addItem(upgradeTimetrackerItem)
-        upgradeTimetrackerMenuItem = upgradeTimetrackerItem
-
-        let updateActionsSeparator = NSMenuItem.separator()
-        updateActionsSeparator.isHidden = true
-        menu.addItem(updateActionsSeparator)
-        updateActionsSectionSeparator = updateActionsSeparator
 
         // Add dynamic menu sections from configuration
         if let config = menuConfig {
@@ -789,35 +742,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         checkForUpdates()
     }
 
-    @objc private func checkSparkdockUpdatesAction() {
-        updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Checking", color: .systemYellow)
-        checkForUpdates()
-    }
-
-    @objc private func checkBrewUpdatesAction() {
-        updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Checking", color: .systemYellow)
-        checkForUpdates()
-    }
-
-    @objc private func checkHttpProxyUpdatesAction() {
-        updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Checking", color: .systemYellow)
-        checkForUpdates()
-    }
-
-    @objc private func checkAgentUpdatesAction() {
-        updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Checking", color: .systemYellow)
-        checkForUpdates()
-    }
-
     @objc private func checkClaudeUsageAction() {
         refreshClaudeUsageButton?.title = "Refreshing…"
         refreshClaudeUsageButton?.isEnabled = false
         recheckClaudeUsage(forcePoll: true)
-    }
-
-    @objc private func checkTimetrackerUpdatesAction() {
-        updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Checking", color: .systemYellow)
-        checkForUpdates()
     }
 
     // MARK: - Darwin Notification Observers (post-upgrade recheck)
@@ -951,6 +879,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private func checkForUpdates() {
         checkGeneration += 1
         let expectedGeneration = checkGeneration
+        systemStatusCheckGeneration += 1
+        let expectedSystemStatusGeneration = systemStatusCheckGeneration
         claudeUsageCheckGeneration += 1
         refreshClaudeUsageButton?.title = "Refresh"
         refreshClaudeUsageButton?.isEnabled = true
@@ -964,6 +894,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             let hasTimetrackerUpdates = await runTimetrackerCheck()
             let timetrackerConfigured = isTimetrackerConfigured()
             await MainActor.run {
+                if self.systemStatusCheckGeneration == expectedSystemStatusGeneration {
+                    self.refreshSystemStatusButton?.title = "Refresh"
+                    self.refreshSystemStatusButton?.isEnabled = true
+                }
                 // Discard results if a per-subsystem recheck started after this full check
                 guard self.checkGeneration == expectedGeneration else {
                     AppConstants.logger.info("Discarding stale full-check results (generation \(expectedGeneration) != \(self.checkGeneration))")
@@ -1240,35 +1174,43 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         // Update Sparkdock status line
         if hasUpdates {
-            updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Update", color: .systemOrange)
+            updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Upgrade", color: .systemOrange)
+            setStatusMenuItemAction(sparkdockStatusMenuItem, action: #selector(updateNow))
         } else {
             updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Up to date", color: .systemGreen)
+            setStatusMenuItemAction(sparkdockStatusMenuItem, action: nil)
         }
 
         // Update Brew status line
         if totalBrewCount > 0 {
-            let updateLabel = totalBrewCount == 1 ? "1 update" : "\(totalBrewCount) updates"
-            updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: updateLabel, color: .systemOrange)
+            updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Upgrade (\(totalBrewCount))", color: .systemOrange)
+            setStatusMenuItemAction(brewStatusMenuItem, action: #selector(upgradeBrew))
             brewStatusMenuItem?.toolTip = "\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks"
         } else {
             updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Up to date", color: .systemGreen)
+            setStatusMenuItemAction(brewStatusMenuItem, action: nil)
             brewStatusMenuItem?.toolTip = nil
         }
 
         // Update HTTP proxy status line
         if hasHttpProxyUpdates {
-            updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Update", color: .systemOrange)
+            updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Upgrade", color: .systemOrange)
+            setStatusMenuItemAction(httpProxyStatusMenuItem, action: #selector(upgradeHttpProxy))
         } else {
             updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Up to date", color: .systemGreen)
+            setStatusMenuItemAction(httpProxyStatusMenuItem, action: nil)
         }
 
         // Update agent skills status line
         if !agentsConfigured {
-            updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Not configured", color: .systemGray)
+            updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Set up", color: .systemGray)
+            setStatusMenuItemAction(agentsStatusMenuItem, action: #selector(upgradeAgents))
         } else if hasAgentUpdates {
-            updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Update", color: .systemOrange)
+            updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Upgrade", color: .systemOrange)
+            setStatusMenuItemAction(agentsStatusMenuItem, action: #selector(upgradeAgents))
         } else {
             updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Up to date", color: .systemGreen)
+            setStatusMenuItemAction(agentsStatusMenuItem, action: nil)
         }
 
         updateClaudeUsageUI(claudeUsageStatus)
@@ -1279,80 +1221,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         let timetrackerInstalled = Self.executablePath(for: "timetracker") != nil
         timetrackerStatusMenuItem?.isHidden = !timetrackerInstalled
         if !timetrackerInstalled {
-            // nothing to report
+            setStatusMenuItemAction(timetrackerStatusMenuItem, action: nil)
         } else if !timetrackerConfigured {
             updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Not configured", color: .systemGray)
+            setStatusMenuItemAction(timetrackerStatusMenuItem, action: nil)
         } else if hasTimetrackerUpdates {
-            updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Update", color: .systemOrange)
+            updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Upgrade", color: .systemOrange)
+            setStatusMenuItemAction(timetrackerStatusMenuItem, action: #selector(upgradeTimetracker))
         } else {
             updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Up to date", color: .systemGreen)
+            setStatusMenuItemAction(timetrackerStatusMenuItem, action: nil)
         }
-
-        // Update the "Upgrade Sparkdock" menu item visibility
-        if let updateItem = updateNowMenuItem {
-            if hasUpdates {
-                updateItem.title = "Upgrade Sparkdock"
-                updateItem.isEnabled = true
-                updateItem.isHidden = false
-            } else {
-                updateItem.isHidden = true
-            }
-        }
-
-        // Update the "Upgrade Homebrew" menu item visibility
-        if let upgradeBrewItem = upgradeBrewMenuItem {
-            if totalBrewCount > 0 {
-                upgradeBrewItem.title = "Upgrade Homebrew (\(totalBrewCount))"
-                upgradeBrewItem.toolTip = "\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks"
-                upgradeBrewItem.isEnabled = true
-                upgradeBrewItem.isHidden = false
-            } else {
-                upgradeBrewItem.toolTip = nil
-                upgradeBrewItem.isHidden = true
-            }
-        }
-
-        // Update the "Upgrade HTTP proxy" menu item visibility
-        if let upgradeHttpProxyItem = upgradeHttpProxyMenuItem {
-            if hasHttpProxyUpdates {
-                upgradeHttpProxyItem.title = "Upgrade HTTP proxy"
-                upgradeHttpProxyItem.isEnabled = true
-                upgradeHttpProxyItem.isHidden = false
-            } else {
-                upgradeHttpProxyItem.isHidden = true
-            }
-        }
-
-        // Update the "Refresh agent skills" menu item visibility
-        if let upgradeAgentsItem = upgradeAgentsMenuItem {
-            if hasAgentUpdates || !agentsConfigured {
-                // Show when updates available OR not configured (so user can bootstrap initial sync)
-                upgradeAgentsItem.title = hasAgentUpdates ? "Refresh agent skills" : "Set up agent skills"
-                upgradeAgentsItem.isEnabled = true
-                upgradeAgentsItem.isHidden = false
-            } else {
-                upgradeAgentsItem.isHidden = true
-            }
-        }
-
-        // Update the "Upgrade Timetracker" menu item visibility
-        if let upgradeTimetrackerItem = upgradeTimetrackerMenuItem {
-            if hasTimetrackerUpdates {
-                upgradeTimetrackerItem.title = "Upgrade Timetracker"
-                upgradeTimetrackerItem.isEnabled = true
-                upgradeTimetrackerItem.isHidden = false
-            } else {
-                upgradeTimetrackerItem.isHidden = true
-            }
-        }
-
-        let updateActionItems = [updateNowMenuItem, upgradeBrewMenuItem, upgradeHttpProxyMenuItem, upgradeAgentsMenuItem, upgradeTimetrackerMenuItem]
-        let hasVisibleUpdateActions = updateActionItems.contains { item in
-            guard let item = item else { return false }
-            return !item.isHidden
-        }
-        updateActionsSectionMenuItem?.isHidden = !hasVisibleUpdateActions
-        updateActionsSectionSeparator?.isHidden = !hasVisibleUpdateActions
 
         refreshDynamicMenuItems()
     }

@@ -41,19 +41,6 @@ final class SparkdockManagerTests: XCTestCase {
         }
     }
 
-    func testMenuItemTags() {
-        let updateTag = 1
-        let loginTag = 2
-        let upgradeBrewTag = 3
-        let upgradeHttpProxyTag = 4
-        XCTAssertNotEqual(updateTag, loginTag, "Menu item tags should be unique")
-        XCTAssertNotEqual(updateTag, upgradeBrewTag, "Menu item tags should be unique")
-        XCTAssertNotEqual(updateTag, upgradeHttpProxyTag, "Menu item tags should be unique")
-        XCTAssertNotEqual(loginTag, upgradeBrewTag, "Menu item tags should be unique")
-        XCTAssertNotEqual(loginTag, upgradeHttpProxyTag, "Menu item tags should be unique")
-        XCTAssertNotEqual(upgradeBrewTag, upgradeHttpProxyTag, "Menu item tags should be unique")
-    }
-
     func testTimerTolerance() {
         let tolerance: TimeInterval = 60.0
         XCTAssertGreaterThan(tolerance, 0, "Timer tolerance should be positive")
