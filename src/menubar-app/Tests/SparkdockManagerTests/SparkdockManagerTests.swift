@@ -83,7 +83,7 @@ final class SparkdockManagerTests: XCTestCase {
         do {
             _ = try await runProcessWithTimeout(process, seconds: 0.1)
             XCTFail("Expected process runner to time out")
-        } catch is CancellationError {
+        } catch ProcessTimeoutError.timedOut {
             // Expected timeout.
         }
 

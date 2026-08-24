@@ -101,6 +101,10 @@ private enum BrewPackageType {
 }
 
 // MARK: - Async Utilities
+enum ProcessTimeoutError: Error {
+    case timedOut
+}
+
 private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
     try await withThrowingTaskGroup(of: T.self) { group in
         group.addTask {
@@ -109,11 +113,11 @@ private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async
 
         group.addTask {
             try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
-            throw CancellationError()
+            throw ProcessTimeoutError.timedOut
         }
 
         guard let result = try await group.next() else {
-            throw CancellationError()
+            throw ProcessTimeoutError.timedOut
         }
 
         group.cancelAll()
@@ -121,26 +125,58 @@ private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async
     }
 }
 
+private final class ProcessExecutionState: @unchecked Sendable {
+    private let process: Process
+    private let lock = NSLock()
+    private var cancellationRequested = false
+
+    init(process: Process) {
+        self.process = process
+    }
+
+    func run() async throws -> Int32 {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+            lock.lock()
+
+            guard !cancellationRequested else {
+                lock.unlock()
+                continuation.resume(throwing: CancellationError())
+                return
+            }
+
+            process.terminationHandler = { proc in
+                continuation.resume(returning: proc.terminationStatus)
+            }
+
+            do {
+                try process.run()
+                lock.unlock()
+            } catch {
+                lock.unlock()
+                continuation.resume(throwing: error)
+            }
+        }
+    }
+
+    func cancel() {
+        lock.lock()
+        cancellationRequested = true
+        if process.isRunning {
+            process.terminate()
+        }
+        lock.unlock()
+    }
+}
+
 func runProcessWithTimeout(_ process: Process, seconds: TimeInterval) async throws -> Int32 {
+    let execution = ProcessExecutionState(process: process)
     try await withTimeout(seconds: seconds) {
         try await withTaskCancellationHandler(
             operation: {
-                try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
-                    process.terminationHandler = { proc in
-                        continuation.resume(returning: proc.terminationStatus)
-                    }
-
-                    do {
-                        try process.run()
-                    } catch {
-                        continuation.resume(throwing: error)
-                    }
-                }
+                try await execution.run()
             },
             onCancel: {
-                if process.isRunning {
-                    process.terminate()
-                }
+                execution.cancel()
             }
         )
     }
@@ -983,8 +1019,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         let terminationStatus: Int32
         do {
             terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
-        } catch {
+        } catch ProcessTimeoutError.timedOut {
             AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.processTimeout) seconds")
+            return 0
+        } catch {
+            AppConstants.logger.error("Brew outdated check (\(type.description)) failed: \(error.localizedDescription)")
             return 0
         }
 
@@ -1013,8 +1052,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         let terminationStatus: Int32
         do {
             terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
-        } catch {
+        } catch ProcessTimeoutError.timedOut {
             AppConstants.logger.error("Sparkdock command '\(command)' process timed out after \(AppConstants.processTimeout) seconds")
+            return false
+        } catch {
+            AppConstants.logger.error("Sparkdock command '\(command)' failed: \(error.localizedDescription)")
             return false
         }
 
@@ -1050,8 +1092,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         let terminationStatus: Int32
         do {
             terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
-        } catch {
+        } catch ProcessTimeoutError.timedOut {
             AppConstants.logger.error("sparkdock-check-updates '\(subsystem)' timed out after \(AppConstants.processTimeout) seconds")
+            return nil
+        } catch {
+            AppConstants.logger.error("sparkdock-check-updates '\(subsystem)' failed: \(error.localizedDescription)")
             return nil
         }
 
@@ -1105,8 +1150,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         let terminationStatus: Int32
         do {
             terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
-        } catch {
+        } catch ProcessTimeoutError.timedOut {
             AppConstants.logger.error("Claude usage check timed out after \(AppConstants.processTimeout) seconds")
+            return nil
+        } catch {
+            AppConstants.logger.error("Claude usage check failed: \(error.localizedDescription)")
             return nil
         }
         guard terminationStatus == 0 else {
