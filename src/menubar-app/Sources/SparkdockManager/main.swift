@@ -406,15 +406,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return item
     }
 
-    private func showAllStatusesChecking() {
+    private func showAllStatusesChecking(includeClaudeUsage: Bool = true) {
         refreshSystemStatusButton?.title = "Refreshing…"
         refreshSystemStatusButton?.isEnabled = false
         updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Checking", color: .systemYellow)
-        updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Current session", badge: "Checking", color: .systemYellow)
-        updateStatusMenuItem(claudeWeeklyUsageMenuItem, title: "Weekly limit", badge: "Checking", color: .systemYellow)
+        if includeClaudeUsage {
+            updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Current session", badge: "Checking", color: .systemYellow)
+            updateStatusMenuItem(claudeWeeklyUsageMenuItem, title: "Weekly limit", badge: "Checking", color: .systemYellow)
+        }
         updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Checking", color: .systemYellow)
         setStatusMenuItemAction(sparkdockStatusMenuItem, action: nil)
         setStatusMenuItemAction(brewStatusMenuItem, action: nil)
@@ -738,8 +740,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     @objc private func checkForUpdatesAction() {
-        showAllStatusesChecking()
-        checkForUpdates()
+        showAllStatusesChecking(includeClaudeUsage: false)
+        checkForUpdates(includeClaudeUsage: false)
     }
 
     @objc private func checkClaudeUsageAction() {
@@ -829,7 +831,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func recheckClaudeUsage(forcePoll: Bool = false) {
-        checkGeneration += 1
         claudeUsageCheckGeneration += 1
         let expectedClaudeUsageGeneration = claudeUsageCheckGeneration
         updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Current session", badge: "Checking", color: .systemYellow)
@@ -844,7 +845,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 self.claudeUsageStatus = result
                 self.refreshClaudeUsageButton?.title = "Refresh"
                 self.refreshClaudeUsageButton?.isEnabled = true
-                self.refreshUI()
+                self.refreshUI(updateClaudeUsage: true)
             }
         }
     }
@@ -862,7 +863,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     /// Refresh UI using current instance state (safe for per-subsystem updates)
-    private func refreshUI() {
+    private func refreshUI(updateClaudeUsage: Bool = false) {
         updateUI(
             hasUpdates: hasUpdates,
             outdatedBrewFormulae: outdatedBrewFormulaeCount,
@@ -871,26 +872,38 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             hasAgentUpdates: hasAgentUpdates,
             agentsConfigured: isAgentsConfigured(),
             claudeUsageStatus: claudeUsageStatus,
+            updateClaudeUsage: updateClaudeUsage,
             hasTimetrackerUpdates: hasTimetrackerUpdates,
             timetrackerConfigured: isTimetrackerConfigured()
         )
     }
 
-    private func checkForUpdates() {
+    private func checkForUpdates(includeClaudeUsage: Bool = true) {
         checkGeneration += 1
         let expectedGeneration = checkGeneration
         systemStatusCheckGeneration += 1
         let expectedSystemStatusGeneration = systemStatusCheckGeneration
-        claudeUsageCheckGeneration += 1
-        refreshClaudeUsageButton?.title = "Refresh"
-        refreshClaudeUsageButton?.isEnabled = true
+        let expectedClaudeUsageGeneration: Int?
+        if includeClaudeUsage {
+            claudeUsageCheckGeneration += 1
+            expectedClaudeUsageGeneration = claudeUsageCheckGeneration
+            refreshClaudeUsageButton?.title = "Refresh"
+            refreshClaudeUsageButton?.isEnabled = true
+        } else {
+            expectedClaudeUsageGeneration = nil
+        }
         Task(priority: .background) {
             let hasUpdates = await runSparkdockCheck()
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
             let hasHttpProxyUpdates = await runHttpProxyCheck()
             let hasAgentUpdates = await runAgentsCheck()
             let agentsConfigured = isAgentsConfigured()
-            let claudeUsageStatus = await runClaudeUsageCheck()
+            let checkedClaudeUsageStatus: ClaudeUsageStatus?
+            if includeClaudeUsage {
+                checkedClaudeUsageStatus = await runClaudeUsageCheck()
+            } else {
+                checkedClaudeUsageStatus = nil
+            }
             let hasTimetrackerUpdates = await runTimetrackerCheck()
             let timetrackerConfigured = isTimetrackerConfigured()
             await MainActor.run {
@@ -903,7 +916,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                     AppConstants.logger.info("Discarding stale full-check results (generation \(expectedGeneration) != \(self.checkGeneration))")
                     return
                 }
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: claudeUsageStatus, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured)
+                let shouldUpdateClaudeUsage = expectedClaudeUsageGeneration.map {
+                    self.claudeUsageCheckGeneration == $0
+                } ?? false
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: checkedClaudeUsageStatus, updateClaudeUsage: shouldUpdateClaudeUsage, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured)
             }
         }
     }
@@ -1131,11 +1147,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status != 3
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true) {
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, updateClaudeUsage: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true) {
         self.hasUpdates = hasUpdates
         self.hasHttpProxyUpdates = hasHttpProxyUpdates
         self.hasAgentUpdates = hasAgentUpdates
-        self.claudeUsageStatus = claudeUsageStatus
+        if updateClaudeUsage {
+            self.claudeUsageStatus = claudeUsageStatus
+        }
         self.hasTimetrackerUpdates = hasTimetrackerUpdates
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
         self.outdatedBrewCasksCount = outdatedBrewCasks
@@ -1213,7 +1231,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             setStatusMenuItemAction(agentsStatusMenuItem, action: nil)
         }
 
-        updateClaudeUsageUI(claudeUsageStatus)
+        if updateClaudeUsage {
+            updateClaudeUsageUI(claudeUsageStatus)
+        }
 
         // Update Timetracker status line. Hidden outright when the CLI is not on the
         // machine: a permanent "not installed" row would sit in every developer's
