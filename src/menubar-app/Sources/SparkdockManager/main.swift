@@ -74,6 +74,7 @@ private enum MenuItemTag: Int {
     case upgradeHttpProxy = 4
     case upgradeAgents = 5
     case upgradeTimetracker = 6
+    case refreshClaudeUsage = 7
 }
 
 // MARK: - Brew Package Types
@@ -137,6 +138,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var hasHttpProxyUpdates = false
     var hasAgentUpdates = false
     var agentsLastStatus: Int32? = nil
+    var claudeUsageStatus: ClaudeUsageStatus?
     var hasTimetrackerUpdates = false
     var timetrackerLastStatus: Int32? = nil
     var outdatedBrewFormulaeCount = 0
@@ -149,6 +151,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var brewStatusMenuItem: NSMenuItem?
     var httpProxyStatusMenuItem: NSMenuItem?
     var agentsStatusMenuItem: NSMenuItem?
+    var claudeUsageSectionMenuItem: NSMenuItem?
+    var claudeCurrentUsageMenuItem: NSMenuItem?
+    var claudeWeeklyUsageMenuItem: NSMenuItem?
+    var refreshClaudeUsageMenuItem: NSMenuItem?
+    var claudeUsageSectionSeparator: NSMenuItem?
     var timetrackerStatusMenuItem: NSMenuItem?
     var updateNowMenuItem: NSMenuItem?
     var upgradeBrewMenuItem: NSMenuItem?
@@ -216,6 +223,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
         agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        claudeCurrentUsageMenuItem?.attributedTitle = createStatusTitle("Checking current session usage...", color: .systemYellow)
+        claudeWeeklyUsageMenuItem?.attributedTitle = createStatusTitle("Checking weekly usage...", color: .systemYellow)
         timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
         checkForUpdates()
     }
@@ -303,6 +312,37 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         self.timetrackerStatusMenuItem = timetrackerStatusItem
 
         menu.addItem(.separator())
+
+        let claudeUsageInstalled = Self.executablePath(for: "claude-usage") != nil
+        let claudeUsageSectionItem = NSMenuItem(title: "Claude Code Usage", action: nil, keyEquivalent: "")
+        claudeUsageSectionItem.isEnabled = false
+        claudeUsageSectionItem.isHidden = !claudeUsageInstalled
+        menu.addItem(claudeUsageSectionItem)
+        claudeUsageSectionMenuItem = claudeUsageSectionItem
+
+        let claudeCurrentUsageItem = NSMenuItem(title: "Checking current session usage...", action: nil, keyEquivalent: "")
+        claudeCurrentUsageItem.isEnabled = false
+        claudeCurrentUsageItem.isHidden = !claudeUsageInstalled
+        menu.addItem(claudeCurrentUsageItem)
+        claudeCurrentUsageMenuItem = claudeCurrentUsageItem
+
+        let claudeWeeklyUsageItem = NSMenuItem(title: "Checking weekly usage...", action: nil, keyEquivalent: "")
+        claudeWeeklyUsageItem.isEnabled = false
+        claudeWeeklyUsageItem.isHidden = !claudeUsageInstalled
+        menu.addItem(claudeWeeklyUsageItem)
+        claudeWeeklyUsageMenuItem = claudeWeeklyUsageItem
+
+        let refreshClaudeUsageItem = NSMenuItem(title: "Refresh Usage", action: #selector(checkClaudeUsageAction), keyEquivalent: "")
+        refreshClaudeUsageItem.target = self
+        refreshClaudeUsageItem.tag = MenuItemTag.refreshClaudeUsage.rawValue
+        refreshClaudeUsageItem.isHidden = !claudeUsageInstalled
+        menu.addItem(refreshClaudeUsageItem)
+        refreshClaudeUsageMenuItem = refreshClaudeUsageItem
+
+        let claudeUsageSeparator = NSMenuItem.separator()
+        claudeUsageSeparator.isHidden = !claudeUsageInstalled
+        menu.addItem(claudeUsageSeparator)
+        claudeUsageSectionSeparator = claudeUsageSeparator
 
         let updateItem = NSMenuItem(title: "", action: #selector(updateNow), keyEquivalent: "")
         updateItem.target = self
@@ -496,6 +536,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                     self?.brewStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
                     self?.httpProxyStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
                     self?.agentsStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+                    self?.claudeCurrentUsageMenuItem?.attributedTitle = self?.createStatusTitle("Checking current session usage...", color: .systemYellow)
+                    self?.claudeWeeklyUsageMenuItem?.attributedTitle = self?.createStatusTitle("Checking weekly usage...", color: .systemYellow)
                     self?.timetrackerStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
                     self?.checkForUpdates()
                 }
@@ -521,6 +563,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
         agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        claudeCurrentUsageMenuItem?.attributedTitle = createStatusTitle("Checking current session usage...", color: .systemYellow)
+        claudeWeeklyUsageMenuItem?.attributedTitle = createStatusTitle("Checking weekly usage...", color: .systemYellow)
         timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
         checkForUpdates()
     }
@@ -530,6 +574,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
         httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
         agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        claudeCurrentUsageMenuItem?.attributedTitle = createStatusTitle("Checking current session usage...", color: .systemYellow)
+        claudeWeeklyUsageMenuItem?.attributedTitle = createStatusTitle("Checking weekly usage...", color: .systemYellow)
         timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
         checkForUpdates()
     }
@@ -552,6 +598,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     @objc private func checkAgentUpdatesAction() {
         agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
         checkForUpdates()
+    }
+
+    @objc private func checkClaudeUsageAction() {
+        recheckClaudeUsage(forcePoll: true)
     }
 
     @objc private func checkTimetrackerUpdatesAction() {
@@ -639,6 +689,19 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func recheckClaudeUsage(forcePoll: Bool = false) {
+        checkGeneration += 1
+        claudeCurrentUsageMenuItem?.attributedTitle = createStatusTitle("Checking current session usage...", color: .systemYellow)
+        claudeWeeklyUsageMenuItem?.attributedTitle = createStatusTitle("Checking weekly usage...", color: .systemYellow)
+        Task(priority: .background) {
+            let result = await runClaudeUsageCheck(forcePoll: forcePoll)
+            await MainActor.run {
+                self.claudeUsageStatus = result
+                self.refreshUI()
+            }
+        }
+    }
+
     private func recheckTimetracker() {
         checkGeneration += 1
         timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
@@ -660,6 +723,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             hasHttpProxyUpdates: hasHttpProxyUpdates,
             hasAgentUpdates: hasAgentUpdates,
             agentsConfigured: isAgentsConfigured(),
+            claudeUsageStatus: claudeUsageStatus,
             hasTimetrackerUpdates: hasTimetrackerUpdates,
             timetrackerConfigured: isTimetrackerConfigured()
         )
@@ -674,6 +738,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             let hasHttpProxyUpdates = await runHttpProxyCheck()
             let hasAgentUpdates = await runAgentsCheck()
             let agentsConfigured = isAgentsConfigured()
+            let claudeUsageStatus = await runClaudeUsageCheck()
             let hasTimetrackerUpdates = await runTimetrackerCheck()
             let timetrackerConfigured = isTimetrackerConfigured()
             await MainActor.run {
@@ -682,7 +747,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                     AppConstants.logger.info("Discarding stale full-check results (generation \(expectedGeneration) != \(self.checkGeneration))")
                     return
                 }
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured)
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: claudeUsageStatus, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured)
             }
         }
     }
@@ -909,6 +974,65 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status == 0
     }
 
+    private func runClaudeUsageCheck(forcePoll: Bool = false) async -> ClaudeUsageStatus? {
+        guard let executablePath = Self.executablePath(for: "claude-usage") else {
+            AppConstants.logger.info("claude-usage not found, usage check skipped")
+            return nil
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = forcePoll ? ["--status", "--force-poll"] : ["--status"]
+
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+
+        var terminationStatus: Int32 = -1
+        let finished: Bool = await withTaskCancellationHandler(
+            operation: {
+                do {
+                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
+                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+                            process.terminationHandler = { proc in
+                                continuation.resume(returning: proc.terminationStatus)
+                            }
+
+                            do {
+                                try process.run()
+                            } catch {
+                                continuation.resume(throwing: error)
+                            }
+                        }
+                    }
+                    return true
+                } catch {
+                    return false
+                }
+            },
+            onCancel: {
+                process.terminate()
+            }
+        )
+
+        guard finished else {
+            AppConstants.logger.error("Claude usage check timed out after \(AppConstants.processTimeout) seconds")
+            return nil
+        }
+        guard terminationStatus == 0 else {
+            AppConstants.logger.warning("Claude usage check failed with exit code \(terminationStatus)")
+            return nil
+        }
+
+        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        do {
+            return try JSONDecoder().decode(ClaudeUsageStatus.self, from: data)
+        } catch {
+            AppConstants.logger.error("Failed to decode Claude usage status: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     /// Agent resources are considered configured when script exists AND last check returned a known good status.
     /// Returns false for: missing script, nil (error/timeout), or exit 3 (not configured).
     private func isAgentsConfigured() -> Bool {
@@ -935,10 +1059,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status != 3
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true) {
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true) {
         self.hasUpdates = hasUpdates
         self.hasHttpProxyUpdates = hasHttpProxyUpdates
         self.hasAgentUpdates = hasAgentUpdates
+        self.claudeUsageStatus = claudeUsageStatus
         self.hasTimetrackerUpdates = hasTimetrackerUpdates
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
         self.outdatedBrewCasksCount = outdatedBrewCasks
@@ -1007,6 +1132,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         } else {
             agentsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills: up to date", color: .systemGreen)
         }
+
+        updateClaudeUsageUI(claudeUsageStatus)
 
         // Update Timetracker status line. Hidden outright when the CLI is not on the
         // machine: a permanent "not installed" row would sit in every developer's
@@ -1083,6 +1210,46 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
 
         refreshDynamicMenuItems()
+    }
+
+    private func updateClaudeUsageUI(_ status: ClaudeUsageStatus?) {
+        let installed = Self.executablePath(for: "claude-usage") != nil
+        claudeUsageSectionMenuItem?.isHidden = !installed
+        claudeCurrentUsageMenuItem?.isHidden = !installed
+        claudeWeeklyUsageMenuItem?.isHidden = !installed
+        refreshClaudeUsageMenuItem?.isHidden = !installed
+        claudeUsageSectionSeparator?.isHidden = !installed
+        guard installed else { return }
+
+        guard let status = status else {
+            claudeCurrentUsageMenuItem?.attributedTitle = createStatusTitle("Claude Code usage: unavailable", color: .systemGray)
+            claudeCurrentUsageMenuItem?.toolTip = nil
+            claudeWeeklyUsageMenuItem?.isHidden = true
+            return
+        }
+
+        guard status.isAvailable else {
+            claudeCurrentUsageMenuItem?.attributedTitle = createStatusTitle(status.availabilityText, color: .systemGray)
+            claudeCurrentUsageMenuItem?.toolTip = status.error
+            claudeWeeklyUsageMenuItem?.isHidden = true
+            return
+        }
+
+        claudeWeeklyUsageMenuItem?.isHidden = false
+        claudeCurrentUsageMenuItem?.attributedTitle = createStatusTitle(status.currentDisplayText, color: usageColor(for: status.currentPercent))
+        claudeWeeklyUsageMenuItem?.attributedTitle = createStatusTitle(status.weeklyDisplayText, color: usageColor(for: status.weeklyPercent))
+        claudeCurrentUsageMenuItem?.toolTip = status.error
+        claudeWeeklyUsageMenuItem?.toolTip = status.error
+    }
+
+    private func usageColor(for percent: Int) -> NSColor {
+        if percent >= 90 {
+            return .systemRed
+        }
+        if percent >= 80 {
+            return .systemOrange
+        }
+        return .systemGreen
     }
 
     @objc private func updateNow() {

@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+@testable import SparkdockManager
 
 final class SparkdockManagerTests: XCTestCase {
 
@@ -102,6 +103,36 @@ final class SparkdockManagerTests: XCTestCase {
     func testHttpProxyCheckUpdatesCommand() {
         let httpProxyCheckCommand = ["http-proxy-check-updates"]
         XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "Http-proxy check command should be correct")
+    }
+
+    func testClaudeUsageStatusDecodingAndDisplay() throws {
+        let data = Data(#"{"c_pct":42,"c_reset":"3h 12m","w_pct":67,"w_reset":"2d 4h","stale":false,"auth":"valid"}"#.utf8)
+
+        let status = try JSONDecoder().decode(ClaudeUsageStatus.self, from: data)
+
+        XCTAssertEqual(status.currentPercent, 42)
+        XCTAssertEqual(status.weeklyPercent, 67)
+        XCTAssertTrue(status.isAvailable)
+        XCTAssertEqual(status.currentDisplayText, "Current session (5h): 42% · resets in 3h 12m")
+        XCTAssertEqual(status.weeklyDisplayText, "Weekly limit (7d): 67% · resets in 2d 4h")
+    }
+
+    func testClaudeUsageStatusShowsStaleData() throws {
+        let data = Data(#"{"c_pct":80,"c_reset":"?","w_pct":90,"w_reset":"","stale":true,"auth":"valid","error":"API returned 429"}"#.utf8)
+
+        let status = try JSONDecoder().decode(ClaudeUsageStatus.self, from: data)
+
+        XCTAssertEqual(status.currentDisplayText, "Current session (5h): 80% [stale]")
+        XCTAssertEqual(status.weeklyDisplayText, "Weekly limit (7d): 90% [stale]")
+    }
+
+    func testClaudeUsageStatusReportsMissingCredentials() throws {
+        let data = Data(#"{"c_pct":0,"c_reset":"?","w_pct":0,"w_reset":"?","stale":false,"auth":"missing","error":"no credentials found"}"#.utf8)
+
+        let status = try JSONDecoder().decode(ClaudeUsageStatus.self, from: data)
+
+        XCTAssertFalse(status.isAvailable)
+        XCTAssertEqual(status.availabilityText, "Claude Code usage: sign in required")
     }
 
     /// Items declared in the shipped menu.json, so a changed command string or a
