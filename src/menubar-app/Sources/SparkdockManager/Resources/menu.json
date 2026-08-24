@@ -11,7 +11,7 @@
             "command": "sjust"
           },
           {
-            "title": "Open http-proxy dashboard",
+            "title": "Open HTTP proxy dashboard",
             "type": "command",
             "command": "spark-http-proxy dashboard"
           },
@@ -48,7 +48,7 @@
             "url": "https://playbook.sparkfabrik.com/tools-and-policies/universal-dod"
           },
           {
-            "title": "AI Development - Where We Are",
+            "title": "AI Development: Where We Are",
             "type": "url",
             "url": "https://playbook.sparkfabrik.com/ai-development/where-we-are"
           }

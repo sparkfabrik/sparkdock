@@ -1,5 +1,6 @@
 import XCTest
 import Foundation
+@testable import SparkdockManager
 
 final class SparkdockManagerTests: XCTestCase {
 
@@ -96,12 +97,45 @@ final class SparkdockManagerTests: XCTestCase {
     
     func testHttpProxyUpgradeCommand() {
         let httpProxyUpgradeCommand = "sjust http-proxy-install-update"
-        XCTAssertEqual(httpProxyUpgradeCommand, "sjust http-proxy-install-update", "Http-proxy upgrade command should be correct")
+        XCTAssertEqual(httpProxyUpgradeCommand, "sjust http-proxy-install-update", "HTTP proxy upgrade command should be correct")
     }
     
     func testHttpProxyCheckUpdatesCommand() {
         let httpProxyCheckCommand = ["http-proxy-check-updates"]
-        XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "Http-proxy check command should be correct")
+        XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "HTTP proxy check command should be correct")
+    }
+
+    func testClaudeUsageStatusDecodingAndDisplay() throws {
+        let data = Data(#"{"c_pct":42,"c_reset":"3h 12m","w_pct":67,"w_reset":"2d 4h","stale":false,"auth":"valid"}"#.utf8)
+
+        let status = try JSONDecoder().decode(ClaudeUsageStatus.self, from: data)
+
+        XCTAssertEqual(status.currentPercent, 42)
+        XCTAssertEqual(status.weeklyPercent, 67)
+        XCTAssertTrue(status.isAvailable)
+        XCTAssertEqual(status.currentResetText, "3h 12m")
+        XCTAssertEqual(status.weeklyResetText, "2d 4h")
+    }
+
+    func testClaudeUsageStatusNormalizesCompactResetTimes() throws {
+        let data = Data(#"{"c_pct":80,"c_reset":"<1m","w_pct":90,"w_reset":"3d09h","stale":true,"auth":"valid","error":"API returned 429"}"#.utf8)
+
+        let status = try JSONDecoder().decode(ClaudeUsageStatus.self, from: data)
+
+        XCTAssertTrue(status.stale)
+        XCTAssertEqual(status.currentResetText, "<1m")
+        XCTAssertEqual(status.weeklyResetText, "3d 9h")
+    }
+
+    func testClaudeUsageStatusReportsMissingCredentials() throws {
+        let data = Data(#"{"c_pct":0,"c_reset":"?","w_pct":0,"w_reset":"?","stale":false,"auth":"missing","error":"no credentials found"}"#.utf8)
+
+        let status = try JSONDecoder().decode(ClaudeUsageStatus.self, from: data)
+
+        XCTAssertFalse(status.isAvailable)
+        XCTAssertEqual(status.availabilityText, "Sign in required")
+        XCTAssertNil(status.currentResetText)
+        XCTAssertNil(status.weeklyResetText)
     }
 
     /// Items declared in the shipped menu.json, so a changed command string or a

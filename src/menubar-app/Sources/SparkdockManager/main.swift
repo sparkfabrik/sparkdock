@@ -130,6 +130,119 @@ private let darwinRecheckCallback: CFNotificationCallback = { _, observer, name,
     app.handleRecheckNotification(notificationName)
 }
 
+private final class MenuSectionHeaderView: NSView {
+    private let label = NSTextField(labelWithString: "")
+
+    var title: String {
+        get { label.stringValue }
+        set { label.stringValue = newValue }
+    }
+
+    init(title: String) {
+        super.init(frame: NSRect(x: 0, y: 0, width: 320, height: 34))
+        autoresizingMask = [.width]
+
+        label.stringValue = title
+        label.translatesAutoresizingMaskIntoConstraints = false
+        label.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+        label.textColor = .secondaryLabelColor
+        addSubview(label)
+
+        NSLayoutConstraint.activate([
+            label.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            label.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
+            label.centerYAnchor.constraint(equalTo: centerYAnchor)
+        ])
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
+    }
+}
+
+private final class ClaudeUsageRowView: NSView {
+    private let statusImageView = NSImageView()
+    private let titleField = NSTextField(labelWithString: "")
+    private let subtitleField = NSTextField(labelWithString: "")
+    private let badgeField = NSTextField(labelWithString: "")
+    private var badgeWidthConstraint: NSLayoutConstraint!
+
+    init() {
+        super.init(frame: NSRect(x: 0, y: 0, width: 320, height: 48))
+        autoresizingMask = [.width]
+
+        statusImageView.translatesAutoresizingMaskIntoConstraints = false
+        statusImageView.imageScaling = .scaleProportionallyDown
+
+        titleField.font = NSFont.menuFont(ofSize: 0)
+        titleField.textColor = .labelColor
+        titleField.lineBreakMode = .byTruncatingTail
+
+        subtitleField.font = NSFont.systemFont(ofSize: 13)
+        subtitleField.textColor = .secondaryLabelColor
+        subtitleField.lineBreakMode = .byTruncatingTail
+
+        let textStack = NSStackView(views: [titleField, subtitleField])
+        textStack.translatesAutoresizingMaskIntoConstraints = false
+        textStack.orientation = .vertical
+        textStack.alignment = .leading
+        textStack.spacing = 0
+
+        badgeField.translatesAutoresizingMaskIntoConstraints = false
+        badgeField.font = NSFont.systemFont(ofSize: NSFont.systemFontSize, weight: .semibold)
+        badgeField.textColor = .labelColor
+        badgeField.alignment = .center
+        badgeField.wantsLayer = true
+        badgeField.layer?.cornerRadius = 11
+        badgeField.layer?.masksToBounds = true
+
+        addSubview(statusImageView)
+        addSubview(textStack)
+        addSubview(badgeField)
+
+        badgeWidthConstraint = badgeField.widthAnchor.constraint(equalToConstant: 44)
+        NSLayoutConstraint.activate([
+            statusImageView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+            statusImageView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            statusImageView.widthAnchor.constraint(equalToConstant: 10),
+            statusImageView.heightAnchor.constraint(equalToConstant: 10),
+            textStack.leadingAnchor.constraint(equalTo: statusImageView.trailingAnchor, constant: 12),
+            textStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            textStack.trailingAnchor.constraint(lessThanOrEqualTo: badgeField.leadingAnchor, constant: -12),
+            badgeField.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            badgeField.centerYAnchor.constraint(equalTo: centerYAnchor),
+            badgeField.heightAnchor.constraint(equalToConstant: 22),
+            badgeWidthConstraint
+        ])
+
+        updateBadgeAppearance()
+    }
+
+    required init?(coder: NSCoder) {
+        return nil
+    }
+
+    override func viewDidChangeEffectiveAppearance() {
+        super.viewDidChangeEffectiveAppearance()
+        updateBadgeAppearance()
+    }
+
+    func update(title: String, badge: String, subtitle: String?, statusImage: NSImage) {
+        titleField.stringValue = title
+        badgeField.stringValue = badge
+        subtitleField.stringValue = subtitle ?? ""
+        subtitleField.isHidden = subtitle == nil
+        statusImageView.image = statusImage
+        badgeWidthConstraint.constant = max(44, ceil(badgeField.intrinsicContentSize.width) + 16)
+    }
+
+    private func updateBadgeAppearance() {
+        effectiveAppearance.performAsCurrentDrawingAppearance {
+            badgeField.layer?.backgroundColor = NSColor.quaternaryLabelColor.cgColor
+        }
+    }
+}
+
 class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var menu: NSMenu?
@@ -137,6 +250,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var hasHttpProxyUpdates = false
     var hasAgentUpdates = false
     var agentsLastStatus: Int32? = nil
+    var claudeUsageStatus: ClaudeUsageStatus?
     var hasTimetrackerUpdates = false
     var timetrackerLastStatus: Int32? = nil
     var outdatedBrewFormulaeCount = 0
@@ -149,7 +263,15 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var brewStatusMenuItem: NSMenuItem?
     var httpProxyStatusMenuItem: NSMenuItem?
     var agentsStatusMenuItem: NSMenuItem?
+    var claudeUsageSectionMenuItem: NSMenuItem?
+    var claudeCurrentUsageMenuItem: NSMenuItem?
+    var claudeWeeklyUsageMenuItem: NSMenuItem?
+    var refreshClaudeUsageMenuItem: NSMenuItem?
+    var refreshClaudeUsageButton: NSButton?
+    var claudeUsageSectionSeparator: NSMenuItem?
     var timetrackerStatusMenuItem: NSMenuItem?
+    var updateActionsSectionMenuItem: NSMenuItem?
+    var updateActionsSectionSeparator: NSMenuItem?
     var updateNowMenuItem: NSMenuItem?
     var upgradeBrewMenuItem: NSMenuItem?
     var upgradeHttpProxyMenuItem: NSMenuItem?
@@ -176,30 +298,52 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func createStatusTitle(_ text: String, color: NSColor) -> NSAttributedString {
-        let attachment = NSTextAttachment()
-
-        // Create a solid colored circle programmatically
-        let size = NSSize(width: 12, height: 12)
+    private func statusDot(color: NSColor) -> NSImage {
+        let size = NSSize(width: 10, height: 10)
         let coloredCircle = NSImage(size: size, flipped: false) { rect in
             let path = NSBezierPath(ovalIn: rect)
             color.setFill()
             path.fill()
             return true
         }
+        coloredCircle.isTemplate = false
+        return coloredCircle
+    }
 
-        attachment.image = coloredCircle
+    private func updateStatusMenuItem(_ item: NSMenuItem?, title: String, badge: String, subtitle: String? = nil, color: NSColor) {
+        guard let item = item else { return }
+        let dot = statusDot(color: color)
+        if let usageRow = item.view as? ClaudeUsageRowView {
+            usageRow.update(title: title, badge: badge, subtitle: subtitle, statusImage: dot)
+            return
+        }
 
-        // Center the circle with the text baseline
-        let font = NSFont.menuFont(ofSize: 0)
-        let fontHeight = font.capHeight
-        let yOffset = (fontHeight - size.height) / 2
-        attachment.bounds = CGRect(x: 0, y: yOffset, width: size.width, height: size.height)
+        item.attributedTitle = nil
+        item.title = title
+        item.badge = NSMenuItemBadge(string: badge)
+        item.image = dot
+    }
 
-        let attributedString = NSMutableAttributedString(attachment: attachment)
-        attributedString.append(NSAttributedString(string: " \(text)"))
+    private func menuSymbol(named name: String, description: String) -> NSImage? {
+        let image = NSImage(systemSymbolName: name, accessibilityDescription: description)
+        image?.isTemplate = true
+        return image
+    }
 
-        return attributedString
+    private func makeSectionHeader(title: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        item.view = MenuSectionHeaderView(title: title)
+        return item
+    }
+
+    private func showAllStatusesChecking() {
+        updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Current session", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(claudeWeeklyUsageMenuItem, title: "Weekly limit", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Checking", color: .systemYellow)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -212,11 +356,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         setupRecheckObservers()
 
         // Set initial status and check for updates
-        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
-        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
-        httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
-        agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
-        timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
+        showAllStatusesChecking()
         checkForUpdates()
     }
 
@@ -257,7 +397,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         button.image = loadIcon(hasUpdates: false)
         button.imagePosition = .imageOnly
-        button.toolTip = "Sparkdock - Up to date"
+        button.toolTip = "Sparkdock: up to date"
 
         setupMenu()
         statusItem.menu = menu
@@ -268,33 +408,47 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu = NSMenu()
         guard let menu = menu else { return }
 
-        let titleItem = NSMenuItem(title: "Sparkdock Manager", action: nil, keyEquivalent: "")
-        titleItem.isEnabled = false
+        let titleItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
+        let titleContainer = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 36))
+        titleContainer.autoresizingMask = [.width]
+        let titleLabel = NSTextField(labelWithString: "Sparkdock Manager")
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+        titleLabel.textColor = .labelColor
+        titleContainer.addSubview(titleLabel)
+        NSLayoutConstraint.activate([
+            titleLabel.leadingAnchor.constraint(equalTo: titleContainer.leadingAnchor, constant: 12),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: titleContainer.trailingAnchor, constant: -12),
+            titleLabel.centerYAnchor.constraint(equalTo: titleContainer.centerYAnchor)
+        ])
+        titleItem.view = titleContainer
         menu.addItem(titleItem)
         menu.addItem(.separator())
 
+        menu.addItem(makeSectionHeader(title: "System status"))
+
         // Create separate status menu items (clickable to trigger specific checks)
-        let sparkdockStatusItem = NSMenuItem(title: "Checking for updates (Sparkdock)...", action: #selector(checkSparkdockUpdatesAction), keyEquivalent: "")
+        let sparkdockStatusItem = NSMenuItem(title: "Sparkdock", action: #selector(checkSparkdockUpdatesAction), keyEquivalent: "")
         sparkdockStatusItem.target = self
         menu.addItem(sparkdockStatusItem)
         self.sparkdockStatusMenuItem = sparkdockStatusItem
 
-        let brewStatusItem = NSMenuItem(title: "Checking for updates (Brew)...", action: #selector(checkBrewUpdatesAction), keyEquivalent: "")
+        let brewStatusItem = NSMenuItem(title: "Homebrew", action: #selector(checkBrewUpdatesAction), keyEquivalent: "")
         brewStatusItem.target = self
         menu.addItem(brewStatusItem)
         self.brewStatusMenuItem = brewStatusItem
 
-        let httpProxyStatusItem = NSMenuItem(title: "Checking for updates (Http-proxy)...", action: #selector(checkHttpProxyUpdatesAction), keyEquivalent: "")
+        let httpProxyStatusItem = NSMenuItem(title: "HTTP proxy", action: #selector(checkHttpProxyUpdatesAction), keyEquivalent: "")
         httpProxyStatusItem.target = self
         menu.addItem(httpProxyStatusItem)
         self.httpProxyStatusMenuItem = httpProxyStatusItem
 
-        let agentsStatusItem = NSMenuItem(title: "Checking for updates (Agent Skills)...", action: #selector(checkAgentUpdatesAction), keyEquivalent: "")
+        let agentsStatusItem = NSMenuItem(title: "Agent skills", action: #selector(checkAgentUpdatesAction), keyEquivalent: "")
         agentsStatusItem.target = self
         menu.addItem(agentsStatusItem)
         self.agentsStatusMenuItem = agentsStatusItem
 
-        let timetrackerStatusItem = NSMenuItem(title: "Checking for updates (Timetracker)...", action: #selector(checkTimetrackerUpdatesAction), keyEquivalent: "")
+        let timetrackerStatusItem = NSMenuItem(title: "Timetracker", action: #selector(checkTimetrackerUpdatesAction), keyEquivalent: "")
         timetrackerStatusItem.target = self
         // Hidden from construction on machines without the CLI, so non-users never
         // see a transient "Checking..." row before the first check completes.
@@ -304,59 +458,104 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         menu.addItem(.separator())
 
-        let updateItem = NSMenuItem(title: "", action: #selector(updateNow), keyEquivalent: "")
+        let claudeUsageInstalled = Self.executablePath(for: "claude-usage") != nil
+        let claudeUsageSectionItem = makeSectionHeader(title: "Claude Code")
+        claudeUsageSectionItem.isHidden = !claudeUsageInstalled
+        menu.addItem(claudeUsageSectionItem)
+        claudeUsageSectionMenuItem = claudeUsageSectionItem
+
+        let claudeCurrentUsageItem = NSMenuItem(title: "Current session", action: #selector(checkClaudeUsageAction), keyEquivalent: "")
+        claudeCurrentUsageItem.target = self
+        claudeCurrentUsageItem.view = ClaudeUsageRowView()
+        claudeCurrentUsageItem.isHidden = !claudeUsageInstalled
+        menu.addItem(claudeCurrentUsageItem)
+        claudeCurrentUsageMenuItem = claudeCurrentUsageItem
+
+        let claudeWeeklyUsageItem = NSMenuItem(title: "Weekly limit", action: #selector(checkClaudeUsageAction), keyEquivalent: "")
+        claudeWeeklyUsageItem.target = self
+        claudeWeeklyUsageItem.view = ClaudeUsageRowView()
+        claudeWeeklyUsageItem.isHidden = !claudeUsageInstalled
+        menu.addItem(claudeWeeklyUsageItem)
+        claudeWeeklyUsageMenuItem = claudeWeeklyUsageItem
+
+        let refreshClaudeUsageItem = NSMenuItem(title: "Refresh usage", action: nil, keyEquivalent: "")
+        let refreshContainer = NSView(frame: NSRect(x: 0, y: 0, width: 280, height: 34))
+        let refreshButton = NSButton(title: "Refresh usage", target: self, action: #selector(checkClaudeUsageAction))
+        refreshButton.frame = NSRect(x: 12, y: 5, width: 256, height: 24)
+        refreshButton.autoresizingMask = [.width]
+        refreshButton.alignment = .left
+        refreshButton.bezelStyle = .recessed
+        refreshButton.controlSize = .small
+        refreshButton.image = menuSymbol(named: "arrow.clockwise", description: "Refresh Claude Code usage")
+        refreshButton.imagePosition = .imageLeading
+        refreshContainer.addSubview(refreshButton)
+        refreshClaudeUsageItem.view = refreshContainer
+        refreshClaudeUsageItem.isHidden = !claudeUsageInstalled
+        menu.addItem(refreshClaudeUsageItem)
+        refreshClaudeUsageMenuItem = refreshClaudeUsageItem
+        refreshClaudeUsageButton = refreshButton
+
+        let claudeUsageSeparator = NSMenuItem.separator()
+        claudeUsageSeparator.isHidden = !claudeUsageInstalled
+        menu.addItem(claudeUsageSeparator)
+        claudeUsageSectionSeparator = claudeUsageSeparator
+
+        let updateActionsSectionItem = makeSectionHeader(title: "Actions")
+        updateActionsSectionItem.isHidden = true
+        menu.addItem(updateActionsSectionItem)
+        updateActionsSectionMenuItem = updateActionsSectionItem
+
+        let updateItem = NSMenuItem(title: "Upgrade Sparkdock", action: #selector(updateNow), keyEquivalent: "")
         updateItem.target = self
         updateItem.tag = MenuItemTag.updateNow.rawValue
-        updateItem.attributedTitle = NSAttributedString(string: "Upgrade Sparkdock", attributes: [
-            .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
-        ])
+        updateItem.image = menuSymbol(named: "arrow.up.circle", description: "Upgrade")
+        updateItem.isHidden = true
         menu.addItem(updateItem)
         updateNowMenuItem = updateItem
 
-        let upgradeBrewItem = NSMenuItem(title: "", action: #selector(upgradeBrew), keyEquivalent: "")
+        let upgradeBrewItem = NSMenuItem(title: "Upgrade Homebrew", action: #selector(upgradeBrew), keyEquivalent: "")
         upgradeBrewItem.target = self
         upgradeBrewItem.tag = MenuItemTag.upgradeBrew.rawValue
-        upgradeBrewItem.attributedTitle = NSAttributedString(string: "Upgrade Brew Packages", attributes: [
-            .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
-        ])
+        upgradeBrewItem.image = menuSymbol(named: "arrow.up.circle", description: "Upgrade")
+        upgradeBrewItem.isHidden = true
         menu.addItem(upgradeBrewItem)
         upgradeBrewMenuItem = upgradeBrewItem
 
-        let upgradeHttpProxyItem = NSMenuItem(title: "", action: #selector(upgradeHttpProxy), keyEquivalent: "")
+        let upgradeHttpProxyItem = NSMenuItem(title: "Upgrade HTTP proxy", action: #selector(upgradeHttpProxy), keyEquivalent: "")
         upgradeHttpProxyItem.target = self
         upgradeHttpProxyItem.tag = MenuItemTag.upgradeHttpProxy.rawValue
-        upgradeHttpProxyItem.attributedTitle = NSAttributedString(string: "Upgrade Http-proxy", attributes: [
-            .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
-        ])
+        upgradeHttpProxyItem.image = menuSymbol(named: "arrow.up.circle", description: "Upgrade")
+        upgradeHttpProxyItem.isHidden = true
         menu.addItem(upgradeHttpProxyItem)
         upgradeHttpProxyMenuItem = upgradeHttpProxyItem
 
-        let upgradeAgentsItem = NSMenuItem(title: "", action: #selector(upgradeAgents), keyEquivalent: "")
+        let upgradeAgentsItem = NSMenuItem(title: "Refresh agent skills", action: #selector(upgradeAgents), keyEquivalent: "")
         upgradeAgentsItem.target = self
         upgradeAgentsItem.tag = MenuItemTag.upgradeAgents.rawValue
-        upgradeAgentsItem.attributedTitle = NSAttributedString(string: "Refresh Agent Skills", attributes: [
-            .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
-        ])
+        upgradeAgentsItem.image = menuSymbol(named: "arrow.up.circle", description: "Refresh")
+        upgradeAgentsItem.isHidden = true
         menu.addItem(upgradeAgentsItem)
         upgradeAgentsMenuItem = upgradeAgentsItem
 
-        let upgradeTimetrackerItem = NSMenuItem(title: "", action: #selector(upgradeTimetracker), keyEquivalent: "")
+        let upgradeTimetrackerItem = NSMenuItem(title: "Upgrade Timetracker", action: #selector(upgradeTimetracker), keyEquivalent: "")
         upgradeTimetrackerItem.target = self
         upgradeTimetrackerItem.tag = MenuItemTag.upgradeTimetracker.rawValue
-        upgradeTimetrackerItem.attributedTitle = NSAttributedString(string: "Upgrade Timetracker", attributes: [
-            .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
-        ])
+        upgradeTimetrackerItem.image = menuSymbol(named: "arrow.up.circle", description: "Upgrade")
+        upgradeTimetrackerItem.isHidden = true
         menu.addItem(upgradeTimetrackerItem)
         upgradeTimetrackerMenuItem = upgradeTimetrackerItem
 
-        menu.addItem(.separator())
+        let updateActionsSeparator = NSMenuItem.separator()
+        updateActionsSeparator.isHidden = true
+        menu.addItem(updateActionsSeparator)
+        updateActionsSectionSeparator = updateActionsSeparator
 
         // Add dynamic menu sections from configuration
         if let config = menuConfig {
             addDynamicMenuSections(config.menu.sections, to: menu)
         }
 
-        let loginItem = NSMenuItem(title: "Start at Login", action: #selector(toggleLoginItem), keyEquivalent: "")
+        let loginItem = NSMenuItem(title: "Start at login", action: #selector(toggleLoginItem), keyEquivalent: "")
         loginItem.target = self
         loginItem.tag = MenuItemTag.loginItem.rawValue
         menu.addItem(loginItem)
@@ -368,8 +567,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func addDynamicMenuSections(_ sections: [MenuSection], to menu: NSMenu) {
         for section in sections {
-            let sectionItem = NSMenuItem(title: section.name, action: nil, keyEquivalent: "")
-            sectionItem.isEnabled = false
+            let sectionItem = makeSectionHeader(title: section.name)
             menu.addItem(sectionItem)
 
             var entries: [(menuItem: NSMenuItem, config: MenuItem)] = []
@@ -377,6 +575,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 let menuItem = NSMenuItem(title: item.title, action: #selector(handleDynamicMenuItem(_:)), keyEquivalent: "")
                 menuItem.target = self
                 menuItem.representedObject = item
+                switch item.type {
+                case .command:
+                    menuItem.image = menuSymbol(named: "terminal", description: "Open command")
+                case .url:
+                    menuItem.image = menuSymbol(named: "arrow.up.right.square", description: "Open link")
+                }
                 menu.addItem(menuItem)
                 entries.append((menuItem, item))
             }
@@ -492,11 +696,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         monitor.pathUpdateHandler = { [weak self] path in
             if path.status == .satisfied {
                 DispatchQueue.main.async {
-                    self?.sparkdockStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
-                    self?.brewStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
-                    self?.httpProxyStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
-                    self?.agentsStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
-                    self?.timetrackerStatusMenuItem?.attributedTitle = self?.createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
+                    self?.showAllStatusesChecking()
                     self?.checkForUpdates()
                 }
             }
@@ -517,45 +717,43 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
     @objc private func systemDidWake() {
         AppConstants.logger.info("System woke from sleep - checking for updates")
-        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
-        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
-        httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
-        agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
-        timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
+        showAllStatusesChecking()
         checkForUpdates()
     }
 
     @objc private func checkForUpdatesAction() {
-        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
-        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
-        httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
-        agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
-        timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
+        showAllStatusesChecking()
         checkForUpdates()
     }
 
     @objc private func checkSparkdockUpdatesAction() {
-        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+        updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Checking", color: .systemYellow)
         checkForUpdates()
     }
 
     @objc private func checkBrewUpdatesAction() {
-        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
+        updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Checking", color: .systemYellow)
         checkForUpdates()
     }
 
     @objc private func checkHttpProxyUpdatesAction() {
-        httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
+        updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Checking", color: .systemYellow)
         checkForUpdates()
     }
 
     @objc private func checkAgentUpdatesAction() {
-        agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Checking", color: .systemYellow)
         checkForUpdates()
     }
 
+    @objc private func checkClaudeUsageAction() {
+        refreshClaudeUsageButton?.title = "Refreshing…"
+        refreshClaudeUsageButton?.isEnabled = false
+        recheckClaudeUsage(forcePoll: true)
+    }
+
     @objc private func checkTimetrackerUpdatesAction() {
-        timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
+        updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Checking", color: .systemYellow)
         checkForUpdates()
     }
 
@@ -592,7 +790,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func recheckSparkdock() {
         checkGeneration += 1
-        sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Sparkdock)...", color: .systemYellow)
+        updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
             let result = await runSparkdockCheck()
             await MainActor.run {
@@ -604,7 +802,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func recheckBrew() {
         checkGeneration += 1
-        brewStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Brew)...", color: .systemYellow)
+        updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
             await MainActor.run {
@@ -617,7 +815,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func recheckHttpProxy() {
         checkGeneration += 1
-        httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Http-proxy)...", color: .systemYellow)
+        updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
             let result = await runHttpProxyCheck()
             await MainActor.run {
@@ -629,7 +827,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func recheckAgents() {
         checkGeneration += 1
-        agentsStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Agent Skills)...", color: .systemYellow)
+        updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
             let result = await runAgentsCheck()
             await MainActor.run {
@@ -639,9 +837,24 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func recheckClaudeUsage(forcePoll: Bool = false) {
+        checkGeneration += 1
+        updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Current session", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(claudeWeeklyUsageMenuItem, title: "Weekly limit", badge: "Checking", color: .systemYellow)
+        Task(priority: .background) {
+            let result = await runClaudeUsageCheck(forcePoll: forcePoll)
+            await MainActor.run {
+                self.claudeUsageStatus = result
+                self.refreshClaudeUsageButton?.title = "Refresh usage"
+                self.refreshClaudeUsageButton?.isEnabled = true
+                self.refreshUI()
+            }
+        }
+    }
+
     private func recheckTimetracker() {
         checkGeneration += 1
-        timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Checking for updates (Timetracker)...", color: .systemYellow)
+        updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
             let result = await runTimetrackerCheck()
             await MainActor.run {
@@ -660,6 +873,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             hasHttpProxyUpdates: hasHttpProxyUpdates,
             hasAgentUpdates: hasAgentUpdates,
             agentsConfigured: isAgentsConfigured(),
+            claudeUsageStatus: claudeUsageStatus,
             hasTimetrackerUpdates: hasTimetrackerUpdates,
             timetrackerConfigured: isTimetrackerConfigured()
         )
@@ -674,6 +888,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             let hasHttpProxyUpdates = await runHttpProxyCheck()
             let hasAgentUpdates = await runAgentsCheck()
             let agentsConfigured = isAgentsConfigured()
+            let claudeUsageStatus = await runClaudeUsageCheck()
             let hasTimetrackerUpdates = await runTimetrackerCheck()
             let timetrackerConfigured = isTimetrackerConfigured()
             await MainActor.run {
@@ -682,7 +897,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                     AppConstants.logger.info("Discarding stale full-check results (generation \(expectedGeneration) != \(self.checkGeneration))")
                     return
                 }
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured)
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: claudeUsageStatus, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured)
             }
         }
     }
@@ -909,6 +1124,65 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status == 0
     }
 
+    private func runClaudeUsageCheck(forcePoll: Bool = false) async -> ClaudeUsageStatus? {
+        guard let executablePath = Self.executablePath(for: "claude-usage") else {
+            AppConstants.logger.info("claude-usage not found, usage check skipped")
+            return nil
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = forcePoll ? ["--status", "--force-poll"] : ["--status"]
+
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = Pipe()
+
+        var terminationStatus: Int32 = -1
+        let finished: Bool = await withTaskCancellationHandler(
+            operation: {
+                do {
+                    terminationStatus = try await withTimeout(seconds: AppConstants.processTimeout) {
+                        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+                            process.terminationHandler = { proc in
+                                continuation.resume(returning: proc.terminationStatus)
+                            }
+
+                            do {
+                                try process.run()
+                            } catch {
+                                continuation.resume(throwing: error)
+                            }
+                        }
+                    }
+                    return true
+                } catch {
+                    return false
+                }
+            },
+            onCancel: {
+                process.terminate()
+            }
+        )
+
+        guard finished else {
+            AppConstants.logger.error("Claude usage check timed out after \(AppConstants.processTimeout) seconds")
+            return nil
+        }
+        guard terminationStatus == 0 else {
+            AppConstants.logger.warning("Claude usage check failed with exit code \(terminationStatus)")
+            return nil
+        }
+
+        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        do {
+            return try JSONDecoder().decode(ClaudeUsageStatus.self, from: data)
+        } catch {
+            AppConstants.logger.error("Failed to decode Claude usage status: \(error.localizedDescription)")
+            return nil
+        }
+    }
+
     /// Agent resources are considered configured when script exists AND last check returned a known good status.
     /// Returns false for: missing script, nil (error/timeout), or exit 3 (not configured).
     private func isAgentsConfigured() -> Bool {
@@ -935,10 +1209,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status != 3
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true) {
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true) {
         self.hasUpdates = hasUpdates
         self.hasHttpProxyUpdates = hasHttpProxyUpdates
         self.hasAgentUpdates = hasAgentUpdates
+        self.claudeUsageStatus = claudeUsageStatus
         self.hasTimetrackerUpdates = hasTimetrackerUpdates
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
         self.outdatedBrewCasksCount = outdatedBrewCasks
@@ -953,10 +1228,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             tooltipParts.append("Sparkdock updates available")
         }
         if hasHttpProxyUpdates {
-            tooltipParts.append("Http-proxy updates available")
+            tooltipParts.append("HTTP proxy updates available")
         }
         if hasAgentUpdates {
-            tooltipParts.append("Agent Skills updates available")
+            tooltipParts.append("Agent skills updates available")
         }
         if hasTimetrackerUpdates {
             tooltipParts.append("Timetracker updates available")
@@ -970,43 +1245,44 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
 
         if tooltipParts.isEmpty {
-            statusItem?.button?.toolTip = "Sparkdock - Up to date"
+            statusItem?.button?.toolTip = "Sparkdock: up to date"
         } else {
-            statusItem?.button?.toolTip = "Sparkdock - " + tooltipParts.joined(separator: ", ")
+            statusItem?.button?.toolTip = "Sparkdock: " + tooltipParts.joined(separator: ", ")
         }
 
         // Update Sparkdock status line
         if hasUpdates {
-            sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Sparkdock updates available", color: .systemOrange)
+            updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Update", color: .systemOrange)
         } else {
-            sparkdockStatusMenuItem?.attributedTitle = createStatusTitle("Sparkdock is up to date", color: .systemGreen)
+            updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Up to date", color: .systemGreen)
         }
 
         // Update Brew status line
         if totalBrewCount > 0 {
-            let brewStatusText = outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 ?
-                "Brew packages: \(totalBrewCount) to be updated (\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks)" :
-                "Brew packages: \(totalBrewCount) to be updated"
-            brewStatusMenuItem?.attributedTitle = createStatusTitle(brewStatusText, color: .systemOrange)
+            updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "\(totalBrewCount) updates", color: .systemOrange)
+            brewStatusMenuItem?.toolTip = "\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks"
         } else {
-            brewStatusMenuItem?.attributedTitle = createStatusTitle("Brew packages: up to date", color: .systemGreen)
+            updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Up to date", color: .systemGreen)
+            brewStatusMenuItem?.toolTip = nil
         }
 
-        // Update Http-proxy status line
+        // Update HTTP proxy status line
         if hasHttpProxyUpdates {
-            httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Http-proxy updates available", color: .systemOrange)
+            updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Update", color: .systemOrange)
         } else {
-            httpProxyStatusMenuItem?.attributedTitle = createStatusTitle("Http-proxy is up to date", color: .systemGreen)
+            updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Up to date", color: .systemGreen)
         }
 
-        // Update Agent Skills status line
+        // Update agent skills status line
         if !agentsConfigured {
-            agentsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills: not configured", color: .systemGray)
+            updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Not configured", color: .systemGray)
         } else if hasAgentUpdates {
-            agentsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills updates available", color: .systemOrange)
+            updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Update", color: .systemOrange)
         } else {
-            agentsStatusMenuItem?.attributedTitle = createStatusTitle("Agent Skills: up to date", color: .systemGreen)
+            updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Up to date", color: .systemGreen)
         }
+
+        updateClaudeUsageUI(claudeUsageStatus)
 
         // Update Timetracker status line. Hidden outright when the CLI is not on the
         // machine: a permanent "not installed" row would sit in every developer's
@@ -1016,11 +1292,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         if !timetrackerInstalled {
             // nothing to report
         } else if !timetrackerConfigured {
-            timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Timetracker: not set up", color: .systemGray)
+            updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Not configured", color: .systemGray)
         } else if hasTimetrackerUpdates {
-            timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Timetracker updates available", color: .systemOrange)
+            updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Update", color: .systemOrange)
         } else {
-            timetrackerStatusMenuItem?.attributedTitle = createStatusTitle("Timetracker: up to date", color: .systemGreen)
+            updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Up to date", color: .systemGreen)
         }
 
         // Update the "Upgrade Sparkdock" menu item visibility
@@ -1034,24 +1310,23 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Update the "Upgrade Brew Packages" menu item visibility
+        // Update the "Upgrade Homebrew" menu item visibility
         if let upgradeBrewItem = upgradeBrewMenuItem {
             if totalBrewCount > 0 {
-                let menuTitle = outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 ?
-                    "Upgrade Brew Packages (\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks)" :
-                    "Upgrade Brew Packages (\(totalBrewCount))"
-                upgradeBrewItem.title = menuTitle
+                upgradeBrewItem.title = "Upgrade Homebrew (\(totalBrewCount))"
+                upgradeBrewItem.toolTip = "\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks"
                 upgradeBrewItem.isEnabled = true
                 upgradeBrewItem.isHidden = false
             } else {
+                upgradeBrewItem.toolTip = nil
                 upgradeBrewItem.isHidden = true
             }
         }
 
-        // Update the "Upgrade Http-proxy" menu item visibility
+        // Update the "Upgrade HTTP proxy" menu item visibility
         if let upgradeHttpProxyItem = upgradeHttpProxyMenuItem {
             if hasHttpProxyUpdates {
-                upgradeHttpProxyItem.title = "Upgrade Http-proxy"
+                upgradeHttpProxyItem.title = "Upgrade HTTP proxy"
                 upgradeHttpProxyItem.isEnabled = true
                 upgradeHttpProxyItem.isHidden = false
             } else {
@@ -1059,11 +1334,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             }
         }
 
-        // Update the "Refresh Agent Skills" menu item visibility
+        // Update the "Refresh agent skills" menu item visibility
         if let upgradeAgentsItem = upgradeAgentsMenuItem {
             if hasAgentUpdates || !agentsConfigured {
                 // Show when updates available OR not configured (so user can bootstrap initial sync)
-                upgradeAgentsItem.title = hasAgentUpdates ? "Refresh Agent Skills" : "Setup Agent Skills"
+                upgradeAgentsItem.title = hasAgentUpdates ? "Refresh agent skills" : "Set up agent skills"
                 upgradeAgentsItem.isEnabled = true
                 upgradeAgentsItem.isHidden = false
             } else {
@@ -1082,7 +1357,62 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             }
         }
 
+        let updateActionItems = [updateNowMenuItem, upgradeBrewMenuItem, upgradeHttpProxyMenuItem, upgradeAgentsMenuItem, upgradeTimetrackerMenuItem]
+        let hasVisibleUpdateActions = updateActionItems.contains { item in
+            guard let item = item else { return false }
+            return !item.isHidden
+        }
+        updateActionsSectionMenuItem?.isHidden = !hasVisibleUpdateActions
+        updateActionsSectionSeparator?.isHidden = !hasVisibleUpdateActions
+
         refreshDynamicMenuItems()
+    }
+
+    private func updateClaudeUsageUI(_ status: ClaudeUsageStatus?) {
+        let installed = Self.executablePath(for: "claude-usage") != nil
+        claudeUsageSectionMenuItem?.isHidden = !installed
+        claudeCurrentUsageMenuItem?.isHidden = !installed
+        claudeWeeklyUsageMenuItem?.isHidden = !installed
+        refreshClaudeUsageMenuItem?.isHidden = !installed
+        claudeUsageSectionSeparator?.isHidden = !installed
+        guard installed else { return }
+
+        let sectionTitle = status?.stale == true ? "Claude Code · stale" : "Claude Code"
+        claudeUsageSectionMenuItem?.title = sectionTitle
+        (claudeUsageSectionMenuItem?.view as? MenuSectionHeaderView)?.title = sectionTitle
+        claudeUsageSectionMenuItem?.toolTip = status?.error
+
+        guard let status = status else {
+            updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Usage", badge: "Unavailable", color: .systemGray)
+            claudeCurrentUsageMenuItem?.toolTip = nil
+            claudeWeeklyUsageMenuItem?.isHidden = true
+            return
+        }
+
+        guard status.isAvailable else {
+            updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Usage", badge: status.availabilityText, color: .systemGray)
+            claudeCurrentUsageMenuItem?.toolTip = status.error
+            claudeWeeklyUsageMenuItem?.isHidden = true
+            return
+        }
+
+        claudeWeeklyUsageMenuItem?.isHidden = false
+        let currentResetSubtitle = status.currentResetText.map { "Resets in \($0)" }
+        let weeklyResetSubtitle = status.weeklyResetText.map { "Resets in \($0)" }
+        updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Current session", badge: "\(status.currentPercent)%", subtitle: currentResetSubtitle, color: usageColor(for: status.currentPercent))
+        updateStatusMenuItem(claudeWeeklyUsageMenuItem, title: "Weekly limit", badge: "\(status.weeklyPercent)%", subtitle: weeklyResetSubtitle, color: usageColor(for: status.weeklyPercent))
+        claudeCurrentUsageMenuItem?.toolTip = status.error
+        claudeWeeklyUsageMenuItem?.toolTip = status.error
+    }
+
+    private func usageColor(for percent: Int) -> NSColor {
+        if percent >= 90 {
+            return .systemRed
+        }
+        if percent >= 80 {
+            return .systemOrange
+        }
+        return .systemGreen
     }
 
     @objc private func updateNow() {
