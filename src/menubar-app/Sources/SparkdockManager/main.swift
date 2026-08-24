@@ -201,7 +201,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         guard let item = item else { return }
         item.attributedTitle = nil
         item.title = title
-        item.subtitle = subtitle
+        if #available(macOS 14.4, *) {
+            item.subtitle = subtitle
+        } else if let subtitle {
+            item.title += " · \(subtitle)"
+        }
         item.badge = NSMenuItemBadge(string: badge)
         item.image = statusDot(color: color)
     }
