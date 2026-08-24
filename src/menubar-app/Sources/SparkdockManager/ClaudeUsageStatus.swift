@@ -47,9 +47,6 @@ struct ClaudeUsageStatus: Decodable, Equatable {
         if currentReset != "?" && !currentReset.isEmpty {
             text += " · resets in \(currentReset)"
         }
-        if stale {
-            text += " [stale]"
-        }
         return text
     }
 
@@ -57,9 +54,6 @@ struct ClaudeUsageStatus: Decodable, Equatable {
         var text = "Weekly limit (7d): \(weeklyPercent)%"
         if weeklyReset != "?" && !weeklyReset.isEmpty {
             text += " · resets in \(weeklyReset)"
-        }
-        if stale {
-            text += " [stale]"
         }
         return text
     }

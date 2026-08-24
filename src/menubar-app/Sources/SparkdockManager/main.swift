@@ -209,6 +209,18 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return attributedString
     }
 
+    private func createClaudeUsageSectionTitle(stale: Bool) -> NSAttributedString {
+        let title = NSMutableAttributedString(string: "Claude Code Usage", attributes: [
+            .font: NSFont.boldSystemFont(ofSize: NSFont.systemFontSize)
+        ])
+        if stale {
+            title.append(NSAttributedString(string: " · stale", attributes: [
+                .foregroundColor: NSColor.systemOrange
+            ]))
+        }
+        return title
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set proper activation policy for menu bar apps
         NSApp.setActivationPolicy(.accessory)
@@ -314,20 +326,21 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         menu.addItem(.separator())
 
         let claudeUsageInstalled = Self.executablePath(for: "claude-usage") != nil
-        let claudeUsageSectionItem = NSMenuItem(title: "Claude Code Usage", action: nil, keyEquivalent: "")
-        claudeUsageSectionItem.isEnabled = false
+        let claudeUsageSectionItem = NSMenuItem(title: "", action: #selector(checkClaudeUsageAction), keyEquivalent: "")
+        claudeUsageSectionItem.target = self
+        claudeUsageSectionItem.attributedTitle = createClaudeUsageSectionTitle(stale: false)
         claudeUsageSectionItem.isHidden = !claudeUsageInstalled
         menu.addItem(claudeUsageSectionItem)
         claudeUsageSectionMenuItem = claudeUsageSectionItem
 
-        let claudeCurrentUsageItem = NSMenuItem(title: "Checking current session usage...", action: nil, keyEquivalent: "")
-        claudeCurrentUsageItem.isEnabled = false
+        let claudeCurrentUsageItem = NSMenuItem(title: "Checking current session usage...", action: #selector(checkClaudeUsageAction), keyEquivalent: "")
+        claudeCurrentUsageItem.target = self
         claudeCurrentUsageItem.isHidden = !claudeUsageInstalled
         menu.addItem(claudeCurrentUsageItem)
         claudeCurrentUsageMenuItem = claudeCurrentUsageItem
 
-        let claudeWeeklyUsageItem = NSMenuItem(title: "Checking weekly usage...", action: nil, keyEquivalent: "")
-        claudeWeeklyUsageItem.isEnabled = false
+        let claudeWeeklyUsageItem = NSMenuItem(title: "Checking weekly usage...", action: #selector(checkClaudeUsageAction), keyEquivalent: "")
+        claudeWeeklyUsageItem.target = self
         claudeWeeklyUsageItem.isHidden = !claudeUsageInstalled
         menu.addItem(claudeWeeklyUsageItem)
         claudeWeeklyUsageMenuItem = claudeWeeklyUsageItem
@@ -1220,6 +1233,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         refreshClaudeUsageMenuItem?.isHidden = !installed
         claudeUsageSectionSeparator?.isHidden = !installed
         guard installed else { return }
+
+        claudeUsageSectionMenuItem?.attributedTitle = createClaudeUsageSectionTitle(stale: status?.stale == true)
+        claudeUsageSectionMenuItem?.toolTip = status?.error
 
         guard let status = status else {
             claudeCurrentUsageMenuItem?.attributedTitle = createStatusTitle("Claude Code usage: unavailable", color: .systemGray)

@@ -117,13 +117,14 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertEqual(status.weeklyDisplayText, "Weekly limit (7d): 67% · resets in 2d 4h")
     }
 
-    func testClaudeUsageStatusShowsStaleData() throws {
+    func testClaudeUsageStatusKeepsStaleStateOutOfLimitRows() throws {
         let data = Data(#"{"c_pct":80,"c_reset":"?","w_pct":90,"w_reset":"","stale":true,"auth":"valid","error":"API returned 429"}"#.utf8)
 
         let status = try JSONDecoder().decode(ClaudeUsageStatus.self, from: data)
 
-        XCTAssertEqual(status.currentDisplayText, "Current session (5h): 80% [stale]")
-        XCTAssertEqual(status.weeklyDisplayText, "Weekly limit (7d): 90% [stale]")
+        XCTAssertTrue(status.stale)
+        XCTAssertEqual(status.currentDisplayText, "Current session (5h): 80%")
+        XCTAssertEqual(status.weeklyDisplayText, "Weekly limit (7d): 90%")
     }
 
     func testClaudeUsageStatusReportsMissingCredentials() throws {
