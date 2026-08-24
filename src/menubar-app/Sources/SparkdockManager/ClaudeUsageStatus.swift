@@ -22,17 +22,17 @@ struct ClaudeUsageStatus: Decodable, Equatable {
     var availabilityText: String {
         switch auth {
         case "missing":
-            return "Claude Code usage: sign in required"
+            return "Sign in required"
         case "expired":
-            return "Claude Code usage: credentials expired"
+            return "Credentials expired"
         case "valid":
             break
         default:
-            return "Claude Code usage: unavailable"
+            return "Unavailable"
         }
 
         if error != nil && currentPercent == 0 && weeklyPercent == 0 {
-            return "Claude Code usage: unavailable"
+            return "Unavailable"
         }
 
         return ""
@@ -42,19 +42,50 @@ struct ClaudeUsageStatus: Decodable, Equatable {
         availabilityText.isEmpty
     }
 
-    var currentDisplayText: String {
-        var text = "Current session (5h): \(currentPercent)%"
-        if currentReset != "?" && !currentReset.isEmpty {
-            text += " · resets in \(currentReset)"
-        }
-        return text
+    var currentResetText: String? {
+        Self.formattedReset(currentReset)
     }
 
-    var weeklyDisplayText: String {
-        var text = "Weekly limit (7d): \(weeklyPercent)%"
-        if weeklyReset != "?" && !weeklyReset.isEmpty {
-            text += " · resets in \(weeklyReset)"
+    var weeklyResetText: String? {
+        Self.formattedReset(weeklyReset)
+    }
+
+    private static func formattedReset(_ value: String) -> String? {
+        let value = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !value.isEmpty && value != "?" else { return nil }
+
+        var parts: [String] = []
+        var index = value.startIndex
+        var prefix = ""
+
+        while index < value.endIndex {
+            while index < value.endIndex && value[index].isWhitespace {
+                value.formIndex(after: &index)
+            }
+            guard index < value.endIndex else { break }
+
+            if value[index] == "<" {
+                prefix = "<"
+                value.formIndex(after: &index)
+            }
+
+            var digits = ""
+            while index < value.endIndex && value[index].isNumber {
+                digits.append(value[index])
+                value.formIndex(after: &index)
+            }
+
+            var unit = ""
+            while index < value.endIndex && value[index].isLetter {
+                unit.append(value[index])
+                value.formIndex(after: &index)
+            }
+
+            guard !digits.isEmpty && !unit.isEmpty else { return value }
+            parts.append("\(prefix)\(Int(digits) ?? 0)\(unit)")
+            prefix = ""
         }
-        return text
+
+        return parts.joined(separator: " ")
     }
 }
