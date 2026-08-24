@@ -178,7 +178,7 @@ private final class ClaudeUsageRowView: NSView {
         titleField.textColor = .labelColor
         titleField.lineBreakMode = .byTruncatingTail
 
-        subtitleField.font = NSFont.systemFont(ofSize: 12)
+        subtitleField.font = NSFont.systemFont(ofSize: 13)
         subtitleField.textColor = .secondaryLabelColor
         subtitleField.lineBreakMode = .byTruncatingTail
 
@@ -409,11 +409,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         guard let menu = menu else { return }
 
         let titleItem = NSMenuItem(title: "", action: nil, keyEquivalent: "")
-        let titleContainer = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 40))
+        let titleContainer = NSView(frame: NSRect(x: 0, y: 0, width: 320, height: 36))
         titleContainer.autoresizingMask = [.width]
         let titleLabel = NSTextField(labelWithString: "Sparkdock Manager")
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        titleLabel.font = NSFont.systemFont(ofSize: 15, weight: .semibold)
+        titleLabel.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
         titleLabel.textColor = .labelColor
         titleContainer.addSubview(titleLabel)
         NSLayoutConstraint.activate([
