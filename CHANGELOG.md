@@ -107,7 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Moved the Sparkdock Manager Claude usage refresh control beside its section title
+- Moved the Sparkdock Manager Claude usage refresh control beside its section title and made it more visible
 - Changed the AI coding harness upstream repository URL from `sparkfabrik/sf-awesome-copilot` to `sparkfabrik/sf-agents-harness` following the upstream rename
 - Changed `sjust system-install-mkcert` to only install the mkcert local CA; the `mkcert` and `nss` formulae are already in `homebrew_packages`, so the recipe no longer runs a redundant `brew install`
 - Moved `google-cloud-sdk` from `cask_packages` to `cask_latest_packages`, so an existing Google Cloud SDK is upgraded on every provisioning pass instead of staying pinned at the version installed on first provision

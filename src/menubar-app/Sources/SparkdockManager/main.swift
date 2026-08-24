@@ -534,7 +534,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         let claudeUsageInstalled = Self.executablePath(for: "claude-usage") != nil
         let refreshButton = NSButton(title: "Refresh", target: self, action: #selector(checkClaudeUsageAction))
-        refreshButton.bezelStyle = .inline
+        refreshButton.bezelStyle = .rounded
         refreshButton.controlSize = .small
         refreshButton.image = menuSymbol(named: "arrow.clockwise", description: "Refresh Claude Code usage")
         refreshButton.imagePosition = .imageLeading
