@@ -742,6 +742,7 @@
               - bash
               - "{{ dev_env_dir }}/sjust/scripts/claude-usage.sh"
               - install
+              - v0.6.0
             creates: "{{ ansible_facts['env']['HOME'] }}/.local/bin/claude-usage"
           environment:
             CLAUDE_USAGE_READER: "0"
