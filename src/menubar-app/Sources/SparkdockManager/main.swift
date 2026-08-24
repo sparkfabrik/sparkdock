@@ -170,7 +170,7 @@ private final class ProcessExecutionState: @unchecked Sendable {
 
 func runProcessWithTimeout(_ process: Process, seconds: TimeInterval) async throws -> Int32 {
     let execution = ProcessExecutionState(process: process)
-    try await withTimeout(seconds: seconds) {
+    return try await withTimeout(seconds: seconds) {
         try await withTaskCancellationHandler(
             operation: {
                 try await execution.run()
