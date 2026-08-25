@@ -107,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Provisioning now installs the latest `claude-usage` release on every run instead of pinning `v0.6.0`: the version pin and the `creates:` guard are gone, so an already-installed copy is upgraded (currently to `v0.7.0`, which reads limits from the OAuth endpoint and enriches `--status`). The upstream installer short-circuits when the recorded version already matches, so repeated runs stay cheap and the task only reports `changed` when binaries are actually installed
 - Folded Sparkdock Manager upgrade actions into the System status rows and scoped refresh controls to their respective sections
 - Moved the Sparkdock Manager Claude usage refresh control beside its section title and made it more visible
 - Changed the AI coding harness upstream repository URL from `sparkfabrik/sf-awesome-copilot` to `sparkfabrik/sf-agents-harness` following the upstream rename
