@@ -85,6 +85,17 @@ _fetch_installer() {
     echo "raw"
 }
 
+# Resolve the latest release tag from the github.com redirect rather than the
+# API. Unauthenticated api.github.com calls are rate limited per IP, and CI
+# runners share addresses, so the installer's own lookup answers 403 there and
+# aborts the whole run. Echoes the tag; non-zero when it cannot be resolved.
+_resolve_latest_tag() {
+    local url
+    url="$(curl -fsSLI -o /dev/null -w '%{url_effective}' "${RELEASES_URL}/latest" 2>/dev/null)" || return 1
+    [[ "${url}" =~ /tag/(v[0-9]+\.[0-9]+\.[0-9]+)$ ]] || return 1
+    printf '%s' "${BASH_REMATCH[1]}"
+}
+
 cmd_install() {
     local version="${1:-}" ref pin_tag tmp src
     if [[ -n "${version}" ]]; then
@@ -92,8 +103,13 @@ cmd_install() {
         ref="${version}"
         pin_tag="${version}"
     else
-        ref="latest"
-        pin_tag=""
+        # Pin the resolved tag so the installer never has to ask the API, and
+        # take the installer from that same release so the script and the
+        # binaries it downloads always match. When the redirect cannot be read,
+        # fall back to "latest" and let the installer do its own lookup, which
+        # still works from an unthrottled address.
+        pin_tag="$(_resolve_latest_tag)" || pin_tag=""
+        ref="${pin_tag:-latest}"
     fi
 
     tmp="$(mktemp -d)"
