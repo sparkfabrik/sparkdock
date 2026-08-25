@@ -116,6 +116,21 @@ STUB
     fi
 }
 
+# Resolve the caveman native installer entrypoint.
+# Upstream moved it from `cli/install.js` to `bin/install.js` (force-pushed on
+# 2026-08-25), so probe both layouts and print the first one that exists.
+# Returns non-zero when neither is present.
+caveman_installer_path() {
+    local candidate
+    for candidate in bin/install.js cli/install.js; do
+        if [[ -f "${CAVEMAN_CACHE_DIR}/${candidate}" ]]; then
+            printf '%s\n' "${CAVEMAN_CACHE_DIR}/${candidate}"
+            return 0
+        fi
+    done
+    return 1
+}
+
 # --- Config ---
 
 write_default_config() {
@@ -133,7 +148,12 @@ setup_claude() {
     fi
 
     log_info "Setting up caveman for Claude Code..."
-    if ! node "${CAVEMAN_CACHE_DIR}/cli/install.js" \
+    local installer
+    if ! installer="$(caveman_installer_path)"; then
+        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (looked for bin/install.js and cli/install.js)"
+        return 1
+    fi
+    if ! node "${installer}" \
         --only claude --force --non-interactive --no-mcp-shrink; then
         log_error "Caveman installer failed for Claude Code"
         return 1
@@ -150,7 +170,12 @@ setup_opencode() {
     fi
 
     log_info "Setting up caveman for OpenCode..."
-    if ! node "${CAVEMAN_CACHE_DIR}/cli/install.js" \
+    local installer
+    if ! installer="$(caveman_installer_path)"; then
+        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (looked for bin/install.js and cli/install.js)"
+        return 1
+    fi
+    if ! node "${installer}" \
         --only opencode --force --non-interactive --no-mcp-shrink; then
         log_error "Caveman installer failed for OpenCode"
         return 1
@@ -309,8 +334,9 @@ uninstall() {
     log_info "Removing caveman from all AI coding tools..."
 
     # Delegate to native uninstaller for Claude Code and OpenCode
-    if [[ -f "${CAVEMAN_CACHE_DIR}/cli/install.js" ]]; then
-        node "${CAVEMAN_CACHE_DIR}/cli/install.js" --uninstall --non-interactive || true
+    local installer
+    if installer="$(caveman_installer_path)"; then
+        node "${installer}" --uninstall --non-interactive || true
     fi
 
     # Clean up Copilot markers
