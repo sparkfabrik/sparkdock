@@ -41,19 +41,6 @@ final class SparkdockManagerTests: XCTestCase {
         }
     }
 
-    func testMenuItemTags() {
-        let updateTag = 1
-        let loginTag = 2
-        let upgradeBrewTag = 3
-        let upgradeHttpProxyTag = 4
-        XCTAssertNotEqual(updateTag, loginTag, "Menu item tags should be unique")
-        XCTAssertNotEqual(updateTag, upgradeBrewTag, "Menu item tags should be unique")
-        XCTAssertNotEqual(updateTag, upgradeHttpProxyTag, "Menu item tags should be unique")
-        XCTAssertNotEqual(loginTag, upgradeBrewTag, "Menu item tags should be unique")
-        XCTAssertNotEqual(loginTag, upgradeHttpProxyTag, "Menu item tags should be unique")
-        XCTAssertNotEqual(upgradeBrewTag, upgradeHttpProxyTag, "Menu item tags should be unique")
-    }
-    
     func testTimerTolerance() {
         let tolerance: TimeInterval = 60.0
         XCTAssertGreaterThan(tolerance, 0, "Timer tolerance should be positive")
@@ -63,6 +50,32 @@ final class SparkdockManagerTests: XCTestCase {
     func testProcessIdentifierIsValid() {
         let currentPID = ProcessInfo.processInfo.processIdentifier
         XCTAssertGreaterThan(currentPID, 0, "Process identifier should be positive")
+    }
+
+    func testProcessRunnerReturnsTerminationStatus() async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/true")
+
+        let status = try await runProcessWithTimeout(process, seconds: 1)
+
+        XCTAssertEqual(status, 0)
+    }
+
+    func testProcessRunnerTerminatesTimedOutProcess() async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sleep")
+        process.arguments = ["5"]
+        let startedAt = Date()
+
+        do {
+            _ = try await runProcessWithTimeout(process, seconds: 0.1)
+            XCTFail("Expected process runner to time out")
+        } catch ProcessTimeoutError.timedOut {
+            // Expected timeout.
+        }
+
+        XCTAssertFalse(process.isRunning)
+        XCTAssertLessThan(Date().timeIntervalSince(startedAt), 2)
     }
 
     func testPgrepExecutablePath() {
@@ -94,12 +107,12 @@ final class SparkdockManagerTests: XCTestCase {
         let upgradeCommand = "brew upgrade"
         XCTAssertEqual(upgradeCommand, "brew upgrade", "Brew upgrade command should be correct")
     }
-    
+
     func testHttpProxyUpgradeCommand() {
         let httpProxyUpgradeCommand = "sjust http-proxy-install-update"
         XCTAssertEqual(httpProxyUpgradeCommand, "sjust http-proxy-install-update", "HTTP proxy upgrade command should be correct")
     }
-    
+
     func testHttpProxyCheckUpdatesCommand() {
         let httpProxyCheckCommand = ["http-proxy-check-updates"]
         XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "HTTP proxy check command should be correct")

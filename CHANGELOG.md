@@ -107,6 +107,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Folded Sparkdock Manager upgrade actions into the System status rows and scoped refresh controls to their respective sections
+- Moved the Sparkdock Manager Claude usage refresh control beside its section title and made it more visible
 - Changed the AI coding harness upstream repository URL from `sparkfabrik/sf-awesome-copilot` to `sparkfabrik/sf-agents-harness` following the upstream rename
 - Changed `sjust system-install-mkcert` to only install the mkcert local CA; the `mkcert` and `nss` formulae are already in `homebrew_packages`, so the recipe no longer runs a redundant `brew install`
 - Moved `google-cloud-sdk` from `cask_packages` to `cask_latest_packages`, so an existing Google Cloud SDK is upgraded on every provisioning pass instead of staying pinned at the version installed on first provision
@@ -178,6 +180,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed Sparkdock Manager process checks leaving timed-out commands running, stale Claude usage refreshes overwriting newer results, incorrect single-update grammar, and menubar provisioning under-reporting Claude provider installations
 - Fixed the caveman setup script aborting provisioning with `Cannot find module .../install.js` whenever upstream relocates its native installer, which it has now done in both directions (`bin/` to `cli/`, then back to `bin/`). The setup and uninstall paths resolve the entrypoint at runtime, probing `bin/install.js` then `cli/install.js`, so either upstream layout works, and report a clear error when neither exists instead of failing with a Node stack trace
 - Fixed overlapping Claude Code usage rows in Sparkdock Manager and adjusted menu heading sizes for clearer hierarchy
 - Fixed Option+Backspace deleting a single character instead of the previous word in the Ghostty base config, by binding `alt+backspace` to `ESC DEL` rather than setting `macos-option-as-alt`, which would stop Option composing `@`, `#`, `[`, `]`, `{` and `}` on the Italian Mac layout
