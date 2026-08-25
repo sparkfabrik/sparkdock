@@ -107,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Expanded `sjust system-cleanup` beyond `brew cleanup && docker system prune -f`: it now surveys Homebrew, Docker and fifteen developer cache locations, shows a table of every item with its size and what happens afterwards, and only then asks for confirmation. `sjust system-cleanup dry-run` previews without changing anything. Each cache entry carries the method that clears it, so `~/go/pkg/mod` uses `go clean -modcache` rather than `rm`, which fails on the read-only module store. Space it will not reclaim is reported separately with the command that would: unused but tagged Docker images need `docker image prune -a`, volumes hold data rather than cache, and `~/Library/Caches` is live application state. Also surfaces outdated Homebrew packages, casks whose app is missing from `/Applications`, and taps with nothing installed from them, as advisories it does not act on
 - Changed the AI coding harness upstream repository URL from `sparkfabrik/sf-awesome-copilot` to `sparkfabrik/sf-agents-harness` following the upstream rename
 - Changed `sjust system-install-mkcert` to only install the mkcert local CA; the `mkcert` and `nss` formulae are already in `homebrew_packages`, so the recipe no longer runs a redundant `brew install`
 - Moved `google-cloud-sdk` from `cask_packages` to `cask_latest_packages`, so an existing Google Cloud SDK is upgraded on every provisioning pass instead of staying pinned at the version installed on first provision

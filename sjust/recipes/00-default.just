@@ -205,37 +205,13 @@ system-gcloud-reconfigure:
     echo "🎉 Google Cloud SDK reconfiguration completed successfully!"
     echo "💡 You may need to restart your terminal or run 'source ~/.zshrc' to use the updated PATH"
 
-# System cleanup to free up disk space (Homebrew and Docker).
+# Reclaim disk space: Homebrew, Docker and developer caches.
+#   system-cleanup            # survey, show what will go, confirm, clean
+#   system-cleanup dry-run    # survey and show only, change nothing
 [group('system')]
-system-cleanup:
-    #!/usr/bin/env bash
-    source "{{sparkdock_path}}/bin/common/logging.sh"
-    log_section "System Cleanup Operations"
-    echo "This command will perform the following actions:"
-    echo "  1. Homebrew cleanup:"
-    echo "     - Remove old versions of installed formulae"
-    echo "     - Delete cached downloads and outdated packages"
-    echo ""
-    echo "  2. Docker cleanup:"
-    echo "     - Remove all stopped containers"
-    echo "     - Remove all dangling images"
-    echo "     - Remove all unused networks"
-    echo "     - Remove all build cache not being used"
-    echo ""
-    echo "This will free up disk space, but you won't be able to"
-    echo "recover the removed data afterward."
-    echo ""
-
-    read -p "Do you want to continue with system cleanup? (y/n) " -n 1 -r
-    echo    # Move to a new line
-    if [[ $REPLY =~ ^[Yy]$ ]]
-    then
-        echo "Running cleanup operations..."
-        brew cleanup && docker system prune -f
-        echo "✅ System cleanup completed successfully!"
-    else
-        echo "System cleanup cancelled."
-    fi
+[doc('Reclaim disk space from Homebrew, Docker and developer caches. Pass dry-run to preview.')]
+system-cleanup $mode="apply":
+    @{{ sparkdock_path }}/sjust/scripts/system-cleanup/run.sh "${mode}"
 
 # List all running Docker containers with formatted output.
 [group('docker')]
