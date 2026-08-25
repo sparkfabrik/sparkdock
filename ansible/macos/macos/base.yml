@@ -735,17 +735,17 @@
     - name: Install Sparkdock Menu Bar App
       tags: menubar
       block:
-        - name: Install Claude usage provider without standalone reader
+        - name: Install or upgrade Claude usage provider without standalone reader
           ansible.builtin.command:
             argv:
               - /usr/bin/env
               - bash
               - "{{ dev_env_dir }}/sjust/scripts/claude-usage.sh"
               - install
-              - v0.6.0
-            creates: "{{ ansible_facts['env']['HOME'] }}/.local/bin/claude-usage"
           environment:
             CLAUDE_USAGE_READER: "0"
+          register: claude_usage_install
+          changed_when: "'installed binaries (' in claude_usage_install.stdout"
           become: false
 
         - name: Build menu bar app
