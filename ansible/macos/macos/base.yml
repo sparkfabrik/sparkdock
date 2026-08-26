@@ -215,10 +215,21 @@
       tags: [cask]
       block:
         - name: Detect already-installed install-once casks
+          # An app counts as installed only when its bundle carries a readable
+          # Contents/Info.plist. An interrupted `brew upgrade` leaves the app
+          # moved into the Caskroom staging directory and an empty `.app`
+          # directory behind, which a plain `-d` test accepts and `brew list`
+          # still reports as installed, so the cask was skipped forever and the
+          # app stayed missing.
           shell: |
-            if brew list --cask "{{ item.name }}" >/dev/null 2>&1; then
-              echo yes
-            elif [ -n "{{ item.app | default('') }}" ] && { [ -d "/Applications/{{ item.app | default('') }}.app" ] || [ -d "{{ ansible_facts['env']['HOME'] }}/Applications/{{ item.app | default('') }}.app" ]; }; then
+            app="{{ item.app | default('') }}"
+            if [ -n "$app" ]; then
+              if [ -f "/Applications/$app.app/Contents/Info.plist" ] || [ -f "{{ ansible_facts['env']['HOME'] }}/Applications/$app.app/Contents/Info.plist" ]; then
+                echo yes
+              else
+                echo no
+              fi
+            elif brew list --cask "{{ item.name }}" >/dev/null 2>&1; then
               echo yes
             else
               echo no
@@ -233,9 +244,13 @@
             cask_install_once_to_install: "{{ install_once_checks.results | selectattr('stdout', 'equalto', 'no') | map(attribute='item.name') | list }}"
 
         - name: Install missing install-once casks
+          # `force` only ever runs for casks the detection step just reported as
+          # missing, so it repairs a hollow bundle instead of aborting the run
+          # with "It seems there is already an App at ...".
           community.general.homebrew_cask:
             name: "{{ item }}"
             state: present
+            install_options: force
             sudo_password: "{{ ansible_become_pass | default(omit) }}"
           loop: "{{ cask_install_once_to_install }}"
           when: cask_install_once_to_install | length > 0
