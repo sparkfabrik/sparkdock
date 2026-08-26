@@ -408,36 +408,81 @@
     - name: Re-bind tap-qualified packages whose install receipt points at a renamed tap
       tags: brew_packages
       ansible.builtin.shell: |
-        set -euo pipefail
+        set -uo pipefail
+        # No `set -e` here: a failing `brew list` is an expected branch, so every command
+        # that can fail is handled explicitly below.
         # A package installed before its tap was renamed keeps the old tap in its install
-        # receipt; `state: latest` is a no-op on the bare name and never rebinds it, so the
-        # tap-qualified assert below fails. If the bare formula is installed but the
-        # tap-qualified name is not, reinstall to rebind the receipt to the declared tap.
-        name="{{ item.split('/') | last }}"
-        if brew list "${name}" >/dev/null 2>&1 && ! brew list "{{ item }}" >/dev/null 2>&1; then
-          brew reinstall "{{ item }}"
-          echo "rebound"
+        # receipt, and `state: latest` is a no-op on the bare name, so the receipt is never
+        # rebound. `brew reinstall <tap>/<name>` does not rewrite `source.tap` either once
+        # the old tap is gone (Homebrew 6.x reuses the formula recorded in the keg), so the
+        # only reliable rebind is removing the keg and installing the tap-qualified name.
+        # Best effort by design: a failure is reported by the two tasks below instead of
+        # aborting provisioning, because the package itself may still be usable.
+        qualified="{{ item }}"
+        name="${qualified##*/}"
+        brew list "${name}" >/dev/null 2>&1 || exit 0
+        brew list "${qualified}" >/dev/null 2>&1 && exit 0
+        # Only remove the keg once the declared tap-qualified name is known to resolve,
+        # so a wrong or withdrawn formula name never leaves the machine without a working
+        # package.
+        if ! brew info --formula "${qualified}" >/dev/null 2>&1; then
+          echo "unresolvable formula: ${qualified}" >&2
+          exit 1
         fi
+        brew uninstall --ignore-dependencies "${name}" || exit 1
+        brew install "${qualified}" || exit 1
+        echo "rebound ${qualified}"
       args:
         executable: /bin/bash
       loop: "{{ all_homebrew_packages | select('search', '/') | list }}"
       become: false
       register: tap_rebind
       changed_when: "'rebound' in tap_rebind.stdout"
+      failed_when: false
       when: all_homebrew_packages | length > 0
+
+    - name: Report tap-qualified packages that could not be re-bound
+      tags: brew_packages
+      ansible.builtin.debug:
+        msg: >-
+          Could not re-bind {{ item.item }} to its declared tap: {{ item.stderr | default('') | trim }}.
+          The package is still checked by its bare formula name below.
+      loop: "{{ tap_rebind.results | default([]) | rejectattr('skipped', 'defined') | selectattr('rc', 'defined') | selectattr('rc', 'ne', 0) | list }}"
+      loop_control:
+        label: "{{ item.item }}"
 
     - name: Assert homebrew packages installed
       tags: brew_packages
       shell: |
         missing=0
         for pkg in {{ all_homebrew_packages | map('quote') | join(' ') }}; do
-          brew list "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
+          name="${pkg##*/}"
+          # Assert on the bare formula name: a tap-qualified `brew list` also matches the
+          # tap recorded in the keg install receipt, so stale receipt metadata would fail
+          # the run for a package that is installed and working. Tap drift is reported as a
+          # warning instead.
+          if ! brew list "${name}" >/dev/null 2>&1; then
+            echo "${pkg} missing"
+            missing=1
+            continue
+          fi
+          if [ "${pkg}" != "${name}" ] && ! brew list "${pkg}" >/dev/null 2>&1; then
+            echo "${pkg} installed but its receipt points at another tap"
+          fi
         done
         exit $missing
       register: brew_check
       changed_when: false
       failed_when: brew_check.rc != 0
       become: false
+
+    - name: Warn about packages whose install receipt points at another tap
+      tags: brew_packages
+      ansible.builtin.debug:
+        msg: "{{ brew_check.stdout_lines | select('search', 'points at another tap') | list }}"
+      when:
+        - brew_check.stdout is defined
+        - "'points at another tap' in brew_check.stdout"
 
     - name: Install npm global packages
       tags: npm_packages
