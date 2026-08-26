@@ -215,7 +215,7 @@
       tags: [cask]
       block:
         - name: Detect already-installed install-once casks
-          # An app counts as installed only when its bundle carries a readable
+          # An app counts as installed only when its bundle carries a
           # Contents/Info.plist. An interrupted `brew upgrade` leaves the app
           # moved into the Caskroom staging directory and an empty `.app`
           # directory behind, which a plain `-d` test accepts and `brew list`
