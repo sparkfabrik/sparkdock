@@ -138,9 +138,9 @@ system-gcloud-reconfigure:
     echo "Configuring Google Cloud SDK..."
 
     # Install gcloud-cli via Homebrew if not already installed
-    if ! brew list --cask google-cloud-sdk >/dev/null 2>&1; then
+    if ! brew list --cask gcloud-cli >/dev/null 2>&1; then
         echo "Installing Google Cloud SDK via Homebrew..."
-        brew install --cask google-cloud-sdk
+        brew install --cask gcloud-cli
     fi
 
     # Get the Homebrew prefix
