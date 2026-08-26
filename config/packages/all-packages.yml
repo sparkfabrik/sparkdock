@@ -39,7 +39,7 @@ cask_install_once_packages:
 cask_latest_packages:
   - claude-code@latest
   - copilot-cli
-  - google-cloud-sdk
+  - gcloud-cli
 
 homebrew_packages:
   # Modern bash (5.x). macOS still ships /bin/bash 3.2 because bash 4+ is GPLv3.

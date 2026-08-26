@@ -189,7 +189,7 @@ sjust
 ## Print some useful messages.
 if [[ "$NON_INTERACTIVE" != "true" ]]; then
   print "Now remember to add to your .bashrc or .zshrc the following commands:\n"
-  brew info google-cloud-sdk
+  brew info gcloud-cli
   echo ""
   echo ""
   print "!! IMPORTANT: To finish the installation you must configure this: https://docs.brew.sh/Shell-Completion"
