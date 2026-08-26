@@ -211,20 +211,29 @@
       when: all_removed_homebrew | length > 0
       become: false
 
-    - name: Install-once casks (install if absent, never force-reinstall)
+    - name: Install-once casks (install if absent, never reinstall a healthy app)
       tags: [cask]
       block:
         - name: Detect already-installed install-once casks
-          # An app counts as installed only when its bundle carries a
-          # Contents/Info.plist. An interrupted `brew upgrade` leaves the app
-          # moved into the Caskroom staging directory and an empty `.app`
-          # directory behind, which a plain `-d` test accepts and `brew list`
-          # still reports as installed, so the cask was skipped forever and the
-          # app stayed missing.
+          # Order matters. A bundle sitting at one of the two standard app
+          # directories decides the answer on its own, and it counts as
+          # installed only when it carries a Contents/Info.plist: an
+          # interrupted `brew upgrade` moves the app into the Caskroom staging
+          # directory and leaves an empty `.app` directory behind, which
+          # `brew list` still reports as installed. Checking `brew list` first
+          # (or at all, for such a bundle) is what made the cask be skipped
+          # forever while the app stayed missing, so `brew list` is only the
+          # fallback for a cask whose bundle is not at a standard path at all:
+          # a custom `HOMEBREW_CASK_OPTS=--appdir=...`, a bundle filed into a
+          # subfolder, or an entry declared without an `app` name. Reporting
+          # those as missing would force-reinstall them on every run, which is
+          # the very thing this list exists to avoid.
           shell: |
             app="{{ item.app | default('') }}"
-            if [ -n "$app" ]; then
-              if [ -f "/Applications/$app.app/Contents/Info.plist" ] || [ -f "{{ ansible_facts['env']['HOME'] }}/Applications/$app.app/Contents/Info.plist" ]; then
+            system_app="/Applications/${app}.app"
+            user_app="{{ ansible_facts['env']['HOME'] }}/Applications/${app}.app"
+            if [ -n "${app}" ] && { [ -d "${system_app}" ] || [ -d "${user_app}" ]; }; then
+              if [ -f "${system_app}/Contents/Info.plist" ] || [ -f "${user_app}/Contents/Info.plist" ]; then
                 echo yes
               else
                 echo no
@@ -245,8 +254,9 @@
 
         - name: Install missing install-once casks
           # `force` only ever runs for casks the detection step just reported as
-          # missing, so it repairs a hollow bundle instead of aborting the run
-          # with "It seems there is already an App at ...".
+          # missing, never for a healthy app, so it repairs a hollow bundle
+          # instead of aborting the run with "It seems there is already an App
+          # at ...".
           community.general.homebrew_cask:
             name: "{{ item }}"
             state: present
@@ -339,9 +349,9 @@
       shell: |
         missing=0
         for pkg in {{ (all_cask_packages + all_cask_latest_packages) | map('quote') | join(' ') }}; do
-          brew list --cask "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
+          brew list --cask "${pkg}" >/dev/null 2>&1 || { echo "${pkg} missing"; missing=1; }
         done
-        exit $missing
+        exit ${missing}
       register: cask_check
       changed_when: false
       failed_when: cask_check.rc != 0
@@ -446,9 +456,9 @@
       shell: |
         missing=0
         for pkg in {{ all_homebrew_packages | map('quote') | join(' ') }}; do
-          brew list "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
+          brew list "${pkg}" >/dev/null 2>&1 || { echo "${pkg} missing"; missing=1; }
         done
-        exit $missing
+        exit ${missing}
       register: brew_check
       changed_when: false
       failed_when: brew_check.rc != 0
@@ -471,9 +481,9 @@
       shell: |
         missing=0
         for pkg in {{ all_npm_packages | map('quote') | join(' ') }}; do
-          npm list -g "$pkg" >/dev/null 2>&1 || { echo "$pkg missing"; missing=1; }
+          npm list -g "${pkg}" >/dev/null 2>&1 || { echo "${pkg} missing"; missing=1; }
         done
-        exit $missing
+        exit ${missing}
       register: npm_check
       changed_when: false
       failed_when: npm_check.rc != 0
