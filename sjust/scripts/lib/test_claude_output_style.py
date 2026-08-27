@@ -9,6 +9,7 @@ Run via ``python3 -m unittest discover -s sjust/scripts/lib -p 'test_*.py'``.
 """
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -31,7 +32,9 @@ class OutputStyleTest(unittest.TestCase):
             capture_output=True,
             text=True,
             check=False,
-            env={"HOME": str(self.home), "PATH": "/usr/bin:/bin"},
+            # Keep the ambient environment: dropping LANG/LC_* can make the
+            # child's stdout ASCII, and the script prints emoji.
+            env={**os.environ, "HOME": str(self.home)},
         )
 
     def write_settings(self, text):
@@ -111,6 +114,25 @@ class OutputStyleTest(unittest.TestCase):
         self.assertIn(str(self.settings), r.stderr)
         self.assertEqual(self.settings.read_text(), "{not json")
         self.assertEqual(self.backups(), [])
+
+    def test_invalid_utf8_fails_without_touching_the_file(self):
+        self.settings.parent.mkdir(parents=True, exist_ok=True)
+        self.settings.write_bytes(b'{"outputStyle": "\xff\xfe"}')
+        before = self.settings.read_bytes()
+        r = self.run_script("set")
+        self.assertNotEqual(r.returncode, 0)
+        self.assertIn("not valid UTF-8", r.stderr)
+        self.assertIn("Nothing was modified", r.stderr)
+        self.assertEqual(self.settings.read_bytes(), before)
+        self.assertEqual(self.backups(), [])
+
+    def test_explicit_null_counts_as_a_users_choice(self):
+        self.write_settings(json.dumps({"outputStyle": None}))
+        before = self.settings.read_bytes()
+        r = self.run_script("set")
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("already set", r.stdout)
+        self.assertEqual(self.settings.read_bytes(), before)
 
     def test_non_object_json_fails_without_touching_the_file(self):
         self.write_settings("[1, 2, 3]")

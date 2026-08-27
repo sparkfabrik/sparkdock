@@ -37,24 +37,24 @@ def _load_strict(settings):
     """Parse settings.json, or exit non-zero without writing anything."""
     if not settings.exists():
         return {}
-    try:
-        data = json.loads(settings.read_text())
-    except json.JSONDecodeError as exc:
-        print(f"❌ {settings} is not valid JSON ({exc}).", file=sys.stderr)
-        print(
-            "   Nothing was modified. Fix the file, then run this again.",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-    except OSError as exc:
-        print(
-            f"❌ Cannot read {settings}: {exc}. Nothing was modified.", file=sys.stderr
-        )
-        sys.exit(1)
-    if not isinstance(data, dict):
-        print(f"❌ {settings} does not contain a JSON object.", file=sys.stderr)
+
+    def abort(message):
+        print(f"❌ {message}", file=sys.stderr)
         print("   Nothing was modified.", file=sys.stderr)
         sys.exit(1)
+
+    try:
+        raw = settings.read_text(encoding="utf-8")
+    except UnicodeDecodeError as exc:
+        abort(f"{settings} is not valid UTF-8 ({exc}).")
+    except OSError as exc:
+        abort(f"Cannot read {settings}: {exc}.")
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        abort(f"{settings} is not valid JSON ({exc}).")
+    if not isinstance(data, dict):
+        abort(f"{settings} does not contain a JSON object.")
     return data
 
 
@@ -63,9 +63,8 @@ def cmd_set(style) -> int:
     settings = cs.settings_path()
     data = _load_strict(settings)
 
-    current = data.get(KEY)
-    if current is not None:
-        print(f"ℹ️  Output style already set to '{current}' in {settings}")
+    if KEY in data:
+        print(f"ℹ️  Output style already set to '{data[KEY]}' in {settings}")
         return 0
 
     backup = cs.backup() if settings.exists() else None

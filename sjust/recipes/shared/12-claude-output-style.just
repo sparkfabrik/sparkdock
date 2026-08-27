@@ -7,7 +7,7 @@ _claude_output_style_py := clean(source_directory() / "../../..") / "sjust/scrip
 # Set the default Claude Code output style (Concise) in ~/.claude/settings.json. Only writes when no style is set, so your own choice is never overwritten.
 [group('claude')]
 claude-output-style-set style="":
-    @python3 "{{_claude_output_style_py}}" set {{style}}
+    @python3 "{{_claude_output_style_py}}" set {{ if style == "" { "" } else { quote(style) } }}
 
 # Remove the output style key, restoring Claude Code's Default style.
 [group('claude')]
