@@ -372,6 +372,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `sf-harness-upgrade [force]` — Full upgrade via Ansible (RTK + caveman + gh gate + skills)
 - `sf-herdr-skill-{install,uninstall}` — install or remove the `herdr` agent skill. The skill is generated from the installed binary (`herdr --skill`) and symlinked per tool, so it tracks the installed herdr version instead of the upstream harness repo
 - `claude-gh-gate-{enable,disable,info}` — manage the Claude Code gh skill gate (blocks `gh` until the `gh` skill loads; bypass at runtime with `SPARKDOCK_GH_GATE=0`)
+- `claude-output-style-{set,reset,info}` — manage the default Claude Code output style. Provisioning sets `Concise` only when no style is configured, so it never overrides a developer's own choice
 
 ### Ansible Tags
 
@@ -379,6 +380,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `ai-harness` — alternate umbrella (includes sync + provision)
 - `ai-harness-sync` — no-sudo tasks (RTK + caveman + gh gate + skills sync)
 - `claude-gh-gate` — register only the Claude Code gh skill gate hook
+- `claude-output-style` — set the default Claude Code output style
 - `herdr` — install only the herdr agent skill
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
 - `skills` — backward-compat alias

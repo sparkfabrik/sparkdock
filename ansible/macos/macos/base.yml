@@ -1138,6 +1138,20 @@
           changed_when: "'already enabled' not in gh_gate_output.stdout"
           become: false
 
+    - name: Set the default Claude Code output style
+      tags:
+        - claude-output-style
+        - ai-harness
+        - ai-harness-sync
+      block:
+        # Writes outputStyle only when no style is set, so a developer who picks
+        # a different one keeps it across provisioning runs.
+        - name: Default the Claude Code output style to Concise
+          command: "python3 {{ dev_env_dir }}/sjust/scripts/claude-output-style.py set"
+          register: claude_output_style
+          changed_when: "'already set' not in claude_output_style.stdout"
+          become: false
+
     - name: Provision AI coding harness directories and permissions
       tags:
         - skills
