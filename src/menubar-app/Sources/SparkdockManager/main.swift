@@ -329,7 +329,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private var checkGeneration: Int = 0
     private var systemStatusCheckGeneration: Int = 0
     private var claudeUsageCheckGeneration: Int = 0
-    /// When the Claude usage status last came back, used to throttle the
+    /// When the last Claude usage check started or landed, used to throttle the
     /// refresh triggered by opening the menu.
     private var claudeUsageLastCheckedAt: Date?
     var statusMenuItem: NSMenuItem?
@@ -837,6 +837,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private func recheckClaudeUsage(forcePoll: Bool = false, showsProgress: Bool = true) {
         claudeUsageCheckGeneration += 1
         let expectedClaudeUsageGeneration = claudeUsageCheckGeneration
+        // Stamped before the check runs, not only when it lands: menuWillOpen fires
+        // on every open, so a window that only closed on completion would let a
+        // second open supersede the first check's still-pending result, and a run of
+        // quick opens would discard every one of them.
+        claudeUsageLastCheckedAt = Date()
         if showsProgress {
             updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Current session", badge: "Checking", color: .systemYellow)
             updateStatusMenuItem(claudeWeeklyUsageMenuItem, title: "Weekly limit", badge: "Checking", color: .systemYellow)
