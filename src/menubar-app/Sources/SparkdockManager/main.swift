@@ -329,6 +329,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private var checkGeneration: Int = 0
     private var systemStatusCheckGeneration: Int = 0
     private var claudeUsageCheckGeneration: Int = 0
+    /// When the Claude usage status last came back, used to throttle the
+    /// refresh triggered by opening the menu.
+    private var claudeUsageLastCheckedAt: Date?
     var statusMenuItem: NSMenuItem?
     var refreshSystemStatusButton: NSButton?
     var sparkdockStatusMenuItem: NSMenuItem?
@@ -479,6 +482,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         button.toolTip = "Sparkdock: up to date"
 
         setupMenu()
+        menu?.delegate = self
         statusItem.menu = menu
         updateLoginItemStatus()
     }
@@ -830,11 +834,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func recheckClaudeUsage(forcePoll: Bool = false) {
+    private func recheckClaudeUsage(forcePoll: Bool = false, showsProgress: Bool = true) {
         claudeUsageCheckGeneration += 1
         let expectedClaudeUsageGeneration = claudeUsageCheckGeneration
-        updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Current session", badge: "Checking", color: .systemYellow)
-        updateStatusMenuItem(claudeWeeklyUsageMenuItem, title: "Weekly limit", badge: "Checking", color: .systemYellow)
+        if showsProgress {
+            updateStatusMenuItem(claudeCurrentUsageMenuItem, title: "Current session", badge: "Checking", color: .systemYellow)
+            updateStatusMenuItem(claudeWeeklyUsageMenuItem, title: "Weekly limit", badge: "Checking", color: .systemYellow)
+        }
         Task(priority: .background) {
             let result = await runClaudeUsageCheck(forcePoll: forcePoll)
             await MainActor.run {
@@ -843,6 +849,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                     return
                 }
                 self.claudeUsageStatus = result
+                self.claudeUsageLastCheckedAt = Date()
                 self.refreshClaudeUsageButton?.title = "Refresh"
                 self.refreshClaudeUsageButton?.isEnabled = true
                 self.refreshUI(updateClaudeUsage: true)
@@ -1153,6 +1160,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         self.hasAgentUpdates = hasAgentUpdates
         if updateClaudeUsage {
             self.claudeUsageStatus = claudeUsageStatus
+            self.claudeUsageLastCheckedAt = Date()
         }
         self.hasTimetrackerUpdates = hasTimetrackerUpdates
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
@@ -1484,6 +1492,20 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     @objc private func quit() {
         NSApplication.shared.terminate(self)
+    }
+}
+
+// MARK: - Menu Delegate
+extension SparkdockMenubarApp: NSMenuDelegate {
+    /// Claude usage checks are event-driven (system wake and network change), so
+    /// the menu can be opened long after the last one ran and show a reading that
+    /// is no longer true. Refresh on open, throttled to the window `claude-usage`
+    /// caches for, and without the "Checking" placeholder when a status is
+    /// already on screen so the rows do not flicker on every open.
+    func menuWillOpen(_ menu: NSMenu) {
+        guard Self.executablePath(for: "claude-usage") != nil else { return }
+        guard ClaudeUsageRefreshPolicy.shouldRefresh(lastCheckedAt: claudeUsageLastCheckedAt) else { return }
+        recheckClaudeUsage(showsProgress: claudeUsageStatus == nil)
     }
 }
 

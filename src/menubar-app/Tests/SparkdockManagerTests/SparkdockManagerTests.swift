@@ -4,6 +4,22 @@ import Foundation
 
 final class SparkdockManagerTests: XCTestCase {
 
+    func testClaudeUsageRefreshOnFirstMenuOpen() {
+        XCTAssertTrue(ClaudeUsageRefreshPolicy.shouldRefresh(lastCheckedAt: nil))
+    }
+
+    func testClaudeUsageRefreshThrottledInsideCacheWindow() {
+        let now = Date()
+        let lastChecked = now.addingTimeInterval(-(ClaudeUsageRefreshPolicy.minimumInterval - 1))
+        XCTAssertFalse(ClaudeUsageRefreshPolicy.shouldRefresh(lastCheckedAt: lastChecked, now: now))
+    }
+
+    func testClaudeUsageRefreshAfterCacheWindow() {
+        let now = Date()
+        let lastChecked = now.addingTimeInterval(-ClaudeUsageRefreshPolicy.minimumInterval)
+        XCTAssertTrue(ClaudeUsageRefreshPolicy.shouldRefresh(lastCheckedAt: lastChecked, now: now))
+    }
+
     func testPackageStructure() {
         XCTAssertTrue(true, "Package structure test passed")
     }
