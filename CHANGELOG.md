@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `sjust sf-harness-skill list|enable|disable <skill>` to turn a single AI harness skill off per user; a disabled skill stays installed in `~/.agents/skills/` and only loses its per-tool symlinks, recorded as `disabled_skills` in `~/.config/sparkdock/harness.json`
 - Added `sjust claude-output-style-{set,reset,info}` and provisioning that defaults Claude Code's output style to `Concise` (Ansible tag `claude-output-style`). The key is written only when no style is set, so it never overrides a developer's own choice. Requires Claude Code v2.1.237 or later
 - Added a redesigned Sparkdock Manager menu with custom section headers, compact status badges, consistent action icons and naming, conditional update actions, and a Claude Code section with separate five-hour and weekly utilization rows, normalized reset times, stale and authentication states, in-place refresh, and automatic `claude-usage` provider installation without its separate desktop reader
 - Added automatic installation of the `herdr` agent skill during provisioning: `sjust/scripts/herdr/setup.sh` generates `~/.agents/skills/herdr/SKILL.md` from the installed binary (`herdr --skill`) and symlinks it into each AI coding tool's skills directory, so the skill tracks the installed herdr version. Runs via the `herdr` Ansible tag (also under `ai-harness` / `ai-harness-sync`) on macOS and Linux, and manually with `sjust sf-herdr-skill-install` / `sf-herdr-skill-uninstall`

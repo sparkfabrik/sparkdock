@@ -82,6 +82,76 @@ os.replace(temporary_path, config_path)
 " "${HARNESS_CONFIG_PATH}" "${action}" "${category}"
 }
 
+list_disabled_skills() {
+    if [[ ! -f "${HARNESS_CONFIG_PATH}" ]]; then
+        return
+    fi
+
+    python3 -c "
+import json, re, sys
+
+try:
+    with open(sys.argv[1]) as file:
+        data = json.load(file)
+    if data.get('version') != 1:
+        raise ValueError('unsupported config version')
+    skills = data.get('disabled_skills', [])
+    if not isinstance(skills, list) or not all(isinstance(item, str) for item in skills):
+        raise ValueError('disabled_skills must be an array of strings')
+    invalid = [
+        item
+        for item in skills
+        if re.fullmatch(r'[a-z0-9]+(?:[a-z0-9-]*[a-z0-9])?', item) is None
+    ]
+    if invalid:
+        raise ValueError(f'invalid disabled skills: {\", \".join(sorted(set(invalid)))}')
+    for skill in sorted(set(skills)):
+        print(skill)
+except Exception as error:
+    print(f'Invalid harness config: {error}', file=sys.stderr)
+    sys.exit(1)
+" "${HARNESS_CONFIG_PATH}"
+}
+
+set_skill_disabled_state() {
+    local action="$1"
+    local skill="$2"
+
+    python3 -c "
+import json, os, sys, tempfile
+
+config_path, action, skill = sys.argv[1:]
+data = {'version': 1}
+if os.path.exists(config_path):
+    with open(config_path) as file:
+        data = json.load(file)
+    if data.get('version') != 1:
+        raise ValueError('unsupported config version')
+
+skills = data.get('disabled_skills', [])
+if not isinstance(skills, list) or not all(isinstance(item, str) for item in skills):
+    raise ValueError('disabled_skills must be an array of strings')
+
+disabled = set(skills)
+if action == 'disable':
+    disabled.add(skill)
+elif action == 'enable':
+    disabled.discard(skill)
+else:
+    raise ValueError(f'unsupported skill action: {action}')
+
+data['version'] = 1
+data['disabled_skills'] = sorted(disabled)
+config_dir = os.path.dirname(config_path)
+os.makedirs(config_dir, exist_ok=True)
+with tempfile.NamedTemporaryFile('w', dir=config_dir, delete=False) as temporary:
+    json.dump(data, temporary, indent=2)
+    temporary.write('\n')
+    temporary_path = temporary.name
+os.replace(temporary_path, config_path)
+" "${HARNESS_CONFIG_PATH}" "${action}" "${skill}"
+}
+
 category_has_skills() {
     local category="$1"
     local category_dir="${CACHE_DIR}/${SKILLS_ROOT_SUBDIR}/${category}"

@@ -76,6 +76,9 @@ jobs:
           just --justfile sjust/justfile --dry-run sf-harness-category list
           just --justfile sjust/justfile --dry-run sf-harness-category
           just --justfile sjust/justfile --dry-run sf-harness-category enable angular
+          just --justfile sjust/justfile --dry-run sf-harness-skill list
+          just --justfile sjust/justfile --dry-run sf-harness-skill
+          just --justfile sjust/justfile --dry-run sf-harness-skill disable adr-creator
 
       - name: Test make install-sjust with git check disabled
         run: |
