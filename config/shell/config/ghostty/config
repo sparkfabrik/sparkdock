@@ -16,7 +16,6 @@ font-size = 18
 quit-after-last-window-closed = true
 copy-on-select = clipboard
 confirm-close-surface = false
-mouse-scroll-multiplier = 2
 
 # MacOS Specific
 macos-non-native-fullscreen = true
