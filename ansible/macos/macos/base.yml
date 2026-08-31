@@ -201,14 +201,31 @@
         upgrade_all: false
       become: false
 
-    - name: Remove unwanted packages
+    - name: Check unwanted Homebrew formulae
       tags: brew_packages
-      community.general.homebrew:
-        name: "{{ item }}"
-        state: absent
-        update_homebrew: false
+      ansible.builtin.command:
+        argv:
+          - brew
+          - list
+          - --formula
+          - "{{ item }}"
       loop: "{{ all_removed_homebrew }}"
+      register: unwanted_homebrew_formulae
       when: all_removed_homebrew | length > 0
+      become: false
+      changed_when: false
+      failed_when: false
+
+    - name: Remove unwanted Homebrew formulae
+      tags: brew_packages
+      ansible.builtin.command:
+        argv:
+          - brew
+          - uninstall
+          - --formula
+          - "{{ item.item }}"
+      loop: "{{ unwanted_homebrew_formulae.results | default([]) }}"
+      when: item.rc == 0
       become: false
 
     - name: Install-once casks (install if absent, never reinstall a healthy app)

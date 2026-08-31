@@ -158,6 +158,11 @@ jobs:
           # Test that upgrade-system command can be parsed (dry-run)
           sjust --dry-run system-upgrade
 
+          # Test Upterm shared workflows and their required arguments
+          sjust --dry-run upterm-host github test-user
+          sjust --dry-run upterm-host github test-user forward
+          sjust --dry-run upterm-session
+
       - name: Test sjust with non-interactive environment
         env:
           NON_INTERACTIVE: "true"
