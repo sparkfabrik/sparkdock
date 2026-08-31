@@ -108,6 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed the managed Ghostty config: `mouse-scroll-multiplier` back to the default of 1, `async-backend = epoll` (Linux; macOS keeps kqueue), SSH TERM compatibility via `shell-integration-features = ssh-env`, the resize overlay hidden, and Shift+Enter / Alt+Shift+Enter sent as CSI-u sequences instead of a literal newline
 - Provisioning now installs the latest `claude-usage` release on every run instead of pinning `v0.6.0`: the version pin and the `creates:` guard are gone, so an already-installed copy is upgraded (currently to `v0.7.0`, which reads limits from the OAuth endpoint and enriches `--status`). The upstream installer short-circuits when the recorded version already matches, so repeated runs stay cheap and the task only reports `changed` when binaries are actually installed
 - Folded Sparkdock Manager upgrade actions into the System status rows and scoped refresh controls to their respective sections
 - Moved the Sparkdock Manager Claude usage refresh control beside its section title and made it more visible
