@@ -211,15 +211,15 @@ class SkillToggleIntegrationTest(unittest.TestCase):
         self.run_sync("skill", "enable", "core")
         self.assertEqual([], self.read_config()["disabled_skills"])
 
-    def test_skill_list_reports_state_and_visibility(self) -> None:
+    def test_skill_list_reports_owner_and_state(self) -> None:
         self.run_sync()
         self.run_sync("skill", "disable", "core")
 
         output = ANSI_ESCAPE.sub("", self.run_sync("skill", "list").stdout)
         output = output.replace("│", " ")
 
-        self.assertRegex(output, r"core\s+system\s+disabled\s+OpenCode")
-        self.assertRegex(output, r"gh\s+system\s+enabled\s+Claude Code")
+        self.assertRegex(output, r"core\s+system\s+disabled")
+        self.assertRegex(output, r"gh\s+system\s+enabled")
 
     def test_status_marks_a_disabled_skill_without_reporting_an_issue(self) -> None:
         self.run_sync()
@@ -228,10 +228,29 @@ class SkillToggleIntegrationTest(unittest.TestCase):
         output = self.run_status()
 
         self.assertRegex(
-            output, r"core\s+managed\s+disabled \(linked off\)\s+off\s+off\s+native"
+            output, r"core\s+managed\s+disabled \(unlinked\)\s+off\s+off\s+native"
         )
         self.assertNotIn("symlink missing", output)
         self.assertNotIn("can't discover these skills", output)
+
+    def test_a_stale_disabled_entry_is_listed_and_can_be_cleared(self) -> None:
+        self.run_sync()
+        self.run_sync("skill", "disable", "core")
+
+        # The skill disappears upstream, so the sync removes it and its manifest
+        # entry, leaving only the config entry behind.
+        (self.upstream / "skills" / "system" / "core" / "SKILL.md").unlink()
+        (self.upstream / "skills" / "system" / "core").rmdir()
+        self.git("add", "-A")
+        self.git("commit", "-m", "drop core")
+        self.run_sync()
+        self.assertNotIn("core", self.read_manifest()["skills"])
+
+        output = ANSI_ESCAPE.sub("", self.run_sync("skill", "list").stdout)
+        self.assertRegex(output.replace("│", " "), r"core\s+unknown\s+disabled")
+
+        self.run_sync("skill", "enable", "core")
+        self.assertEqual([], self.read_config()["disabled_skills"])
 
     def test_a_malformed_disabled_skills_value_fails_closed(self) -> None:
         self.run_sync()

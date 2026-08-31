@@ -489,44 +489,6 @@ apply_category_action() {
 
 # --- Per-skill enable/disable ---
 
-# Comma separated labels of the tools that currently see a skill.
-# Args: <skill_name>
-skill_tool_visibility() {
-    local skill_name="$1"
-    local tool_id native is_native link joined=""
-    local -a seen=()
-
-    for tool_id in $(printf '%s\n' "${!TOOL_SKILLS_DIR[@]}" | sort); do
-        tool_is_enabled "${tool_id}" || continue
-
-        is_native=false
-        for native in "${TOOLS_NATIVE_DISCOVERY[@]}"; do
-            [[ "${tool_id}" == "${native}" ]] && is_native=true
-        done
-
-        if [[ "${is_native}" = true ]]; then
-            [[ -f "${SKILLS_TARGET_DIR}/${skill_name}/SKILL.md" ]] && seen+=("${TOOL_LABEL[${tool_id}]}")
-            continue
-        fi
-
-        link="${TOOL_SKILLS_DIR[${tool_id}]}/${skill_name}"
-        if [[ -L "${link}" ]] && [[ "$(readlink "${link}")" == "${SKILLS_TARGET_DIR}/${skill_name}" ]]; then
-            seen+=("${TOOL_LABEL[${tool_id}]}")
-        fi
-    done
-
-    if [[ ${#seen[@]} -eq 0 ]]; then
-        printf 'none\n'
-        return
-    fi
-
-    local label
-    for label in "${seen[@]}"; do
-        joined+="${joined:+, }${label}"
-    done
-    printf '%s\n' "${joined}"
-}
-
 print_skill_states() {
     load_disabled_skill_names
 
@@ -561,12 +523,12 @@ print_skill_states() {
         return
     fi
 
-    local skills_table="SKILL"$'\t'"OWNER"$'\t'"STATE"$'\t'"TOOLS"
+    local skills_table="SKILL"$'\t'"OWNER"$'\t'"STATE"
     local state
     for name in $(printf '%s\n' "${!skill_owner_map[@]}" | sort); do
         state="enabled"
         skill_is_disabled "${name}" && state="disabled"
-        skills_table+=$'\n'"${name}"$'\t'"${skill_owner_map[${name}]}"$'\t'"${state}"$'\t'"$(skill_tool_visibility "${name}")"
+        skills_table+=$'\n'"${name}"$'\t'"${skill_owner_map[${name}]}"$'\t'"${state}"
     done
 
     render_category_table "${skills_table}"
@@ -609,9 +571,11 @@ apply_skill_action() {
         return 2
     fi
 
+    load_disabled_skill_names
     local managed_names
     managed_names="$(get_managed_skill_names)"
-    if [[ -z "${managed_names}" ]] || ! echo "${managed_names}" | grep -Fqx "${skill}"; then
+    if { [[ -z "${managed_names}" ]] || ! echo "${managed_names}" | grep -Fqx "${skill}"; } \
+        && ! { [[ "${action}" == "enable" ]] && skill_is_disabled "${skill}"; }; then
         if [[ "${skill}" == "herdr" ]]; then
             log_error "herdr is not synced from the harness repository."
             log_info "Use '$(get_harness_runner) sf-herdr-skill-uninstall' to remove it."

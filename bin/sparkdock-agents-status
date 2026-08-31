@@ -176,7 +176,7 @@ render_table() {
                 s/up to date/\e[38;5;40mup to date\e[0m/g;
                 s/locally modified/\e[38;5;220mlocally modified\e[0m/g;
                 s/preserved conflict/\e[38;5;220mpreserved conflict\e[0m/g;
-                s/disabled \(linked off\)/\e[2mdisabled (linked off)\e[0m/g;
+                s/disabled \(unlinked\)/\e[2mdisabled (unlinked)\e[0m/g;
                 s/pending removal/\e[38;5;220mpending removal\e[0m/g;
                 s/\bincomplete\b/\e[38;5;220mincomplete\e[0m/g;
                 s/\bunavailable\b/\e[38;5;196munavailable\e[0m/g;
@@ -500,7 +500,7 @@ if [[ -d "${SKILLS_DIR}" ]]; then
             fi
             [[ "${status}" == "update available" ]] && UPDATES_AVAILABLE=true
             if skill_is_disabled "${skill_name}"; then
-                status="disabled (linked off)"
+                status="disabled (unlinked)"
                 DISABLED_SKILLS_FOUND=true
             fi
             skill_desc=$(get_catalog_description "skills" "${skill_name}")
