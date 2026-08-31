@@ -118,7 +118,7 @@ set_skill_disabled_state() {
     local skill="$2"
 
     python3 -c "
-import json, os, sys, tempfile
+import json, os, re, sys, tempfile
 
 config_path, action, skill = sys.argv[1:]
 data = {'version': 1}
@@ -131,6 +131,13 @@ if os.path.exists(config_path):
 skills = data.get('disabled_skills', [])
 if not isinstance(skills, list) or not all(isinstance(item, str) for item in skills):
     raise ValueError('disabled_skills must be an array of strings')
+invalid = [
+    item
+    for item in skills
+    if re.fullmatch(r'[a-z0-9]+(?:[a-z0-9-]*[a-z0-9])?', item) is None
+]
+if invalid:
+    raise ValueError(f'invalid disabled skills: {\", \".join(sorted(set(invalid)))}')
 
 disabled = set(skills)
 if action == 'disable':

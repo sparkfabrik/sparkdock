@@ -252,6 +252,42 @@ class SkillToggleIntegrationTest(unittest.TestCase):
         self.run_sync("skill", "enable", "core")
         self.assertEqual([], self.read_config()["disabled_skills"])
 
+    def test_disable_keeps_a_user_alias_that_only_shares_the_name(self) -> None:
+        self.run_sync()
+        # A hand-made alias in the tool directory: named after one managed skill,
+        # pointing at a different one. Disabling "core" must not delete it.
+        alias = self.tool_link("claude", "core")
+        alias.unlink()
+        alias.symlink_to(
+            self.home / ".agents" / "skills" / "gh", target_is_directory=True
+        )
+
+        self.run_sync("skill", "disable", "core")
+
+        self.assertTrue(alias.is_symlink(), "user alias was removed")
+        self.assertEqual(
+            str(self.home / ".agents" / "skills" / "gh"), os.readlink(alias)
+        )
+
+    def test_the_writer_refuses_to_rewrite_a_config_the_reader_rejects(self) -> None:
+        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        original = json.dumps({"version": 1, "disabled_skills": ["Bad Name"]}) + "\n"
+        self.config_path.write_text(original)
+
+        script = (
+            f'set -euo pipefail; source "{REPO_ROOT}/bin/common/skill-categories.sh"; '
+            "set_skill_disabled_state disable core"
+        )
+        result = subprocess.run(
+            ["bash", "-c", script],
+            env=self.environment,
+            text=True,
+            capture_output=True,
+        )
+
+        self.assertNotEqual(0, result.returncode)
+        self.assertEqual(original, self.config_path.read_text())
+
     def test_a_malformed_disabled_skills_value_fails_closed(self) -> None:
         self.run_sync()
         self.config_path.parent.mkdir(parents=True, exist_ok=True)

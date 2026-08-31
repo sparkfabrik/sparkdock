@@ -198,7 +198,9 @@ ensure_tool_symlinks() {
     done
 
     # Clean up symlinks that point into ~/.agents/skills/ but should no longer
-    # exist: the target is gone, or the user disabled the skill.
+    # exist: the target is gone, or the link is a disabled skill's own link.
+    # The disabled case matches on name, so it also checks the target: a user
+    # alias sharing the name but pointing elsewhere is not ours to remove.
     # Guard: if directory is empty, the glob expands to a literal "*"; -L catches it.
     for entry in "${tool_skills_dir}"/*; do
         [[ -L "${entry}" ]] || continue
@@ -212,7 +214,7 @@ ensure_tool_symlinks() {
             rm -f "${entry}"
             TOOL_CLEANED[${tool_id}]=$((TOOL_CLEANED[${tool_id}] + 1))
             log_info "${tool_label}: removed stale symlink ${stale_name}"
-        elif skill_is_disabled "${stale_name}"; then
+        elif skill_is_disabled "${stale_name}" && [[ "${link_target}" == "${SKILLS_TARGET_DIR}/${stale_name}" ]]; then
             rm -f "${entry}"
             TOOL_CLEANED[${tool_id}]=$((TOOL_CLEANED[${tool_id}] + 1))
             log_info "${tool_label}: unlinked ${stale_name} (disabled by user)"
