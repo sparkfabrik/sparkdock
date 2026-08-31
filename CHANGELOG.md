@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Added `sjust sf-harness-skill list|enable|disable <skill>` to turn a single AI harness skill off per user; a disabled skill stays installed in `~/.agents/skills/` and only loses its per-tool symlinks, recorded as `disabled_skills` in `~/.config/sparkdock/harness.json`
+- Added authenticated `sjust` and Linux `ajust` Upterm workflows for hosting a shell, inspecting the active session, and explicitly enabling local TCP forwarding without automatic SFTP approval
 - Added `sjust claude-output-style-{set,reset,info}` and provisioning that defaults Claude Code's output style to `Concise` (Ansible tag `claude-output-style`). The key is written only when no style is set, so it never overrides a developer's own choice. Requires Claude Code v2.1.237 or later
 - Added a redesigned Sparkdock Manager menu with custom section headers, compact status badges, consistent action icons and naming, conditional update actions, and a Claude Code section with separate five-hour and weekly utilization rows, normalized reset times, stale and authentication states, in-place refresh, and automatic `claude-usage` provider installation without its separate desktop reader
 - Added automatic installation of the `herdr` agent skill during provisioning: `sjust/scripts/herdr/setup.sh` generates `~/.agents/skills/herdr/SKILL.md` from the installed binary (`herdr --skill`) and symlinks it into each AI coding tool's skills directory, so the skill tracks the installed herdr version. Runs via the `herdr` Ansible tag (also under `ai-harness` / `ai-harness-sync`) on macOS and Linux, and manually with `sjust sf-herdr-skill-install` / `sf-herdr-skill-uninstall`
@@ -109,6 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Migrated Upterm from the retired Homebrew formula to the upstream `owenthereal/upterm/upterm` cask, with formula-only cleanup before cask installation; the legacy `tmate()` shim now points to the authenticated sharing recipe instead of starting an unrestricted session
 - Changed the managed Ghostty config: `mouse-scroll-multiplier` back to the default of 1, `async-backend = epoll` (Linux; macOS keeps kqueue), SSH TERM compatibility via `shell-integration-features = ssh-env`, the resize overlay hidden, and Shift+Enter / Alt+Shift+Enter sent as CSI-u sequences instead of a literal newline
 - Provisioning now installs the latest `claude-usage` release on every run instead of pinning `v0.6.0`: the version pin and the `creates:` guard are gone, so an already-installed copy is upgraded (currently to `v0.7.0`, which reads limits from the OAuth endpoint and enriches `--status`). The upstream installer short-circuits when the recorded version already matches, so repeated runs stay cheap and the task only reports `changed` when binaries are actually installed
 - Folded Sparkdock Manager upgrade actions into the System status rows and scoped refresh controls to their respective sections

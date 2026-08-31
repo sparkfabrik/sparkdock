@@ -49,10 +49,11 @@ See: https://upterm.dev/"
       echo "" >&2
     fi
     if command_exists upterm; then
-      echo "Running: upterm host -- ${SHELL}" >&2
-      upterm host -- "${SHELL}"
+      echo "Run an authenticated session instead:" >&2
+      echo "  sjust upterm-host github <username>" >&2
+      return 2
     else
-      echo "Install upterm first: brew install upterm" >&2
+      echo "Install upterm first: brew install --cask owenthereal/upterm/upterm" >&2
       return 127
     fi
   }
