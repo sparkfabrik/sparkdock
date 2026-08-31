@@ -2,6 +2,7 @@ taps:
   - asmvik/formulae
   - charmbracelet/tap
   - anomalyco/tap
+  - owenthereal/upterm
 
 # Cloud Tools, Applications, and Fonts
 cask_packages:
@@ -40,6 +41,7 @@ cask_latest_packages:
   - claude-code@latest
   - copilot-cli
   - gcloud-cli
+  - upterm
 
 homebrew_packages:
   # Modern bash (5.x). macOS still ships /bin/bash 3.2 because bash 4+ is GPLv3.
@@ -81,7 +83,6 @@ homebrew_packages:
   - jq
   - yq
   - yadm
-  - upterm
   - tmux
   - watch
   - zoxide
@@ -123,6 +124,7 @@ removed_homebrew_packages:
   - "node@20"
   - docker-compose
   - "php@8.3"
+  - upterm
   - tmate
   - lima
   - llm
