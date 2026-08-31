@@ -361,6 +361,10 @@ Codex CLI is in the skills registry only (`~/.codex/skills`), and it is optional
 
 Located at `~/.cache/sparkdock/sf-skills-manifest.json`. V2 format with `skills` and `agents` top-level keys. V1 manifests upgrade organically (no migration code). Agent entries use composite keys like `the-architect/copilot`.
 
+### User Configuration
+
+`~/.config/sparkdock/harness.json` (version `1`) holds the two per-user opt-in/opt-out lists, written atomically by `bin/common/skill-categories.sh`: `enabled_skill_categories` (which optional categories to install) and `disabled_skills` (which individual skills to keep installed but unlinked). Both readers fail closed — a malformed value aborts the sync rather than silently defaulting to "nothing configured", so a broken file can never re-link a skill the user turned off. The file is created on demand; there is no Ansible task for it.
+
 ### Catalog Metadata
 
 The upstream repo provides `config/catalog.json` with short human-friendly descriptions for each system skill and agent. The status script reads this file from the local cache (`~/.cache/sparkdock/agent-skills/config/catalog.json`) to display a DESCRIPTION column in the table. No sync changes are needed — the file is part of the cloned cache.
@@ -370,6 +374,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `sf-harness-status` — Show full AI coding harness status (tools + skills + profiles)
 - `sf-harness-sync [force]` — Fast sync: skills + agent profiles from upstream
 - `sf-harness-upgrade [force]` — Full upgrade via Ansible (RTK + caveman + gh gate + skills)
+- `sf-harness-skill list|enable|disable <skill>` — per-user opt-out for a single skill. A disabled skill stays installed in `~/.agents/skills/` and only loses its per-tool symlinks, so re-enabling is instant and offline. OpenCode reads `~/.agents/skills/` natively and still loads disabled skills
 - `sf-herdr-skill-{install,uninstall}` — install or remove the `herdr` agent skill. The skill is generated from the installed binary (`herdr --skill`) and symlinked per tool, so it tracks the installed herdr version instead of the upstream harness repo
 - `claude-gh-gate-{enable,disable,info}` — manage the Claude Code gh skill gate (blocks `gh` until the `gh` skill loads; bypass at runtime with `SPARKDOCK_GH_GATE=0`)
 - `claude-output-style-{set,reset,info}` — manage the default Claude Code output style. Provisioning sets `Concise` only when no style is configured, so it never overrides a developer's own choice

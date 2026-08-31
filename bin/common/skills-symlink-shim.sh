@@ -71,6 +71,7 @@ tool_is_enabled() {
 # ============================================================================
 # Used by sparkdock-agents-sync
 # Depends on globals: MANIFEST_PATH, SKILLS_TARGET_DIR, FORCE (from caller)
+# and SKILLS_DISABLED_NAMES (set here via load_disabled_skill_names)
 # ============================================================================
 
 # Per-tool counters (associative arrays, keyed by tool_id)
@@ -94,9 +95,25 @@ get_managed_skill_names() {
     } | sort -u
 }
 
+# User-disabled skills, newline separated. Populated by load_disabled_skill_names()
+# and read by ensure_tool_symlinks() and check_tool_availability(). A disabled skill
+# stays installed in ~/.agents/skills/ but gets no per-tool symlink.
+SKILLS_DISABLED_NAMES=""
+
+load_disabled_skill_names() {
+    SKILLS_DISABLED_NAMES="$(list_disabled_skills)"
+}
+
+# Args: <skill_name>
+skill_is_disabled() {
+    [[ -n "${SKILLS_DISABLED_NAMES}" ]] || return 1
+    echo "${SKILLS_DISABLED_NAMES}" | grep -Fqx "$1"
+}
+
 # Create per-skill symlinks in a tool's skills directory for managed skills.
 # Handles collisions (foreign symlinks, user content) with skip+warn.
-# Cleans up stale symlinks that point into ~/.agents/skills/ but no longer exist.
+# Skips skills the user disabled, and removes symlinks that point into
+# ~/.agents/skills/ but no longer exist or belong to a disabled skill.
 # Args: <tool_id> [managed_names]
 #   tool_id:       key from TOOL_SKILLS_DIR (e.g. "copilot", "claude")
 #   managed_names: optional pre-fetched output of get_managed_skill_names()
@@ -138,6 +155,11 @@ ensure_tool_symlinks() {
             continue
         fi
 
+        # Skills the user disabled stay installed but are never linked.
+        if skill_is_disabled "${skill_name}"; then
+            continue
+        fi
+
         local target="${tool_skills_dir}/${skill_name}"
         local source="${SKILLS_TARGET_DIR}/${skill_name}"
 
@@ -175,19 +197,27 @@ ensure_tool_symlinks() {
         log_success "${tool_label}: symlinked ${skill_name}"
     done
 
-    # Clean up stale symlinks (point into ~/.agents/skills/ but target no longer exists).
+    # Clean up symlinks that point into ~/.agents/skills/ but should no longer
+    # exist: the target is gone, or the link is a disabled skill's own link.
+    # The disabled case matches on name, so it also checks the target: a user
+    # alias sharing the name but pointing elsewhere is not ours to remove.
     # Guard: if directory is empty, the glob expands to a literal "*"; -L catches it.
     for entry in "${tool_skills_dir}"/*; do
         [[ -L "${entry}" ]] || continue
-        local link_target
+        local link_target stale_name
         link_target="$(readlink "${entry}")"
         # Only touch symlinks that point into our managed skills directory
-        if [[ "${link_target}" == "${SKILLS_TARGET_DIR}/"* ]] && [[ ! -d "${link_target}" ]]; then
+        [[ "${link_target}" == "${SKILLS_TARGET_DIR}/"* ]] || continue
+        stale_name="$(basename "${entry}")"
+
+        if [[ ! -d "${link_target}" ]]; then
             rm -f "${entry}"
             TOOL_CLEANED[${tool_id}]=$((TOOL_CLEANED[${tool_id}] + 1))
-            local stale_name
-            stale_name="$(basename "${entry}")"
             log_info "${tool_label}: removed stale symlink ${stale_name}"
+        elif skill_is_disabled "${stale_name}" && [[ "${link_target}" == "${SKILLS_TARGET_DIR}/${stale_name}" ]]; then
+            rm -f "${entry}"
+            TOOL_CLEANED[${tool_id}]=$((TOOL_CLEANED[${tool_id}] + 1))
+            log_info "${tool_label}: unlinked ${stale_name} (disabled by user)"
         fi
     done
 }
@@ -202,8 +232,10 @@ ensure_tool_symlinks() {
 tool_symlink_issues=()
 
 # Check whether a managed skill is discoverable by a specific tool.
-# Sets TOOL_AVAILABLE to "ok" or "partial". Appends a descriptive entry
-# to tool_symlink_issues when the skill is not properly linked.
+# Sets TOOL_AVAILABLE to "ok", "partial", "off" (disabled by the user),
+# "native" (disabled but still discovered natively) or "-" (tool not here).
+# Appends a descriptive entry to tool_symlink_issues when the skill is not
+# properly linked; a disabled skill is never reported as an issue.
 # IMPORTANT: Must be called directly (not inside $(...) or a pipeline)
 # so that array side effects propagate to the caller.
 # Args: <tool_id> <skill_name>
@@ -223,6 +255,12 @@ check_tool_availability() {
     local native
     for native in "${TOOLS_NATIVE_DISCOVERY[@]}"; do
         if [[ "${tool_id}" == "${native}" ]]; then
+            # A disabled skill is still discovered natively: there is no symlink
+            # layer to remove, so report it honestly rather than as "off".
+            if skill_is_disabled "${skill_name}"; then
+                TOOL_AVAILABLE="native"
+                return
+            fi
             if [[ -f "${SKILLS_DIR}/${skill_name}/SKILL.md" ]]; then
                 TOOL_AVAILABLE="ok"
             else
@@ -231,6 +269,12 @@ check_tool_availability() {
             return
         fi
     done
+
+    # The user disabled this skill: no symlink is expected, so this is not an issue.
+    if skill_is_disabled "${skill_name}"; then
+        TOOL_AVAILABLE="off"
+        return
+    fi
 
     local tool_target="${TOOL_SKILLS_DIR[${tool_id}]}/${skill_name}"
 

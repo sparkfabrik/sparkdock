@@ -242,6 +242,7 @@ The app is automatically installed as a LaunchAgent (`com.sparkfabrik.sparkdock.
 ### Customization
 
 - **Custom Tasks**: Add to `~/.config/sjust/100-custom.just`
+- **AI Coding Harness**: Enable optional skill categories and turn individual skills off in `~/.config/sparkdock/harness.json` (`sjust sf-harness-category`, `sjust sf-harness-skill`)
 - **Package Lists**: Modify `/opt/sparkdock/config/packages/all-packages.yml`
 - **System Settings**: Edit Ansible playbooks in `/opt/sparkdock/ansible/`
 

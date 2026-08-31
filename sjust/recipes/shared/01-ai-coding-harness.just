@@ -31,6 +31,26 @@ sf-harness-category $action="list" $category="" $force="":
     fi
     {{sparkdock_path}}/bin/sparkdock-agents-sync "${args[@]}"
 
+# Turn a single skill off for this user. A disabled skill stays installed in
+# ~/.agents/skills/ and only loses its per-tool symlinks, so re-enabling is instant.
+# Examples: sf-harness-skill list
+#           sf-harness-skill disable adr-creator
+#           sf-harness-skill enable adr-creator
+[group('ai-coding-harness')]
+[no-exit-message]
+sf-harness-skill $action="list" $skill="" $force="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    args=(skill "${action}")
+    if [[ "${action}" != "list" ]]; then
+        [[ -n "${skill}" ]] || { echo "ERROR: skill name is required for ${action}."; exit 2; }
+        args+=("${skill}")
+    fi
+    if [[ "${force}" == "force" || "${force}" == "--force" ]]; then
+        args+=(--force)
+    fi
+    {{sparkdock_path}}/bin/sparkdock-agents-sync "${args[@]}"
+
 # Upgrade the full AI coding harness: brew formulae, skills, agent profiles,
 # RTK hooks, caveman, and the OpenSpec CLI + global skills. Runs via Ansible (no sudo required).
 # Pass "force" or "--force" to overwrite locally modified resources.

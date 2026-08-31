@@ -5,6 +5,7 @@ set -euo pipefail
 # sparkdock-agents-sync — Sync SparkFabrik agent skills and agent profiles
 #                         from the upstream sf-agents-harness repository.
 # Usage: sparkdock-agents-sync [--force] [category <list|enable|disable> [name]]
+#                               [skill <list|enable|disable> [name]]
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 SCRIPT_NAME="$(basename "$0")"
@@ -28,6 +29,8 @@ MANIFEST_PATH="${HOME}/.cache/sparkdock/sf-skills-manifest.json"
 FORCE=false
 CATEGORY_ACTION=""
 CATEGORY_NAME=""
+SKILL_ACTION=""
+SKILL_NAME=""
 
 # Support SPARKDOCK_AGENTS_FORCE env var (used by Ansible integration)
 if [[ "${SPARKDOCK_AGENTS_FORCE:-}" == "true" ]]; then
@@ -484,6 +487,131 @@ apply_category_action() {
     log_success "Skill category ${action}d: ${category}"
 }
 
+# --- Per-skill enable/disable ---
+
+print_skill_states() {
+    load_disabled_skill_names
+
+    declare -A skill_owner_map=()
+    local name key
+    while IFS= read -r name; do
+        [[ -n "${name}" ]] && skill_owner_map["${name}"]="system"
+    done <<< "$(manifest_list_keys "skills")"
+    while IFS= read -r key; do
+        [[ -n "${key}" ]] || continue
+        skill_owner_map["${key#*/}"]="${key%%/*}"
+    done <<< "$(manifest_list_keys "${OPTIONAL_SKILLS_MANIFEST_SECTION}")"
+
+    # Keep a row for a disabled skill that is no longer installed, so a stale
+    # config entry stays visible and can be cleared.
+    if [[ -n "${SKILLS_DISABLED_NAMES}" ]]; then
+        while IFS= read -r name; do
+            [[ -n "${name}" ]] || continue
+            [[ -n "${skill_owner_map[${name}]+_}" ]] || skill_owner_map["${name}"]="unknown"
+        done <<< "${SKILLS_DISABLED_NAMES}"
+    fi
+
+    echo ""
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --bold --foreground 99 "Skills"
+    else
+        echo "Skills"
+    fi
+
+    if [[ ${#skill_owner_map[@]} -eq 0 ]]; then
+        log_info "No managed skills installed yet. Run '$(get_harness_runner) sf-harness-sync' first."
+        return
+    fi
+
+    local skills_table="SKILL"$'\t'"OWNER"$'\t'"STATE"
+    local state
+    for name in $(printf '%s\n' "${!skill_owner_map[@]}" | sort); do
+        state="enabled"
+        skill_is_disabled "${name}" && state="disabled"
+        skills_table+=$'\n'"${name}"$'\t'"${skill_owner_map[${name}]}"$'\t'"${state}"
+    done
+
+    render_category_table "${skills_table}"
+    echo ""
+    local config_line="Configuration: ${HARNESS_CONFIG_PATH}"
+    local legend_line="A disabled skill stays installed in ${SKILLS_TARGET_DIR}/ and only loses its per-tool symlinks."
+    local tip_line
+    tip_line="Tip: $(get_harness_runner) sf-harness-skill disable <skill>"
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --faint "${config_line}"
+        gum style --faint "${legend_line}"
+        gum style --faint "${tip_line}"
+    else
+        echo "${config_line}"
+        echo "${legend_line}"
+        echo "${tip_line}"
+    fi
+}
+
+# Whether the Claude Code gh skill gate is registered. Disabling the gh skill
+# while the gate is on leaves no way to load the skill the gate demands.
+gh_gate_is_enabled() {
+    local gate_script="${SCRIPT_DIR}/../sjust/scripts/claude-gh-gate.py"
+    [[ -f "${gate_script}" ]] || return 1
+    python3 "${gate_script}" info 2>/dev/null | grep -q "Configured: .*enabled"
+}
+
+apply_skill_action() {
+    local action="$1"
+    local skill="$2"
+
+    if ! validate_skill_category_name "${skill}"; then
+        log_error "Invalid skill name: ${skill}"
+        return 2
+    fi
+
+    # Disabling never removes installed content, so there is nothing to force.
+    if [[ "${action}" == "disable" ]] && [[ "${FORCE}" = true ]]; then
+        log_error "Force is not supported for 'skill disable': disabling never removes installed content."
+        return 2
+    fi
+
+    load_disabled_skill_names
+    local managed_names
+    managed_names="$(get_managed_skill_names)"
+    if { [[ -z "${managed_names}" ]] || ! echo "${managed_names}" | grep -Fqx "${skill}"; } \
+        && ! { [[ "${action}" == "enable" ]] && skill_is_disabled "${skill}"; }; then
+        if [[ "${skill}" == "herdr" ]]; then
+            log_error "herdr is not synced from the harness repository."
+            log_info "Use '$(get_harness_runner) sf-herdr-skill-uninstall' to remove it."
+        elif [[ -d "${SKILLS_TARGET_DIR}/${skill}" ]]; then
+            log_error "Not a sparkdock-managed skill: ${skill}"
+            log_info "It is installed at ${SKILLS_TARGET_DIR}/${skill} but is not tracked in the manifest."
+        else
+            log_error "Unknown skill: ${skill}"
+            log_info "Run '$(get_harness_runner) sf-harness-skill list' to see managed skills."
+        fi
+        return 2
+    fi
+
+    set_skill_disabled_state "${action}" "${skill}"
+    load_disabled_skill_names
+
+    local tool_id
+    for tool_id in $(printf '%s\n' "${!TOOL_SKILLS_DIR[@]}" | sort); do
+        ensure_tool_symlinks "${tool_id}" "${managed_names}"
+    done
+
+    if [[ "${action}" == "enable" ]]; then
+        log_success "Skill enabled: ${skill}"
+        return
+    fi
+
+    log_success "Skill disabled: ${skill} (still installed at ${SKILLS_TARGET_DIR}/${skill})"
+    if [[ -d "${HOME}/.config/opencode" ]]; then
+        log_warn "OpenCode reads ${SKILLS_TARGET_DIR} directly and will still load ${skill}."
+    fi
+    if [[ "${skill}" == "gh" ]] && gh_gate_is_enabled; then
+        log_warn "The Claude Code gh gate is enabled and blocks 'gh' until the gh skill loads."
+        log_info "Run '$(get_harness_runner) claude-gh-gate-disable', or set SPARKDOCK_GH_GATE=0, to keep using gh."
+    fi
+}
+
 # --- Agent sync ---
 
 # Sync a single agent tool profile from cache to target.
@@ -860,6 +988,8 @@ usage() {
     echo "Usage: ${SCRIPT_NAME} [--force]"
     echo "       ${SCRIPT_NAME} category list"
     echo "       ${SCRIPT_NAME} category <enable|disable> <name> [--force]"
+    echo "       ${SCRIPT_NAME} skill list"
+    echo "       ${SCRIPT_NAME} skill <enable|disable> <name>"
     echo ""
     echo "Sync SparkFabrik system resources and enabled optional skill categories."
     echo ""
@@ -869,6 +999,8 @@ usage() {
     echo "Options:"
     echo "  --force    Overwrite locally modified managed resources"
     echo "  category   List, enable, or disable optional skill categories"
+    echo "  skill      List skills, or turn one off for this user. A disabled skill"
+    echo "             stays installed and only loses its per-tool symlinks"
     echo "  -h, --help Show this help message"
 }
 
@@ -894,6 +1026,23 @@ main() {
                     exit 2
                 fi
                 ;;
+            skill)
+                shift
+                SKILL_ACTION="${1:-}"
+                if [[ "${SKILL_ACTION}" == "enable" || "${SKILL_ACTION}" == "disable" ]]; then
+                    shift
+                    SKILL_NAME="${1:-}"
+                    if [[ $# -gt 0 ]]; then
+                        shift
+                    fi
+                elif [[ "${SKILL_ACTION}" == "list" ]]; then
+                    shift
+                else
+                    log_error "Skill action must be list, enable, or disable."
+                    usage
+                    exit 2
+                fi
+                ;;
             -h|--help)
                 usage
                 exit 0
@@ -905,6 +1054,22 @@ main() {
                 ;;
         esac
     done
+
+    # Per-skill toggles only touch the local config and the symlink layer, so they
+    # need neither the network nor the upstream cache.
+    if [[ -n "${SKILL_ACTION}" ]]; then
+        if [[ "${SKILL_ACTION}" == "list" ]]; then
+            print_skill_states
+            exit 0
+        fi
+        if [[ -z "${SKILL_NAME}" ]]; then
+            log_error "Skill name is required for ${SKILL_ACTION}."
+            usage
+            exit 2
+        fi
+        apply_skill_action "${SKILL_ACTION}" "${SKILL_NAME}"
+        exit 0
+    fi
 
     log_info "Syncing SparkFabrik agent resources..."
 
@@ -940,7 +1105,9 @@ main() {
     cleanup_optional_skills
     cleanup_orphan_agents
 
-    # Create skill symlinks for all registered tools
+    # Create skill symlinks for all registered tools, minus the ones this user
+    # disabled (honoured here too, so provisioning never re-links them).
+    load_disabled_skill_names
     local managed_names
     managed_names="$(get_managed_skill_names)"
     local tool_id

@@ -27,6 +27,10 @@ SYSTEM_AGENTS_SUBDIR="agents/system"
 CATALOG_PATH="${CACHE_DIR}/config/catalog.json"
 HARNESS_RUNNER="$(get_harness_runner)"
 
+# Skills this user disabled: still installed, but deliberately not linked.
+load_disabled_skill_names
+DISABLED_SKILLS_FOUND=false
+
 # Delimiter for table data (tab avoids conflicts with commas in descriptions)
 SEP=$'\t'
 
@@ -172,6 +176,7 @@ render_table() {
                 s/up to date/\e[38;5;40mup to date\e[0m/g;
                 s/locally modified/\e[38;5;220mlocally modified\e[0m/g;
                 s/preserved conflict/\e[38;5;220mpreserved conflict\e[0m/g;
+                s/disabled \(unlinked\)/\e[2mdisabled (unlinked)\e[0m/g;
                 s/pending removal/\e[38;5;220mpending removal\e[0m/g;
                 s/\bincomplete\b/\e[38;5;220mincomplete\e[0m/g;
                 s/\bunavailable\b/\e[38;5;196munavailable\e[0m/g;
@@ -182,6 +187,8 @@ render_table() {
                 s/not installed/\e[2mnot installed\e[0m/g;
                 s/\bpartial\b/\e[38;5;220mpartial\e[0m/g;
                 s/\bok\b/\e[38;5;40mok\e[0m/g;
+                s/\boff\b/\e[2moff\e[0m/g;
+                s/\bnative\b/\e[38;5;220mnative\e[0m/g;
             '
     else
         echo "${csv_data}" | column -t -s $'\t'
@@ -492,6 +499,10 @@ if [[ -d "${SKILLS_DIR}" ]]; then
                 status="preserved conflict"
             fi
             [[ "${status}" == "update available" ]] && UPDATES_AVAILABLE=true
+            if skill_is_disabled "${skill_name}"; then
+                status="disabled (unlinked)"
+                DISABLED_SKILLS_FOUND=true
+            fi
             skill_desc=$(get_catalog_description "skills" "${skill_name}")
             append_skill_row "${skill_group}" \
                 "${skill_name}${SEP}managed${SEP}${status}${SEP}${skill_desc}${availability_cols}"
@@ -699,4 +710,7 @@ if [[ "${UPDATES_AVAILABLE}" == "true" ]]; then
 fi
 if [[ "${NEW_RESOURCES_AVAILABLE}" == "true" ]]; then
     log_warn "New resources available. Run '${HARNESS_RUNNER} sf-harness-sync' to install."
+fi
+if [[ "${DISABLED_SKILLS_FOUND}" == "true" ]] && [[ -d "${HOME}/.config/opencode" ]]; then
+    log_warn "OpenCode reads ${SKILLS_DIR} directly, so it still loads disabled skills."
 fi
