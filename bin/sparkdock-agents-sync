@@ -388,10 +388,18 @@ render_category_table() {
     local table_data="$1"
     if [[ "${HAS_GUM}" = true ]]; then
         if command -v perl &>/dev/null; then
+            # Same three tiers as render_table() in sparkdock-agents-status:
+            # 40 good, 220 attention, 196 broken. A disabled skill or category is
+            # a deliberate choice, so it is attention rather than an error.
             echo "${table_data}" | gum table --print \
                 --separator=$'\t' \
                 --border.foreground 240 \
-                | perl -pe 's/\e\[1m//g'
+                | perl -pe '
+                    s/\e\[1m//g;
+                    s/\bdisabled\b/\e[38;5;220mdisabled\e[0m/g;
+                    s/\bunknown\b/\e[38;5;220munknown\e[0m/g;
+                    s/\bunavailable\b/\e[38;5;196munavailable\e[0m/g;
+                '
         else
             echo "${table_data}" | gum table --print \
                 --separator=$'\t' \
@@ -546,6 +554,32 @@ print_skill_states() {
         echo "${legend_line}"
         echo "${tip_line}"
     fi
+}
+
+skill_usage() {
+    echo "Usage: ${SCRIPT_NAME} skill list"
+    echo "       ${SCRIPT_NAME} skill <enable|disable> <name>"
+    echo "       ${SCRIPT_NAME} skill help"
+    echo ""
+    echo "Turn a single managed skill off for this user."
+    echo ""
+    echo "A disabled skill stays installed in ${SKILLS_TARGET_DIR}/ and keeps its"
+    echo "manifest entry. Only the per-tool symlinks are removed, so re-enabling is"
+    echo "instant, works offline, and preserves any local edits to the skill."
+    echo ""
+    echo "Actions:"
+    echo "  list                 Show every managed skill, its owner and its state"
+    echo "  disable <name>       Remove the per-tool symlinks for one skill"
+    echo "  enable <name>        Recreate them"
+    echo "  help                 Show this message"
+    echo ""
+    echo "Notes:"
+    echo "  Skill names are globally unique, so no category argument is needed."
+    echo "  Only skills sparkdock manages can be toggled; run 'list' to see them."
+    echo "  OpenCode reads ${SKILLS_TARGET_DIR} directly and still loads disabled skills."
+    echo "  --force is not accepted for 'disable', which never removes content."
+    echo ""
+    echo "Configuration: ${HARNESS_CONFIG_PATH}"
 }
 
 # Whether the Claude Code gh skill gate is registered. Disabling the gh skill
@@ -1020,6 +1054,9 @@ main() {
                     [[ $# -gt 0 ]] && shift
                 elif [[ "${CATEGORY_ACTION}" == "list" ]]; then
                     shift
+                elif [[ "${CATEGORY_ACTION}" == "help" || "${CATEGORY_ACTION}" == "-h" || "${CATEGORY_ACTION}" == "--help" ]]; then
+                    usage
+                    exit 0
                 else
                     log_error "Category action must be list, enable, or disable."
                     usage
@@ -1029,19 +1066,27 @@ main() {
             skill)
                 shift
                 SKILL_ACTION="${1:-}"
-                if [[ "${SKILL_ACTION}" == "enable" || "${SKILL_ACTION}" == "disable" ]]; then
-                    shift
-                    SKILL_NAME="${1:-}"
-                    if [[ $# -gt 0 ]]; then
+                case "${SKILL_ACTION}" in
+                    enable|disable)
                         shift
-                    fi
-                elif [[ "${SKILL_ACTION}" == "list" ]]; then
-                    shift
-                else
-                    log_error "Skill action must be list, enable, or disable."
-                    usage
-                    exit 2
-                fi
+                        SKILL_NAME="${1:-}"
+                        if [[ $# -gt 0 ]]; then
+                            shift
+                        fi
+                        ;;
+                    list)
+                        shift
+                        ;;
+                    help|-h|--help)
+                        SKILL_ACTION="help"
+                        shift
+                        ;;
+                    *)
+                        log_error "Skill action must be list, enable, disable, or help."
+                        skill_usage
+                        exit 2
+                        ;;
+                esac
                 ;;
             -h|--help)
                 usage
@@ -1058,13 +1103,17 @@ main() {
     # Per-skill toggles only touch the local config and the symlink layer, so they
     # need neither the network nor the upstream cache.
     if [[ -n "${SKILL_ACTION}" ]]; then
+        if [[ "${SKILL_ACTION}" == "help" ]]; then
+            skill_usage
+            exit 0
+        fi
         if [[ "${SKILL_ACTION}" == "list" ]]; then
             print_skill_states
             exit 0
         fi
         if [[ -z "${SKILL_NAME}" ]]; then
             log_error "Skill name is required for ${SKILL_ACTION}."
-            usage
+            skill_usage
             exit 2
         fi
         apply_skill_action "${SKILL_ACTION}" "${SKILL_NAME}"

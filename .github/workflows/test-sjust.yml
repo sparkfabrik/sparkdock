@@ -79,6 +79,8 @@ jobs:
           just --justfile sjust/justfile --dry-run sf-harness-skill list
           just --justfile sjust/justfile --dry-run sf-harness-skill
           just --justfile sjust/justfile --dry-run sf-harness-skill disable adr-creator
+          just --justfile sjust/justfile --dry-run sf-harness-skill help
+          just --justfile sjust/justfile --dry-run sf-harness-skill --help
 
       - name: Test make install-sjust with git check disabled
         run: |

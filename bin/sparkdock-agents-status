@@ -176,7 +176,7 @@ render_table() {
                 s/up to date/\e[38;5;40mup to date\e[0m/g;
                 s/locally modified/\e[38;5;220mlocally modified\e[0m/g;
                 s/preserved conflict/\e[38;5;220mpreserved conflict\e[0m/g;
-                s/disabled \(unlinked\)/\e[2mdisabled (unlinked)\e[0m/g;
+                s/disabled \(unlinked\)/\e[38;5;220mdisabled (unlinked)\e[0m/g;
                 s/pending removal/\e[38;5;220mpending removal\e[0m/g;
                 s/\bincomplete\b/\e[38;5;220mincomplete\e[0m/g;
                 s/\bunavailable\b/\e[38;5;196munavailable\e[0m/g;
