@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added skill relocation handling: a skill that moves from `system` into a category is reported as a migration naming the destination category and the command that restores it, instead of as an orphan removed from upstream
+
 - Added a `help` action to `sjust sf-harness-skill` and `sf-harness-category`, reachable as `help`, `-h` or `--help`, which previously failed with a missing-name error
 
 - Added `sjust sf-harness-skill list|enable|disable <skill>` to turn a single AI harness skill off per user; a disabled skill stays installed in `~/.agents/skills/` and only loses its per-tool symlinks, recorded as `disabled_skills` in `~/.config/sparkdock/harness.json`
@@ -189,6 +191,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed `sjust sf-skills-status` backward-compatible alias (use `sf-agents-status` instead)
 
 ### Fixed
+
+- Fixed a locally modified skill that moved to another category being told to run `--force`, which would have deleted the local edits rather than restoring the skill
 
 - Fixed the Sparkdock Manager menu showing an outdated Claude Code usage reading (for example a lingering `Credentials expired`) long after the OAuth token was refreshed: usage now re-checks when the menu opens, throttled to the `claude-usage` cache window, in addition to the existing wake and network-change triggers
 - Fixed install-once casks being skipped forever after an interrupted `brew upgrade`. Homebrew moves the app into a Caskroom `.upgrading` staging directory before replacing it, so an upgrade that dies partway leaves an empty `.app` directory behind. The detection step accepted that with a `-d` test, and `brew list --cask` still reported the cask as installed, so provisioning reported success while the app stayed missing. A bundle found at `/Applications` or `~/Applications` now counts as installed only when it carries a `Contents/Info.plist`, and the install step passes `force` so a hollow bundle is replaced instead of aborting the run with "It seems there is already an App at ...". `brew list --cask` remains the fallback for a cask whose bundle is not at either standard path (a custom `HOMEBREW_CASK_OPTS=--appdir=...`, a bundle filed into a subfolder, or an entry declared without an `app` name), so those are not force-reinstalled on every run

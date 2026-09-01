@@ -175,7 +175,7 @@ list_available_skill_categories() {
     local skills_root="${CACHE_DIR}/${SKILLS_ROOT_SUBDIR}"
     local category_dir category
 
-    [[ -d "${skills_root}" ]] || return
+    [[ -d "${skills_root}" ]] || return 0
     for category_dir in "${skills_root}"/*/; do
         [[ -d "${category_dir}" ]] || continue
         category="$(basename "${category_dir}")"

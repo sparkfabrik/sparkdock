@@ -365,6 +365,12 @@ Located at `~/.cache/sparkdock/sf-skills-manifest.json`. V2 format with `skills`
 
 `~/.config/sparkdock/harness.json` (version `1`) holds the two per-user opt-in/opt-out lists, written atomically by `bin/common/skill-categories.sh`: `enabled_skill_categories` (which optional categories to install) and `disabled_skills` (which individual skills to keep installed but unlinked). Both readers fail closed — a malformed value aborts the sync rather than silently defaulting to "nothing configured", so a broken file can never re-link a skill the user turned off. The file is created on demand; there is no Ansible task for it.
 
+### Skill Relocation
+
+A skill can move between `skills/system/` and `skills/<category>/` upstream. `cleanup_orphan_skills` in `bin/sparkdock-agents-sync` tells a relocation apart from a removal using `build_upstream_skill_index`, which maps every upstream skill to its owning category whether or not that category is enabled. Moving into an **enabled** category transfers ownership and keeps the install. Moving into a **disabled** one uninstalls the skill, reports it as a migration naming the destination and the `sf-harness-category enable` command, and prints a summary box so it is not lost in a provisioning run. A locally modified skill is kept instead, and `--force` is never suggested for it. Status renders these as `migrated` / `moved to <category>` in the amber tier, not as `orphan`. The reverse direction is handled by `cleanup_optional_skills`.
+
+**Ordering rule for upstream reorganisations:** sparkdock must ship relocation support before the harness moves a skill, because every machine picks the move up on its next sync.
+
 ### Catalog Metadata
 
 The upstream repo provides `config/catalog.json` with short human-friendly descriptions for each system skill and agent. The status script reads this file from the local cache (`~/.cache/sparkdock/agent-skills/config/catalog.json`) to display a DESCRIPTION column in the table. No sync changes are needed — the file is part of the cloned cache.

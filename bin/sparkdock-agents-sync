@@ -73,6 +73,8 @@ SKILLS_SKIPPED=0
 SKILLS_UNCHANGED=0
 SKILLS_REMOVED=0
 SKILLS_ORPHAN_SKIPPED=0
+SKILLS_RELOCATED=0
+SKILLS_RELOCATION_SKIPPED=0
 AGENTS_ADDED=0
 AGENTS_UPDATED=0
 AGENTS_SKIPPED=0
@@ -315,6 +317,71 @@ sync_skills() {
     if [[ "${found}" = false ]]; then
         log_warn "No valid skills found in '${SYSTEM_SKILLS_SUBDIR}/'."
     fi
+}
+
+# Map every upstream skill name to the category that owns it, for all optional
+# categories whether or not the user enabled them. This is what lets a skill
+# that moved out of system be told apart from one that left upstream entirely.
+declare -A UPSTREAM_SKILL_CATEGORY=()
+
+build_upstream_skill_index() {
+    local category_dir category skill_dir skill_name
+    UPSTREAM_SKILL_CATEGORY=()
+
+    for category_dir in "${CACHE_DIR}/${SKILLS_ROOT_SUBDIR}"/*/; do
+        [[ -d "${category_dir}" ]] || continue
+        category="$(basename "${category_dir}")"
+        [[ "${category}" == "system" ]] && continue
+        validate_skill_category_name "${category}" || continue
+
+        for skill_dir in "${category_dir}"/*/; do
+            [[ -f "${skill_dir}/SKILL.md" ]] || continue
+            skill_name="$(basename "${skill_dir}")"
+            UPSTREAM_SKILL_CATEGORY["${skill_name}"]="${category}"
+        done
+    done
+}
+
+# Categories a skill migrated into during this run, for the closing notice.
+declare -A RELOCATED_INTO_CATEGORY=()
+
+# Handle a managed skill that left system for a category the user has not
+# enabled. Uninstalling is the right end state; being told it vanished from
+# upstream is not.
+# Args: <skill_name> <category>
+handle_relocated_skill() {
+    local skill_name="$1"
+    local category="$2"
+    local target_dir="${SKILLS_TARGET_DIR}/${skill_name}"
+
+    if [[ -f "${target_dir}/SKILL.md" ]]; then
+        local installed_sha manifest_sha
+        installed_sha="$(compute_sha256 "${target_dir}/SKILL.md")"
+        manifest_sha="$(manifest_get_sha "skills" "${skill_name}")"
+
+        if [[ -n "${manifest_sha}" ]] && [[ "${manifest_sha}" != "${installed_sha}" ]] && [[ "${FORCE}" != true ]]; then
+            SKILLS_RELOCATION_SKIPPED=$((SKILLS_RELOCATION_SKIPPED + 1))
+            RELOCATED_INTO_CATEGORY["${category}"]=1
+            log_warn "Skill moved to the ${category} category and is locally modified, so it was kept: ${skill_name}"
+            return
+        fi
+    fi
+
+    if [[ -d "${target_dir}" ]]; then
+        local resolved_path resolved_base
+        resolved_path="$(cd "${target_dir}" 2>/dev/null && pwd -P)" || resolved_path=""
+        resolved_base="$(cd "${SKILLS_TARGET_DIR}" 2>/dev/null && pwd -P)" || resolved_base=""
+        if [[ -z "${resolved_path}" || -z "${resolved_base}" || "${resolved_path}" != "${resolved_base}/"* ]]; then
+            log_error "refusing to remove path outside skills directory: ${target_dir}"
+            return
+        fi
+        rm -rf "${resolved_path}"
+    fi
+
+    manifest_remove "skills" "${skill_name}"
+    SKILLS_RELOCATED=$((SKILLS_RELOCATED + 1))
+    RELOCATED_INTO_CATEGORY["${category}"]=1
+    log_info "Skill moved from system to the ${category} category: ${skill_name}"
 }
 
 # Prepare enabled optional skills and reject flat-install name collisions before
@@ -799,6 +866,14 @@ cleanup_orphan_skills() {
             continue
         fi
 
+        # The skill left system for a category the user has not enabled. That is
+        # a migration, not a disappearance, so it is reported as one.
+        local relocated_category="${UPSTREAM_SKILL_CATEGORY[${skill_name}]:-}"
+        if [[ -n "${relocated_category}" ]]; then
+            handle_relocated_skill "${skill_name}" "${relocated_category}"
+            continue
+        fi
+
         local target_dir="${SKILLS_TARGET_DIR}/${skill_name}"
 
         # Check if user has locally modified the orphaned skill
@@ -955,8 +1030,34 @@ cleanup_orphan_agents() {
 
 # --- Summary ---
 
+# Announce skills that changed category during this run. A migration is easy to
+# miss in a long provisioning run, so it gets its own box rather than a log line.
+print_relocation_notice() {
+    [[ ${#RELOCATED_INTO_CATEGORY[@]} -gt 0 ]] || return 0
+
+    local runner category
+    runner="$(get_harness_runner)"
+
+    local notice="Skills moved to another category\n"
+    notice+="\nUpstream made these skills optional and moved them out of the"
+    notice+="\nrequired set. Their categories are not enabled here.\n"
+    if [[ "${SKILLS_RELOCATED}" -gt 0 ]]; then
+        notice+="\n  ${SKILLS_RELOCATED} uninstalled"
+    fi
+    if [[ "${SKILLS_RELOCATION_SKIPPED}" -gt 0 ]]; then
+        notice+="\n  ${SKILLS_RELOCATION_SKIPPED} kept, because you modified them locally"
+    fi
+    notice+="\n\nEnable a category to manage its skills again:\n"
+    for category in $(printf '%s\n' "${!RELOCATED_INTO_CATEGORY[@]}" | sort); do
+        notice+="\n  ${runner} sf-harness-category enable ${category}"
+    done
+
+    echo ""
+    print_summary_box "$(printf '%b' "${notice}")"
+}
+
 print_summary() {
-    local skills_total=$((SKILLS_ADDED + SKILLS_UPDATED + SKILLS_SKIPPED + SKILLS_UNCHANGED + SKILLS_REMOVED + SKILLS_ORPHAN_SKIPPED))
+    local skills_total=$((SKILLS_ADDED + SKILLS_UPDATED + SKILLS_SKIPPED + SKILLS_UNCHANGED + SKILLS_REMOVED + SKILLS_ORPHAN_SKIPPED + SKILLS_RELOCATED + SKILLS_RELOCATION_SKIPPED))
     local agents_total=$((AGENTS_ADDED + AGENTS_UPDATED + AGENTS_SKIPPED + AGENTS_UNCHANGED + AGENTS_REMOVED + AGENTS_ORPHAN_SKIPPED))
     local total=$((skills_total + agents_total))
 
@@ -970,6 +1071,8 @@ print_summary() {
         [[ "${SKILLS_REMOVED}" -gt 0 ]] && summary+=" ${SKILLS_REMOVED} removed,"
         [[ "${SKILLS_SKIPPED}" -gt 0 ]] && summary+=" ${SKILLS_SKIPPED} skipped,"
         [[ "${SKILLS_ORPHAN_SKIPPED}" -gt 0 ]] && summary+=" ${SKILLS_ORPHAN_SKIPPED} orphan-skipped,"
+        [[ "${SKILLS_RELOCATED}" -gt 0 ]] && summary+=" ${SKILLS_RELOCATED} migrated,"
+        [[ "${SKILLS_RELOCATION_SKIPPED}" -gt 0 ]] && summary+=" ${SKILLS_RELOCATION_SKIPPED} migrated-kept,"
         [[ "${SKILLS_UNCHANGED}" -gt 0 ]] && summary+=" ${SKILLS_UNCHANGED} unchanged,"
         summary="${summary%,}\n"
     fi
@@ -1007,6 +1110,8 @@ print_summary() {
         log_info "Some resources were skipped due to local modifications."
         log_info "Run '${SCRIPT_NAME} --force' to overwrite them."
     fi
+
+    print_relocation_notice
 
     local total_orphan_skipped=$((SKILLS_ORPHAN_SKIPPED + AGENTS_ORPHAN_SKIPPED))
     if [[ "${total_orphan_skipped}" -gt 0 ]]; then
@@ -1124,6 +1229,10 @@ main() {
 
     # Clone or update the repo
     sync_repo
+
+    # Index every upstream category so a relocated skill is not mistaken for
+    # one that left upstream.
+    build_upstream_skill_index
 
     if [[ "${CATEGORY_ACTION}" == "list" ]]; then
         print_skill_categories
