@@ -281,6 +281,13 @@ if command_exists openspec; then
   alias osa='openspec archive'
 fi
 
+# Spark HTTP proxy
+# Zsh completes through the alias expansion, so 'sproxy sta<TAB>' still works
+# wherever 'spark-http-proxy install-completion' has run.
+if command_exists spark-http-proxy; then
+  alias sproxy='spark-http-proxy'
+fi
+
 # Directory navigation
 alias ..='cd ..'
 alias ...='cd ../..'

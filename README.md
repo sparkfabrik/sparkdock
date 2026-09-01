@@ -205,6 +205,8 @@ spark-http-proxy stop    # Stop proxy services
 spark-http-proxy status  # Check service status
 ```
 
+`sproxy` is a shorter alias for the same command, so `sproxy status` works too.
+
 ### Menu Bar App
 
 Sparkdock includes a native macOS menu bar application that provides quick access to system status and common tasks:
