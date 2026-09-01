@@ -195,7 +195,11 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
 
         # Gone, which is right: the category is not enabled.
         self.assertFalse((self.home / ".agents" / "skills" / "core").exists())
-        self.assertFalse((self.home / ".claude" / "skills" / "core").exists())
+        # lexists, not exists: a dangling symlink is not "gone", and exists()
+        # follows the link and would report it as absent either way.
+        for tool in ("claude", "copilot"):
+            link = self.home / f".{tool}" / "skills" / "core"
+            self.assertFalse(os.path.lexists(link), f"{tool} link survived")
         self.assertNotIn("core", self.read_manifest()["skills"])
 
         # Reported as what it is, with the way back.
@@ -244,6 +248,29 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
         manifest = self.read_manifest()
         self.assertNotIn("core", manifest["skills"])
         self.assertIn("angular/core", manifest["optional_skills"])
+
+    def test_status_reports_a_move_into_system_before_the_sync_applies_it(
+        self,
+    ) -> None:
+        self.add_system_skill("keeper")
+        self.run_sync("category", "enable", "angular")
+        self.relocate_skill("angular-developer", "angular", "system")
+
+        # Status refreshes the cache but does not sync, so this is the window
+        # where the skill sits upstream in a different category than the
+        # manifest records. run_status() pins the cache with SPARKDOCK_SKIP_FETCH,
+        # which would hide the move, so let this one fetch as it does in real use.
+        status = subprocess.run(
+            [str(STATUS_SCRIPT)],
+            env=self.environment,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        output = ANSI_ESCAPE.sub("", status.stdout + status.stderr).replace("│", " ")
+
+        self.assertRegex(output, r"angular-developer\s+migrated\s+moved to system")
+        self.assertNotIn("removed from upstream", output)
 
     def test_status_shows_a_relocated_skill_as_migrated(self) -> None:
         self.add_system_skill("keeper")
