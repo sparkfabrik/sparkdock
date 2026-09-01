@@ -166,6 +166,99 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
             r"\s+->\s+~/.external/linked-skill\s+ok\s+-\s+ok",
         )
 
+    def add_system_skill(self, name: str) -> None:
+        """Commit another system skill, so a relocation does not empty the category."""
+        self.write_skill("system", name)
+        self.git("add", ".")
+        self.git("commit", "-m", f"add {name}")
+
+    def relocate_skill(self, name: str, source: str, destination: str) -> None:
+        """Move a skill between categories upstream, as a real reorganisation would."""
+        destination_dir = self.upstream / "skills" / destination
+        destination_dir.mkdir(parents=True, exist_ok=True)
+        self.git(
+            "mv",
+            f"skills/{source}/{name}",
+            f"skills/{destination}/{name}",
+        )
+        self.git("commit", "-m", f"move {name} to {destination}")
+
+    def test_relocated_skill_is_reported_as_a_migration_not_an_orphan(self) -> None:
+        self.add_system_skill("keeper")
+        self.run_sync()
+        self.assertTrue((self.home / ".agents" / "skills" / "core").is_dir())
+        self.assertTrue((self.home / ".claude" / "skills" / "core").is_symlink())
+
+        self.relocate_skill("core", "system", "security")
+        result = self.run_sync()
+        output = ANSI_ESCAPE.sub("", result.stdout + result.stderr)
+
+        # Gone, which is right: the category is not enabled.
+        self.assertFalse((self.home / ".agents" / "skills" / "core").exists())
+        self.assertFalse((self.home / ".claude" / "skills" / "core").exists())
+        self.assertNotIn("core", self.read_manifest()["skills"])
+
+        # Reported as what it is, with the way back.
+        self.assertIn("Skill moved from system to the security category: core", output)
+        self.assertIn("sf-harness-category enable security", output)
+        self.assertNotIn("no longer in upstream", output)
+
+    def test_a_modified_relocated_skill_is_kept_without_suggesting_force(self) -> None:
+        self.add_system_skill("keeper")
+        self.run_sync()
+        skill_md = self.home / ".agents" / "skills" / "core" / "SKILL.md"
+        skill_md.write_text(skill_md.read_text() + "\nlocal note\n")
+
+        self.relocate_skill("core", "system", "security")
+        result = self.run_sync()
+        output = ANSI_ESCAPE.sub("", result.stdout + result.stderr)
+
+        self.assertTrue(skill_md.is_file())
+        self.assertIn("local note", skill_md.read_text())
+        self.assertIn("locally modified, so it was kept: core", output)
+        self.assertIn("kept, because you modified them locally", output)
+        self.assertNotIn("--force", output)
+
+    def test_a_skill_that_really_left_upstream_is_still_an_orphan(self) -> None:
+        self.add_system_skill("keeper")
+        self.run_sync()
+
+        self.git("rm", "-rq", "skills/system/core")
+        self.git("commit", "-m", "drop core")
+        result = self.run_sync()
+        output = ANSI_ESCAPE.sub("", result.stdout + result.stderr)
+
+        self.assertIn("Orphan removed: core (no longer in upstream)", output)
+        self.assertNotIn("moved from system", output)
+        self.assertFalse((self.home / ".agents" / "skills" / "core").exists())
+
+    def test_relocation_into_an_enabled_category_transfers_ownership(self) -> None:
+        self.add_system_skill("keeper")
+        self.run_sync("category", "enable", "angular")
+        self.relocate_skill("core", "system", "angular")
+
+        self.run_sync()
+
+        # Still installed, now owned by the category rather than by system.
+        self.assertTrue((self.home / ".agents" / "skills" / "core").is_dir())
+        manifest = self.read_manifest()
+        self.assertNotIn("core", manifest["skills"])
+        self.assertIn("angular/core", manifest["optional_skills"])
+
+    def test_status_shows_a_relocated_skill_as_migrated(self) -> None:
+        self.add_system_skill("keeper")
+        self.run_sync()
+        skill_md = self.home / ".agents" / "skills" / "core" / "SKILL.md"
+        skill_md.write_text(skill_md.read_text() + "\nlocal note\n")
+        self.relocate_skill("core", "system", "security")
+        self.run_sync()
+
+        output = self.run_status()
+
+        self.assertRegex(output, r"core\s+migrated\s+moved to security")
+        self.assertNotIn("removed from upstream", output)
+        self.assertIn("Some skills moved to another category", output)
+
     def run_status(self) -> str:
         status = subprocess.run(
             [str(STATUS_SCRIPT)],

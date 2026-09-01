@@ -30,6 +30,7 @@ HARNESS_RUNNER="$(get_harness_runner)"
 # Skills this user disabled: still installed, but deliberately not linked.
 load_disabled_skill_names
 DISABLED_SKILLS_FOUND=false
+RELOCATIONS_FOUND=false
 
 # Delimiter for table data (tab avoids conflicts with commas in descriptions)
 SEP=$'\t'
@@ -96,6 +97,26 @@ try:
 except Exception:
     print('')
 " "${CATALOG_PATH}" "${section}" "${name}" "${max_len}" 2>/dev/null || echo ""
+}
+
+# Echo the optional category that owns an upstream skill, or nothing. Covers
+# every category on disk, enabled or not, so a skill that moved out of system
+# is not mistaken for one that left upstream.
+# Args: <skill_name>
+find_upstream_category() {
+    local skill_name="$1"
+    local category_dir category
+
+    [[ "${CACHE_AVAILABLE}" == "true" ]] || return 0
+    for category_dir in "${CACHE_DIR}/${SKILLS_ROOT_SUBDIR}"/*/; do
+        [[ -d "${category_dir}" ]] || continue
+        category="$(basename "${category_dir}")"
+        [[ "${category}" == "system" ]] && continue
+        if [[ -f "${category_dir}/${skill_name}/SKILL.md" ]]; then
+            printf '%s\n' "${category}"
+            return
+        fi
+    done
 }
 
 # Check if an upstream resource exists at the given path.
@@ -189,6 +210,8 @@ render_table() {
                 s/\bok\b/\e[38;5;40mok\e[0m/g;
                 s/\boff\b/\e[2moff\e[0m/g;
                 s/\bnative\b/\e[38;5;220mnative\e[0m/g;
+                s/moved to [a-z0-9-]+/\e[38;5;220m$&\e[0m/g;
+                s/\bmigrated\b/\e[38;5;220mmigrated\e[0m/g;
             '
     else
         echo "${csv_data}" | column -t -s $'\t'
@@ -480,6 +503,13 @@ if [[ -d "${SKILLS_DIR}" ]]; then
             if [[ "${CACHE_AVAILABLE}" == "true" ]] && \
                [[ ! -f "${upstream_file}" ]] && \
                [[ "${skill_group}" == "system" || -n "${ENABLED_SKILL_CATEGORIES[${skill_group}]+_}" ]]; then
+                moved_to="$(find_upstream_category "${skill_name}")"
+                if [[ -n "${moved_to}" ]]; then
+                    RELOCATIONS_FOUND=true
+                    append_skill_row "${skill_group}" \
+                        "${skill_name}${SEP}migrated${SEP}moved to ${moved_to}${SEP}${empty_tool_cols}"
+                    continue
+                fi
                 ORPHANS_FOUND=true
                 append_skill_row "${skill_group}" \
                     "${skill_name}${SEP}orphan${SEP}removed from upstream${SEP}${empty_tool_cols}"
@@ -710,6 +740,9 @@ if [[ "${UPDATES_AVAILABLE}" == "true" ]]; then
 fi
 if [[ "${NEW_RESOURCES_AVAILABLE}" == "true" ]]; then
     log_warn "New resources available. Run '${HARNESS_RUNNER} sf-harness-sync' to install."
+fi
+if [[ "${RELOCATIONS_FOUND}" == "true" ]]; then
+    log_warn "Some skills moved to another category. Enable it with '${HARNESS_RUNNER} sf-harness-category enable <category>' to keep using them."
 fi
 if [[ "${DISABLED_SKILLS_FOUND}" == "true" ]] && [[ -d "${HOME}/.config/opencode" ]]; then
     log_warn "OpenCode reads ${SKILLS_DIR} directly, so it still loads disabled skills."
