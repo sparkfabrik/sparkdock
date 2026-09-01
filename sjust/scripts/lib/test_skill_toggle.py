@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -281,12 +282,65 @@ class SkillToggleIntegrationTest(unittest.TestCase):
         result = subprocess.run(
             ["bash", "-c", script],
             env=self.environment,
+            check=False,
             text=True,
             capture_output=True,
         )
 
         self.assertNotEqual(0, result.returncode)
         self.assertEqual(original, self.config_path.read_text())
+
+    def test_help_is_reachable_by_every_spelling(self) -> None:
+        for spelling in ("help", "-h", "--help"):
+            with self.subTest(spelling=spelling):
+                result = self.run_sync("skill", spelling)
+                self.assertIn("skill <enable|disable> <name>", result.stdout)
+                self.assertIn("stays installed", result.stdout)
+
+    def test_an_unknown_action_exits_two_and_shows_the_help(self) -> None:
+        result = self.run_sync("skill", "bogus", check=False)
+
+        self.assertEqual(2, result.returncode)
+        output = result.stdout + result.stderr
+        self.assertIn("must be list, enable, disable, or help", output)
+        self.assertIn("skill <enable|disable> <name>", output)
+
+    def test_disabled_state_is_rendered_in_the_attention_colour(self) -> None:
+        # Both renderers colourise what gum produced, so the fallback path
+        # (column -t, taken where gum is absent, including CI) is plain by
+        # design. Assert the colour where gum exists and the text where it does
+        # not, so the test says something either way.
+        expect_colour = shutil.which("gum") is not None
+
+        self.run_sync()
+        self.run_sync("skill", "disable", "core")
+
+        listing = subprocess.run(
+            [str(SYNC_SCRIPT), "skill", "list"],
+            env=self.environment | {"CLICOLOR_FORCE": "1"},
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        status = subprocess.run(
+            [str(STATUS_SCRIPT)],
+            env=self.environment
+            | {"SPARKDOCK_SKIP_FETCH": "true", "CLICOLOR_FORCE": "1"},
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+
+        if expect_colour:
+            # 220 is the repo's "attention, not broken" tier, shared with
+            # render_table() in sparkdock-agents-status.
+            self.assertIn("\x1b[38;5;220mdisabled\x1b[0m", listing.stdout)
+            self.assertIn("\x1b[38;5;220mdisabled (unlinked)\x1b[0m", status.stdout)
+            return
+
+        self.assertNotIn("\x1b[", listing.stdout)
+        self.assertRegex(listing.stdout, r"core\s+system\s+disabled")
+        self.assertIn("disabled (unlinked)", ANSI_ESCAPE.sub("", status.stdout))
 
     def test_a_malformed_disabled_skills_value_fails_closed(self) -> None:
         self.run_sync()

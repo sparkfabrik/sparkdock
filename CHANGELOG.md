@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a `help` action to `sjust sf-harness-skill` and `sf-harness-category`, reachable as `help`, `-h` or `--help`, which previously failed with a missing-name error
+
 - Added `sjust sf-harness-skill list|enable|disable <skill>` to turn a single AI harness skill off per user; a disabled skill stays installed in `~/.agents/skills/` and only loses its per-tool symlinks, recorded as `disabled_skills` in `~/.config/sparkdock/harness.json`
 - Added authenticated `sjust` and Linux `ajust` Upterm workflows for hosting a shell, inspecting the active session, and explicitly enabling local TCP forwarding without automatic SFTP approval
 - Added `sjust claude-output-style-{set,reset,info}` and provisioning that defaults Claude Code's output style to `Concise` (Ansible tag `claude-output-style`). The key is written only when no style is set, so it never overrides a developer's own choice. Requires Claude Code v2.1.237 or later
@@ -109,6 +111,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `docker-desktop-install-version-4412` task to download Docker Desktop 4.41.2 to work around network issues
 
 ### Changed
+
+- Disabled skills and categories now render in the amber attention colour in `sf-harness-skill list`, `sf-harness-category list` and `sf-harness-status`, instead of plain or dim text
 
 - Migrated Upterm from the retired Homebrew formula to the upstream `owenthereal/upterm/upterm` cask, with formula-only cleanup before cask installation; the legacy `tmate()` shim now points to the authenticated sharing recipe instead of starting an unrestricted session
 - Changed the managed Ghostty config: `mouse-scroll-multiplier` back to the default of 1, `async-backend = epoll` (Linux; macOS keeps kqueue), SSH TERM compatibility via `shell-integration-features = ssh-env`, the resize overlay hidden, and Shift+Enter / Alt+Shift+Enter sent as CSI-u sequences instead of a literal newline
