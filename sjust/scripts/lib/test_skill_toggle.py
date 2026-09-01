@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -281,6 +282,7 @@ class SkillToggleIntegrationTest(unittest.TestCase):
         result = subprocess.run(
             ["bash", "-c", script],
             env=self.environment,
+            check=False,
             text=True,
             capture_output=True,
         )
@@ -304,11 +306,15 @@ class SkillToggleIntegrationTest(unittest.TestCase):
         self.assertIn("skill <enable|disable> <name>", output)
 
     def test_disabled_state_is_rendered_in_the_attention_colour(self) -> None:
+        # Both renderers colourise what gum produced, so the fallback path
+        # (column -t, taken where gum is absent, including CI) is plain by
+        # design. Assert the colour where gum exists and the text where it does
+        # not, so the test says something either way.
+        expect_colour = shutil.which("gum") is not None
+
         self.run_sync()
         self.run_sync("skill", "disable", "core")
 
-        # 220 is the repo's "attention, not broken" tier, shared with
-        # render_table() in sparkdock-agents-status.
         listing = subprocess.run(
             [str(SYNC_SCRIPT), "skill", "list"],
             env=self.environment | {"CLICOLOR_FORCE": "1"},
@@ -316,8 +322,6 @@ class SkillToggleIntegrationTest(unittest.TestCase):
             text=True,
             capture_output=True,
         )
-        self.assertIn("\x1b[38;5;220mdisabled\x1b[0m", listing.stdout)
-
         status = subprocess.run(
             [str(STATUS_SCRIPT)],
             env=self.environment
@@ -326,7 +330,17 @@ class SkillToggleIntegrationTest(unittest.TestCase):
             text=True,
             capture_output=True,
         )
-        self.assertIn("\x1b[38;5;220mdisabled (unlinked)\x1b[0m", status.stdout)
+
+        if expect_colour:
+            # 220 is the repo's "attention, not broken" tier, shared with
+            # render_table() in sparkdock-agents-status.
+            self.assertIn("\x1b[38;5;220mdisabled\x1b[0m", listing.stdout)
+            self.assertIn("\x1b[38;5;220mdisabled (unlinked)\x1b[0m", status.stdout)
+            return
+
+        self.assertNotIn("\x1b[", listing.stdout)
+        self.assertRegex(listing.stdout, r"core\s+system\s+disabled")
+        self.assertIn("disabled (unlinked)", ANSI_ESCAPE.sub("", status.stdout))
 
     def test_a_malformed_disabled_skills_value_fails_closed(self) -> None:
         self.run_sync()
