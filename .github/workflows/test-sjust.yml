@@ -66,6 +66,11 @@ jobs:
           # 00-default.just and so cannot be parsed standalone. It is exercised
           # via the unified justfile a few lines above and `--evaluate` below.
 
+      - name: Syntax check the shared shell config
+        run: |
+          zsh -n config/shell/aliases.zsh
+          zsh -n config/shell/sparkdock.zshrc
+
       - name: Test skill category scripts
         run: |
           bash -n \
