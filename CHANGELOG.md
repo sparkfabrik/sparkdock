@@ -194,6 +194,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed stray terminal query replies (such as `2026;2$y`) appearing at the shell prompt after `sf-harness-sync` and other spinner-wrapped commands: `run_with_spinner` skips `gum spin` on gum 2.x, which probes the terminal at startup and can exit before consuming the replies
+
 - Fixed a locally modified skill that moved to another category being told to run `--force`, which would have deleted the local edits rather than restoring the skill
 
 - Fixed the Sparkdock Manager menu showing an outdated Claude Code usage reading (for example a lingering `Credentials expired`) long after the OAuth token was refreshed: usage now re-checks when the menu opens, throttled to the `claude-usage` cache window, in addition to the existing wake and network-change triggers

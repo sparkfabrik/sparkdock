@@ -20,11 +20,32 @@ print() { log_info "$1"; }
 
 # --- Higher-level output helpers ---
 
-# Run a command with a gum spinner (falls back to plain log + execution)
+# gum 2.x (Bubble Tea v2) probes the terminal at startup (DECRQM modes 2026
+# and 2027, kitty keyboard protocol). When the wrapped command finishes
+# quickly, `gum spin` exits before consuming the replies, which stay in the
+# tty input buffer and are echoed at the next shell prompt as stray
+# characters such as "2026;2$y". Only `gum spin` is affected: `gum style`
+# and `gum log` do not send these queries.
+# See: https://github.com/sparkfabrik/sparkdock/issues/620
+gum_spin_is_safe() {
+    if [[ -z "${GUM_SPIN_SAFE:-}" ]]; then
+        local gum_major
+        gum_major="$(gum --version 2>/dev/null | sed -nE 's/^gum version v?([0-9]+).*/\1/p')"
+        if [[ "${gum_major}" =~ ^[0-9]+$ ]] && [[ "${gum_major}" -lt 2 ]]; then
+            GUM_SPIN_SAFE=true
+        else
+            GUM_SPIN_SAFE=false
+        fi
+    fi
+    [[ "${GUM_SPIN_SAFE}" = true ]]
+}
+
+# Run a command with a gum spinner (falls back to plain log + execution).
+# The spinner is skipped on gum >= 2 until the upstream query leak is fixed.
 run_with_spinner() {
     local title="$1"
     shift
-    if [[ "${HAS_GUM}" = true ]]; then
+    if [[ "${HAS_GUM}" = true ]] && gum_spin_is_safe; then
         gum spin --spinner dot --title "${title}" -- "$@"
     else
         log_info "${title}"
