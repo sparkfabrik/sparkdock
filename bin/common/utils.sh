@@ -38,8 +38,10 @@ run_with_spinner() {
 # gum 2.x queries the terminal (DECRQM 2026/2027, kitty keyboard) but never
 # reads the replies, which would be echoed at the next prompt. See #620.
 drain_tty_input() {
-    [[ -t 0 ]] || return 0
-    while IFS= read -rs -t 0.1 -n 1 _; do :; done
+    local tty_fd
+    exec {tty_fd}</dev/tty 2>/dev/null || return 0
+    IFS= read -rs -t 0.1 -N 256 -u "${tty_fd}" _ || :
+    exec {tty_fd}<&-
 }
 
 # Colorize a text label via gum (falls back to plain text)
