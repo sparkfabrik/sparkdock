@@ -194,7 +194,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed stray terminal replies such as `2026;2$y` appearing at the shell prompt after `sf-harness-sync` and other `run_with_spinner` commands on gum 2.x
+- Fixed gum 2.x terminal query replies leaking onto the spinner line and into the next shell prompt during `sf-harness-sync` and other `run_with_spinner` commands
 
 - Fixed a locally modified skill that moved to another category being told to run `--force`, which would have deleted the local edits rather than restoring the skill
 
