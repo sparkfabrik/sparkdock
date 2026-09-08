@@ -24,19 +24,37 @@ print() { log_info "$1"; }
 run_with_spinner() {
     local title="$1"
     shift
-    if [[ "${HAS_GUM}" = true ]]; then
-        local status=0
-        gum spin --spinner dot --title "${title}" -- "$@" || status=$?
-        drain_tty_input
-        return "${status}"
-    else
+    if [[ "${HAS_GUM}" != true ]]; then
         log_info "${title}"
         "$@"
+        return
     fi
+    local status=0 saved_tty saved_traps
+    # Local port of gum#1130, drop it once that ships. ICANON goes off with echo
+    # or ghostty reads canonical-without-echo as a password prompt.
+    saved_tty="$(stty -g </dev/tty 2>/dev/null || :)"
+    if [[ -n "${saved_tty}" ]]; then
+        saved_traps="$(trap -p INT TERM)"
+        # A signal restores the tty and the caller's own handlers, then re-raises,
+        # so the spinner is transparent to whatever the caller does with signals.
+        # shellcheck disable=SC2064  # expand saved_tty now, not on signal
+        trap "stty ${saved_tty} </dev/tty 2>/dev/null || :; trap - INT TERM; eval \"\${saved_traps}\"; kill -INT \${BASHPID}" INT
+        # shellcheck disable=SC2064  # expand saved_tty now, not on signal
+        trap "stty ${saved_tty} </dev/tty 2>/dev/null || :; trap - INT TERM; eval \"\${saved_traps}\"; kill -TERM \${BASHPID}" TERM
+        stty -icanon -echo </dev/tty 2>/dev/null || :
+    fi
+    gum spin --spinner dot --title "${title}" -- "$@" || status=$?
+    drain_tty_input
+    if [[ -n "${saved_tty}" ]]; then
+        stty "${saved_tty}" </dev/tty 2>/dev/null || :
+        trap - INT TERM
+        eval "${saved_traps}"
+    fi
+    return "${status}"
 }
 
-# gum 2.x queries the terminal (DECRQM 2026/2027, kitty keyboard) but never
-# reads the replies, which would be echoed at the next prompt. See #620.
+# gum 2.x queries the terminal from a spinner that never reads the replies, so
+# the unread bytes reach the next reader, prompt included. See #620 and #623.
 drain_tty_input() {
     local tty_fd
     exec {tty_fd}</dev/tty 2>/dev/null || return 0
