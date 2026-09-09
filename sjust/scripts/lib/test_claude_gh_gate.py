@@ -1,180 +1,455 @@
-#!/usr/bin/env python3
-"""Unit tests for the claude-gh-gate.py runtime hook (`--hook`).
+"""Exercise the real hook subprocess with isolated skills, cache and CLI stubs."""
 
-The gate script has a hyphenated filename, so it cannot be imported as a module.
-These tests drive it as a subprocess exactly as Claude Code does: feed a JSON
-payload on stdin and assert the exit code (2 = block, 0 = allow) and sentinel
-side effects. Each test uses its own TMPDIR so per-session sentinels are
-isolated. Stdlib ``unittest`` only.
-
-Run via ``python3 -m unittest discover -s sjust/scripts/lib -p 'test_*.py'``.
-"""
-
+import fcntl
+import hashlib
+import importlib.util
+import io
 import json
 import os
-import re
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-GATE = str(Path(__file__).resolve().parent.parent / "claude-gh-gate.py")
-
-
-def _sentinel(tmpdir, session_id):
-    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", session_id or "nosession")
-    return Path(tmpdir) / f"sparkdock-gh-gate-{safe}"
+GATE = Path(__file__).resolve().parent.parent / "claude-gh-gate.py"
+spec = importlib.util.spec_from_file_location("claude_gate", GATE)
+gate = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(gate)
 
 
 class GateHookTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
-        # A controlled PATH so the gate's `shutil.which("gh")` guard is
-        # deterministic regardless of whether the host has gh installed.
-        self.bindir = tempfile.TemporaryDirectory()
-        self.addCleanup(self.bindir.cleanup)
-        gh = Path(self.bindir.name) / "gh"
-        gh.write_text("#!/bin/sh\n")
-        gh.chmod(0o755)
-        self.empty_path = tempfile.TemporaryDirectory()
-        self.addCleanup(self.empty_path.cleanup)
+        self.root = Path(self.tmp.name)
+        self.config = self.root / "config"
+        self.project = self.root / "project"
+        self.project.mkdir()
+        self.bin = self.root / "bin"
+        self.bin.mkdir()
+        for name in ("gh", "glab"):
+            cli = self.bin / name
+            cli.write_text("#!/bin/sh\nexit 0\n")
+            cli.chmod(0o755)
+        for name in gate.GATED_SKILLS:
+            path = self.skill_path(name)
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                f"---\nname: {name}\ndescription: Test skill\n---\nTest guidance.\n"
+            )
+        self.env = dict(os.environ)
+        self.env.update(
+            CLAUDE_CONFIG_DIR=str(self.config),
+            XDG_CACHE_HOME=str(self.root / "cache"),
+            PATH=str(self.bin),
+        )
+        for name in ("SPARKDOCK_GH_GATE", "SPARKDOCK_WRITING_GUARD"):
+            self.env.pop(name, None)
 
-    def run_hook(self, payload, extra_env=None, gh_on_path=True):
-        env = dict(os.environ)
-        env["TMPDIR"] = self.tmp.name
-        env["PATH"] = self.bindir.name if gh_on_path else self.empty_path.name
-        env.pop("SPARKDOCK_GH_GATE", None)
-        if extra_env:
-            env.update(extra_env)
-        return subprocess.run(
-            [sys.executable, GATE, "--hook"],
-            input=json.dumps(payload),
-            capture_output=True,
-            text=True,
-            env=env,
+    def skill_path(self, name):
+        return self.config / "skills" / name / "SKILL.md"
+
+    def state_path(self, session="s1"):
+        return (
+            self.root
+            / "cache"
+            / "sparkdock"
+            / "claude-skill-gate"
+            / (hashlib.sha256(session.encode()).hexdigest() + ".json")
         )
 
-    @staticmethod
-    def bash(command, session_id="s1"):
+    def run_hook(self, payload, extra_env=None):
+        return subprocess.run(
+            [sys.executable, str(GATE), "--hook"],
+            input=json.dumps(payload),
+            text=True,
+            capture_output=True,
+            check=False,
+            env=self.env | (extra_env or {}),
+        )
+
+    def bash(self, command, session="s1"):
         return {
-            "session_id": session_id,
+            "hook_event_name": "PreToolUse",
             "tool_name": "Bash",
             "tool_input": {"command": command},
+            "session_id": session,
+            "cwd": str(self.project),
         }
 
-    @staticmethod
-    def skill(name, session_id="s1", field="skill"):
+    def skill(self, name, event="PostToolUse", session="s1"):
         return {
-            "session_id": session_id,
+            "hook_event_name": event,
             "tool_name": "Skill",
-            "tool_input": {field: name},
+            "tool_input": {"skill": name},
+            "session_id": session,
+            "cwd": str(self.project),
+            "tool_response": {"success": True},
         }
 
-    def test_gh_blocked_when_skill_not_loaded(self):
-        r = self.run_hook(self.bash("gh pr create"))
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("gh", r.stderr.lower())
-
-    def test_not_gated_when_gh_not_installed(self):
-        # With no gh on PATH, gating would only delay a doomed command; allow it.
-        r = self.run_hook(self.bash("gh pr create"), gh_on_path=False)
-        self.assertEqual(r.returncode, 0)
-
-    def test_bare_gh_is_gated(self):
-        # Regression: regex must match `gh` with no args (end-of-string), else
-        # the gate is bypassable by running the bare command.
-        self.assertEqual(self.run_hook(self.bash("gh")).returncode, 2)
-
-    def test_gh_in_chain_is_gated(self):
-        self.assertEqual(self.run_hook(self.bash("cd /x && gh pr list")).returncode, 2)
-
-    def test_env_prefixed_gh_is_gated(self):
-        self.assertEqual(self.run_hook(self.bash("FOO=1 gh pr list")).returncode, 2)
-
-    def test_glab_is_not_gated(self):
-        # Scoped to gh only; glab passes freely.
-        self.assertEqual(
-            self.run_hook(self.bash("GITLAB_HOST=x glab issue list")).returncode, 0
-        )
-
-    def test_github_prefix_is_not_a_false_positive(self):
-        self.assertEqual(
-            self.run_hook(self.bash("github-release-tool run")).returncode, 0
-        )
-
-    def test_gh_as_argument_is_not_gated(self):
-        # The word "gh" inside an argument (e.g. a commit message) must not be
-        # treated as a gh invocation.
-        for cmd in (
-            'git commit -m "feat: enable the gh skill gate"',
-            'echo "gh"',
-            "grep gh file.txt",
-            "rg gh .",
-        ):
+    def load(self, *names, session="s1"):
+        for name in names:
             self.assertEqual(
-                self.run_hook(self.bash(cmd)).returncode, 0, f"should allow: {cmd!r}"
+                self.run_hook(self.skill(name, session=session)).returncode, 0
             )
 
-    def test_gh_after_separators_is_gated(self):
-        for cmd in (
-            "cd /tmp; gh pr list",
-            "cat x | gh pr create",
-            "make build && gh release create",
-        ):
-            self.assertEqual(
-                self.run_hook(self.bash(cmd)).returncode, 2, f"should gate: {cmd!r}"
-            )
+    def test_platform_and_writing_requirements(self):
+        for cli in ("gh", "glab"):
+            with self.subTest(cli=cli):
+                r = self.run_hook(
+                    self.bash(f"{cli} issue create --title Example", session=cli)
+                )
+                self.assertEqual(r.returncode, 2)
+                self.assertIn(cli, r.stderr)
+                self.assertIn("sf-writing-style", r.stderr)
 
-    def test_non_gh_command_allowed(self):
-        self.assertEqual(self.run_hook(self.bash("git push")).returncode, 0)
+    def test_read_only_needs_platform_only(self):
+        for cli in ("gh", "glab"):
+            r = self.run_hook(self.bash(f"{cli} issue list", session=cli))
+            self.assertEqual(r.returncode, 2)
+            self.assertNotIn("sf-writing-style", r.stderr)
 
-    def test_skill_load_creates_sentinel_and_unblocks(self):
-        sentinel = _sentinel(self.tmp.name, "s1")
-        self.assertFalse(sentinel.exists())
-        self.assertEqual(self.run_hook(self.skill("gh")).returncode, 0)
-        self.assertTrue(sentinel.exists())
-        # gh now allowed in the same session
-        self.assertEqual(self.run_hook(self.bash("gh pr create")).returncode, 0)
+    def test_successful_loads_allow_repeated_calls_silently(self):
+        self.load("gh", "sf-writing-style")
+        for _ in range(3):
+            r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+            self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
 
-    def test_skill_name_field_also_recognized(self):
-        self.assertEqual(self.run_hook(self.skill("gh", field="name")).returncode, 0)
-        self.assertTrue(_sentinel(self.tmp.name, "s1").exists())
-
-    def test_non_gated_skill_does_not_unblock(self):
-        self.run_hook(self.skill("glab"))
-        self.assertFalse(_sentinel(self.tmp.name, "s1").exists())
+    def test_pretooluse_is_not_success(self):
+        self.run_hook(self.skill("gh", event="PreToolUse"))
         self.assertEqual(self.run_hook(self.bash("gh pr list")).returncode, 2)
 
-    def test_per_session_isolation(self):
-        self.run_hook(self.skill("gh", session_id="loaded"))
-        # a different session is still gated
-        r = self.run_hook(self.bash("gh pr list", session_id="other"))
-        self.assertEqual(r.returncode, 2)
-
-    def test_escape_hatch_disables_gate(self):
-        for val in ("0", "off", "false", "no"):
-            r = self.run_hook(
-                self.bash("gh pr list"), extra_env={"SPARKDOCK_GH_GATE": val}
-            )
-            self.assertEqual(r.returncode, 0, f"value {val!r} should disable the gate")
-
-    def test_malformed_stdin_fails_open(self):
-        env = dict(os.environ)
-        env["TMPDIR"] = self.tmp.name
-        r = subprocess.run(
-            [sys.executable, GATE, "--hook"],
-            input="{not json",
-            capture_output=True,
-            text=True,
-            env=env,
-        )
+    def test_failed_load_is_skipped_once_without_retry_loop(self):
+        self.load("gh")
+        self.run_hook(self.skill("sf-writing-style", event="PostToolUseFailure"))
+        r = self.run_hook(self.bash("gh pr create"))
         self.assertEqual(r.returncode, 0)
+        self.assertIn("sf-writing-style", r.stdout)
+        self.assertEqual(self.run_hook(self.bash("gh pr create")).stdout, "")
+        self.assertNotIn(
+            "sf-writing-style", json.loads(self.state_path().read_text())["loaded"]
+        )
 
-    def test_unrelated_tool_allowed(self):
-        payload = {"session_id": "s1", "tool_name": "Read", "tool_input": {"file": "x"}}
-        self.assertEqual(self.run_hook(payload).returncode, 0)
+    def test_unconfirmed_load_does_not_loop(self):
+        self.assertEqual(self.run_hook(self.bash("gh pr create")).returncode, 2)
+        r = self.run_hook(self.bash("gh pr create"))
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("load not confirmed", r.stdout)
+        self.assertEqual(self.run_hook(self.bash("gh pr create")).stdout, "")
+
+    def test_success_after_failure_is_recorded(self):
+        self.run_hook(self.skill("gh", event="PostToolUseFailure"))
+        self.load("gh")
+        self.assertEqual(self.run_hook(self.bash("gh pr list")).stdout, "")
+        self.assertEqual(json.loads(self.state_path().read_text())["failed"], [])
+
+    def test_sessions_are_independent(self):
+        self.load("gh", session="one")
+        self.assertEqual(
+            self.run_hook(self.bash("gh pr list", session="two")).returncode, 2
+        )
+
+    def test_subagent_load_does_not_unblock_parent_or_sibling(self):
+        self.run_hook(self.skill("gh") | {"agent_id": "child"})
+        self.assertEqual(self.run_hook(self.bash("gh pr list")).returncode, 2)
+        self.assertEqual(
+            self.run_hook(self.bash("gh pr list") | {"agent_id": "sibling"}).returncode,
+            2,
+        )
+        self.assertEqual(
+            self.run_hook(self.bash("gh pr list") | {"agent_id": "child"}).returncode, 0
+        )
+
+    def test_busy_state_fails_open(self):
+        self.load("gh")
+        with self.state_path().open("r+") as stream:
+            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            r = self.run_hook(self.bash("gh pr create"))
+            self.assertEqual((r.returncode, r.stderr), (0, ""))
+
+    def test_invalid_json_fails_open(self):
+        r = subprocess.run(
+            [sys.executable, str(GATE), "--hook"],
+            input="{not json",
+            text=True,
+            capture_output=True,
+            check=False,
+            env=self.env,
+        )
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+
+    def test_missing_skill_notice_is_not_repeated_after_compaction(self):
+        self.config.rename(self.root / "unlinked-config")
+        self.assertNotEqual(self.run_hook(self.bash("gh pr create")).stdout, "")
+        self.run_hook(
+            {"hook_event_name": "SessionStart", "source": "compact", "session_id": "s1"}
+        )
+        self.assertEqual(self.run_hook(self.bash("gh pr create")).stdout, "")
+
+    def test_compaction_and_clear_require_fresh_confirmation(self):
+        for source in ("compact", "clear", "startup"):
+            self.load("gh", "sf-writing-style")
+            self.run_hook(
+                {
+                    "hook_event_name": "SessionStart",
+                    "source": source,
+                    "session_id": "s1",
+                }
+            )
+            self.assertEqual(self.run_hook(self.bash("gh pr create")).returncode, 2)
+
+    def test_resume_keeps_confirmation(self):
+        self.load("gh", "sf-writing-style")
+        self.run_hook(
+            {"hook_event_name": "SessionStart", "source": "resume", "session_id": "s1"}
+        )
+        self.assertEqual(self.run_hook(self.bash("gh pr create")).returncode, 0)
+
+    def test_full_bypass(self):
+        for value in ("0", "off", "false", "no", " OFF "):
+            r = self.run_hook(
+                self.bash("gh pr create && glab mr create"),
+                {"SPARKDOCK_GH_GATE": value},
+            )
+            self.assertEqual((r.returncode, r.stdout), (0, ""))
+        self.assertFalse(self.state_path().exists())
+
+    def test_writing_bypass_keeps_platform_guard(self):
+        for index, value in enumerate(("0", "off", "false", "no", " OFF ")):
+            session = str(index)
+            env = {"SPARKDOCK_WRITING_GUARD": value}
+            r = self.run_hook(self.bash("glab mr create", session), env)
+            self.assertEqual(r.returncode, 2)
+            self.assertNotIn("sf-writing-style", r.stderr)
+            self.load("glab", session=session)
+            self.assertEqual(
+                self.run_hook(self.bash("glab mr create", session), env).returncode, 0
+            )
+
+    def test_absent_skill_does_not_block_available_skill(self):
+        self.skill_path("sf-writing-style").rename(self.root / "removed-skill")
+        r = self.run_hook(self.bash("gh pr create"))
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("skipping sf-writing-style", r.stderr)
+        self.load("gh")
+        self.assertEqual((r := self.run_hook(self.bash("gh pr create"))).returncode, 0)
+        self.assertEqual(r.stdout, "")
+
+    def test_missing_all_skills_warns_once(self):
+        self.config.rename(self.root / "unlinked-config")
+        for index in range(2):
+            r = self.run_hook(self.bash("gh pr create"))
+            self.assertEqual(r.returncode, 0)
+            self.assertEqual(bool(r.stdout), index == 0)
+
+    def test_broken_symlink_is_missing(self):
+        path = self.skill_path("gh")
+        path.rename(path.with_suffix(".saved"))
+        path.symlink_to(self.root / "absent")
+        self.assertEqual(self.run_hook(self.bash("gh pr list")).returncode, 0)
+
+    def test_project_skill_and_valid_symlink_are_found(self):
+        source = self.skill_path("gh")
+        target = self.project / ".claude" / "skills" / "gh" / "SKILL.md"
+        target.parent.mkdir(parents=True)
+        source.rename(target)
+        self.assertEqual(self.run_hook(self.bash("gh pr list")).returncode, 2)
+        source.symlink_to(target)
+        self.assertEqual(self.run_hook(self.bash("gh pr list", "new")).returncode, 2)
+
+    def test_disabled_skills_are_skipped(self):
+        for value in ("off", "user-invocable-only"):
+            (self.config / "settings.json").write_text(
+                json.dumps({"skillOverrides": {"gh": value}})
+            )
+            self.assertEqual(
+                self.run_hook(self.bash("gh pr list", value)).returncode, 0
+            )
+
+    def test_manual_only_skill_is_skipped(self):
+        self.skill_path("gh").write_text(
+            "---\ndisable-model-invocation: true\n---\nTest\n"
+        )
+        self.assertEqual(self.run_hook(self.bash("gh pr list")).returncode, 0)
+
+    def test_commands_and_wrappers(self):
+        for index, command in enumerate(
+            (
+                "gh",
+                "  gh pr list",
+                "cd /x && gh pr list",
+                "FOO=1 gh pr list",
+                "env FOO=1 glab issue list",
+                "command gh pr list",
+                "gh pr list\nglab mr list",
+                "cat x | gh pr create",
+                "rtk gh pr list",
+                "rtk proxy glab mr list",
+                "rtk-run gh issue list",
+                "rtk-run 'cd /x && gh pr list'",
+                f"{self.bin}/gh pr list",
+            )
+        ):
+            with self.subTest(command=command):
+                self.assertEqual(
+                    self.run_hook(self.bash(command, str(index))).returncode, 2
+                )
+
+    def test_prose_commands(self):
+        for index, command in enumerate(
+            (
+                "gh -R owner/repo pr create",
+                "glab --repo owner/repo mr update",
+                "gh pr comment 1",
+                "glab issue note 1",
+                "gh pr review 1",
+                "gh release edit v1",
+                "gh api repos/o/r/issues -f title=test",
+                "glab api projects/1/issues --method POST",
+                "gh api graphql -f query='mutation { test }'",
+                "gh api x --method=PATCH",
+            )
+        ):
+            session = str(index)
+            self.load("gh", "glab", session=session)
+            r = self.run_hook(self.bash(command, session))
+            self.assertEqual(r.returncode, 2, command)
+            self.assertIn("sf-writing-style", r.stderr)
+
+    def test_no_writing_requirement_for_reads(self):
+        self.load("gh", "glab")
+        for command in (
+            "gh pr view 1",
+            "glab issue list",
+            "gh api repos/o/r",
+            "gh api x -X GET -f q=test",
+            "glab api x --method=GET",
+            "gh auth status",
+        ):
+            self.assertEqual(self.run_hook(self.bash(command)).returncode, 0, command)
+
+    def test_quoted_prose_is_not_a_command(self):
+        for command in (
+            "git push",
+            'git commit -m "use gh; gh pr create"',
+            'echo "gh pr create"',
+            'echo ";" "gh"',
+            'printf "a\\ngh pr create"',
+            "rg gh .",
+            "github-release-tool run",
+        ):
+            self.assertEqual(self.run_hook(self.bash(command)).returncode, 0, command)
+
+    def test_absent_cli_is_not_gated(self):
+        self.assertEqual(
+            self.run_hook(
+                self.bash("gh pr create"), {"PATH": str(self.root / "absent")}
+            ).returncode,
+            0,
+        )
+
+    def test_bad_payloads_fail_open(self):
+        for payload in (
+            None,
+            [],
+            1,
+            {},
+            {"session_id": []},
+            self.bash(42),
+            self.skill([]),
+            self.bash("gh 'unterminated"),
+            self.bash("gh") | {"cwd": 12},
+            self.bash("gh") | {"tool_input": "invalid"},
+        ):
+            r = self.run_hook(payload)
+            self.assertEqual((r.returncode, r.stderr), (0, ""), repr(payload))
+
+    def test_corrupt_state_and_storage_failure_fail_open(self):
+        self.load("gh")
+        self.state_path().write_text("not json")
+        self.assertEqual(self.run_hook(self.bash("gh pr create")).returncode, 0)
+        bad_cache = self.root / "file"
+        bad_cache.write_text("not a directory")
+        r = self.run_hook(self.bash("gh pr create"), {"XDG_CACHE_HOME": str(bad_cache)})
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+
+    def test_symlink_state_is_not_followed(self):
+        target = self.root / "untouched"
+        target.write_text("keep")
+        path = self.state_path()
+        path.parent.mkdir(parents=True)
+        path.symlink_to(target)
+        self.assertEqual(self.run_hook(self.bash("gh pr create")).returncode, 0)
+        self.assertEqual(target.read_text(), "keep")
+
+    def test_missing_session_does_not_share_state(self):
+        r = self.run_hook(self.bash("gh pr create") | {"session_id": ""})
+        self.assertEqual(r.returncode, 0)
+        self.assertFalse(self.state_path().exists())
+
+    def test_unreadable_skill_fails_open(self):
+        with (
+            patch.object(Path, "read_text", side_effect=PermissionError),
+            patch.dict(os.environ, self.env),
+            patch("sys.stdin", io.StringIO(json.dumps(self.bash("gh pr create")))),
+            patch("sys.stdout", io.StringIO()),
+        ):
+            self.assertEqual(gate.run_hook(), 0)
+
+
+class InstallerTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.settings = Path(self.tmp.name) / "settings.json"
+        self.cs = gate._settings_lib()
+        self.patch = patch.object(self.cs, "settings_path", return_value=self.settings)
+        self.patch.start()
+        self.addCleanup(self.patch.stop)
+        self.output = patch("sys.stdout", io.StringIO())
+        self.output.start()
+        self.addCleanup(self.output.stop)
+
+    def test_migrate_enable_repeat_disable_preserves_other_hooks(self):
+        other = {
+            "matcher": "Bash",
+            "hooks": [{"type": "command", "command": "other-hook"}],
+        }
+        old = {"hooks": {"PreToolUse": [other]}, "outputStyle": "Concise"}
+        for matcher in ("Skill", "Bash"):
+            self.cs.register_hook(
+                old, "PreToolUse", matcher, gate.HOOK_COMMAND, gate.SCRIPT_PATH
+            )
+        self.settings.write_text(json.dumps(old))
+        self.assertEqual(gate.cmd_enable(), 0)
+        data = json.loads(self.settings.read_text())
+        self.assertTrue(gate._configured(data, self.cs))
+        self.assertIn(other, data["hooks"]["PreToolUse"])
+        self.assertEqual(data["outputStyle"], "Concise")
+        saved = self.settings.read_bytes()
+        before = list(self.settings.parent.glob("*.bak.*"))
+        self.assertEqual(gate.cmd_enable(), 0)
+        self.assertEqual(self.settings.read_bytes(), saved)
+        self.assertEqual(list(self.settings.parent.glob("*.bak.*")), before)
+        self.assertEqual(gate.cmd_disable(), 0)
+        self.assertEqual(
+            json.loads(self.settings.read_text()),
+            {"hooks": {"PreToolUse": [other]}, "outputStyle": "Concise"},
+        )
+
+    def test_fresh_and_partial_settings(self):
+        self.assertEqual(gate.cmd_enable(), 0)
+        data = json.loads(self.settings.read_text())
+        self.cs.unregister_hook(data, "PostToolUse", gate.SCRIPT_PATH)
+        self.settings.write_text(json.dumps(data))
+        gate.cmd_info()
+        self.assertIn("partial", sys.stdout.getvalue())
+        gate.cmd_enable()
+        self.assertTrue(
+            gate._configured(json.loads(self.settings.read_text()), self.cs)
+        )
 
 
 if __name__ == "__main__":

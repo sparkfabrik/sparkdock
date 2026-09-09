@@ -1,0 +1,113 @@
+{
+  "date": "2026-09-10",
+  "platform": "Linux",
+  "claude_version": "2.1.266",
+  "model": "claude-opus-5",
+  "gate_sha256": "1bb20f32e04efe8bcc946751109a78d4d86072af194130827d102f3d17d69f0e",
+  "method": "Six isolated claude -p sessions using fixture skills and inert CLI binaries. A separate hook restricted Bash to those binaries. User settings and skill directories were overlaid read-only; no real publishing was possible.",
+  "limits": [
+    "Fixture skills test hook behavior, not the quality of the full SparkFabrik writing skill.",
+    "Compaction, failure events and subagent isolation were tested with synthetic hook payloads, not live subagents or live compaction.",
+    "Reported token usage and costs are observations, not evidence of token savings."
+  ],
+  "cases": [
+    {
+      "case": "forced",
+      "passed": true,
+      "successful_skill_loads": [
+        "gh",
+        "sf-writing-style"
+      ],
+      "blocked_calls": 1,
+      "notice_responses": 0,
+      "fixture_publications": 2,
+      "repeated_skill_loads": 0,
+      "input_tokens": 12,
+      "cache_read_input_tokens": 63975,
+      "cache_creation_input_tokens": 10643,
+      "output_tokens": 789,
+      "reported_cost_usd": 0.158203
+    },
+    {
+      "case": "natural",
+      "passed": true,
+      "successful_skill_loads": [
+        "sf-writing-style",
+        "gh"
+      ],
+      "blocked_calls": 0,
+      "notice_responses": 0,
+      "fixture_publications": 2,
+      "repeated_skill_loads": 0,
+      "input_tokens": 10,
+      "cache_read_input_tokens": 51013,
+      "cache_creation_input_tokens": 10298,
+      "output_tokens": 588,
+      "reported_cost_usd": 0.143236
+    },
+    {
+      "case": "glab",
+      "passed": true,
+      "successful_skill_loads": [
+        "glab",
+        "sf-writing-style"
+      ],
+      "blocked_calls": 0,
+      "notice_responses": 0,
+      "fixture_publications": 2,
+      "repeated_skill_loads": 0,
+      "input_tokens": 10,
+      "cache_read_input_tokens": 50959,
+      "cache_creation_input_tokens": 10326,
+      "output_tokens": 625,
+      "reported_cost_usd": 0.144415
+    },
+    {
+      "case": "writing-bypass",
+      "passed": true,
+      "successful_skill_loads": [
+        "gh",
+        "sf-writing-style"
+      ],
+      "blocked_calls": 1,
+      "notice_responses": 0,
+      "fixture_publications": 2,
+      "repeated_skill_loads": 0,
+      "input_tokens": 12,
+      "cache_read_input_tokens": 63560,
+      "cache_creation_input_tokens": 10452,
+      "output_tokens": 640,
+      "reported_cost_usd": 0.15236
+    },
+    {
+      "case": "full-bypass",
+      "passed": true,
+      "successful_skill_loads": [
+        "sf-writing-style"
+      ],
+      "blocked_calls": 0,
+      "notice_responses": 0,
+      "fixture_publications": 2,
+      "repeated_skill_loads": 0,
+      "input_tokens": 8,
+      "cache_read_input_tokens": 38450,
+      "cache_creation_input_tokens": 10122,
+      "output_tokens": 572,
+      "reported_cost_usd": 0.134785
+    },
+    {
+      "case": "missing",
+      "passed": true,
+      "successful_skill_loads": [],
+      "blocked_calls": 0,
+      "notice_responses": 1,
+      "fixture_publications": 2,
+      "repeated_skill_loads": 0,
+      "input_tokens": 6,
+      "cache_read_input_tokens": 25962,
+      "cache_creation_input_tokens": 9700,
+      "output_tokens": 321,
+      "reported_cost_usd": 0.118036
+    }
+  ]
+}

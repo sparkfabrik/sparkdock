@@ -382,7 +382,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `sf-harness-upgrade [force]` — Full upgrade via Ansible (RTK + caveman + gh gate + skills)
 - `sf-harness-skill list|enable|disable <skill>|help` — per-user opt-out for a single skill. A disabled skill stays installed in `~/.agents/skills/` and only loses its per-tool symlinks, so re-enabling is instant and offline. OpenCode reads `~/.agents/skills/` natively and still loads disabled skills
 - `sf-herdr-skill-{install,uninstall}` — install or remove the `herdr` agent skill. The skill is generated from the installed binary (`herdr --skill`) and symlinked per tool, so it tracks the installed herdr version instead of the upstream harness repo
-- `claude-gh-gate-{enable,disable,info}` — manage the Claude Code gh skill gate (blocks `gh` until the `gh` skill loads; bypass at runtime with `SPARKDOCK_GH_GATE=0`)
+- `claude-gh-gate-{enable,disable,info}`: manage the Claude Code platform and writing skill gate; see [the guard guide](docs/claude-writing-guard.md) for bypasses and missing-skill behavior
 - `claude-output-style-{set,reset,info}` — manage the default Claude Code output style. Provisioning sets `Concise` only when no style is configured, so it never overrides a developer's own choice
 
 ### Ansible Tags
@@ -390,7 +390,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `ai-coding-harness` — umbrella tag for AI coding harness tasks
 - `ai-harness` — alternate umbrella (includes sync + provision)
 - `ai-harness-sync` — no-sudo tasks (RTK + caveman + gh gate + skills sync)
-- `claude-gh-gate` — register only the Claude Code gh skill gate hook
+- `claude-gh-gate`: register only the Claude Code platform and writing skill gate hooks
 - `claude-output-style` — set the default Claude Code output style
 - `herdr` — install only the herdr agent skill
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
