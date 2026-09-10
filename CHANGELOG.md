@@ -116,6 +116,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Extended the Claude skill gate to GitLab and writing guidance, with a writing-only bypass and graceful handling of missing skills and failed loads.
+
 - Disabled skills and categories now render in the amber attention colour in `sf-harness-skill list`, `sf-harness-category list` and `sf-harness-status`, instead of plain or dim text
 
 - Migrated Upterm from the retired Homebrew formula to the upstream `owenthereal/upterm/upterm` cask, with formula-only cleanup before cask installation; the legacy `tmate()` shim now points to the authenticated sharing recipe instead of starting an unrestricted session
