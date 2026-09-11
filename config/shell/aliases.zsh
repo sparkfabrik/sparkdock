@@ -271,7 +271,7 @@ if command_exists codex; then
   # cxe - one-shot run, prints the answer and exits
   cxe() { codex exec "${@}"; }
   # cxr - resume the most recent session
-  cxr() { codex resume --last "${@}"; }
+  alias cxr='codex resume --last'
 fi
 
 # Add some opencode aliases.
