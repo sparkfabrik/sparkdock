@@ -105,6 +105,20 @@ jobs:
           # Test basic functionality
           echo "✅ First installation completed successfully"
 
+      - name: Install ChatGPT desktop through the opt-in tag
+        run: |
+          cd /opt/sparkdock
+          run_tag() {
+            ansible-playbook -i ansible/inventory.ini ansible/macos.yml --tags chatgpt-desktop \
+              -e sparkdock_chatgpt_desktop=true -e ansible_become_pass=
+          }
+          run_tag
+          test -f /Applications/ChatGPT.app/Contents/Info.plist
+          brew list --cask chatgpt
+          run_tag | tee /tmp/chatgpt-desktop-rerun.log
+          grep -Eq 'changed=0 .*failed=0' /tmp/chatgpt-desktop-rerun.log
+          echo "✅ ChatGPT desktop opt-in installed and idempotent"
+
       - name: Fix ownership permissions and clean git state before second run
         run: |
           echo "=== Fixing ownership permissions and git state for second run ==="
