@@ -1194,14 +1194,14 @@
           changed_when: true
           become: false
 
-    - name: Enable platform and writing skill gate for Claude Code
+    - name: Enable platform and writing skill guards for Claude and Codex
       tags:
         - claude-gh-gate
         - ai-harness
         - ai-harness-sync
       block:
         - name: Register platform and writing skill gate hooks
-          command: "python3 {{ dev_env_dir }}/sjust/scripts/claude-gh-gate.py enable"
+          command: "python3 {{ dev_env_dir }}/sjust/scripts/agent-writing-guard.py enable"
           register: gh_gate_output
           changed_when: "'already enabled' not in gh_gate_output.stdout"
           become: false

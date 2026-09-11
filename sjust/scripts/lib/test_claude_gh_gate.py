@@ -111,11 +111,30 @@ class GateHookTest(unittest.TestCase):
             self.assertEqual(r.returncode, 2)
             self.assertNotIn("sf-writing-style", r.stderr)
 
-    def test_successful_loads_allow_repeated_calls_silently(self):
+    def test_successful_loads_remind_once_then_allow_retries(self):
         self.load("gh", "sf-writing-style")
+        self.assertEqual(self.run_hook(self.bash("gh pr create")).returncode, 2)
         for _ in range(3):
             r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
             self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+
+    def test_slack_loads_writing_without_cli_skill(self):
+        payload = self.bash("") | {
+            "tool_name": "mcp__claude_ai_Slack__slack_send_message",
+            "tool_input": {"text": "Hello"},
+        }
+        first = self.run_hook(payload)
+        self.assertEqual(first.returncode, 2)
+        self.assertIn("sf-writing-style", first.stderr)
+        self.assertNotIn("gh,", first.stderr)
+        self.load("sf-writing-style")
+        self.assertEqual(self.run_hook(payload).returncode, 0)
+        self.run_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
+        reminder = self.run_hook(payload)
+        self.assertEqual(reminder.returncode, 2)
+        self.assertIn("Review the actual outgoing body", reminder.stderr)
+        self.assertNotIn("Skill tool", reminder.stderr)
+        self.assertEqual(self.run_hook(payload).returncode, 0)
 
     def test_pretooluse_is_not_success(self):
         self.run_hook(self.skill("gh", event="PreToolUse"))
@@ -202,6 +221,7 @@ class GateHookTest(unittest.TestCase):
 
     def test_resume_keeps_confirmation(self):
         self.load("gh", "sf-writing-style")
+        self.run_hook(self.bash("gh pr create"))
         self.run_hook(
             {"hook_event_name": "SessionStart", "source": "resume", "session_id": "s1"}
         )

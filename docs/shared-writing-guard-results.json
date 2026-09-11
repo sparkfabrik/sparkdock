@@ -1,0 +1,214 @@
+{
+  "date": "2026-09-11",
+  "platform": "Linux",
+  "versions": {
+    "claude": "2.1.268",
+    "codex": "0.154.0"
+  },
+  "method": "Isolated settings and fixture skills. Real Claude Opus and Codex default model sessions, local Slack MCP server and inert gh executable. Fixture hook restricts shell use to skill reads and fake publishing. Codex uses read-only sandbox; only fixture hook trust is bypassed and the inert MCP tool is pre-approved. No external publications. Auth files referenced, not copied.",
+  "content_quality_evaluated": false,
+  "unit_tests": 123,
+  "other_checks": [
+    "Ruff format and lint via required Docker image",
+    "Both Ansible entrypoint syntax checks",
+    "Just recipe parse",
+    "git diff --check"
+  ],
+  "limits": [
+    "Compaction, bypass and missing-skill behavior use hook-payload tests, not live model sessions.",
+    "Live MCP tests cover direct calls only; nested code-mode dispatch and Codex subagent isolation remain unverified.",
+    "macOS provisioning was syntax-checked, not executed.",
+    "Fixture marker compliance does not establish production writing quality."
+  ],
+  "development_findings": [
+    "Fixed Claude settings helper ignoring CLAUDE_CONFIG_DIR. The accidental test registration in user settings was restored from an exact matching backup.",
+    "Corrected isolated Claude project skill discovery; direct Read fallback did not confirm Skill loading.",
+    "Corrected fake Codex MCP approval configuration before successful publication tests."
+  ],
+  "results": [
+    {
+      "engine": "claude",
+      "scenario": "slack",
+      "passed": true,
+      "confirmed_skills": [
+        "sf-writing-style"
+      ],
+      "load_requests": 1,
+      "blocked_calls": 1,
+      "publications": [
+        "WRITING_SKILL_APPLIED\n\n- Dark mode is now available across the app.\n- Your theme choice is saved and persists across sessions and devices.",
+        "WRITING_SKILL_APPLIED\n\n- CSV export is now available for your data views.\n- Date filters let you narrow the range before exporting."
+      ],
+      "events": [
+        {
+          "event": "SessionStart",
+          "tool": null,
+          "exit_code": 0
+        },
+        {
+          "event": "UserPromptSubmit",
+          "tool": null,
+          "exit_code": 0
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "mcp__slack__slack_send_message",
+          "exit_code": 2
+        },
+        {
+          "event": "PostToolUse",
+          "tool": "Skill",
+          "exit_code": 0
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "mcp__slack__slack_send_message",
+          "exit_code": 0
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "mcp__slack__slack_send_message",
+          "exit_code": 0
+        }
+      ],
+      "source_sha256": {
+        "sjust/scripts/claude-gh-gate.py": "9ce07424ba76bd151de5570ca02ad5275d0510e3d949f065d20a746d8f512ddc",
+        "sjust/scripts/lib/writing_guard.py": "67f14a78196a11310323090c21bb31ad4a161280ae54888030eb559d8fdeeaae",
+        "sjust/scripts/lib/claude_settings.py": "7236345193744d1d2991cdddc1842d5727dd97da0d952b98ae47d1c6479330ea"
+      }
+    },
+    {
+      "engine": "codex",
+      "scenario": "slack",
+      "passed": true,
+      "confirmed_skills": [
+        "sf-writing-style"
+      ],
+      "load_requests": 1,
+      "blocked_calls": 1,
+      "publications": [
+        "- Dark mode is now available.\n- Your theme choice is saved for your next visit.\n\nWRITING_SKILL_APPLIED",
+        "- CSV exports are now available.\n- Use date filters to choose the period to export.\n\nWRITING_SKILL_APPLIED"
+      ],
+      "events": [
+        {
+          "event": "SessionStart",
+          "tool": null,
+          "exit_code": 0
+        },
+        {
+          "event": "UserPromptSubmit",
+          "tool": null,
+          "exit_code": 0
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "mcp__slack__slack_send_message",
+          "exit_code": 2
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "Bash",
+          "exit_code": 0
+        },
+        {
+          "event": "PostToolUse",
+          "tool": "Bash",
+          "exit_code": 0
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "mcp__slack__slack_send_message",
+          "exit_code": 0
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "mcp__slack__slack_send_message",
+          "exit_code": 0
+        }
+      ],
+      "source_sha256": {
+        "sjust/scripts/codex-writing-guard.py": "e907b212842f067958e84f9c6abc8a639352f4f955f211a07f4168ce8d011161",
+        "sjust/scripts/lib/writing_guard.py": "67f14a78196a11310323090c21bb31ad4a161280ae54888030eb559d8fdeeaae",
+        "sjust/scripts/lib/claude_settings.py": "7236345193744d1d2991cdddc1842d5727dd97da0d952b98ae47d1c6479330ea"
+      }
+    },
+    {
+      "engine": "codex",
+      "scenario": "cli",
+      "passed": true,
+      "confirmed_skills": [
+        "gh",
+        "sf-writing-style"
+      ],
+      "load_requests": 0,
+      "blocked_calls": 1,
+      "publications": [
+        "Fixture PR recorded: pr create --body - Add dark mode.\n- Remember the selected theme for future visits. WRITING_SKILL_APPLIED",
+        "Fixture PR recorded: pr create --body - Add CSV exports.\n- Filter results by date. WRITING_SKILL_APPLIED"
+      ],
+      "events": [
+        {
+          "event": "SessionStart",
+          "tool": null,
+          "exit_code": 0
+        },
+        {
+          "event": "UserPromptSubmit",
+          "tool": null,
+          "exit_code": 0
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "Bash",
+          "exit_code": 0
+        },
+        {
+          "event": "PostToolUse",
+          "tool": "Bash",
+          "exit_code": 0
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "Bash",
+          "exit_code": 0
+        },
+        {
+          "event": "PostToolUse",
+          "tool": "Bash",
+          "exit_code": 0
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "Bash",
+          "exit_code": 2
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "Bash",
+          "exit_code": 0
+        },
+        {
+          "event": "PostToolUse",
+          "tool": "Bash",
+          "exit_code": 0
+        },
+        {
+          "event": "PreToolUse",
+          "tool": "Bash",
+          "exit_code": 0
+        },
+        {
+          "event": "PostToolUse",
+          "tool": "Bash",
+          "exit_code": 0
+        }
+      ],
+      "source_sha256": {
+        "sjust/scripts/codex-writing-guard.py": "e907b212842f067958e84f9c6abc8a639352f4f955f211a07f4168ce8d011161",
+        "sjust/scripts/lib/writing_guard.py": "67f14a78196a11310323090c21bb31ad4a161280ae54888030eb559d8fdeeaae",
+        "sjust/scripts/lib/claude_settings.py": "7236345193744d1d2991cdddc1842d5727dd97da0d952b98ae47d1c6479330ea"
+      }
+    }
+  ]
+}

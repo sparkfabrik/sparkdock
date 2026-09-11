@@ -21,13 +21,16 @@ import json
 import os
 import shutil
 import tempfile
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 
 def settings_path() -> Path:
-    """Path to the user's Claude Code settings.json (honors $HOME)."""
-    return Path.home() / ".claude" / "settings.json"
+    """Path to settings.json, honoring CLAUDE_CONFIG_DIR and HOME."""
+    return (
+        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
+        / "settings.json"
+    )
 
 
 def load(path=None) -> dict:
@@ -50,7 +53,7 @@ def backup(path=None) -> str:
     so two backups in the same second do not collide.
     """
     path = Path(path) if path else settings_path()
-    dst = f"{path}.bak.{datetime.now().strftime('%Y%m%d%H%M%S%f')}"
+    dst = f"{path}.bak.{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}"
     shutil.copy2(path, dst)
     return dst
 
@@ -134,9 +137,21 @@ def unregister_hook(data: dict, event: str, marker: str) -> bool:
     entries = hooks.get(event)
     if not isinstance(entries, list):
         return False
-    before = len(entries)
-    entries[:] = [e for e in entries if not _entry_has_marker(e, marker)]
-    removed = len(entries) < before
+    kept = []
+    removed = False
+    for entry in entries:
+        if not _entry_has_marker(entry, marker):
+            kept.append(entry)
+            continue
+        removed = True
+        remaining = [
+            h
+            for h in entry["hooks"]
+            if not (isinstance(h, dict) and marker in str(h.get("command", "")))
+        ]
+        if remaining:
+            kept.append({**entry, "hooks": remaining})
+    entries[:] = kept
     if not entries:
         hooks.pop(event, None)
     if not hooks:

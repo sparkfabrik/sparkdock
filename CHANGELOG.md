@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a Codex writing guard and shared management commands, with Slack connector coverage and publishing reminders for both Claude and Codex.
+
 - Added Codex CLI to provisioning as the `codex` cask, with the `cx`, `cxe` and `cxr` shell aliases
 
 - Added the `sproxy` shell alias for `spark-http-proxy`, available on macOS and Linux wherever the proxy CLI is installed
@@ -197,6 +199,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed `sjust sf-skills-status` backward-compatible alias (use `sf-agents-status` instead)
 
 ### Fixed
+
+- Claude hook installation now honors `CLAUDE_CONFIG_DIR` and preserves unrelated handlers in shared hook groups.
 
 - Fixed gum 2.x terminal query replies leaking onto the spinner line and into the next shell prompt during `sf-harness-sync` and other `run_with_spinner` commands
 

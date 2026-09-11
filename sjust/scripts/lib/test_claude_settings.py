@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Unit tests for claude_settings.py.
 
 Standard-library ``unittest`` only (the repo declares no test framework, and the
@@ -19,7 +18,7 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-import claude_settings as cs  # noqa: E402
+import claude_settings as cs
 
 MARKER = "/opt/sparkdock/sjust/scripts/claude-gh-gate.py"
 COMMAND = f'python3 "{MARKER}" --hook'
@@ -101,6 +100,12 @@ class BackupTest(unittest.TestCase):
 
 
 class SettingsPathTest(unittest.TestCase):
+    def test_honors_config_dir(self):
+        from unittest.mock import patch
+
+        with patch.dict(os.environ, {"CLAUDE_CONFIG_DIR": "/isolated/claude"}):
+            self.assertEqual(cs.settings_path(), Path("/isolated/claude/settings.json"))
+
     def test_honors_home(self):
         with tempfile.TemporaryDirectory() as home:
             old = os.environ.get("HOME")
@@ -210,6 +215,22 @@ class UnregisterHookTest(unittest.TestCase):
         entries = data["hooks"]["PreToolUse"]
         self.assertEqual(entries, [OTHER])
         self.assertEqual(data["model"], "opus")
+
+    def test_preserves_foreign_handler_in_same_group(self):
+        data = {
+            "hooks": {
+                "PreToolUse": [
+                    {
+                        "matcher": "Bash",
+                        "hooks": [{"command": COMMAND}, {"command": "other"}],
+                    }
+                ]
+            }
+        }
+        cs.unregister_hook(data, "PreToolUse", MARKER)
+        self.assertEqual(
+            data["hooks"]["PreToolUse"][0]["hooks"], [{"command": "other"}]
+        )
 
     def test_prunes_empty_event_and_hooks(self):
         data = {}
