@@ -14,6 +14,7 @@ Sparkdock is an automated macOS development environment provisioner built with A
 - Docker Desktop, Google Chrome, Visual Studio Code, Visual Studio Code Insiders
 - iTerm2, Ghostty terminal, Slack, Zoom
 - Maccy clipboard manager, MonitorControl
+- ChatGPT desktop (Codex desktop), opt-in only: see [ChatGPT desktop](#chatgpt-desktop-opt-in)
 
 **Development Tools:**
 
@@ -127,6 +128,17 @@ sjust docker-ps          # Show running containers
 sjust system-upgrade     # Update system packages
 sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gcloud-auth-plugin
 ```
+
+### ChatGPT desktop (opt-in)
+
+The ChatGPT desktop app (which includes Codex) is never installed by a plain `sparkdock` run on macOS or a plain `sf-toolbox` run on Linux. Opt in with either command:
+
+```bash
+sjust chatgpt-desktop-install   # install the desktop app
+CHATGPT_DESKTOP=1 sparkdock      # opt in during a full provisioning run
+```
+
+On macOS this installs the Homebrew `chatgpt` cask (`ChatGPT.app`), which then updates itself. A `ChatGPT.app` installed by hand is left in place. On Linux the same `ajust chatgpt-desktop-install` command runs `sf-toolbox` with the `CHATGPT_DESKTOP=1` opt-in; sf-toolbox owns the Arch, Omarchy and Debian/Ubuntu installation paths and never installs the app without that switch. The Codex CLI is a separate tool and stays installed on every machine.
 
 ### macOS System Defaults
 

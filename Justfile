@@ -32,6 +32,11 @@ run-ansible-playbook TAGS="all":
         echo "Interactive run: enter your macOS user password at the BECOME prompt"
     fi
 
+    # Opt-in ChatGPT desktop, same switch as sf-toolbox on Linux.
+    if [ "${CHATGPT_DESKTOP:-0}" = "1" ]; then
+        BECOME_ARGS+=(-e sparkdock_chatgpt_desktop=true)
+    fi
+
     if [ -z "${TAGS}" ]; then
         ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini "${BECOME_ARGS[@]}"
     else
