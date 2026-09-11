@@ -7,7 +7,7 @@
   },
   "method": "Isolated settings and fixture skills. Real Claude Opus and Codex default model sessions, local Slack MCP server and inert gh executable. Fixture hook restricts shell use to skill reads and fake publishing. Codex uses read-only sandbox; only fixture hook trust is bypassed and the inert MCP tool is pre-approved. No external publications. Auth files referenced, not copied.",
   "content_quality_evaluated": false,
-  "unit_tests": 123,
+  "unit_tests": 128,
   "other_checks": [
     "Ruff format and lint via required Docker image",
     "Both Ansible entrypoint syntax checks",
@@ -210,5 +210,20 @@
         "sjust/scripts/lib/claude_settings.py": "7236345193744d1d2991cdddc1842d5727dd97da0d952b98ae47d1c6479330ea"
       }
     }
-  ]
+  ],
+  "review_fix_validation": {
+    "unit_tests": 128,
+    "checks": [
+      "Docker Ruff format and lint",
+      "macOS and Linux Ansible syntax",
+      "Linux real Ansible tasks against changed Sparkdock checkout: Claude-only, Codex-only, both; idempotency; unrelated malformed config preserved; privilege escalation disabled"
+    ],
+    "sources": {
+      "sjust/scripts/lib/writing_guard.py": "ae33415e926937c316ba2e9cdd0d25a4d383b6df6a587e56257922e872815c32",
+      "sjust/scripts/lib/claude_settings.py": "e168e2f4fdaf254eb98010eadf449653a31716fde3f45d02abcb8df0e11ae30c",
+      "sjust/scripts/claude-gh-gate.py": "e5598ba57d0d5cd43cca79fb9011de0f8b5b53c1470c7ac1b464e567ae956be8",
+      "sjust/scripts/codex-writing-guard.py": "026168e3e016d44afaf3530c339da6c453ff1eceff4d6b73a8772945cf775267"
+    },
+    "live_session_scope": "Earlier live sessions below retain their original source hashes. Review fixes were validated by regression and isolated Ansible tests, not new model sessions."
+  }
 }

@@ -200,6 +200,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Preserve malformed writing-guard settings, use defaults for empty configuration variables, and keep Claude and Codex provisioning tags separate.
+- Preserve skill confirmations during brief lock contention and request writing guidance for close comments.
+
 - Claude hook installation now honors `CLAUDE_CONFIG_DIR` and preserves unrelated handlers in shared hook groups.
 
 - Fixed gum 2.x terminal query replies leaking onto the spinner line and into the next shell prompt during `sf-harness-sync` and other `run_with_spinner` commands

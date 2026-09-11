@@ -23,7 +23,7 @@ HOOKS = {
 
 
 def config_dir():
-    return Path(os.environ.get("CODEX_HOME", Path.home() / ".codex"))
+    return Path(os.environ.get("CODEX_HOME") or Path.home() / ".codex")
 
 
 def skill_path(name, cwd):
@@ -129,8 +129,7 @@ def manage(action):
     path = config_dir() / "hooks.json"
     # Never replace a malformed user file with defaults.
     data = json.loads(path.read_text()) if path.exists() else {}
-    if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
-        raise TypeError(f"Invalid hooks object in {path}")
+    settings.validate_hooks(data, HOOKS)
     matches = {
         event: settings.registered_matchers(data, event, SCRIPT_PATH) for event in HOOKS
     }

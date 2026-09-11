@@ -28,7 +28,7 @@ from pathlib import Path
 def settings_path() -> Path:
     """Path to settings.json, honoring CLAUDE_CONFIG_DIR and HOME."""
     return (
-        Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
+        Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
         / "settings.json"
     )
 
@@ -83,6 +83,21 @@ def _entry_has_marker(entry, marker) -> bool:
         if isinstance(hook, dict) and marker in str(hook.get("command", "")):
             return True
     return False
+
+
+def validate_hooks(data, events):
+    """Reject malformed managed hook entries before changing a user file."""
+    if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
+        raise TypeError("Invalid hooks object")
+    for event in events:
+        entries = data.get("hooks", {}).get(event, [])
+        if not isinstance(entries, list) or any(
+            not isinstance(entry, dict)
+            or not isinstance(entry.get("hooks", []), list)
+            or any(not isinstance(hook, dict) for hook in entry.get("hooks", []))
+            for entry in entries
+        ):
+            raise TypeError(f"Invalid hooks entries for {event}")
 
 
 def registered_matchers(data: dict, event: str, marker: str) -> set:

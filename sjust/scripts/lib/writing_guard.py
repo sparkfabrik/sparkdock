@@ -9,6 +9,7 @@ import shlex
 import shutil
 import stat
 import sys
+import time
 from pathlib import Path
 
 SKILLS = {"gh", "glab", "sf-writing-style"}
@@ -102,7 +103,16 @@ def _writes_prose(args):
     return (
         len(args) > 1
         and args[0] in {"issue", "pr", "mr", "release", "discussion", "gist", "snippet"}
-        and args[1] in {"create", "edit", "update", "comment", "note", "review"}
+        and (
+            args[1] in {"create", "edit", "update", "comment", "note", "review"}
+            or (
+                args[1] == "close"
+                and any(
+                    a in {"--comment", "-c"} or a.startswith("--comment=")
+                    for a in args[2:]
+                )
+            )
+        )
     )
 
 
@@ -214,7 +224,7 @@ def run_hook(process, engine):
             session_id = json.dumps([session_id, agent_id])
         # A private, locked file avoids cross-session collisions and lost updates
         # from concurrent hooks. Never follow a state-file symlink.
-        cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache"))
+        cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
         directory = cache / "sparkdock" / f"{engine}-skill-gate"
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         path = directory / (hashlib.sha256(session_id.encode()).hexdigest() + ".json")
@@ -229,7 +239,15 @@ def run_hook(process, engine):
                 or info.st_nlink != 1
             ):
                 return 0
-            fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+            deadline = time.monotonic() + 1.0
+            while True:
+                try:
+                    fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError:
+                    if time.monotonic() >= deadline:
+                        return 0
+                    time.sleep(0.05)
             raw = stream.read()
             state = (
                 json.loads(raw)

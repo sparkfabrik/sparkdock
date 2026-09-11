@@ -196,7 +196,101 @@ class CodexGuardTest(unittest.TestCase):
         self.assertIn("already enabled", enable())
 
 
+class InstallerSafetyTest(unittest.TestCase):
+    def test_malformed_hooks_preserve_file_on_enable_and_disable(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for script, variable, filename in (
+                ("claude-gh-gate.py", "CLAUDE_CONFIG_DIR", "settings.json"),
+                ("codex-writing-guard.py", "CODEX_HOME", "hooks.json"),
+            ):
+                for event in (
+                    {"custom": "keep"},
+                    "invalid",
+                    [{"hooks": "invalid"}],
+                    [{"hooks": ["invalid"]}],
+                ):
+                    for action in ("enable", "disable"):
+                        with self.subTest(script=script, event=event, action=action):
+                            path = root / filename
+                            original = json.dumps({"hooks": {"PreToolUse": event}})
+                            path.write_text(original)
+                            result = subprocess.run(
+                                [sys.executable, str(SCRIPT.with_name(script)), action],
+                                env=os.environ | {variable: tmp},
+                                capture_output=True,
+                                text=True,
+                                check=False,
+                            )
+                            self.assertEqual(result.returncode, 1, result.stdout)
+                            self.assertEqual(path.read_text(), original)
+
+    def test_empty_config_variables_use_home(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for script, directory, filename in (
+                ("claude-gh-gate.py", ".claude", "settings.json"),
+                ("codex-writing-guard.py", ".codex", "hooks.json"),
+            ):
+                result = subprocess.run(
+                    [sys.executable, str(SCRIPT.with_name(script)), "enable"],
+                    cwd=tmp,
+                    env=os.environ
+                    | {"HOME": tmp, "CLAUDE_CONFIG_DIR": "", "CODEX_HOME": ""},
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue((root / directory / filename).is_file())
+                self.assertFalse((root / filename).exists())
+
+    def test_empty_cache_variable_uses_home(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            env = os.environ | {
+                "HOME": tmp,
+                "XDG_CACHE_HOME": "",
+                "SPARKDOCK_GH_GATE": "1",
+            }
+            for script, engine in (
+                ("claude-gh-gate.py", "claude"),
+                ("codex-writing-guard.py", "codex"),
+            ):
+                result = subprocess.run(
+                    [sys.executable, str(SCRIPT.with_name(script)), "--hook"],
+                    input=json.dumps(
+                        {
+                            "session_id": "empty-cache",
+                            "hook_event_name": "UserPromptSubmit",
+                        }
+                    ),
+                    cwd=tmp,
+                    env=env,
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertTrue(
+                    list(
+                        (root / ".cache/sparkdock" / f"{engine}-skill-gate").glob(
+                            "*.json"
+                        )
+                    )
+                )
+            self.assertFalse((root / "sparkdock").exists())
+
+
 class ClassificationTest(unittest.TestCase):
+    def test_close_comments_require_writing_style(self):
+        for noun in ("pr", "issue"):
+            for flag in ("--comment text", "-c text", "--comment=text"):
+                self.assertTrue(
+                    guard._writes_prose([noun, "close", "5", *flag.split()])
+                )
+            self.assertFalse(guard._writes_prose([noun, "close", "5"]))
+
     def test_known_connector_writes(self):
         for tool in (
             "mcp__claude_ai_Slack__slack_send_message",

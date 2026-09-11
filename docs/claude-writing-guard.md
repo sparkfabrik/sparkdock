@@ -22,6 +22,8 @@ Both accept `0`, `off`, `false` and `no`, ignoring case and whitespace. They do 
 
 The `claude-gh-gate-enable`, `claude-gh-gate-disable` and `claude-gh-gate-info` commands manage Claude alone. Corresponding Codex commands are `codex-writing-guard-enable`, `codex-writing-guard-disable` and `codex-writing-guard-info`.
 
+Ansible tags `claude-gh-gate` and `codex-writing-guard` install only the named agent. Use `writing-guard` for both. Empty `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_CACHE_HOME` values use their home-directory defaults.
+
 ## Coverage
 
 | Transport                                                                    | Requirement                      |
@@ -52,7 +54,7 @@ The hooks run local Python and never call a model or inject full skill bodies. R
 
 Claude discovery checks personal and ancestor project `.claude/skills` locations, honoring `CLAUDE_CONFIG_DIR` and local skill overrides. Codex discovery checks `CODEX_HOME/skills` and ancestor `.codex/skills` locations. It honors disabled entries in those `config.toml` files and requires Python 3.11 or newer to parse them. Other discovery locations, profile overrides and plugin-only skills are not resolved.
 
-Unavailable, empty, unreadable, broken-link and manual-only skills are skipped. Each skill gets at most one load request per context. If the load is not confirmed, the next attempt proceeds with a notice. Invalid input, corrupt state and inaccessible storage also fail open. This is a workflow aid, not a security boundary.
+Unavailable, empty, unreadable, broken-link and manual-only skills are skipped. Each skill gets at most one load request per context. If the load is not confirmed, the next attempt proceeds with a notice. Invalid input, corrupt state and inaccessible storage also fail open. A busy state lock is retried for up to one second before failing open. This is a workflow aid, not a security boundary.
 
 Installation preserves unrelated hooks and backs up existing JSON files. Re-running enable repairs partial registrations. The shared installer reports a change when either registration changes. Malformed Codex settings and malformed Claude hook objects are not overwritten.
 

@@ -37,7 +37,7 @@ def _settings_lib():
 
 def _skill_available(name, cwd):
     # Use Claude-visible locations, never the unlinked ~/.agents/skills copy.
-    config = Path(os.environ.get("CLAUDE_CONFIG_DIR", Path.home() / ".claude"))
+    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
     roots = [config, *(p / ".claude" for p in (cwd, *cwd.parents))]
     for root in roots:
         for filename in ("settings.json", "settings.local.json"):
@@ -137,8 +137,7 @@ def cmd_enable():
         settings.parent.mkdir(parents=True, exist_ok=True)
         settings.write_text("{}\n")
     data = json.loads(settings.read_text())
-    if not isinstance(data, dict) or not isinstance(data.get("hooks", {}), dict):
-        raise TypeError(f"Invalid hooks object in {settings}")
+    cs.validate_hooks(data, HOOKS)
     if _configured(data, cs):
         print(f"Skill gate already enabled in {settings}")
         return 0
@@ -158,7 +157,8 @@ def cmd_disable():
     if not settings.exists():
         print(f"No {settings}; nothing to disable.")
         return 0
-    data = cs.load()
+    data = json.loads(settings.read_text())
+    cs.validate_hooks(data, HOOKS)
     if not any(cs.registered_matchers(data, event, SCRIPT_PATH) for event in HOOKS):
         print(f"Skill gate not registered in {settings}.")
         return 0

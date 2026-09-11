@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from pathlib import Path
 from unittest.mock import patch
 
@@ -180,6 +181,20 @@ class GateHookTest(unittest.TestCase):
         self.assertEqual(
             self.run_hook(self.bash("gh pr list") | {"agent_id": "child"}).returncode, 0
         )
+
+    def test_brief_lock_contention_preserves_skill_confirmation(self):
+        self.run_hook(self.bash("gh pr list"))
+        with ThreadPoolExecutor(max_workers=1) as pool:
+            with self.state_path().open("r+") as stream:
+                fcntl.flock(stream, fcntl.LOCK_EX)
+                pending = pool.submit(self.load, "gh")
+                try:
+                    with self.assertRaises(TimeoutError):
+                        pending.result(timeout=0.2)
+                finally:
+                    fcntl.flock(stream, fcntl.LOCK_UN)
+            pending.result(timeout=3)
+        self.assertIn("gh", json.loads(self.state_path().read_text())["loaded"])
 
     def test_busy_state_fails_open(self):
         self.load("gh")
