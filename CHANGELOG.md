@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added Codex CLI to provisioning as the `codex` cask, with the `cx`, `cxe` and `cxr` shell aliases
+
 - Added the `sproxy` shell alias for `spark-http-proxy`, available on macOS and Linux wherever the proxy CLI is installed
 
 - Added skill relocation handling: a skill that moves from `system` into a category is reported as a migration naming the destination category and the command that restores it, instead of as an orphan removed from upstream
@@ -116,6 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Managed skills are now symlinked into `~/.codex/skills` on every machine, instead of only where `~/.codex` already existed
 - Extended the Claude skill gate to GitLab and writing guidance, with a writing-only bypass and graceful handling of missing skills and failed loads.
 
 - Disabled skills and categories now render in the amber attention colour in `sf-harness-skill list`, `sf-harness-category list` and `sf-harness-status`, instead of plain or dim text

@@ -39,6 +39,7 @@ cask_install_once_packages:
 # Cask packages upgraded to latest on every provisioning run
 cask_latest_packages:
   - claude-code@latest
+  - codex
   - copilot-cli
   - gcloud-cli
   - upterm

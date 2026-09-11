@@ -14,7 +14,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../libs/libshell.sh
 source "${SCRIPT_DIR}/../../libs/libshell.sh"
-# Tool registry: TOOL_SKILLS_DIR, TOOL_LABEL, TOOLS_NATIVE_DISCOVERY, tool_is_enabled.
+# Tool registry: TOOL_SKILLS_DIR, TOOL_LABEL, TOOLS_NATIVE_DISCOVERY.
 # Sourced instead of duplicated so a new tool in the registry is picked up here too.
 # shellcheck source=../../../bin/common/skills-symlink-shim.sh
 source "${SPARKDOCK_ROOT}/bin/common/skills-symlink-shim.sh"
@@ -72,9 +72,6 @@ write_skill() {
 link_skill() {
     local tool_id
     for tool_id in "${!TOOL_SKILLS_DIR[@]}"; do
-        if ! tool_is_enabled "${tool_id}"; then
-            continue
-        fi
         if is_native_discovery "${tool_id}"; then
             continue
         fi

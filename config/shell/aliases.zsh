@@ -265,6 +265,15 @@ if command_exists claude; then
   }
 fi
 
+# Add some codex aliases.
+if command_exists codex; then
+  alias cx='codex'
+  # cxe - one-shot run, prints the answer and exits
+  cxe() { codex exec "${@}"; }
+  # cxr - resume the most recent session
+  cxr() { codex resume --last "${@}"; }
+fi
+
 # Add some opencode aliases.
 if command_exists opencode; then
   alias c='opencode'
