@@ -353,9 +353,9 @@ Two independent registries drive the harness, each an associative array mapping 
 - **Agent profiles** (`AGENT_TOOL_INSTALL_DIR` / `AGENT_TOOL_FILENAME` in `bin/sparkdock-agents-sync`): `claude`, `copilot`, `opencode`. Profiles are written as real files, with a per-tool filename pattern (`%s.agent.md` for Copilot, `%s.md` for the others).
 - **Skill symlinks** (`TOOL_SKILLS_DIR` / `TOOL_LABEL` in `bin/common/skills-symlink-shim.sh`): `claude`, `copilot`, `codex`, `opencode`. Skills are installed once to `~/.agents/skills/<name>/` and symlinked per tool. `opencode` is listed in `TOOLS_NATIVE_DISCOVERY` and reads `~/.agents/skills/` directly, so it gets no symlinks.
 
-A third array, `TOOL_REQUIRES_DIR`, marks a tool as **optional**: it is wired up only on machines where that directory already exists. Tools absent from the array are always wired up. `tool_is_enabled <tool_id>` is the shared predicate. A disabled tool gets nothing created and no column in `sf-harness-status`, so machines without the tool see no output about it.
+Every tool in the registry is wired up on every machine, with no per-machine gate: each tool's skills directory is created on demand and gets a column in `sf-harness-status`. Provisioning installs the tools themselves, sparkdock on macOS and sf-toolbox on Linux.
 
-Codex CLI is in the skills registry only (`~/.codex/skills`), and it is optional, gated on `~/.codex`. When that directory exists, `~/.codex/skills` is created on demand and populated with symlinks; when it does not, sync and status ignore Codex entirely. Codex has no agent-profile directory, so it stays out of the agent-profile registry. Codex's own bundled skills live in `~/.codex/skills/.system/` and are never touched, because the shim's globs skip dotfiles.
+Codex CLI is in the skills registry only (`~/.codex/skills`). It stays out of the agent-profile registry because Codex custom agents are TOML files in `~/.codex/agents/` with a `name` / `description` / `developer_instructions` schema, which the upstream harness does not ship yet. Codex's own bundled skills live in `~/.codex/skills/.system/` and are never touched, because the shim's globs skip dotfiles.
 
 ### Manifest
 
@@ -393,6 +393,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `claude-gh-gate`: register only the Claude Code platform and writing skill gate hooks
 - `claude-output-style` — set the default Claude Code output style
 - `herdr` — install only the herdr agent skill
+- `codex` — move an npm-installed Codex out of the way of the `codex` cask
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
 - `skills` — backward-compat alias
 

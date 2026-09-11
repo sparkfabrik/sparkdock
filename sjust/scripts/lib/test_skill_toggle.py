@@ -229,7 +229,8 @@ class SkillToggleIntegrationTest(unittest.TestCase):
         output = self.run_status()
 
         self.assertRegex(
-            output, r"core\s+managed\s+disabled \(unlinked\)\s+off\s+off\s+native"
+            output,
+            r"core\s+managed\s+disabled \(unlinked\)\s+off\s+off\s+off\s+native",
         )
         self.assertNotIn("symlink missing", output)
         self.assertNotIn("can't discover these skills", output)

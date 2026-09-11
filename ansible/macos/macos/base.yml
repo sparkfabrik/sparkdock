@@ -332,6 +332,57 @@
           become: false
           ignore_errors: true
 
+    - name: Transition Codex CLI from npm to brew cask
+      tags: codex
+      block:
+        - name: Check if codex cask is already installed
+          shell: brew list --cask codex >/dev/null 2>&1 && echo yes || echo no
+          register: codex_cask_installed
+          changed_when: false
+          become: false
+
+        - name: Check if npm command is available
+          shell: command -v npm >/dev/null 2>&1 && echo "available" || echo "not-available"
+          register: npm_available
+          changed_when: false
+          become: false
+
+        - name: Check if npm @openai/codex is installed globally
+          shell: npm list -g @openai/codex 2>/dev/null || echo "not-installed"
+          register: npm_codex_check
+          changed_when: false
+          when: npm_available.stdout == "available"
+          become: false
+
+        - name: Uninstall npm @openai/codex package
+          community.general.npm:
+            name: "@openai/codex"
+            global: true
+            state: absent
+          when:
+            - npm_available.stdout == "available"
+            - npm_codex_check.stdout is defined
+            - "'not-installed' not in npm_codex_check.stdout"
+          become: false
+
+        - name: Check if codex binary exists
+          stat:
+            path: "{{ homebrew_prefix }}/bin/codex"
+          register: codex_binary
+          become: false
+
+        # The cask links ${HOMEBREW_PREFIX}/bin/codex and aborts when another
+        # installer already owns that path.
+        - name: Remove codex binary if it exists (cleanup for transition)
+          file:
+            path: "{{ homebrew_prefix }}/bin/codex"
+            state: absent
+          when:
+            - codex_binary.stat.exists
+            - codex_cask_installed.stdout == "no"
+          become: false
+          ignore_errors: true
+
     # Migration: uninstall claude-code (stable) before installing claude-code@latest
     - name: Remove claude-code stable cask (replaced by claude-code@latest)
       tags: cask
@@ -1211,23 +1262,12 @@
             mode: "0755"
           become: no
 
-        # Codex CLI is optional: ~/.codex is the marker that the user has it, and
-        # matches the TOOL_REQUIRES_DIR gate in bin/common/skills-symlink-shim.sh.
-        - name: Check whether Codex CLI is present
-          stat:
-            path: "{{ ansible_facts['env']['HOME'] }}/.codex"
-            follow: true
-          register: codex_home
-          become: no
-          changed_when: false
-
         - name: Ensure Codex skills directory exists
           file:
             path: "{{ ansible_facts['env']['HOME'] }}/.codex/skills"
             state: directory
             mode: "0755"
           become: no
-          when: codex_home.stat.exists and codex_home.stat.isdir
 
         - name: Make sparkdock-agents-sync executable
           file:
