@@ -1,72 +1,77 @@
-# Claude writing guard
+# Claude and Codex writing guards
 
-Sparkdock's Claude guard requests the platform and writing skills before recognized GitHub or GitLab publishing commands. It skips unavailable skills and remembers successful loads.
+The guards request writing guidance before supported publishing calls. They confirm skill loads, then give one short publishing reminder per user turn. They do not score or rewrite the text.
 
-## Enable and bypass
+## Install and inspect
 
-Provisioning installs the guard. To upgrade an existing registration, run:
+Sparkdock provisioning installs both guards. The companion sf-toolbox change installs them on Linux. For an existing installation:
 
 ```bash
-sjust claude-gh-gate-enable
+sjust writing-guard-enable
+sjust writing-guard-info
 ```
 
-On Linux, use `ajust` instead of `sjust`. Start a new Claude session afterward. The existing command names remain available:
+Use `ajust` on Linux. Start a new Claude session after installation. In Codex, open `/hooks` and review/trust the new definitions. Registration alone does not activate untrusted hooks. The installer never changes trust, approval or sandbox settings.
 
-- **Inspect:** `sjust claude-gh-gate-info`
-- **Disable persistently:** `sjust claude-gh-gate-disable`
-- **Skip writing enforcement:** `SPARKDOCK_WRITING_GUARD=0 claude`
-- **Skip the entire gate:** `SPARKDOCK_GH_GATE=0 claude`
+Remove both registrations with `sjust writing-guard-disable`. Provisioning can reinstall them. For a persistent runtime opt-out, set an environment variable before starting the agent:
 
-Both variables accept `0`, `off`, `false` and `no`, ignoring case and surrounding whitespace. Set them before starting Claude. An assignment inside a proposed Bash command does not change the hook's environment.
+- `SPARKDOCK_WRITING_GUARD=0`: skip writing guidance and reminders; retain CLI platform requirements.
+- `SPARKDOCK_GH_GATE=0`: skip the entire guard in either agent.
 
-The writing bypass leaves the `gh` and `glab` requirements active. Neither bypass hides skills from Claude or prevents it from loading them independently.
+Both accept `0`, `off`, `false` and `no`, ignoring case and whitespace. They do not prevent the agent from loading skills independently.
 
-## Required skills
+The `claude-gh-gate-enable`, `claude-gh-gate-disable` and `claude-gh-gate-info` commands manage Claude alone. Corresponding Codex commands are `codex-writing-guard-enable`, `codex-writing-guard-disable` and `codex-writing-guard-info`.
 
-| Command                                             | Required skills                       |
-| --------------------------------------------------- | ------------------------------------- |
-| `gh` commands                                       | `gh`                                  |
-| `glab` commands                                     | `glab`                                |
-| Issue, PR/MR, comment, review and release authoring | Platform skill and `sf-writing-style` |
-| Explicit API writes                                 | Platform skill and `sf-writing-style` |
+Ansible tags `claude-gh-gate` and `codex-writing-guard` install only the named agent. Use `writing-guard` for both. Empty `CLAUDE_CONFIG_DIR`, `CODEX_HOME` and `XDG_CACHE_HOME` values use their home-directory defaults.
 
-Authoring includes `create`, `edit`, `update`, `comment`, `note` and `review` for issues, PRs, MRs, releases, discussions, gists and snippets. API calls with fields, input or a non-GET/HEAD method conservatively require writing guidance, including GraphQL queries submitted as POST requests.
+## Coverage
 
-The guard recognizes direct commands, absolute executable paths, simple shell chains, environment assignments, `env`, `command`, `rtk`, `rtk proxy` and `rtk-run`. It does not execute shell text or open description files.
+| Transport                                                                    | Requirement                      |
+| ---------------------------------------------------------------------------- | -------------------------------- |
+| Recognized `gh` / `glab` shell commands                                      | Corresponding CLI skill          |
+| CLI issue, PR/MR, comment, review and release authoring                      | CLI skill and `sf-writing-style` |
+| Explicit CLI API writes                                                      | CLI skill and `sf-writing-style` |
+| Supported Slack message sends, replies, updates and scheduling               | `sf-writing-style`               |
+| Supported GitHub/GitLab MCP issue, PR/MR, comment, review and release writes | `sf-writing-style`               |
+
+Connector reads do not require writing guidance. MCP coverage uses explicit operation names in `writing_guard.requirements`, including Claude Slack names and prefixed Codex app names. Unknown operations are not classified by guessing whether their arguments look like prose.
+
+Shell coverage includes direct commands, absolute executable paths, simple chains, assignments, `env`, `command`, `rtk`, `rtk proxy` and `rtk-run`. API requests with fields or a non-GET/HEAD method conservatively count as writes.
+
+## Loading and reminders
+
+Claude confirms successful `Skill` calls through `PostToolUse`. A failed call never counts as a load.
+
+Codex confirms a load when a Bash tool result contains the complete installed skill text. The command must mention `SKILL.md`; mentioning a path or returning truncated text is insufficient. Read the requested file with enough output allowance. Native loaders and partial reads are not tracked.
+
+The first supported write requests any missing available skills and asks the agent to revise its prepared text before retrying. If the skill was already loaded, the guard instead gives a short review reminder. Later writes in the same user turn proceed without another reminder. A new user prompt resets only the reminder; it does not force a full reload.
+
+Resume preserves confirmations. Startup, clear and compaction reset them. State is separate for each engine and session, and also uses `agent_id` when supplied. Codex does not document an agent identifier on every tool event, so isolation of Codex subagents is not guaranteed by this adapter.
+
+The hooks run local Python and never call a model or inject full skill bodies. Reminders and retries still consume some tokens. Loading a skill does not guarantee that the model follows it.
 
 ## Missing skills and failures
 
-The guard checks personal Claude skills and project `.claude/skills` directories from the working directory through its ancestors. Personal skills honor `CLAUDE_CONFIG_DIR`. Linked skills work; unlinked copies under `~/.agents/skills` do not count. Empty, unreadable, broken-link and manual-only skills are skipped, as are skills marked `off` or `user-invocable-only` in those settings files.
+Claude discovery checks personal and ancestor project `.claude/skills` locations, honoring `CLAUDE_CONFIG_DIR` and local skill overrides. Codex discovery checks `CODEX_HOME/skills` and ancestor `.codex/skills` locations. It honors disabled entries in those `config.toml` files and requires Python 3.11 or newer to parse them. Other discovery locations, profile overrides and plugin-only skills are not resolved.
 
-A successful `PostToolUse` event confirms a load. A failed load never counts as success. Each required skill gets at most one load request per context: if Claude does not confirm it, the next command proceeds with a notice. This also handles validation or permission failures that do not emit a failure hook.
+Unavailable, empty, unreadable, broken-link and manual-only skills are skipped. Each skill gets at most one load request per context. If the load is not confirmed, the next attempt proceeds with a notice. Invalid input, corrupt state and inaccessible storage also fail open. A busy state lock is retried for up to one second before failing open. This is a workflow aid, not a security boundary.
 
-Unavailable or unconfirmed skills produce one short notice per skill per session. Available requirements still apply. Malformed input, corrupt state and inaccessible storage allow the command without a traceback.
+Installation preserves unrelated hooks and backs up existing JSON files. Re-running enable repairs partial registrations. The shared installer reports a change when either registration changes. Malformed Codex settings and malformed Claude hook objects are not overwritten.
 
-This is a workflow aid, not a security control. An agent that ignores the first load request can proceed on retry.
+## Diagnostics and limits
 
-## Repeated calls and compaction
+`writing-guard-info` reports registrations, bypasses and coverage. In Codex, `/hooks` remains the authority for trust and activation.
 
-After successful loads, the guard stays silent. It runs local Python only and never injects full skill bodies or calls a model.
+State lives under `${XDG_CACHE_HOME:-~/.cache}/sparkdock/{claude,codex}-skill-gate/`. Each private JSON file records confirmed/requested/skipped skills and the last matched tool decision. It does not record message bodies. Read this state together with hook events to distinguish a skipped check from a confirmed load.
 
-State is isolated by session and subagent under `${XDG_CACHE_HOME:-~/.cache}/sparkdock/claude-skill-gate/`. Resume preserves confirmations. Startup, clear and compaction reset them, so the next relevant command requests fresh confirmation. Notice history survives compaction.
+Chat-only drafts, arbitrary scripts, aliases, dynamic shell syntax, heredocs, unknown connector tools and hosted tools are outside coverage. Nested tool execution depends on the host emitting hook events; only direct fixture MCP and shell paths have live coverage tests. Sending input to an existing Codex shell session does not trigger a new `PreToolUse` check.
 
-Claude itself [deduplicates unchanged skill invocations](https://code.claude.com/docs/en/skills#skill-content-lifecycle). A re-invocation after compaction can restore content that Claude dropped. The guard does not guarantee fewer billed tokens.
+## Validation and references
 
-## Limits
+Run `just test-python` for classifier, runtime, installer and lifecycle tests. Live tests use isolated settings, fixture skills, an inert CLI and a local Slack MCP server. No real messages or PRs are published by those tests.
 
-The guard acts before recognized Bash commands. It cannot enforce style in chat-only drafts, aliases, arbitrary scripts, dynamic shell syntax, heredocs or MCP connectors. Plugin-only skills and additional discovery locations are not resolved; a successful tracked load still counts.
-
-Loading guidance does not guarantee concise or factual text. When the guard stops a command, it asks Claude to apply the loaded guidance to any prepared text before retrying. It does not inspect or rewrite the body itself.
-
-## Tests
-
-Run the runtime and installer tests with:
-
-```bash
-python3 -m unittest discover -s sjust/scripts/lib -p test_claude_gh_gate.py
-just test-python
-```
-
-Tests use fixture skills, private cache directories and inert CLI stubs. They cover both platforms, bypasses, missing skills, failed loads, repeated calls, session lifecycle, shell parsing, storage failures and migration from the old hook registration.
-
-The [recorded Claude results](claude-writing-guard-results.json) cover six isolated sessions on Linux with Claude Code 2.1.266 and Opus 5. All six completed two fixture publications without repeated skill loads. The writing bypass requested only the platform skill; Claude could still load writing guidance independently. Compaction and subagent behavior were covered by hook-payload tests.
+- [Codex hooks and tool coverage](https://learn.chatgpt.com/docs/hooks#tool-coverage)
+- [Codex hook trust](https://learn.chatgpt.com/docs/hooks#review-and-trust-hooks)
+- [Claude skill content lifecycle](https://code.claude.com/docs/en/skills#skill-content-lifecycle)
+- [Shared guard live test results](shared-writing-guard-results.json)
+- [Earlier Claude-only test results](claude-writing-guard-results.json)

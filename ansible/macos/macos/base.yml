@@ -1194,17 +1194,45 @@
           changed_when: true
           become: false
 
-    - name: Enable platform and writing skill gate for Claude Code
+    - name: Enable the Claude platform and writing skill guard
       tags:
         - claude-gh-gate
+        - writing-guard
         - ai-harness
         - ai-harness-sync
-      block:
-        - name: Register platform and writing skill gate hooks
-          command: "python3 {{ dev_env_dir }}/sjust/scripts/claude-gh-gate.py enable"
-          register: gh_gate_output
-          changed_when: "'already enabled' not in gh_gate_output.stdout"
-          become: false
+      command:
+        argv:
+          - python3
+          - "{{ dev_env_dir }}/sjust/scripts/claude-gh-gate.py"
+          - enable
+      register: claude_guard_output
+      changed_when: "'already enabled' not in claude_guard_output.stdout"
+      become: false
+
+    - name: Enable the Codex platform and writing skill guard
+      tags:
+        - codex-writing-guard
+        - writing-guard
+        - ai-harness
+        - ai-harness-sync
+      command:
+        argv:
+          - python3
+          - "{{ dev_env_dir }}/sjust/scripts/codex-writing-guard.py"
+          - enable
+      register: codex_guard_output
+      changed_when: "'already enabled' not in codex_guard_output.stdout"
+      become: false
+
+    - name: Explain the Codex hook trust step
+      tags:
+        - codex-writing-guard
+        - writing-guard
+        - ai-harness
+        - ai-harness-sync
+      debug:
+        msg: "Open /hooks in Codex and review/trust new hook definitions. Registration does not grant trust."
+      when: codex_guard_output is changed
 
     - name: Set the default Claude Code output style
       tags:

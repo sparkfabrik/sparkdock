@@ -18,3 +18,36 @@ claude-gh-gate-disable:
 [group('claude')]
 claude-gh-gate-info:
     @python3 "{{_claude_gh_gate_py}}" info
+
+_agent_writing_guard_py := clean(source_directory() / "../../..") / "sjust/scripts/agent-writing-guard.py"
+_codex_writing_guard_py := clean(source_directory() / "../../..") / "sjust/scripts/codex-writing-guard.py"
+
+# Install both writing guards; Codex requires review in /hooks.
+[group('ai-harness')]
+writing-guard-enable:
+    @python3 "{{_agent_writing_guard_py}}" enable
+
+# Remove both guards' registrations, preserving unrelated hooks.
+[group('ai-harness')]
+writing-guard-disable:
+    @python3 "{{_agent_writing_guard_py}}" disable
+
+# Inspect both guards.
+[group('ai-harness')]
+writing-guard-info:
+    @python3 "{{_agent_writing_guard_py}}" info
+
+# Install only the Codex guard; review it with /hooks.
+[group('codex')]
+codex-writing-guard-enable:
+    @python3 "{{_codex_writing_guard_py}}" enable
+
+# Remove only the Codex guard.
+[group('codex')]
+codex-writing-guard-disable:
+    @python3 "{{_codex_writing_guard_py}}" disable
+
+# Show Codex registration and bypasses.
+[group('codex')]
+codex-writing-guard-info:
+    @python3 "{{_codex_writing_guard_py}}" info
