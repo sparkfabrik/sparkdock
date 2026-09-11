@@ -134,7 +134,7 @@ sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gc
 The ChatGPT desktop app (which includes Codex) is never installed by a plain `sparkdock` run. Opt in with either command:
 
 ```bash
-sjust chatgpt-desktop-install   # install or update the desktop app
+sjust chatgpt-desktop-install   # install the desktop app
 CHATGPT_DESKTOP=1 sparkdock      # opt in during a full provisioning run
 ```
 
