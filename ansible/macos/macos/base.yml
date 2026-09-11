@@ -341,6 +341,12 @@
           changed_when: false
           become: false
 
+        - name: Check if npm command is available
+          shell: command -v npm >/dev/null 2>&1 && echo "available" || echo "not-available"
+          register: npm_available
+          changed_when: false
+          become: false
+
         - name: Check if npm @openai/codex is installed globally
           shell: npm list -g @openai/codex 2>/dev/null || echo "not-installed"
           register: npm_codex_check

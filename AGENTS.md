@@ -393,6 +393,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `claude-gh-gate`: register only the Claude Code platform and writing skill gate hooks
 - `claude-output-style` — set the default Claude Code output style
 - `herdr` — install only the herdr agent skill
+- `codex` — move an npm-installed Codex out of the way of the `codex` cask
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
 - `skills` — backward-compat alias
 
