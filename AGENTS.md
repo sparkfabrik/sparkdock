@@ -353,7 +353,7 @@ Two independent registries drive the harness, each an associative array mapping 
 - **Agent profiles** (`AGENT_TOOL_INSTALL_DIR` / `AGENT_TOOL_FILENAME` in `bin/sparkdock-agents-sync`): `claude`, `copilot`, `opencode`. Profiles are written as real files, with a per-tool filename pattern (`%s.agent.md` for Copilot, `%s.md` for the others).
 - **Skill symlinks** (`TOOL_SKILLS_DIR` / `TOOL_LABEL` in `bin/common/skills-symlink-shim.sh`): `claude`, `copilot`, `codex`, `opencode`. Skills are installed once to `~/.agents/skills/<name>/` and symlinked per tool. `opencode` is listed in `TOOLS_NATIVE_DISCOVERY` and reads `~/.agents/skills/` directly, so it gets no symlinks.
 
-Every tool in the registry is wired up on every machine: sparkdock installs all of them, so there is no per-machine gate. Each tool's skills directory is created on demand and gets a column in `sf-harness-status`.
+Every tool in the registry is wired up on every machine, with no per-machine gate: each tool's skills directory is created on demand and gets a column in `sf-harness-status`. Provisioning installs the tools themselves, sparkdock on macOS and sf-toolbox on Linux.
 
 Codex CLI is in the skills registry only (`~/.codex/skills`). It stays out of the agent-profile registry because Codex custom agents are TOML files in `~/.codex/agents/` with a `name` / `description` / `developer_instructions` schema, which the upstream harness does not ship yet. Codex's own bundled skills live in `~/.codex/skills/.system/` and are never touched, because the shim's globs skip dotfiles.
 

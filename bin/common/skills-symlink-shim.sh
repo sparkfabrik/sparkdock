@@ -210,7 +210,7 @@ tool_symlink_issues=()
 
 # Check whether a managed skill is discoverable by a specific tool.
 # Sets TOOL_AVAILABLE to "ok", "partial", "off" (disabled by the user),
-# "native" (disabled but still discovered natively) or "-" (tool not here).
+# "native" (disabled but still discovered natively).
 # Appends a descriptive entry to tool_symlink_issues when the skill is not
 # properly linked; a disabled skill is never reported as an issue.
 # IMPORTANT: Must be called directly (not inside $(...) or a pipeline)
