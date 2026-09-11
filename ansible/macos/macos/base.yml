@@ -394,26 +394,34 @@
           changed_when: false
           become: false
 
-        - name: Check for a ChatGPT.app installed outside Homebrew
-          stat:
-            path: /Applications/ChatGPT.app/Contents/Info.plist
+        # A bundle counts only with its Info.plist, as in the install-once detector above.
+        - name: Check for a healthy ChatGPT.app bundle
+          shell: |
+            for app in "/Applications/ChatGPT.app" "{{ ansible_facts['env']['HOME'] }}/Applications/ChatGPT.app"; do
+              if [ -f "${app}/Contents/Info.plist" ]; then
+                echo yes
+                exit 0
+              fi
+            done
+            echo no
           register: chatgpt_app_bundle
+          changed_when: false
           become: false
 
         - name: Keep the existing ChatGPT.app
           debug:
-            msg: Keeping the existing /Applications/ChatGPT.app. Remove it to switch to the Homebrew chatgpt cask.
+            msg: Keeping the existing ChatGPT.app installed outside Homebrew. Remove it to switch to the chatgpt cask.
           when:
             - chatgpt_cask_installed.stdout == "no"
-            - chatgpt_app_bundle.stat.exists
+            - chatgpt_app_bundle.stdout == "yes"
 
+        # force repairs a hollow bundle left behind by an interrupted install.
         - name: Install the chatgpt cask
           community.general.homebrew_cask:
             name: chatgpt
             state: present
-          when:
-            - chatgpt_cask_installed.stdout == "no"
-            - not chatgpt_app_bundle.stat.exists
+            install_options: force
+          when: chatgpt_app_bundle.stdout == "no"
           become: false
 
         - name: Check for the discontinued codex-app cask
