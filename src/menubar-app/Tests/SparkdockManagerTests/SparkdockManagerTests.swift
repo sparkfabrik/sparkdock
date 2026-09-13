@@ -227,6 +227,41 @@ final class SparkdockManagerTests: XCTestCase {
         )
     }
 
+    func testBrewVulnsMenuCommandRequiresBrew() throws {
+        let items = try shippedMenuItems()
+        guard let vulnsItem = items.first(where: { ($0["command"] as? String) == "brew vulns" }) else {
+            return XCTFail("menu.json should offer the Homebrew vulnerability check")
+        }
+        XCTAssertEqual(vulnsItem["requires_binary"] as? String, "brew")
+    }
+
+    // MARK: - Homebrew Vulnerability Status Tests
+
+    func testBrewVulnsFindingsBadge() {
+        let output = "Homebrew vulnerabilities: 4 in 2 formulae, 2 high or critical\n"
+        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 0, output: output), .findings("4, 2 high"))
+    }
+
+    func testBrewVulnsFindingsBadgeOmitsZeroSevere() {
+        let output = "Homebrew vulnerabilities: 3 in 1 formulae, 0 high or critical\n"
+        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 0, output: output), .findings("3"))
+    }
+
+    func testBrewVulnsFindingsWithoutSummaryLine() {
+        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 0, output: ""), .findings("Found"))
+    }
+
+    func testBrewVulnsClean() {
+        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 1, output: ""), .clean)
+    }
+
+    /// Exit 3 is Homebrew missing or older than 7, which has no `vulns` command.
+    func testBrewVulnsUnavailable() {
+        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 3, output: ""), .unavailable)
+        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 2, output: ""), .unavailable)
+        XCTAssertEqual(BrewVulnsStatus.from(exitCode: nil, output: ""), .unavailable)
+    }
+
     // MARK: - Darwin Recheck Notification Tests
 
     /// Expected notification names — must match RecheckNotification constants in main.swift.

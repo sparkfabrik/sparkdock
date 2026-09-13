@@ -78,7 +78,7 @@ func healthFromCheckUpdates(r CommandResult) Health {
 }
 
 // subsystemOrder is the display order of the checkable subsystems.
-var subsystemOrder = []string{"sparkdock", "brew", "http-proxy", "skills"}
+var subsystemOrder = []string{"sparkdock", "brew", "vulns", "http-proxy", "skills"}
 
 // Subsystems lists the checkable subsystem keys in display order.
 func (c CmdChecker) Subsystems() []string {
@@ -92,6 +92,8 @@ func (c CmdChecker) CheckOne(ctx context.Context, key string) Subsystem {
 		return c.checkUpdatesSubsystem(ctx, "sparkdock", "Sparkdock", "sparkdock")
 	case "brew":
 		return c.brewSubsystem(ctx)
+	case "vulns":
+		return c.vulnsSubsystem(ctx)
 	case "http-proxy":
 		return c.checkUpdatesSubsystem(ctx, "http-proxy", "HTTP proxy", "http-proxy")
 	case "skills":
@@ -126,6 +128,36 @@ func (c CmdChecker) brewSubsystem(ctx context.Context) Subsystem {
 	sub.Health = Stale
 	sub.Detail = fmt.Sprintf("%d to update: %s", len(names), summarizeNames(names, 3))
 	return sub
+}
+
+// vulnsSubsystem reports known vulnerabilities in the installed formulae, where
+// the check-updates exit code 0 means findings rather than an available update.
+func (c CmdChecker) vulnsSubsystem(ctx context.Context) Subsystem {
+	res := c.Run(ctx, c.CheckUpdatesBin, "vulns")
+	sub := Subsystem{Key: "vulns", Name: "Vulnerabilities"}
+	h := healthFromCheckUpdates(res)
+	sub.Health = h
+	switch h {
+	case Stale:
+		sub.Detail = vulnsDetail(res.Stdout)
+	case OK:
+		sub.Detail = "none"
+	case Unconfigured:
+		sub.Detail = "not available"
+	default:
+		sub.Detail = failDetail(res)
+	}
+	return sub
+}
+
+// vulnsDetail strips the subcommand's label from its summary line, so the row
+// reads "4 in 2 formulae, 2 high or critical".
+func vulnsDetail(stdout string) string {
+	lines := nonEmptyLines(stdout)
+	if len(lines) == 0 {
+		return "found"
+	}
+	return strings.TrimPrefix(lines[0], "Homebrew vulnerabilities: ")
 }
 
 // summarizeNames joins up to max names, folding the rest into a "+N more" tail

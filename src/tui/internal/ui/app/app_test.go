@@ -2,7 +2,10 @@ package app
 
 import (
 	"context"
+	"fmt"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"testing"
 
 	"github.com/sparkfabrik/sparkdock/src/tui/internal/runner"
@@ -128,6 +131,32 @@ func TestBackFromRecipeRunReturnsToBrowser(t *testing.T) {
 	m = update(m, runview.BackMsg{})
 	if m.page != ui.PageDashboard {
 		t.Errorf("page = %v, want PageDashboard after esc from a dashboard run", m.page)
+	}
+}
+
+// brew vulns exits 1 when it finds something, which is the normal outcome, so
+// only other non-zero exits may show the run as failed.
+func TestVulnsActionExitCodes(t *testing.T) {
+	cases := map[int]bool{0: false, 1: false, 2: true}
+	for exitCode, wantErr := range cases {
+		spec, ok := newTestApp().planFor("vulns")
+		if !ok {
+			t.Fatal(`planFor("vulns") is not wired`)
+		}
+		dir := t.TempDir()
+		script := fmt.Sprintf("#!/bin/sh\necho scanning\nexit %d\n", exitCode)
+		if err := os.WriteFile(filepath.Join(dir, "brew"), []byte(script), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("PATH", dir+string(os.PathListSeparator)+os.Getenv("PATH"))
+
+		h := spec.rnr.Start(context.Background(), spec.opts)
+		for range h.Output {
+		}
+		res := <-h.Done
+		if (res.Err != nil) != wantErr {
+			t.Errorf("brew exit %d: Result.Err = %v, want error: %v", exitCode, res.Err, wantErr)
+		}
 	}
 }
 

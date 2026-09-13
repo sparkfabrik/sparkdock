@@ -16,6 +16,12 @@
             "command": "spark-http-proxy dashboard"
           },
           {
+            "title": "Check Homebrew vulnerabilities",
+            "type": "command",
+            "command": "brew vulns",
+            "requires_binary": "brew"
+          },
+          {
             "title": "Open timetracker",
             "type": "command",
             "command": "timetracker tui",

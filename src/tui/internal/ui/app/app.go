@@ -320,6 +320,10 @@ func (m Model) planFor(action string) (runSpec, bool) {
 		// in place, so emulate a terminal.
 		brewEnv := []string{"HOMEBREW_NO_UPGRADE_AUTO_UPDATES_CASKS=1"}
 		return runSpec{title: "Upgrading Brew packages", rnr: runner.ForCommandEnv(brewEnv, "brew", "upgrade", "--yes"), scroll: runview.FollowTail, render: runview.Terminal}, true
+	case "vulns":
+		// Exit 1 means findings, the normal outcome, so only other failures fail the
+		// run. brew redraws progress in place, so emulate a terminal.
+		return runSpec{title: "Homebrew vulnerabilities", rnr: runner.ForCommand("sh", "-c", "brew vulns || [ $? -eq 1 ]"), scroll: runview.FollowTail, render: runview.Terminal}, true
 	case "sync":
 		return runSpec{title: "Syncing AI harness", rnr: m.ansible, opts: ansibleOpts("ai-harness-sync"), scroll: runview.FollowTail, render: runview.Structured}, true
 	case "proxy-status":

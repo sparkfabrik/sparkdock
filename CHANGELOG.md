@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a Homebrew vulnerabilities status row and a `brew vulns` action to the menu bar app and the TUI, hidden on machines whose Homebrew has no `vulns` command
+
 - Added `sjust brew-vulns [severity]` and the `sparkdock-check-updates vulns` subcommand, which report Homebrew formulae with known vulnerabilities from `brew vulns` (Homebrew 7 or later)
 - Added opt-in installation of the official Homebrew desktop app (BrewUI) with `sjust homebrew-app-install` or `HOMEBREW_APP=1 sparkdock`: the `homebrew-app` cask, skipped on macOS older than 26 (Tahoe)
 
