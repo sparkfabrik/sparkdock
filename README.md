@@ -127,6 +127,7 @@ sjust                    # Show available commands
 sjust --list             # List all tasks
 sjust docker-ps          # Show running containers
 sjust system-upgrade     # Update system packages
+sjust brew-vulns         # Check installed formulae for known vulnerabilities (optional severity: low, medium, high, critical)
 sjust system-gcloud-reconfigure  # Configure Google Cloud SDK and install gke-gcloud-auth-plugin
 ```
 
