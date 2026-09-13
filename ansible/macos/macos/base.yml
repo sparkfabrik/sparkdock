@@ -437,6 +437,62 @@
             msg: The codex-app cask (Codex.app) is discontinued upstream and replaced by ChatGPT desktop. Remove it with `brew uninstall --cask codex-app`.
           when: codex_app_cask_installed.stdout == "yes"
 
+    # Opt-in: not in the cask lists. BrewUI needs macOS 26 (Tahoe) or later and
+    # updates itself, so there is no upgrade task.
+    - name: Install the Homebrew desktop app (opt-in)
+      tags: homebrew-app
+      when: sparkdock_homebrew_app | default(false) | bool
+      block:
+        - name: Read the macOS product version
+          command: sw_vers -productVersion
+          register: homebrew_app_macos_version
+          changed_when: false
+          become: false
+
+        - name: Report the macOS requirement for the Homebrew desktop app
+          debug:
+            msg: "The Homebrew desktop app (BrewUI) requires macOS 26 (Tahoe) or later (detected: {{ homebrew_app_macos_version.stdout }}). Skipping."
+          when: homebrew_app_macos_version.stdout is version('26', '<')
+
+        - name: Install the Homebrew desktop app on a supported macOS
+          when: homebrew_app_macos_version.stdout is version('26', '>=')
+          block:
+            - name: Check if the homebrew-app cask is installed
+              shell: brew list --cask homebrew-app >/dev/null 2>&1 && echo yes || echo no
+              register: homebrew_app_cask_installed
+              changed_when: false
+              become: false
+
+            # A bundle counts only with its Info.plist, as in the install-once detector above.
+            - name: Check for a healthy Homebrew.app bundle
+              shell: |
+                for app in "/Applications/Homebrew.app" "{{ ansible_facts['env']['HOME'] }}/Applications/Homebrew.app"; do
+                  if [ -f "${app}/Contents/Info.plist" ]; then
+                    echo yes
+                    exit 0
+                  fi
+                done
+                echo no
+              register: homebrew_app_bundle
+              changed_when: false
+              become: false
+
+            - name: Keep the existing Homebrew.app
+              debug:
+                msg: Keeping the existing Homebrew.app installed outside Homebrew. Remove it to switch to the homebrew-app cask.
+              when:
+                - homebrew_app_cask_installed.stdout == "no"
+                - homebrew_app_bundle.stdout == "yes"
+
+            # force repairs a hollow bundle left behind by an interrupted install.
+            - name: Install the homebrew-app cask
+              community.general.homebrew_cask:
+                name: homebrew-app
+                state: present
+                install_options: force
+              when: homebrew_app_bundle.stdout == "no"
+              become: false
+
     # Migration: uninstall claude-code (stable) before installing claude-code@latest
     - name: Remove claude-code stable cask (replaced by claude-code@latest)
       tags: cask

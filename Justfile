@@ -37,6 +37,11 @@ run-ansible-playbook TAGS="all":
         BECOME_ARGS+=(-e sparkdock_chatgpt_desktop=true)
     fi
 
+    # Opt-in Homebrew desktop app (BrewUI), macOS 26 or later.
+    if [ "${HOMEBREW_APP:-0}" = "1" ]; then
+        BECOME_ARGS+=(-e sparkdock_homebrew_app=true)
+    fi
+
     if [ -z "${TAGS}" ]; then
         ansible-playbook ./ansible/macos.yml -i ./ansible/inventory.ini "${BECOME_ARGS[@]}"
     else

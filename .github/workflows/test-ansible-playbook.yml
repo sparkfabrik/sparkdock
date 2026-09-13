@@ -119,6 +119,31 @@ jobs:
           grep -Eq 'changed=0 .*failed=0' /tmp/chatgpt-desktop-rerun.log
           echo "✅ ChatGPT desktop opt-in installed and idempotent"
 
+      - name: Install the Homebrew desktop app through the opt-in tag
+        run: |
+          cd /opt/sparkdock
+          run_tag() {
+            ansible-playbook -i ansible/inventory.ini ansible/macos.yml --tags homebrew-app \
+              -e sparkdock_homebrew_app=true -e ansible_become_pass=
+          }
+          macos_major=$(sw_vers -productVersion | cut -d. -f1)
+          if [ "${macos_major}" -lt 26 ]; then
+            run_tag | tee /tmp/homebrew-app-skip.log
+            grep -q 'requires macOS 26' /tmp/homebrew-app-skip.log
+            if brew list --cask homebrew-app >/dev/null 2>&1; then
+              echo "cask unexpectedly installed"
+              exit 1
+            fi
+            echo "✅ Homebrew desktop app skipped on macOS ${macos_major}"
+            exit 0
+          fi
+          run_tag
+          test -f /Applications/Homebrew.app/Contents/Info.plist
+          brew list --cask homebrew-app
+          run_tag | tee /tmp/homebrew-app-rerun.log
+          grep -Eq 'changed=0 .*failed=0' /tmp/homebrew-app-rerun.log
+          echo "✅ Homebrew desktop app opt-in installed and idempotent"
+
       - name: Fix ownership permissions and clean git state before second run
         run: |
           echo "=== Fixing ownership permissions and git state for second run ==="

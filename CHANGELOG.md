@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added opt-in installation of the official Homebrew desktop app (BrewUI) with `sjust homebrew-app-install` or `HOMEBREW_APP=1 sparkdock`: the `homebrew-app` cask, skipped on macOS older than 26 (Tahoe)
+
 - Added opt-in ChatGPT desktop (Codex desktop) installation with `sjust chatgpt-desktop-install` or `CHATGPT_DESKTOP=1 sparkdock`: the `chatgpt` cask on macOS, delegated to `sf-toolbox` on Linux; plain provisioning runs never install it
 
 - Added a Codex writing guard and shared management commands, with Slack connector coverage and publishing reminders for both Claude and Codex.
