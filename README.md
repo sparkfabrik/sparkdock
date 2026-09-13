@@ -15,6 +15,7 @@ Sparkdock is an automated macOS development environment provisioner built with A
 - iTerm2, Ghostty terminal, Slack, Zoom
 - Maccy clipboard manager, MonitorControl
 - ChatGPT desktop (Codex desktop), opt-in only: see [ChatGPT desktop](#chatgpt-desktop-opt-in)
+- Homebrew desktop app (BrewUI), opt-in only: see [Homebrew desktop app](#homebrew-desktop-app-opt-in)
 
 **Development Tools:**
 
@@ -139,6 +140,17 @@ CHATGPT_DESKTOP=1 sparkdock      # opt in during a full provisioning run
 ```
 
 On macOS this installs the Homebrew `chatgpt` cask (`ChatGPT.app`), which then updates itself. A `ChatGPT.app` installed by hand is left in place. On Linux the same `ajust chatgpt-desktop-install` command runs `sf-toolbox` with the `CHATGPT_DESKTOP=1` opt-in; sf-toolbox owns the Arch, Omarchy and Debian/Ubuntu installation paths and never installs the app without that switch. The Codex CLI is a separate tool and stays installed on every machine.
+
+### Homebrew desktop app (opt-in)
+
+BrewUI, Homebrew's official graphical interface, is never installed by a plain `sparkdock` run. It requires macOS 26 (Tahoe) or later; on anything older the install is skipped with a message. Opt in with either command:
+
+```bash
+sjust homebrew-app-install       # install the desktop app
+HOMEBREW_APP=1 sparkdock         # opt in during a full provisioning run
+```
+
+This installs the Homebrew `homebrew-app` cask, which then updates itself. The app installs as `/Applications/Homebrew.app`.
 
 ### macOS System Defaults
 
