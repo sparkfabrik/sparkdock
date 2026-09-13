@@ -367,11 +367,7 @@ check_xcode_issues() {
         print_warning "This is usually due to a broken or incompatible Command Line Tools installation."
         echo ""
         print_info "To resolve this issue, please run:"
-        echo "  xcode-select --install"
-        echo ""
-        print_info "If that doesn't resolve your issues, run:"
-        echo "  sudo rm -rf /Library/Developer/CommandLineTools"
-        echo "  sudo xcode-select --install"
+        echo "  sjust sparkdock-menubar-reinstall"
         echo ""
         print_info "Alternatively, manually download them from:"
         echo "  https://developer.apple.com/download/all/"
@@ -388,13 +384,25 @@ check_xcode_issues() {
         return 1
     fi
 
+    # Homebrew reports any release older than Xcode's current one as outdated, which
+    # is a routine update rather than a broken toolchain.
+    local clt_lines residual_lines
+    clt_lines="$(printf '%s\n' "${brew_doctor_output}" | grep -i "command line tools\|xcode-select" || true)"
+    if [[ -n "${clt_lines}" ]] && printf '%s\n' "${brew_doctor_output}" | grep -qi "newer Command Line Tools release is available"; then
+        residual_lines="$(printf '%s\n' "${clt_lines}" | grep -viE "newer Command Line Tools release is available|Update them from Software Update|softwareupdate --all|rm -rf /Library/Developer/CommandLineTools|xcode-select --install" || true)"
+        if [[ -z "${residual_lines}" ]]; then
+            print_info "Homebrew reports a newer Command Line Tools release; update from Software Update or run 'sjust sparkdock-menubar-reinstall'"
+            return 0
+        fi
+    fi
+
     # Check for other Command Line Tools related issues in brew doctor output
-    if echo "${brew_doctor_output}" | grep -qi "command line tools\|xcode-select"; then
+    if [[ -n "${clt_lines}" ]]; then
         print_warning "Potential Xcode command line tools issue detected in brew doctor output:"
-        echo "${brew_doctor_output}" | grep -i "command line tools\|xcode-select" | sed 's/^/  /'
+        printf '%s\n' "${clt_lines}" | sed 's/^/  /'
         echo ""
         print_info "You may want to check your Xcode command line tools installation."
-        print_info "If you encounter issues during provisioning, try running: xcode-select --install"
+        print_info "If you encounter issues during provisioning, run: sjust sparkdock-menubar-reinstall"
         echo ""
         return 1
     fi
