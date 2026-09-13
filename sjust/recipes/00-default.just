@@ -377,9 +377,8 @@ sparkdock-menubar-reinstall:
     sudo touch "${cl_marker}"
 
     echo "📥 Looking for a Command Line Tools package..."
-    macos_major="$(sw_vers -productVersion | cut -d. -f1)"
     update_list="$(softwareupdate --list 2>/dev/null || true)"
-    if ! cl_label="$(clt_pick_softwareupdate_label "${macos_major}" "${update_list}")"; then
+    if ! cl_label="$(clt_pick_softwareupdate_label "${update_list}")"; then
         echo "❌ Software Update offers no Command Line Tools package"
         echo "💡 Check 'softwareupdate --list' and install the tools from there or from Xcode"
         exit 1

@@ -122,7 +122,7 @@ Sparkdock checks for it before provisioning and skips the menu bar app build (th
 **Repair:**
 
 ```bash
-sjust sparkdock-menubar-reinstall   # installs one matching package, then rebuilds
+sjust sparkdock-menubar-reinstall   # installs the newest package, then rebuilds
 sparkdock                           # re-run provisioning
 ```
 
