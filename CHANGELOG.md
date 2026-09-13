@@ -202,6 +202,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed provisioning on Homebrew 7, which refused to add untrusted third-party taps: taps are now trusted before they are added
+
 - Preserve malformed writing-guard settings, use defaults for empty configuration variables, and keep Claude and Codex provisioning tags separate.
 - Preserve skill confirmations during brief lock contention and request writing guidance for close comments.
 

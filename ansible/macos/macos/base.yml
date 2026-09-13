@@ -123,16 +123,9 @@
         all_removed_npm_packages: "{{ all_packages.removed_npm_packages | default([]) }}"
         all_npm_packages: "{{ all_packages.npm_packages | default([]) }}"
 
-    - name: Configure homebrew taps
-      tags: brew_packages
-      community.general.homebrew_tap:
-        name: "{{ item }}"
-        state: present
-      loop: "{{ all_taps }}"
-      when: all_taps | length > 0
-      become: false
-
-    - name: Trust third-party homebrew taps (Homebrew >= 6, HOMEBREW_REQUIRE_TAP_TRUST)
+    # Homebrew 7 verifies a tap's formulae while tapping and refuses untrusted
+    # taps, so the trust entry must exist before the tap is added.
+    - name: Trust third-party homebrew taps before tapping (Homebrew >= 6, HOMEBREW_REQUIRE_TAP_TRUST)
       tags: brew_packages
       ansible.builtin.shell: |
         set -uo pipefail
@@ -148,6 +141,15 @@
       register: brew_trust
       changed_when: "'Trusted tap' in brew_trust.stdout"
       when: all_taps | length > 0
+
+    - name: Configure homebrew taps
+      tags: brew_packages
+      community.general.homebrew_tap:
+        name: "{{ item }}"
+        state: present
+      loop: "{{ all_taps }}"
+      when: all_taps | length > 0
+      become: false
 
     - name: Debug loaded variables
       debug:
