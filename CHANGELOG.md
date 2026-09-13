@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added a Command Line Tools preflight to provisioning: an inconsistent toolchain now skips the menu bar app and the TUI with a diagnosis instead of failing the run, and `sjust device-info` reports the same state
+- Added a Command Line Tools preflight to provisioning: an inconsistent toolchain now skips the menu bar app build with a diagnosis instead of failing the run, and `sjust device-info` reports the same state
 
 - Added a Homebrew vulnerabilities status row and a `brew vulns` action to the menu bar app and the TUI, hidden on machines whose Homebrew has no `vulns` command
 
