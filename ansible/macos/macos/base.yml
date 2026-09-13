@@ -512,6 +512,10 @@
       loop: "{{ all_cask_packages }}"
       when: all_cask_packages | length > 0
       become: false
+      register: cask_install_result
+      retries: 3
+      delay: 10
+      until: cask_install_result is succeeded
 
     - name: Upgrade cask packages to latest
       tags: cask
@@ -522,6 +526,10 @@
       loop: "{{ all_cask_latest_packages }}"
       when: all_cask_latest_packages | length > 0
       become: false
+      register: cask_upgrade_result
+      retries: 3
+      delay: 10
+      until: cask_upgrade_result is succeeded
 
     - name: Assert cask packages installed
       shell: |
