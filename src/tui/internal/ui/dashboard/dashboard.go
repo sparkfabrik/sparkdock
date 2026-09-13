@@ -256,6 +256,7 @@ func (m *Model) rebuild() {
 	items := []item{
 		{kind: kindStatus, id: "sparkdock", label: "Sparkdock", detail: sdDetail, health: sd.Health},
 		statusItem(m.subByKey("brew"), "Brew packages"),
+		statusItem(m.subByKey("vulns"), "Vulnerabilities"),
 		statusItem(m.subByKey("http-proxy"), "HTTP proxy"),
 		statusItem(m.subByKey("skills"), "AI harness"),
 		{kind: kindRule},
@@ -269,6 +270,7 @@ func (m *Model) rebuild() {
 	items = append(items,
 		item{kind: kindAction, id: "provision", label: "Update everything", detail: "$ sparkdock", selectable: true},
 		item{kind: kindAction, id: "upgrade", label: "Upgrade Brew packages", detail: "$ brew upgrade", selectable: true},
+		item{kind: kindAction, id: "vulns", label: "Show Homebrew vulnerabilities", detail: "$ brew vulns", selectable: true},
 		item{kind: kindAction, id: "sync", label: "Sync AI harness", detail: "$ sjust sf-harness-sync", selectable: true},
 		item{kind: kindAction, id: "recipes", label: "Browse sjust recipes", detail: "$ sjust --list", selectable: true},
 		item{kind: kindGroup, label: "HTTP proxy"},

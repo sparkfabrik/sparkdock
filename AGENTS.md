@@ -285,13 +285,14 @@ the **Go Standards** section for the mandatory `gofmt`/`vet`/`build`/`test` gate
 ### What it does
 
 - A flat grouped dashboard mirrors the menu bar: a status group (Sparkdock, Brew
-  packages, HTTP proxy, AI harness) fed by `sparkdock-check-updates` and `brew
-outdated`, plus a background-gathered system-info panel (model, serial, chip,
-  memory, disk, macOS).
+  packages, Vulnerabilities, HTTP proxy, AI harness) fed by
+  `sparkdock-check-updates` and `brew outdated`, plus a background-gathered
+  system-info panel (model, serial, chip, memory, disk, macOS).
 - Each action shows its **equivalent shell command** as the detail, so the CLI is
   discoverable: `Update everything` (`sparkdock`), `Upgrade Brew packages` (`brew
-upgrade`), `Sync AI harness` (`sjust sf-harness-sync`), the `HTTP proxy` group
-  (`spark-http-proxy …`), and `d` for device info (`ayse-get-sm`).
+upgrade`), `Show Homebrew vulnerabilities` (`brew vulns`), `Sync AI harness`
+  (`sjust sf-harness-sync`), the `HTTP proxy` group (`spark-http-proxy …`), and
+  `d` for device info (`ayse-get-sm`).
 - A shared Runner streams output above a pinned statusline via two renderers
   behind one interface: **structured** (decodes the `ansible/callback_plugins/sparkdock.py`
   stdout callback's `@@PHASE`/`@@TASK`/`@@STAT`/`@@DONE` markers) and **terminal**

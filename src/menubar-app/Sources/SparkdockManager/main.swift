@@ -15,6 +15,8 @@ private struct AppConstants {
     static let iconSize = NSSize(width: 18, height: 18)
     static let bundleIdentifier = "com.sparkfabrik.sparkdock.manager"
     static let processTimeout: TimeInterval = 30.0
+    /// `brew vulns` queries OSV.dev per formula: about ten seconds, more on a slow network.
+    static let vulnsCheckTimeout: TimeInterval = 120.0
     static let logger = Logger(subsystem: bundleIdentifier, category: "MenuBar")
 }
 
@@ -322,6 +324,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var claudeUsageStatus: ClaudeUsageStatus?
     var hasTimetrackerUpdates = false
     var timetrackerLastStatus: Int32? = nil
+    var brewVulnsStatus: BrewVulnsStatus = .unavailable
     var outdatedBrewFormulaeCount = 0
     var outdatedBrewCasksCount = 0
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
@@ -336,6 +339,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var refreshSystemStatusButton: NSButton?
     var sparkdockStatusMenuItem: NSMenuItem?
     var brewStatusMenuItem: NSMenuItem?
+    var brewVulnsStatusMenuItem: NSMenuItem?
     var httpProxyStatusMenuItem: NSMenuItem?
     var agentsStatusMenuItem: NSMenuItem?
     var claudeUsageSectionMenuItem: NSMenuItem?
@@ -414,6 +418,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         refreshSystemStatusButton?.isEnabled = false
         updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Checking", color: .systemYellow)
         if includeClaudeUsage {
@@ -423,6 +428,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Checking", color: .systemYellow)
         setStatusMenuItemAction(sparkdockStatusMenuItem, action: nil)
         setStatusMenuItemAction(brewStatusMenuItem, action: nil)
+        setStatusMenuItemAction(brewVulnsStatusMenuItem, action: nil)
         setStatusMenuItemAction(httpProxyStatusMenuItem, action: nil)
         setStatusMenuItemAction(agentsStatusMenuItem, action: nil)
         setStatusMenuItemAction(timetrackerStatusMenuItem, action: nil)
@@ -523,6 +529,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         let brewStatusItem = NSMenuItem(title: "Homebrew", action: nil, keyEquivalent: "")
         menu.addItem(brewStatusItem)
         self.brewStatusMenuItem = brewStatusItem
+
+        let brewVulnsStatusItem = NSMenuItem(title: "Homebrew vulnerabilities", action: nil, keyEquivalent: "")
+        // Hidden until a check answers, so a Homebrew without `vulns` never shows a row.
+        brewVulnsStatusItem.isHidden = true
+        menu.addItem(brewVulnsStatusItem)
+        self.brewVulnsStatusMenuItem = brewVulnsStatusItem
 
         let httpProxyStatusItem = NSMenuItem(title: "HTTP proxy", action: nil, keyEquivalent: "")
         menu.addItem(httpProxyStatusItem)
@@ -800,11 +812,16 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private func recheckBrew() {
         checkGeneration += 1
         updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Checking", color: .systemYellow)
+        // An upgrade can resolve a vulnerability, so the row would otherwise stay stale.
+        updateStatusMenuItem(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
+            async let brewVulnsStatusTask = self.runBrewVulnsCheck()
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
+            let brewVulnsStatus = await brewVulnsStatusTask
             await MainActor.run {
                 self.outdatedBrewFormulaeCount = formulaeCount
                 self.outdatedBrewCasksCount = casksCount
+                self.brewVulnsStatus = brewVulnsStatus
                 self.refreshUI()
             }
         }
@@ -886,7 +903,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             claudeUsageStatus: claudeUsageStatus,
             updateClaudeUsage: updateClaudeUsage,
             hasTimetrackerUpdates: hasTimetrackerUpdates,
-            timetrackerConfigured: isTimetrackerConfigured()
+            timetrackerConfigured: isTimetrackerConfigured(),
+            brewVulnsStatus: brewVulnsStatus
         )
     }
 
@@ -905,6 +923,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             expectedClaudeUsageGeneration = nil
         }
         Task(priority: .background) {
+            // Started first and awaited last: the OSV scan is the slowest check and
+            // must not hold the other rows on "Checking".
+            async let brewVulnsStatusTask = self.runBrewVulnsCheck()
             let hasUpdates = await runSparkdockCheck()
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
             let hasHttpProxyUpdates = await runHttpProxyCheck()
@@ -918,6 +939,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             }
             let hasTimetrackerUpdates = await runTimetrackerCheck()
             let timetrackerConfigured = isTimetrackerConfigured()
+            let brewVulnsStatus = await brewVulnsStatusTask
             await MainActor.run {
                 if self.systemStatusCheckGeneration == expectedSystemStatusGeneration {
                     self.refreshSystemStatusButton?.title = "Refresh"
@@ -931,7 +953,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 let shouldUpdateClaudeUsage = expectedClaudeUsageGeneration.map {
                     self.claudeUsageCheckGeneration == $0
                 } ?? false
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: checkedClaudeUsageStatus, updateClaudeUsage: shouldUpdateClaudeUsage, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured)
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: checkedClaudeUsageStatus, updateClaudeUsage: shouldUpdateClaudeUsage, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured, brewVulnsStatus: brewVulnsStatus)
             }
         }
     }
@@ -1080,6 +1102,42 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status == 0
     }
 
+    /// Runs `sparkdock-check-updates vulns`, whose summary line feeds the row badge.
+    private func runBrewVulnsCheck() async -> BrewVulnsStatus {
+        let checkUpdatesPath = AppConstants.checkUpdatesExecutablePath
+        guard FileManager.default.fileExists(atPath: checkUpdatesPath) else {
+            AppConstants.logger.info("sparkdock-check-updates not found, vulnerability check skipped")
+            return .unavailable
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: checkUpdatesPath)
+        process.arguments = ["vulns"]
+        // The subcommand runs python3, which launchd's PATH does not always carry.
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        process.environment = environment
+
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = FileHandle.nullDevice
+
+        let terminationStatus: Int32
+        do {
+            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.vulnsCheckTimeout)
+        } catch ProcessTimeoutError.timedOut {
+            AppConstants.logger.error("Vulnerability check timed out after \(AppConstants.vulnsCheckTimeout) seconds")
+            return .unavailable
+        } catch {
+            AppConstants.logger.error("Vulnerability check failed: \(error.localizedDescription)")
+            return .unavailable
+        }
+
+        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        return BrewVulnsStatus.from(exitCode: terminationStatus, output: output)
+    }
+
     private func runTimetrackerCheck() async -> Bool {
         guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
             AppConstants.logger.info("sparkdock-check-updates not found, timetracker check skipped")
@@ -1159,7 +1217,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status != 3
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, updateClaudeUsage: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true) {
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, updateClaudeUsage: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true, brewVulnsStatus: BrewVulnsStatus = .unavailable) {
         self.hasUpdates = hasUpdates
         self.hasHttpProxyUpdates = hasHttpProxyUpdates
         self.hasAgentUpdates = hasAgentUpdates
@@ -1168,6 +1226,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             self.claudeUsageLastCheckedAt = Date()
         }
         self.hasTimetrackerUpdates = hasTimetrackerUpdates
+        self.brewVulnsStatus = brewVulnsStatus
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
         self.outdatedBrewCasksCount = outdatedBrewCasks
         let totalBrewCount = totalOutdatedBrewCount
@@ -1221,6 +1280,22 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Up to date", color: .systemGreen)
             setStatusMenuItemAction(brewStatusMenuItem, action: nil)
             brewStatusMenuItem?.toolTip = nil
+        }
+
+        // Hidden when the check cannot answer. Findings are not a pending update, so
+        // they stay out of the icon tint above.
+        switch brewVulnsStatus {
+        case .unavailable:
+            brewVulnsStatusMenuItem?.isHidden = true
+            setStatusMenuItemAction(brewVulnsStatusMenuItem, action: nil)
+        case .clean:
+            brewVulnsStatusMenuItem?.isHidden = false
+            updateStatusMenuItem(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", badge: "None", color: .systemGreen)
+            setStatusMenuItemAction(brewVulnsStatusMenuItem, action: #selector(showBrewVulns))
+        case .findings(let badge):
+            brewVulnsStatusMenuItem?.isHidden = false
+            updateStatusMenuItem(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", badge: badge, color: .systemOrange)
+            setStatusMenuItemAction(brewVulnsStatusMenuItem, action: #selector(showBrewVulns))
         }
 
         // Update HTTP proxy status line
@@ -1325,6 +1400,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         // Create a compound command that only runs the second upgrade if the first succeeds
         let upgradeCommand = "brew upgrade && brew upgrade --cask"
         executeTerminalCommand(upgradeCommand, recheckNotification: RecheckNotification.brew)
+    }
+
+    @objc private func showBrewVulns() {
+        executeTerminalCommand("brew vulns")
     }
 
     @objc private func upgradeHttpProxy() {

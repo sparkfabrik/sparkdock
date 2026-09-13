@@ -89,9 +89,61 @@ func TestCheckOne_UnknownKey(t *testing.T) {
 	}
 }
 
+func TestVulns_States(t *testing.T) {
+	cases := []struct {
+		name       string
+		res        CommandResult
+		wantHealth Health
+		wantDetail string
+	}{
+		{
+			name:       "findings",
+			res:        CommandResult{ExitCode: 0, Stdout: "Homebrew vulnerabilities: 4 in 2 formulae, 2 high or critical\n"},
+			wantHealth: Stale,
+			wantDetail: "4 in 2 formulae, 2 high or critical",
+		},
+		{
+			name:       "findings with no summary line",
+			res:        CommandResult{ExitCode: 0},
+			wantHealth: Stale,
+			wantDetail: "found",
+		},
+		{
+			name:       "none",
+			res:        CommandResult{ExitCode: 1},
+			wantHealth: OK,
+			wantDetail: "none",
+		},
+		{
+			name:       "brew missing or too old",
+			res:        CommandResult{ExitCode: 3},
+			wantHealth: Unconfigured,
+			wantDetail: "not available",
+		},
+		{
+			name:       "check failed",
+			res:        CommandResult{ExitCode: 2, Stderr: "Error: no such command\n"},
+			wantHealth: Unknown,
+			wantDetail: "check failed: Error: no such command",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := CmdChecker{CheckUpdatesBin: "check-updates", Run: fakeRunner(map[string]CommandResult{"vulns": tc.res})}
+			got := c.CheckOne(context.Background(), "vulns")
+			if got.Health != tc.wantHealth || got.Detail != tc.wantDetail {
+				t.Errorf("vulns = %+v, want health %v detail %q", got, tc.wantHealth, tc.wantDetail)
+			}
+			if got.Name != "Vulnerabilities" {
+				t.Errorf("vulns name = %q, want Vulnerabilities", got.Name)
+			}
+		})
+	}
+}
+
 func TestSubsystems_Order(t *testing.T) {
 	got := CmdChecker{}.Subsystems()
-	want := []string{"sparkdock", "brew", "http-proxy", "skills"}
+	want := []string{"sparkdock", "brew", "vulns", "http-proxy", "skills"}
 	if len(got) != len(want) {
 		t.Fatalf("Subsystems() = %v, want %v", got, want)
 	}
