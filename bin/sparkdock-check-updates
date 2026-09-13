@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # sparkdock-check-updates — Dispatcher for update checks across sparkdock subsystems.
-# Usage: sparkdock-check-updates <sparkdock|http-proxy|skills|timetracker>
+# Usage: sparkdock-check-updates <sparkdock|http-proxy|skills|timetracker|vulns>
 # Exit codes: 0 = updates available, 1 = no updates available, 2 = error/usage, 3 = not configured
 
 SCRIPT_NAME="$(basename "$0")"
@@ -154,6 +154,74 @@ check_timetracker_updates() (
     esac
 )
 
+# Check installed Homebrew formulae for known vulnerabilities (OSV.dev)
+# Uses subshell to isolate the parsing helpers
+check_brew_vulns() (
+    set -euo pipefail
+
+    # The LaunchAgent PATH is /usr/bin:/bin:/usr/sbin:/sbin, so look in the Homebrew prefixes first.
+    local brew_bin=""
+    for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+        if [[ -x "${candidate}" ]]; then
+            brew_bin="${candidate}"
+            break
+        fi
+    done
+    if [[ -z "${brew_bin}" ]]; then
+        brew_bin="$(command -v brew 2>/dev/null || true)"
+    fi
+    if [[ -z "${brew_bin}" ]]; then
+        return 3
+    fi
+
+    # `brew vulns` exits non-zero when it finds vulnerabilities, so only the JSON payload is read.
+    local output=""
+    output=$("${brew_bin}" vulns --json 2>/dev/null) || true
+
+    # Only findings[].vulnerabilities counts; findings[].patched and skipped_formulae do not.
+    local summary rc=0
+    summary=$(printf '%s' "${output}" | python3 -c "
+import json, sys
+# Any unreadable payload exits 2: an unexpected shape must not read as 'none'.
+try:
+    data = json.loads(sys.stdin.read())
+    if not isinstance(data, dict):
+        raise ValueError('top-level value is not an object')
+    findings = data['findings']
+    if not isinstance(findings, list):
+        raise ValueError('findings is not a list')
+    total = severe = formulae = 0
+    for finding in findings:
+        vulns = finding['vulnerabilities']
+        if not isinstance(vulns, list):
+            raise ValueError('vulnerabilities is not a list')
+        if not vulns:
+            continue
+        formulae += 1
+        total += len(vulns)
+        severe += sum(1 for v in vulns if str(v.get('severity', '')).upper() in ('HIGH', 'CRITICAL'))
+except Exception:
+    sys.exit(2)
+if total == 0:
+    sys.exit(1)
+print('Homebrew vulnerabilities: %d in %d formulae, %d high or critical' % (total, formulae, severe))
+") || rc=$?
+
+    case "${rc}" in
+        0)
+            echo "${summary}"
+            return 0
+            ;;
+        1)
+            return 1
+            ;;
+        *)
+            # Unparseable output means brew could not answer, which is not a clean bill.
+            return 3
+            ;;
+    esac
+)
+
 # Usage message
 usage() {
     echo "Usage: ${SCRIPT_NAME} <subsystem>"
@@ -166,6 +234,7 @@ usage() {
     echo "  agents       Check for agent skills and agent profile updates"
     echo "  skills       (alias for agents)"
     echo "  timetracker  Check for timetracker CLI updates"
+    echo "  vulns        Check installed Homebrew formulae for known vulnerabilities"
     echo ""
     echo "Exit codes:"
     echo "  0  Updates available"
@@ -196,6 +265,9 @@ main() {
             ;;
         timetracker)
             check_timetracker_updates || rc=$?
+            ;;
+        vulns)
+            check_brew_vulns || rc=$?
             ;;
         -h|--help)
             usage

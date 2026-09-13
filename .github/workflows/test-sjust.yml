@@ -173,6 +173,10 @@ jobs:
           sjust --dry-run upterm-host github test-user forward
           sjust --dry-run upterm-session
 
+          # Test the brew vulns wrapper, with and without a severity filter
+          sjust --dry-run brew-vulns
+          sjust --dry-run brew-vulns high
+
       - name: Test sjust with non-interactive environment
         env:
           NON_INTERACTIVE: "true"
