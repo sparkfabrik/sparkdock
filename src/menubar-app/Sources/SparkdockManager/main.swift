@@ -10,6 +10,7 @@ import Network
 private struct AppConstants {
     static let sparkdockExecutablePath = "/opt/sparkdock/bin/sparkdock.macos"
     static let checkUpdatesExecutablePath = "/opt/sparkdock/bin/sparkdock-check-updates"
+    static let commonUtilsPath = "/opt/sparkdock/bin/common/utils.sh"
     static let logoResourceName = "sparkfabrik-logo"
     static let menuConfigResourceName = "menu"
     static let iconSize = NSSize(width: 18, height: 18)
@@ -325,6 +326,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var hasTimetrackerUpdates = false
     var timetrackerLastStatus: Int32? = nil
     var brewVulnsStatus: BrewVulnsStatus = .unavailable
+    var cltStatus: CLTStatus = .unavailable
     var outdatedBrewFormulaeCount = 0
     var outdatedBrewCasksCount = 0
     var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
@@ -340,6 +342,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var sparkdockStatusMenuItem: NSMenuItem?
     var brewStatusMenuItem: NSMenuItem?
     var brewVulnsStatusMenuItem: NSMenuItem?
+    var cltStatusMenuItem: NSMenuItem?
     var httpProxyStatusMenuItem: NSMenuItem?
     var agentsStatusMenuItem: NSMenuItem?
     var claudeUsageSectionMenuItem: NSMenuItem?
@@ -419,6 +422,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(cltStatusMenuItem, title: "Command Line Tools", badge: "Checking", color: .systemYellow)
+        cltStatusMenuItem?.toolTip = nil
         updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Checking", color: .systemYellow)
         updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Checking", color: .systemYellow)
         if includeClaudeUsage {
@@ -429,6 +434,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         setStatusMenuItemAction(sparkdockStatusMenuItem, action: nil)
         setStatusMenuItemAction(brewStatusMenuItem, action: nil)
         setStatusMenuItemAction(brewVulnsStatusMenuItem, action: nil)
+        setStatusMenuItemAction(cltStatusMenuItem, action: nil)
         setStatusMenuItemAction(httpProxyStatusMenuItem, action: nil)
         setStatusMenuItemAction(agentsStatusMenuItem, action: nil)
         setStatusMenuItemAction(timetrackerStatusMenuItem, action: nil)
@@ -535,6 +541,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         brewVulnsStatusItem.isHidden = true
         menu.addItem(brewVulnsStatusItem)
         self.brewVulnsStatusMenuItem = brewVulnsStatusItem
+
+        let cltStatusItem = NSMenuItem(title: "Command Line Tools", action: nil, keyEquivalent: "")
+        menu.addItem(cltStatusItem)
+        self.cltStatusMenuItem = cltStatusItem
 
         let httpProxyStatusItem = NSMenuItem(title: "HTTP proxy", action: nil, keyEquivalent: "")
         menu.addItem(httpProxyStatusItem)
@@ -904,7 +914,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             updateClaudeUsage: updateClaudeUsage,
             hasTimetrackerUpdates: hasTimetrackerUpdates,
             timetrackerConfigured: isTimetrackerConfigured(),
-            brewVulnsStatus: brewVulnsStatus
+            brewVulnsStatus: brewVulnsStatus,
+            cltStatus: cltStatus
         )
     }
 
@@ -926,6 +937,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             // Started first and awaited last: the OSV scan is the slowest check and
             // must not hold the other rows on "Checking".
             async let brewVulnsStatusTask = self.runBrewVulnsCheck()
+            async let cltStatusTask = self.runCLTCheck()
             let hasUpdates = await runSparkdockCheck()
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
             let hasHttpProxyUpdates = await runHttpProxyCheck()
@@ -940,6 +952,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             let hasTimetrackerUpdates = await runTimetrackerCheck()
             let timetrackerConfigured = isTimetrackerConfigured()
             let brewVulnsStatus = await brewVulnsStatusTask
+            let cltStatus = await cltStatusTask
             await MainActor.run {
                 if self.systemStatusCheckGeneration == expectedSystemStatusGeneration {
                     self.refreshSystemStatusButton?.title = "Refresh"
@@ -953,7 +966,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 let shouldUpdateClaudeUsage = expectedClaudeUsageGeneration.map {
                     self.claudeUsageCheckGeneration == $0
                 } ?? false
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: checkedClaudeUsageStatus, updateClaudeUsage: shouldUpdateClaudeUsage, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured, brewVulnsStatus: brewVulnsStatus)
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: checkedClaudeUsageStatus, updateClaudeUsage: shouldUpdateClaudeUsage, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured, brewVulnsStatus: brewVulnsStatus, cltStatus: cltStatus)
             }
         }
     }
@@ -1138,6 +1151,44 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return BrewVulnsStatus.from(exitCode: terminationStatus, output: output)
     }
 
+    private func runCLTCheck() async -> CLTStatus {
+        guard FileManager.default.fileExists(atPath: AppConstants.commonUtilsPath) else {
+            AppConstants.logger.warning("utils.sh not found, Command Line Tools check skipped")
+            return .unavailable
+        }
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        // The conditional preserves the helper's exit code under strict shell options.
+        process.arguments = [
+            "bash", "-c",
+            #"set -euo pipefail; source "${1}"; if check_clt_health; then exit 0; else exit $?; fi"#,
+            "--", AppConstants.commonUtilsPath
+        ]
+        var environment = ProcessInfo.processInfo.environment
+        environment["PATH"] = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        process.environment = environment
+
+        let outputPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = FileHandle.nullDevice
+
+        let terminationStatus: Int32
+        do {
+            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
+        } catch ProcessTimeoutError.timedOut {
+            AppConstants.logger.error("Command Line Tools check timed out after \(AppConstants.processTimeout) seconds")
+            return .unavailable
+        } catch {
+            AppConstants.logger.error("Command Line Tools check failed: \(error.localizedDescription)")
+            return .unavailable
+        }
+
+        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        return CLTStatus.from(exitCode: terminationStatus, output: output)
+    }
+
     private func runTimetrackerCheck() async -> Bool {
         guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
             AppConstants.logger.info("sparkdock-check-updates not found, timetracker check skipped")
@@ -1217,7 +1268,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status != 3
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, updateClaudeUsage: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true, brewVulnsStatus: BrewVulnsStatus = .unavailable) {
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, updateClaudeUsage: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true, brewVulnsStatus: BrewVulnsStatus = .unavailable, cltStatus: CLTStatus = .unavailable) {
         self.hasUpdates = hasUpdates
         self.hasHttpProxyUpdates = hasHttpProxyUpdates
         self.hasAgentUpdates = hasAgentUpdates
@@ -1227,6 +1278,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
         self.hasTimetrackerUpdates = hasTimetrackerUpdates
         self.brewVulnsStatus = brewVulnsStatus
+        self.cltStatus = cltStatus
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
         self.outdatedBrewCasksCount = outdatedBrewCasks
         let totalBrewCount = totalOutdatedBrewCount
@@ -1296,6 +1348,21 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             brewVulnsStatusMenuItem?.isHidden = false
             updateStatusMenuItem(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", badge: badge, color: .systemOrange)
             setStatusMenuItemAction(brewVulnsStatusMenuItem, action: #selector(showBrewVulns))
+        }
+
+        switch cltStatus {
+        case .unavailable:
+            updateStatusMenuItem(cltStatusMenuItem, title: "Command Line Tools", badge: "Unavailable", color: .systemGray)
+            cltStatusMenuItem?.toolTip = "Unable to check Command Line Tools."
+            setStatusMenuItemAction(cltStatusMenuItem, action: nil)
+        case .healthy:
+            updateStatusMenuItem(cltStatusMenuItem, title: "Command Line Tools", badge: "OK", color: .systemGreen)
+            cltStatusMenuItem?.toolTip = nil
+            setStatusMenuItemAction(cltStatusMenuItem, action: nil)
+        case .inconsistent(let diagnosis):
+            updateStatusMenuItem(cltStatusMenuItem, title: "Command Line Tools", badge: "Inconsistent", color: .systemOrange)
+            cltStatusMenuItem?.toolTip = diagnosis
+            setStatusMenuItemAction(cltStatusMenuItem, action: #selector(repairCLT))
         }
 
         // Update HTTP proxy status line
@@ -1404,6 +1471,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     @objc private func showBrewVulns() {
         executeTerminalCommand("brew vulns")
+    }
+
+    @objc private func repairCLT() {
+        guard case .inconsistent = cltStatus else { return }
+        executeTerminalCommand("sjust sparkdock-menubar-reinstall")
     }
 
     @objc private func upgradeHttpProxy() {
