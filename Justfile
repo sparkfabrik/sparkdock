@@ -37,6 +37,11 @@ run-ansible-playbook TAGS="all":
         BECOME_ARGS+=(-e sparkdock_chatgpt_desktop=true)
     fi
 
+    # Tags the caller ruled out, e.g. the front ends that need a working toolchain.
+    if [ -n "${SPARKDOCK_SKIP_TAGS:-}" ]; then
+        BECOME_ARGS+=(--skip-tags "${SPARKDOCK_SKIP_TAGS}")
+    fi
+
     # Opt-in Homebrew desktop app (BrewUI), macOS 26 or later.
     if [ "${HOMEBREW_APP:-0}" = "1" ]; then
         BECOME_ARGS+=(-e sparkdock_homebrew_app=true)

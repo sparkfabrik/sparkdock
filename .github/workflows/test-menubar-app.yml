@@ -50,7 +50,7 @@ jobs:
         working-directory: src/menubar-app
         run: |
           echo "Building release version..."
-          swift build -c release --verbose
+          make build
 
       - name: Verify executable exists
         working-directory: src/menubar-app

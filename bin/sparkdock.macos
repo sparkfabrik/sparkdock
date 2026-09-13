@@ -207,7 +207,25 @@ print_info "Checking for macOS supported version..."
 checkMacosVersion
 
 print_info "Checking for Xcode command line tools issues..."
-check_xcode_issues
+# It returns 1 on a warning, which under set -e would end the run here.
+if ! check_xcode_issues; then
+    print_warning "Continuing despite the Xcode command line tools warning above"
+fi
+
+# An inconsistent toolchain skips the two front ends that need one, rather than
+# failing the whole run.
+CLT_SKIPPED=0
+if [[ "${SPARKDOCK_SKIP_CLT_CHECK:-0}" != "1" ]]; then
+    if ! CLT_DIAGNOSIS="$(check_clt_health)"; then
+        print_warning "${CLT_DIAGNOSIS}"
+        CLT_SKIPPED=1
+        if [[ -n "${SPARKDOCK_SKIP_TAGS:-}" ]]; then
+            export SPARKDOCK_SKIP_TAGS="${SPARKDOCK_SKIP_TAGS},menubar,tui"
+        else
+            export SPARKDOCK_SKIP_TAGS="menubar,tui"
+        fi
+    fi
+fi
 
 print_section "System Update"
 print_info "Sparkdock provisioner: Updating your system in progress..."
@@ -221,10 +239,18 @@ print_warning "You'll be asked to insert your password to become root"
 if ! command -v just &> /dev/null; then
   brew install just
 fi
-just run-ansible-playbook
-if [[ $? -ne 0 ]]; then
+ANSIBLE_RC=0
+just run-ansible-playbook || ANSIBLE_RC=$?
+
+if [[ ${CLT_SKIPPED} -eq 1 ]]; then
+    echo ""
+    print_warning "Menu bar app and TUI were skipped: Command Line Tools are inconsistent."
+    print_warning "Run 'sjust sparkdock-menubar-reinstall', then 'sparkdock' again."
+fi
+
+if [[ ${ANSIBLE_RC} -ne 0 ]]; then
     print_error "Ansible playbook failed. Exiting..."
-    exit 1
+    exit ${ANSIBLE_RC}
 fi
 
 # Configure shell.

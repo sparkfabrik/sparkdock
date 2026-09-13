@@ -2,9 +2,13 @@
 
 .PHONY: build install uninstall clean test dev
 
-# Build the application
+# Build the application. The swiftbuild backend can fail before compiling on a
+# machine with Command Line Tools only, so retry once with the native one.
 build:
-	swift build -c release
+	@swift build -c release || { \
+		echo "swift build failed; retrying with the native build system"; \
+		swift build -c release --build-system native; \
+	}
 
 # Development build and run
 dev:
