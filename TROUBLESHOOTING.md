@@ -113,11 +113,11 @@ MulticastDNS setting: no
 
 #### Inconsistent Command Line Tools
 
-**Symptom:** a Swift build aborts with `dyld[...]: Symbol not found`, or with `error: SessionFailedError(error: Could not initialize build system)`. The menu bar app and the TUI fail to build.
+**Symptom:** a Swift build aborts with `dyld[...]: Symbol not found`, or with `error: SessionFailedError(error: Could not initialize build system)`. The menu bar app fails to build.
 
 **Cause:** Software Update installed more than one Command Line Tools package into `/Library/Developer/CommandLineTools`, so binaries from different toolchains sit side by side. `xcode-select --install` can trigger this when several packages are advertised at once.
 
-Sparkdock checks for it before provisioning and skips the menu bar app and the TUI rather than failing the whole run. Check the state yourself with `sjust device-info`, which reports `Command Line Tools: ok` or `inconsistent`.
+Sparkdock checks for it before provisioning and skips the menu bar app build (the only Swift build; the TUI is Go and still builds) rather than failing the whole run. Check the state yourself with `sjust device-info`, which reports `Command Line Tools: ok` or `inconsistent`.
 
 **Repair:**
 

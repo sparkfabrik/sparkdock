@@ -212,17 +212,17 @@ if ! check_xcode_issues; then
     print_warning "Continuing despite the Xcode command line tools warning above"
 fi
 
-# An inconsistent toolchain skips the two front ends that need one, rather than
-# failing the whole run.
+# An inconsistent toolchain skips the menu bar app, the only Swift build, rather
+# than failing the whole run. The TUI is Go and builds without it.
 CLT_SKIPPED=0
 if [[ "${SPARKDOCK_SKIP_CLT_CHECK:-0}" != "1" ]]; then
     if ! CLT_DIAGNOSIS="$(check_clt_health)"; then
         print_warning "${CLT_DIAGNOSIS}"
         CLT_SKIPPED=1
         if [[ -n "${SPARKDOCK_SKIP_TAGS:-}" ]]; then
-            export SPARKDOCK_SKIP_TAGS="${SPARKDOCK_SKIP_TAGS},menubar,tui"
+            export SPARKDOCK_SKIP_TAGS="${SPARKDOCK_SKIP_TAGS},menubar"
         else
-            export SPARKDOCK_SKIP_TAGS="menubar,tui"
+            export SPARKDOCK_SKIP_TAGS="menubar"
         fi
     fi
 fi
@@ -244,7 +244,7 @@ just run-ansible-playbook || ANSIBLE_RC=$?
 
 if [[ ${CLT_SKIPPED} -eq 1 ]]; then
     echo ""
-    print_warning "Menu bar app and TUI were skipped: Command Line Tools are inconsistent."
+    print_warning "Menu bar app build was skipped: Command Line Tools are inconsistent."
     print_warning "Run 'sjust sparkdock-menubar-reinstall', then 'sparkdock' again."
 fi
 
