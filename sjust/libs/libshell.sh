@@ -383,3 +383,34 @@ EOF
     echo "   - Your settings in '?user' file override Sparkdock defaults"
     echo "   - Changes reload automatically in Ghostty"
 }
+
+# Picks which Command Line Tools package to install from a `softwareupdate --list`
+# listing: the newest matching the macOS major, else the newest offered.
+# Usage: clt_pick_softwareupdate_label <macos_major> <update_list>
+clt_pick_softwareupdate_label() {
+    local macos_major="$1" update_list="$2"
+    local labels versioned for_macos pick
+
+    labels="$(printf '%s\n' "${update_list}" \
+        | sed -n 's/^[[:space:]]*\*\{0,1\}[[:space:]]*Label:[[:space:]]*//p' \
+        | grep 'Command Line Tools for Xcode' || true)"
+    if [[ -z "${labels}" ]]; then
+        return 1
+    fi
+
+    # Each label carries its version, e.g. "Command Line Tools for Xcode 26.6-26.6".
+    versioned="$(printf '%s\n' "${labels}" | awk '
+        { if (match($0, /[0-9]+\.[0-9]+/)) print substr($0, RSTART, RLENGTH) "\t" $0 }
+    ')"
+    for_macos="$(printf '%s\n' "${versioned}" | awk -F'\t' -v major="${macos_major}" '
+        index($1, major ".") == 1
+    ')"
+
+    if [[ -n "${for_macos}" ]]; then
+        pick="${for_macos}"
+    else
+        echo "No Command Line Tools package for macOS ${macos_major}; using the newest offered" >&2
+        pick="${versioned}"
+    fi
+    printf '%s\n' "${pick}" | sort -t. -k1,1n -k2,2n | tail -n 1 | cut -f2-
+}

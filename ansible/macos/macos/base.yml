@@ -937,6 +937,9 @@
 
     - name: Install Sparkdock Menu Bar App
       tags: menubar
+      vars:
+        # Build output matching this points at the Xcode command line tools, not at the code.
+        build_clt_pattern: 'xcrun: error|unable to find (sdk|utility)|Could not initialize build system|Command Line Tools|CommandLineTools|dyld\[|Symbol not found'
       block:
         - name: Install or upgrade Claude usage provider without standalone reader
           ansible.builtin.command:
@@ -952,9 +955,8 @@
           become: false
 
         - name: Build menu bar app
-          shell: |
-            cd {{ dev_env_dir }}/src/menubar-app
-            swift build -c release
+          # 2>&1 keeps the compiler diagnostics and make's own error in one stream.
+          shell: make -C {{ dev_env_dir }}/src/menubar-app build 2>&1
           register: build_result
           changed_when: build_result.rc == 0
           failed_when: false # Don't fail immediately, handle errors in rescue block
@@ -1061,12 +1063,19 @@
               - "   sjust sparkdock-menubar-reinstall"
               - ""
               - "This will remove and reinstall the Xcode command line tools, then retry the install."
-          when: build_result is defined and build_result.rc != 0
+          when:
+            - build_result is defined and build_result.rc != 0
+            - (build_result.stdout | default('')) is search(build_clt_pattern)
 
         - name: Fail with context-aware message
+          vars:
+            # The build task merges stderr into stdout, so the tail comes from there.
+            build_newline: "\n"
+            build_tail: "{{ (build_result.stdout_lines | default([]))[-5:] | join(build_newline) }}"
+            build_needs_clt: "{{ (build_result.stdout | default('')) is search(build_clt_pattern) }}"
           fail:
             msg: >-
-              {% if build_result is defined and build_result.rc != 0 %}Menubar app compilation failed. Run 'sjust sparkdock-menubar-reinstall' to fix Xcode command line tools and retry installation.{% else %}Menubar app install failed at task '{{ ansible_failed_task.name | default('unknown') }}': {{ ansible_failed_result.msg | default('see output above') }}{% endif %}
+              {% if build_result is defined and build_result.rc != 0 %}Menubar app compilation failed:{{ build_newline }}{{ build_tail }}{{ build_newline }}{% if build_needs_clt | bool %}Run 'sjust sparkdock-menubar-reinstall' to fix the Xcode command line tools and retry installation.{% else %}Fix the build error above and retry.{% endif %}{% else %}Menubar app install failed at task '{{ ansible_failed_task.name | default('unknown') }}': {{ ansible_failed_result.msg | default('see output above') }}{% endif %}
 
     - name: Install Sparkdock TUI
       tags: tui

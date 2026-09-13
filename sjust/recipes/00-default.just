@@ -48,6 +48,14 @@ system-device-info:
     echo "$AYSE"
     system_profiler SPHardwareDataType
 
+    # shellcheck source=/dev/null
+    source "{{ sparkdock_path }}/bin/common/utils.sh"
+    if clt_diagnosis="$(check_clt_health)"; then
+        echo "Command Line Tools: ok"
+    else
+        echo "Command Line Tools: inconsistent (${clt_diagnosis})"
+    fi
+
 # Clear DNS cache on macOS.
 [group('system')]
 system-clear-dns-cache:
@@ -356,26 +364,67 @@ sparkdock-menubar-reinstall:
         exit 1
     fi
 
-    echo "🗑️  Removing existing Xcode command line tools..."
-    if [[ -d "/Library/Developer/CommandLineTools" ]]; then
-        sudo rm -rf /Library/Developer/CommandLineTools
-        echo "✅ Existing command line tools removed"
+    # shellcheck source=/dev/null
+    source "{{source_directory()}}/../libs/libshell.sh"
+
+    # Software Update advertises the packages only while this marker exists, the
+    # same one Homebrew's installer creates.
+    cl_marker="/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
+    remove_cl_marker() {
+        sudo rm -f "${cl_marker}"
+    }
+    trap remove_cl_marker EXIT
+    sudo touch "${cl_marker}"
+
+    echo "📥 Looking for a Command Line Tools package..."
+    macos_major="$(sw_vers -productVersion | cut -d. -f1)"
+    update_list="$(softwareupdate --list 2>/dev/null || true)"
+    if ! cl_label="$(clt_pick_softwareupdate_label "${macos_major}" "${update_list}")"; then
+        echo "❌ Software Update offers no Command Line Tools package"
+        echo "💡 Check 'softwareupdate --list' and install the tools from there or from Xcode"
+        exit 1
     fi
 
-    echo "📥 Installing Xcode command line tools..."
-    echo "💡 A dialog will appear - please click 'Install' and wait for completion"
-    xcode-select --install
+    # Kept until the new tools prove themselves, so a failed install is reversible.
+    cl_backup=""
+    restore_cl_backup() {
+        if [[ -z "${cl_backup}" || ! -d "${cl_backup}" ]]; then
+            return 0
+        fi
+        sudo rm -rf /Library/Developer/CommandLineTools
+        sudo mv "${cl_backup}" /Library/Developer/CommandLineTools
+        echo "↩️  Restored the previous command line tools"
+    }
 
-    # Wait for installation to complete
-    echo "⏳ Waiting for Xcode command line tools installation to complete..."
-    echo "💡 This may take several minutes. Please be patient..."
+    if [[ -d "/Library/Developer/CommandLineTools" ]]; then
+        cl_backup="/Library/Developer/CommandLineTools.broken-$(date +%Y%m%d%H%M%S)"
+        echo "🗑️  Moving the existing tools aside: ${cl_backup}"
+        sudo mv /Library/Developer/CommandLineTools "${cl_backup}"
+    fi
 
-    while ! xcode-select -p &> /dev/null; do
-        echo "⏳ Still waiting for installation to complete..."
-        sleep 10
-    done
+    echo "📥 Installing: ${cl_label}"
+    if ! sudo softwareupdate -i "${cl_label}"; then
+        restore_cl_backup
+        echo "❌ Installing '${cl_label}' failed"
+        echo "💡 Check 'softwareupdate --list' for another Command Line Tools package"
+        exit 1
+    fi
+    remove_cl_marker
+    trap - EXIT
+    sudo xcode-select -s /Library/Developer/CommandLineTools
 
-    echo "✅ Xcode command line tools installation completed!"
+    echo "🔍 Verifying the toolchain..."
+    if ! swift_package_version="$(swift package --version 2>&1)"; then
+        echo "❌ The command line tools are still broken:"
+        printf '%s\n' "${swift_package_version}"
+        restore_cl_backup
+        echo "💡 Check 'softwareupdate --list' for another Command Line Tools package"
+        exit 1
+    fi
+    echo "✅ ${swift_package_version}"
+    if [[ -n "${cl_backup}" ]]; then
+        sudo rm -rf "${cl_backup}"
+    fi
     echo ""
     echo "🔧 Now attempting to rebuild and install the menubar application..."
     cd {{ sparkdock_path }}

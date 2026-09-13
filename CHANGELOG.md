@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added a Command Line Tools preflight to provisioning: an inconsistent toolchain now skips the menu bar app and the TUI with a diagnosis instead of failing the run, and `sjust device-info` reports the same state
+
 - Added a Homebrew vulnerabilities status row and a `brew vulns` action to the menu bar app and the TUI, hidden on machines whose Homebrew has no `vulns` command
 
 - Added `sjust brew-vulns [severity]` and the `sparkdock-check-updates vulns` subcommand, which report Homebrew formulae with known vulnerabilities from `brew vulns` (Homebrew 7 or later)
@@ -206,6 +208,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed `sjust sf-skills-status` backward-compatible alias (use `sf-agents-status` instead)
 
 ### Fixed
+
+- Fixed the menu bar app build failing on machines with Command Line Tools only: it retries with Swift's native build system, a failed build reports the compiler error instead of a Command Line Tools hint, and `sjust sparkdock-menubar-reinstall` installs exactly one Command Line Tools package matching the macOS version instead of letting Software Update layer several
 
 - Fixed provisioning on Homebrew 7, which refused to add untrusted third-party taps: taps are now trusted before they are added
 

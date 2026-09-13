@@ -154,6 +154,133 @@ checkMacosVersion() {
     return 0
 }
 
+# Lists the framework Info.plist files that record which Xcode built them.
+clt_framework_plists() {
+    local dev_dir="$1" dir
+    for dir in "${dev_dir}/usr/lib/swift/pm" "${dev_dir}/usr/lib/swift/host"; do
+        [[ -d "${dir}" ]] || continue
+        find "${dir}" -name Info.plist -path '*.framework/*' -type f 2>/dev/null
+    done
+}
+
+# Prints a framework's DTXcode, a four-digit string where 2700 means Xcode 27.0.
+clt_plist_dtxcode() {
+    local plist="$1" plutil_bin="${SPARKDOCK_PLUTIL_BIN:-plutil}" value=""
+    if value="$("${plutil_bin}" -extract DTXcode raw -o - "${plist}" 2>/dev/null)" && [[ -n "${value}" ]]; then
+        printf '%s\n' "${value}"
+        return 0
+    fi
+    # Older systems whose plutil has no -extract.
+    defaults read "${plist%.plist}" DTXcode 2>/dev/null
+}
+
+# Names a Software Update run that installed more than one Command Line Tools
+# package, which is how a directory ends up with mixed builds. Advisory only.
+clt_history_note() {
+    local history_file duplicate waited=0 pid
+    history_file="$(mktemp)"
+    softwareupdate --history >"${history_file}" 2>/dev/null &
+    pid=$!
+    # macOS has no timeout(1); poll the background job instead.
+    while kill -0 "${pid}" 2>/dev/null && [[ "${waited}" -lt 2 ]]; do
+        sleep 1
+        waited=$((waited + 1))
+    done
+    kill "${pid}" 2>/dev/null || true
+    wait "${pid}" 2>/dev/null || true
+
+    duplicate="$(grep 'Command Line Tools' "${history_file}" 2>/dev/null \
+        | awk '{ print $(NF-1) " " $NF }' \
+        | sort | uniq -c \
+        | awk '$1 > 1 { print $2 " " $3 }' \
+        | head -n 1)"
+    rm -f "${history_file}"
+
+    if [[ -n "${duplicate}" ]]; then
+        printf ', several packages installed at %s' "${duplicate}"
+    fi
+}
+
+# Reports whether the Command Line Tools are internally consistent: 0 healthy,
+# 1 broken with a one-line diagnosis on stdout. The SPARKDOCK_* vars below inject a stub toolchain.
+check_clt_health() {
+    local repair="Run 'sjust sparkdock-menubar-reinstall' to repair."
+    local swift_bin="${SPARKDOCK_SWIFT_BIN:-swift}"
+    local swiftc_bin="${SPARKDOCK_SWIFTC_BIN:-swiftc}"
+    local clt_prefix="${SPARKDOCK_CLT_PREFIX:-/Library/Developer/CommandLineTools}"
+    local dev_dir="${SPARKDOCK_DEVELOPER_DIR:-}"
+    local out=""
+
+    if [[ -z "${dev_dir}" ]]; then
+        if ! dev_dir="$(xcode-select -p 2>&1)"; then
+            echo "Command Line Tools are not selected: $(printf '%s\n' "${dev_dir}" | head -n 1). ${repair}"
+            return 1
+        fi
+    fi
+
+    # The tools must run at all: a mixed install aborts here with a dyld error.
+    if ! out="$("${swift_bin}" package --version 2>&1)"; then
+        echo "Command Line Tools do not run: $(printf '%s\n' "${out}" | head -n 1). ${repair}"
+        return 1
+    fi
+    if ! out="$("${swiftc_bin}" --version 2>&1)"; then
+        echo "Command Line Tools do not run: $(printf '%s\n' "${out}" | head -n 1). ${repair}"
+        return 1
+    fi
+
+    # A full Xcode owns its own consistent toolchain, so only check the CLT dir.
+    case "${dev_dir}" in
+        "${clt_prefix}"*) ;;
+        *) return 0 ;;
+    esac
+
+    # The package receipt and the frameworks must come from the same Xcode: a
+    # layered install leaves 26.x tools next to 27.x frameworks.
+    local pkgutil_bin="${SPARKDOCK_PKGUTIL_BIN:-pkgutil}"
+    local receipt_version="" majors="" frameworks="" plist dtxcode major minor
+    receipt_version="$("${pkgutil_bin}" --pkg-info=com.apple.pkg.CLTools_Executables 2>/dev/null \
+        | awk '/^version:/ { print $2; exit }')"
+    if [[ -n "${receipt_version}" ]]; then
+        majors="${receipt_version%%.*}"
+    fi
+
+    while IFS= read -r plist; do
+        [[ -n "${plist}" ]] || continue
+        dtxcode="$(clt_plist_dtxcode "${plist}")"
+        # DTXcode is four digits: 2700 is Xcode 27.0, 2660 is Xcode 26.6.
+        case "${dtxcode}" in
+            [0-9][0-9][0-9][0-9]) ;;
+            *) continue ;;
+        esac
+        major="${dtxcode%??}"
+        minor="${dtxcode#"${major}"}"
+        majors="${majors}
+${major}"
+        frameworks="${frameworks}
+${major}.${minor%?}"
+    done < <(clt_framework_plists "${dev_dir}")
+
+    local unique_majors
+    unique_majors="$(printf '%s\n' "${majors}" | grep -v '^[[:space:]]*$' | sort -u)"
+    if [[ "$(printf '%s\n' "${unique_majors}" | grep -c .)" -le 1 ]]; then
+        return 0
+    fi
+
+    local detail="" unique_frameworks
+    if [[ -n "${receipt_version}" ]]; then
+        detail="receipt $(printf '%s' "${receipt_version}" | cut -d. -f1-2)"
+    fi
+    unique_frameworks="$(printf '%s\n' "${frameworks}" | grep -v '^[[:space:]]*$' | sort -u | tr '\n' ' ' | sed 's/ *$//')"
+    if [[ -n "${unique_frameworks}" ]]; then
+        if [[ -n "${detail}" ]]; then
+            detail="${detail}, "
+        fi
+        detail="${detail}frameworks Xcode ${unique_frameworks}"
+    fi
+    echo "Command Line Tools mix packages (${detail})$(clt_history_note). ${repair}"
+    return 1
+}
+
 # Note: The old install_update_service function has been removed
 # Update checking is now handled by the Sparkdock Manager menu bar app
 
