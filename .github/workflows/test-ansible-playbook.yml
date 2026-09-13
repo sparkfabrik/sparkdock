@@ -130,14 +130,16 @@ jobs:
           if [ "${macos_major}" -lt 26 ]; then
             run_tag | tee /tmp/homebrew-app-skip.log
             grep -q 'requires macOS 26' /tmp/homebrew-app-skip.log
-            ! brew list --cask homebrew-app >/dev/null 2>&1
+            if brew list --cask homebrew-app >/dev/null 2>&1; then
+              echo "cask unexpectedly installed"
+              exit 1
+            fi
             echo "✅ Homebrew desktop app skipped on macOS ${macos_major}"
             exit 0
           fi
           run_tag
+          test -f /Applications/Homebrew.app/Contents/Info.plist
           brew list --cask homebrew-app
-          app_name=$(brew list --cask homebrew-app | grep -m1 '\.app$')
-          test -f "/Applications/${app_name}/Contents/Info.plist"
           run_tag | tee /tmp/homebrew-app-rerun.log
           grep -Eq 'changed=0 .*failed=0' /tmp/homebrew-app-rerun.log
           echo "✅ Homebrew desktop app opt-in installed and idempotent"
