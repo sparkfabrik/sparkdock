@@ -24,15 +24,17 @@ expect_version() {
         [[ "${output}" == *"${minimum}"* ]]
     fi
 }
-expect_version 0 6.3 'Apple Swift version 6.3.3 (swiftlang-6.3.3)'
-expect_version 0 6.3 'Swift version 6.3'
-expect_version 0 6.3 'Swift version 6.10.0'
-expect_version 0 6.3 'Swift version 7.0'
-expect_version 1 6.3 'Swift version 6.2'
-expect_version 1 6.3 'Swift version 5.99'
-expect_version 1 6.3.1 'Swift version 6.3'
-expect_version 0 6.3.1 'Swift version 6.3.2'
-expect_version 1 6.3 'unrecognized output'
-MOCK_SWIFT_EXIT=42 expect_version 1 6.3 'compiler failed to load'
-expect_version 1 invalid 'Swift version 6.3'
+expect_version 0 6.1 'Apple Swift version 6.1.2 (swiftlang-6.1.2)'
+expect_version 0 6.1 'Apple Swift version 6.2.4'
+expect_version 0 6.1 'Apple Swift version 6.3.3'
+expect_version 0 6.1 'Swift version 6.1'
+expect_version 0 6.1 'Swift version 6.10.0'
+expect_version 0 6.1 'Swift version 7.0'
+expect_version 1 6.1 'Swift version 6.0'
+expect_version 1 6.1 'Swift version 5.99'
+expect_version 1 6.1.1 'Swift version 6.1'
+expect_version 0 6.1.1 'Swift version 6.1.2'
+expect_version 1 6.1 'unrecognized output'
+MOCK_SWIFT_EXIT=42 expect_version 1 6.1 'compiler failed to load'
+expect_version 1 invalid 'Swift version 6.1'
 printf 'Swift version checks passed in %s\n' "${fixture}"

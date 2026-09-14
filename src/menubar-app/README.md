@@ -20,7 +20,7 @@ A simple macOS menu bar application that provides visual indicators for Sparkdoc
 
 ## Building
 
-Use Apple's Command Line Tools or Xcode compiler. `make build` checks the minimum in `.swift-minimum-version` (currently Swift 6.3) before compiling and retries with the native backend if needed. No separate toolchain installation is required.
+Use Apple's Command Line Tools or Xcode compiler. `make build` checks the minimum in `.swift-minimum-version` (currently Swift 6.1) before compiling and retries with the native backend if needed. No separate toolchain installation is required.
 
 ```bash
 cd src/menubar-app

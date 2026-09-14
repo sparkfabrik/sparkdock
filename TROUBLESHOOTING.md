@@ -113,7 +113,7 @@ MulticastDNS setting: no
 
 #### Menu bar compiler requirements
 
-Sparkdock builds the menu bar app with Apple's selected compiler and SDK. `src/menubar-app/.swift-minimum-version` requires Swift 6.3 or newer; builds check this before compilation. No separate Swift.org toolchain or Swiftly setup is required.
+Sparkdock builds the menu bar app with Apple's selected compiler and SDK. `src/menubar-app/.swift-minimum-version` requires Swift 6.1 or newer; builds check this before compilation. Swift 6.1 is the oldest compiler family CI builds with: macOS 15 Command Line Tools 16.4 supplies Swift 6.1.2. No separate Swift.org toolchain or Swiftly setup is required.
 
 ```bash
 cd /opt/sparkdock/src/menubar-app
@@ -127,7 +127,7 @@ If the compiler is too old, update Command Line Tools or select a supported Xcod
 
 #### Menu bar rebuilds and CI checks
 
-Provisioning skips compilation and bundle replacement when the installed app passes `--status` and its verified source fingerprint matches. Missing bundles, failed resource checks, missing stamps, and changed build inputs trigger rebuilding. The sidecar `~/Applications/Sparkdock Manager.app.source-fingerprint` is written after LaunchAgent running verification, without changing the bundle signature. CI skips LaunchAgent verification and leaves the stamp unwritten.
+Provisioning skips compilation and bundle replacement when the installed app passes `--status` and its verified source fingerprint matches. Missing bundles, failed resource checks, missing stamps, and changed build inputs trigger rebuilding. The sidecar `~/Applications/Sparkdock Manager.app.source-fingerprint` is written after LaunchAgent running verification, without changing the bundle signature. CI writes the stamp after the installed CLI `--status` check succeeds, so subsequent provisioning reuses the verified bundle.
 
 To rebuild unchanged sources, run `SPARKDOCK_FORCE_MENUBAR_BUILD=1 sparkdock`. The CLT repair command `sjust sparkdock-menubar-reinstall` also forces a rebuild.
 

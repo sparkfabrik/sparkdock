@@ -369,7 +369,7 @@ sparkdock-menubar-reinstall:
     # shellcheck source=/dev/null
     source "{{source_directory()}}/../libs/libshell.sh"
 
-    clt_install_softwareupdate reinstall
+    clt_install_softwareupdate
     echo ""
     echo "🔧 Now attempting to rebuild and install the menubar application..."
     cd {{ sparkdock_path }}
@@ -387,7 +387,10 @@ sparkdock-menubar-reinstall:
         echo "💡 You may need to:"
         echo "   - Restart your terminal/shell session"
         echo "   - Check for other Swift/Xcode related issues"
-        echo "   - Verify Xcode license acceptance: sudo xcodebuild -license accept"
+        source "{{source_directory()}}/../../bin/common/utils.sh"
+        if ! clt_diagnosis="$(check_clt_health)"; then
+            printf '%s\n' "${clt_diagnosis}"
+        fi
         exit 1
     fi
 

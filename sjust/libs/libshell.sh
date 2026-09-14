@@ -436,10 +436,10 @@ check_swift_minimum_version() {
     return 1
 }
 
-# Install one advertised CLT package; reinstall keeps the old tools until verification succeeds.
+# Install one advertised CLT package and retain existing tools until verification succeeds.
 clt_install_softwareupdate() (
     set -euo pipefail
-    local mode="${1:-install}" marker updates label diagnosis backup="" previous_developer=""
+    local marker updates label diagnosis backup="" previous_developer="" installation_started=false
     local clt_dir=/Library/Developer/CommandLineTools
     marker=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
     previous_developer="$(xcode-select -p 2>/dev/null || true)"
@@ -449,17 +449,20 @@ clt_install_softwareupdate() (
         local result=$?
         trap - EXIT
         sudo rm -f "${marker}"
-        if [[ -n "${backup}" && -d "${backup}" ]]; then
-            if [[ "${result}" -eq 0 ]]; then
-                sudo rm -rf "${backup}"
-            else
-                sudo rm -rf "${clt_dir}"
+        if [[ "${result}" -ne 0 && "${installation_started}" == true ]]; then
+            sudo rm -rf "${clt_dir}"
+            if [[ -n "${backup}" && -d "${backup}" ]]; then
                 sudo mv "${backup}" "${clt_dir}"
-                if [[ -n "${previous_developer}" ]]; then
-                    sudo xcode-select -s "${previous_developer}"
-                fi
                 echo "Restored the previous Command Line Tools" >&2
             fi
+            if [[ -n "${previous_developer}" ]]; then
+                sudo xcode-select -s "${previous_developer}"
+            else
+                sudo xcode-select --reset
+            fi
+        fi
+        if [[ "${result}" -eq 0 && -n "${backup}" && -d "${backup}" ]]; then
+            sudo rm -rf "${backup}"
         fi
         exit "${result}"
     }
@@ -470,10 +473,11 @@ clt_install_softwareupdate() (
         echo "Software Update offers no Command Line Tools package" >&2
         return 1
     fi
-    if [[ "${mode}" == reinstall && -d "${clt_dir}" ]]; then
+    if [[ -d "${clt_dir}" ]]; then
         backup="${clt_dir}.broken-$(date +%Y%m%d%H%M%S)-$$"
         sudo mv "${clt_dir}" "${backup}"
     fi
+    installation_started=true
     printf 'Installing Command Line Tools: %s\n' "${label}"
     sudo softwareupdate -i "${label}"
     sudo xcode-select -s "${clt_dir}"

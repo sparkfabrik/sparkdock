@@ -1159,18 +1159,16 @@
               become: no
           when: not is_non_interactive
 
-        - name: Remove the rollback bundle after successful running verification
+        - name: Remove the rollback bundle after successful verification
           ansible.builtin.file:
             path: "{{ menubar_app_path }}.prev"
             state: absent
-          when: not is_non_interactive
 
-        - name: Record the fingerprint only after running verification
+        - name: Record the fingerprint after successful verification
           ansible.builtin.copy:
             content: "{{ menubar_source_fingerprint.stdout | trim }}\n"
             dest: "{{ menubar_app_path }}.source-fingerprint"
             mode: "0644"
-          when: not is_non_interactive
 
       rescue:
         - name: Restore the previous menu bar bundle after an installation failure

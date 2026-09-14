@@ -29,9 +29,13 @@ mv "${fixture}/Sources/Resources/logo image.png" "${fixture}/saved-logo"
 mv "${fixture}/saved-logo" "${fixture}/Sources/Resources/logo image.png"
 printf 'dependencies\n' > "${fixture}/Package.resolved"
 [[ "$(fingerprint)" != "${original}" ]]
-mv "${fixture}/Package.swift" "${fixture}/saved-package"
-if fingerprint >/dev/null 2>&1; then
-    echo "Missing required build input did not fail fingerprinting" >&2
-    exit 1
-fi
+for name in Package.swift Info.plist bundle.sh Makefile .swift-minimum-version source-fingerprint.sh check-swift-version.sh; do
+    mv "${fixture}/${name}" "${fixture}/saved-input"
+    if output="$(fingerprint 2>/dev/null)"; then
+        printf 'Missing required input did not fail fingerprinting: %s\n' "${name}" >&2
+        exit 1
+    fi
+    [[ -z "${output}" ]]
+    mv "${fixture}/saved-input" "${fixture}/${name}"
+done
 printf 'Fingerprint checks passed in %s\n' "${fixture}"
