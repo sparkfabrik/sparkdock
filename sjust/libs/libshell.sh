@@ -404,3 +404,31 @@ clt_pick_softwareupdate_label() {
     ')"
     printf '%s\n' "${versioned}" | sort -t. -k1,1n -k2,2n | tail -n 1 | cut -f2-
 }
+
+# Checks that the menu bar LaunchAgent actually runs after a start. launchctl
+# bootstrap/enable/kickstart exit 0 even when the program aborts right after
+# launch, so the start commands must not report success from those alone.
+# Prints a diagnosis with the last exit code when the agent is not running.
+# Usage: menubar_agent_verify_running [settle_seconds]
+menubar_agent_verify_running() {
+    local settle="${1:-3}"
+    local service print_output state last_exit
+    service="gui/$(id -u)/com.sparkfabrik.sparkdock.menubar"
+
+    # A launch abort happens within the first second; give it time to show.
+    sleep "${settle}"
+
+    print_output="$(launchctl print "${service}" 2>&1)" || {
+        echo "❌ Menu bar LaunchAgent is not loaded: ${print_output}"
+        return 1
+    }
+    state="$(printf '%s\n' "${print_output}" | sed -n -E 's/^[[:space:]]*state = (.*)$/\1/p' | head -n 1)"
+    if [[ "${state}" == "running" ]]; then
+        return 0
+    fi
+
+    last_exit="$(printf '%s\n' "${print_output}" | sed -n -E 's/^[[:space:]]*last exit code = (.*)$/\1/p' | head -n 1)"
+    echo "❌ Menu bar LaunchAgent is loaded but not running (state: ${state:-unknown}, last exit code: ${last_exit:-unknown})"
+    echo "💡 Run '/opt/homebrew/bin/sparkdock-manager' in a terminal to see why it exits"
+    return 1
+}

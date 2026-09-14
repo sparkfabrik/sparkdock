@@ -335,8 +335,12 @@ sparkdock-menubar-install:
     # No sudo needed: binary installs to user-owned /opt/homebrew/bin and the
     # LaunchAgent is user-level, so no become password is required.
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e ansible_become_pass=
-    echo "✅ Sparkdock menu bar app rebuilt and installed successfully!"
-    echo "💡 The app should now be running via LaunchAgent"
+    # shellcheck source=/dev/null
+    source "{{source_directory()}}/../libs/libshell.sh"
+    if ! menubar_agent_verify_running; then
+        exit 1
+    fi
+    echo "✅ Sparkdock menu bar app rebuilt, installed and running via LaunchAgent"
 
 # Fix Xcode command line tools and rebuild menubar application.
 [group('sparkdock')]
@@ -431,8 +435,10 @@ sparkdock-menubar-reinstall:
     # Try to build the menubar app
     if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e ansible_become_pass=; then
         echo ""
-        echo "🎉 Success! Sparkdock menu bar app has been rebuilt and installed!"
-        echo "💡 The app should now be running via LaunchAgent"
+        if ! menubar_agent_verify_running; then
+            exit 1
+        fi
+        echo "🎉 Success! Sparkdock menu bar app has been rebuilt, installed and is running via LaunchAgent"
     else
         echo ""
         echo "❌ Menubar installation still failed after fixing command line tools"
@@ -447,6 +453,9 @@ sparkdock-menubar-reinstall:
 [group('sparkdock')]
 sparkdock-menubar-start:
     #!/usr/bin/env bash
+    # shellcheck source=/dev/null
+    source "{{source_directory()}}/../libs/libshell.sh"
+
     # Kill any running processes first
     pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
 
@@ -466,6 +475,10 @@ sparkdock-menubar-start:
 
     if ! launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar; then
         echo "❌ Failed to kickstart menu bar app via LaunchAgent"
+        exit 1
+    fi
+
+    if ! menubar_agent_verify_running; then
         exit 1
     fi
 
