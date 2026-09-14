@@ -466,15 +466,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     private func loadMenuConfiguration() {
-        guard let path = Bundle.module.path(forResource: AppConstants.menuConfigResourceName, ofType: "json") ??
-                         Bundle.main.path(forResource: AppConstants.menuConfigResourceName, ofType: "json") else {
-            AppConstants.logger.info("Menu configuration file not found in bundle")
-            return
-        }
-
         do {
-            let data = try Data(contentsOf: URL(fileURLWithPath: path))
-            menuConfig = try JSONDecoder().decode(MenuConfig.self, from: data)
+            menuConfig = try JSONDecoder().decode(MenuConfig.self, from: EmbeddedResources.menuConfigData)
             AppConstants.logger.info("Successfully loaded menu configuration with \(self.menuConfig?.menu.sections.count ?? 0) sections")
         } catch {
             AppConstants.logger.error("Failed to load menu configuration: \(error.localizedDescription)")
@@ -1585,22 +1578,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         // Load logo once and cache it
         if cachedLogoImage == nil {
-            var foundLogo = false
-            if let path = Bundle.module.path(forResource: AppConstants.logoResourceName, ofType: "png") {
-                cachedLogoImage = NSImage(contentsOfFile: path)
-                foundLogo = true
-            } else if let path = Bundle.main.path(forResource: AppConstants.logoResourceName, ofType: "png") {
-                cachedLogoImage = NSImage(contentsOfFile: path)
-                foundLogo = true
-            }
-            if !foundLogo {
-                let moduleResourcePath = Bundle.module.resourcePath ?? "<nil>"
-                let mainResourcePath = Bundle.main.resourcePath ?? "<nil>"
-                let modulePngs = (try? FileManager.default.contentsOfDirectory(atPath: moduleResourcePath).filter { $0.hasSuffix(".png") }) ?? []
-                let mainPngs = (try? FileManager.default.contentsOfDirectory(atPath: mainResourcePath).filter { $0.hasSuffix(".png") }) ?? []
-                let modulePngList = modulePngs.joined(separator: ", ")
-                let mainPngList = mainPngs.joined(separator: ", ")
-                AppConstants.logger.error("Logo resource '\(AppConstants.logoResourceName).png' not found. Checked paths: module=\(moduleResourcePath), main=\(mainResourcePath). Available PNGs in module: \(modulePngList). Available PNGs in main: \(mainPngList).")
+            cachedLogoImage = NSImage(data: EmbeddedResources.logoData)
+            if cachedLogoImage == nil {
+                let byteCount = EmbeddedResources.logoData.count
+                AppConstants.logger.error("Embedded logo '\(AppConstants.logoResourceName).png' (\(byteCount) bytes) could not be decoded; using the fallback icon")
             }
         }
 
@@ -1669,9 +1650,14 @@ extension SparkdockMenubarApp: NSMenuDelegate {
 private func checkForExistingInstance() -> Bool {
     let currentPID = ProcessInfo.processInfo.processIdentifier
 
+    // Match only a process whose whole command line is the executable, with or
+    // without a directory. A loose substring match also hits unrelated processes
+    // that merely mention the name (a shell running the start script, a
+    // concurrent `sparkdock-manager --status`) and makes the app quit at launch
+    // with "already running" while nothing shows in the menu bar.
     let process = Process()
     process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-    process.arguments = ["-f", "sparkdock-manager"]
+    process.arguments = ["-f", "^([^ ]*/)?sparkdock-manager$"]
 
     let pipe = Pipe()
     process.standardOutput = pipe
@@ -1698,7 +1684,9 @@ private func checkForExistingInstance() -> Bool {
     }
 }
 
-private func handleCLIArguments() -> Bool {
+/// Handles `--help` and `--status`. Returns the process exit code when an argument
+/// was handled, or `nil` to launch the menu bar application.
+private func handleCLIArguments() -> Int32? {
     let arguments = CommandLine.arguments
 
     if arguments.contains("--help") || arguments.contains("-h") {
@@ -1713,13 +1701,35 @@ private func handleCLIArguments() -> Bool {
 
         When run without arguments, launches as a menu bar application.
         """)
-        return true
+        return 0
     }
 
     if arguments.contains("--status") {
-        print("Sparkdock Manager - Status: OK")
-        print("Executable path: /opt/sparkdock/bin/sparkdock.macos")
-        print("Config file: Sources/SparkdockManager/Resources/menu.json")
+        // Provisioning runs this right after installing the binary. The menu bar
+        // launch depends on the embedded resources, so decode them here too: a
+        // binary that passes this check must not abort on its first real launch.
+        let menuConfigLine: String
+        var healthy = true
+        do {
+            let config = try JSONDecoder().decode(MenuConfig.self, from: EmbeddedResources.menuConfigData)
+            menuConfigLine = "Menu configuration: ✅ \(config.menu.sections.count) sections (embedded \(AppConstants.menuConfigResourceName).json)"
+        } catch {
+            menuConfigLine = "Menu configuration: ❌ embedded \(AppConstants.menuConfigResourceName).json failed to decode: \(error.localizedDescription)"
+            healthy = false
+        }
+
+        let logoLine: String
+        if NSImage(data: EmbeddedResources.logoData) != nil {
+            logoLine = "Logo: ✅ \(EmbeddedResources.logoData.count) bytes (embedded \(AppConstants.logoResourceName).png)"
+        } else {
+            logoLine = "Logo: ❌ embedded \(AppConstants.logoResourceName).png failed to decode"
+            healthy = false
+        }
+
+        print("Sparkdock Manager - Status: \(healthy ? "OK" : "ERROR")")
+        print("Executable path: \(AppConstants.sparkdockExecutablePath)")
+        print(menuConfigLine)
+        print(logoLine)
 
         // Check if sparkdock executable exists
         if FileManager.default.fileExists(atPath: AppConstants.sparkdockExecutablePath) {
@@ -1728,15 +1738,15 @@ private func handleCLIArguments() -> Bool {
             print("Sparkdock executable: ❌ Not found")
         }
 
-        return true
+        return healthy ? 0 : 1
     }
 
-    return false
+    return nil
 }
 
 // MARK: - Main Entry Point
-if handleCLIArguments() {
-    exit(0)
+if let exitCode = handleCLIArguments() {
+    exit(exitCode)
 }
 
 // Check if another instance is already running

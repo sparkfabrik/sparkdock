@@ -14,8 +14,13 @@ let package = Package(
         .executableTarget(
             name: "SparkdockManager",
             dependencies: [],
+            // The binary is installed bare in /opt/homebrew/bin, without the
+            // SwiftPM resource bundle. Embedding the resources in the executable
+            // keeps it self-contained; a `Bundle.module` lookup would abort at
+            // launch because the bundle is not next to the installed binary.
             resources: [
-                .process("Resources")
+                .embedInCode("Resources/menu.json"),
+                .embedInCode("Resources/sparkfabrik-logo.png"),
             ]
         ),
         .testTarget(

@@ -5,7 +5,7 @@ A simple macOS menu bar application that provides visual indicators for Sparkdoc
 ## Features
 
 - **Visual Status**: Menu bar icon shows update status
-  - ⚙️ (Gray gear) - System up to date  
+  - ⚙️ (Gray gear) - System up to date
   - 🔄 (Orange refresh) - Updates available
 - **Menu Actions**:
   - Check for Updates (manual check)
@@ -52,7 +52,7 @@ To use your SparkFabrik logo:
 1. Add your logo file as `sparkfabrik-logo.png` to `Sources/SparkdockManager/Resources/`
 2. Rebuild the app: `swift build`
 
-The app will automatically use your custom logo, falling back to a system gear icon if not found.
+Both `menu.json` and the logo are compiled into the executable (`.embedInCode` in `Package.swift`), so the installed binary in `/opt/homebrew/bin` needs no resource bundle next to it. The app falls back to a system gear icon if the logo fails to decode.
 
 ## Web App Integration
 
@@ -63,6 +63,7 @@ URL menu items (configured in `menu.json`) are opened as Chrome web apps using t
 - No additional configuration required
 
 Example from `menu.json`:
+
 ```json
 {
   "title": "Company Playbook",
@@ -70,7 +71,6 @@ Example from `menu.json`:
   "url": "https://playbook.sparkfabrik.com/"
 }
 ```
-
 
 ## CLI Usage
 

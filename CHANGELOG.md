@@ -212,6 +212,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the Sparkdock menu bar app aborting at launch with `unable to find bundle named SparkdockManager_SparkdockManager` after the Swift 6.4 command line tools update: `menu.json` and the logo are now embedded in the binary, `sparkdock-manager --status` checks them, the install and start commands verify the LaunchAgent is actually running, and the single-instance check no longer mistakes a shell mentioning the binary for a running copy
 - Fixed provisioning warning on every run when Homebrew reports a newer Command Line Tools release: that alone is now one informational line pointing at Software Update or `sjust sparkdock-menubar-reinstall`, and no sparkdock message suggests `xcode-select --install` any more
 
 - Fixed the menu bar app build failing on machines with Command Line Tools only: it retries with Swift's native build system, a failed build reports the compiler error instead of a Command Line Tools hint, and `sjust sparkdock-menubar-reinstall` installs exactly one Command Line Tools package, the newest offered, instead of letting Software Update layer several

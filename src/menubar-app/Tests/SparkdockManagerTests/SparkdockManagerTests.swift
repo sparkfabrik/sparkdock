@@ -1,4 +1,5 @@
 import XCTest
+import AppKit
 import Foundation
 @testable import SparkdockManager
 
@@ -22,6 +23,16 @@ final class SparkdockManagerTests: XCTestCase {
 
     func testPackageStructure() {
         XCTAssertTrue(true, "Package structure test passed")
+    }
+
+    /// The installed binary is a bare file with no resource bundle next to it, so
+    /// both resources must come from the executable itself and decode cleanly.
+    func testEmbeddedResourcesDecode() throws {
+        let menu = try JSONSerialization.jsonObject(with: EmbeddedResources.menuConfigData) as? [String: Any]
+        let sections = (menu?["menu"] as? [String: Any])?["sections"] as? [[String: Any]]
+        XCTAssertFalse(sections?.isEmpty ?? true, "embedded menu.json should declare at least one section")
+
+        XCTAssertNotNil(NSImage(data: EmbeddedResources.logoData), "embedded sparkfabrik-logo.png should decode as an image")
     }
 
     func testResourcesExist() {

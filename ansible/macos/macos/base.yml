@@ -1040,8 +1040,23 @@
                 launchctl bootstrap gui/$(id -u) "{{ ansible_facts['env']['HOME'] }}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
                 launchctl enable gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
                 launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar
+                # launchctl exits 0 even when the program aborts right after
+                # launch, so check the agent state before reporting success.
+                source "{{ dev_env_dir }}/sjust/libs/libshell.sh"
+                menubar_agent_verify_running
+              args:
+                executable: /bin/bash
+              register: menubar_agent_load
               become: no
               ignore_errors: yes
+
+            - name: Warn when the menu bar app is not running
+              debug:
+                msg:
+                  - "⚠️  The Sparkdock menu bar app was installed but is not running."
+                  - "{{ menubar_agent_load.stdout_lines | default([]) | join(' ') }}"
+                  - "Run '{{ homebrew_brew_bin_path }}/sparkdock-manager' in a terminal to see why it exits, then 'sjust sparkdock-menubar-start'."
+              when: menubar_agent_load is failed
           when: not is_non_interactive
 
       rescue:
