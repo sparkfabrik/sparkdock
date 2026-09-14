@@ -432,3 +432,46 @@ menubar_agent_verify_running() {
     echo "💡 Run '/opt/homebrew/bin/sparkdock-manager' in a terminal to see why it exits"
     return 1
 }
+
+# Stop installed copies without terminating development bundles in other directories.
+menubar_stop_installed_processes() {
+    local pid command executable elapsed remaining pids=""
+    while read -r pid command; do
+        for executable in /opt/homebrew/bin/sparkdock-manager /usr/local/bin/sparkdock-manager "${HOME}/Applications/Sparkdock Manager.app/Contents/MacOS/sparkdock-manager"; do
+            # Match argv[0], including spaces in the bundle path, with an argument boundary.
+            if [[ "${command}" == "${executable}" || "${command}" == "${executable} "* ]]; then
+                kill -TERM "${pid}" 2>/dev/null || true
+                pids="${pids} ${pid}"
+                break
+            fi
+        done
+    done < <(ps -axww -o pid=,command=)
+
+    for ((elapsed = 0; elapsed < 5; elapsed++)); do
+        remaining=""
+        for pid in ${pids}; do
+            if kill -0 "${pid}" 2>/dev/null; then
+                remaining="${remaining} ${pid}"
+            fi
+        done
+        [[ -n "${remaining}" ]] || return 0
+        pids="${remaining}"
+        sleep 1
+    done
+    for pid in ${pids}; do
+        kill -KILL "${pid}" 2>/dev/null || true
+    done
+    for ((elapsed = 0; elapsed < 5; elapsed++)); do
+        remaining=""
+        for pid in ${pids}; do
+            if kill -0 "${pid}" 2>/dev/null; then
+                remaining="${remaining} ${pid}"
+            fi
+        done
+        [[ -n "${remaining}" ]] || return 0
+        pids="${remaining}"
+        sleep 1
+    done
+    printf 'Menu bar processes did not exit:%s\n' "${remaining}" >&2
+    return 1
+}

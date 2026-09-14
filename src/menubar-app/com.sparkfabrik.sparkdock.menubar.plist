@@ -6,7 +6,7 @@
     <string>com.sparkfabrik.sparkdock.menubar</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/opt/homebrew/bin/sparkdock-manager</string>
+        <string>{{ menubar_app_path | e }}/Contents/MacOS/sparkdock-manager</string>
     </array>
     <key>RunAtLoad</key>
     <true/>

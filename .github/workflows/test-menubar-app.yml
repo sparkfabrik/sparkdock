@@ -75,12 +75,9 @@ jobs:
             exit 1
           fi
 
-      - name: Test resource bundle
+      - name: Verify the relocated application bundle
         working-directory: src/menubar-app
-        run: |
-          echo "Checking for resource bundle..."
-          find .build -name "*SparkdockMenubar*.bundle" -type d -exec echo "Found bundle: {}" \;
-          find .build -name "sparkfabrik-logo.png" -exec echo "Found logo: {}" \;
+        run: ./test-bundle.sh
 
       - name: Make test (if available)
         working-directory: src/menubar-app

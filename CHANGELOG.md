@@ -132,6 +132,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed the menu bar login item entry to open System Settings Login Items instead of toggling SMAppService, leaving launch at login to the LaunchAgent
+
+- Installed Sparkdock Manager as a signed application bundle with bundle resources, bundle-identifier instance checks, and a compatible CLI symlink
+
 - Extended the Claude skill gate to GitLab and writing guidance, with a writing-only bypass and graceful handling of missing skills and failed loads.
 
 - Disabled skills and categories now render in the amber attention colour in `sf-harness-skill list`, `sf-harness-category list` and `sf-harness-status`, instead of plain or dim text
