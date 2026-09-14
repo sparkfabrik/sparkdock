@@ -111,6 +111,23 @@ MulticastDNS setting: no
 - Verify access to GitHub and Homebrew repositories
 - Some corporate networks may block required domains
 
+#### Pinned menu bar toolchain
+
+Sparkdock builds the menu bar app with the Swift.org release pinned in `src/menubar-app/.swift-version`, managed by [Swiftly](https://www.swift.org/swiftly/documentation/swiftly/). The matching version number does not make it identical to Apple's Swift build. Provisioning installs the pin without modifying shell profiles. The first installation requires access to Swift.org; subsequent runs reuse the installed toolchain.
+
+If Swiftly or the pinned toolchain is missing, run:
+
+```bash
+brew install swiftly
+cd /opt/sparkdock/src/menubar-app
+swiftly init --assume-yes --no-modify-profile --skip-install
+swiftly install --assume-yes
+swiftly run swift --version
+make build
+```
+
+Always run `swiftly run` from `src/menubar-app` to select the project pin. The SDK and linker still come from the selected Apple developer tools, normally Command Line Tools. The pin does not repair a mixed CLT installation; the preflight and repair instructions below still apply.
+
 #### Inconsistent Command Line Tools
 
 **Symptom:** a Swift build aborts with `dyld[...]: Symbol not found`, or with `error: SessionFailedError(error: Could not initialize build system)`. The menu bar app fails to build.

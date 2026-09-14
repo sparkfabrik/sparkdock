@@ -21,7 +21,9 @@ A simple macOS menu bar application that provides visual indicators for Sparkdoc
 ## Building
 
 ```bash
+brew install swiftly
 cd src/menubar-app
+swiftly init --assume-yes --no-modify-profile --skip-install && swiftly install --assume-yes
 make build
 ```
 
