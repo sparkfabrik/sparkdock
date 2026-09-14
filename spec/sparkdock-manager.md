@@ -276,11 +276,12 @@ log stream --predicate 'subsystem == "com.sparkfabrik.sparkdock.manager"'
 ## Build & Development
 
 ```bash
-# Development commands
+# Development commands (after the Swiftly setup in src/menubar-app/README.md)
+cd src/menubar-app
 make build                  # Build and sign the application bundle
 make install                 # Install with LaunchAgent (local only)
 make test                   # Unit tests and relocated-bundle smoke checks
-swift test                  # Alternative test command
+swiftly run swift test      # Unit tests only
 ```
 
 **Code Style:**

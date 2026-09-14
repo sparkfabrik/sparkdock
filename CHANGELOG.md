@@ -132,6 +132,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Pin the menu bar app compiler with Swiftly so builds use the same Swift release after Xcode or Command Line Tools updates
+
 - Changed the menu bar login item entry to open System Settings Login Items instead of toggling SMAppService, leaving launch at login to the LaunchAgent
 
 - Installed Sparkdock Manager as a signed application bundle with bundle resources, bundle-identifier instance checks, and a compatible CLI symlink

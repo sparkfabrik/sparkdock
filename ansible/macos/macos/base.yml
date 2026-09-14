@@ -963,9 +963,38 @@
           changed_when: "'installed binaries (' in claude_usage_install.stdout"
           become: false
 
+        - name: Ensure Swiftly is available for menubar-only provisioning
+          community.general.homebrew:
+            name: swiftly
+            state: present
+          become: false
+
+        - name: Initialize Swiftly without changing shell profiles
+          ansible.builtin.command:
+            argv:
+              - "{{ homebrew_brew_bin_path }}/swiftly"
+              - init
+              - --assume-yes
+              - --no-modify-profile
+              - --skip-install
+          register: menubar_swiftly_init
+          changed_when: "'Creating shell environment file' in menubar_swiftly_init.stdout"
+
+        - name: Install the pinned Swift toolchain
+          ansible.builtin.command:
+            argv:
+              - "{{ homebrew_brew_bin_path }}/swiftly"
+              - install
+              - --assume-yes
+            chdir: "{{ dev_env_dir }}/src/menubar-app"
+          register: menubar_swiftly_install
+          changed_when: "'installed successfully!' in menubar_swiftly_install.stdout"
+
         - name: Build menu bar app
           # 2>&1 keeps the compiler diagnostics and make's own error in one stream.
-          shell: make -C {{ dev_env_dir }}/src/menubar-app build 2>&1
+          shell: make -C "{{ dev_env_dir }}/src/menubar-app" build 2>&1
+          environment:
+            PATH: "{{ homebrew_brew_bin_path }}:{{ ansible_facts['env'].PATH }}"
           register: build_result
           changed_when: build_result.rc == 0
           failed_when: false # Don't fail immediately, handle errors in rescue block

@@ -46,6 +46,19 @@ jobs:
           echo "Running Swift tests..."
           swift test --verbose
 
+      - name: Install Swiftly and the pinned toolchain
+        working-directory: src/menubar-app
+        run: |
+          set -euo pipefail
+          brew install swiftly
+          swiftly init --assume-yes --no-modify-profile --skip-install
+          swiftly install --assume-yes
+          swiftly run swift --version
+
+      - name: Run tests with the pinned toolchain
+        working-directory: src/menubar-app
+        run: swiftly run swift test --verbose
+
       - name: Test Swift app compilation (release)
         working-directory: src/menubar-app
         run: |

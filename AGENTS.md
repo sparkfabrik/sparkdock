@@ -268,6 +268,18 @@ make install                  # Install manually (requires sudo)
 make uninstall               # Remove installation
 ```
 
+The menu bar compiler is pinned in `src/menubar-app/.swift-version`. Run Swift commands through `swiftly run` from that directory so the pin applies regardless of `PATH`. Provisioning installs Swiftly and the pinned toolchain; for manual setup, run:
+
+```bash
+brew install swiftly
+cd src/menubar-app
+swiftly init --assume-yes --no-modify-profile --skip-install
+swiftly install --assume-yes
+make build
+```
+
+Keep the exact release version in `.swift-version`; do not replace it with `latest`. Swiftly pins the Swift.org compiler, not Apple's SDK or linker. Command Line Tools (or the selected Xcode installation) must still be healthy. CI tests both Xcode's compiler and the pin on macOS 15 and 26.
+
 ### Integration
 
 - Built automatically during Ansible provisioning with `menubar` tag

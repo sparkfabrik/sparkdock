@@ -50,6 +50,7 @@ homebrew_packages:
   # on Homebrew's bash being first on PATH; making the dependency explicit here.
   - bash
   - coreutils
+  - swiftly
   - flock
   # Cloud Tools
   - awscli
