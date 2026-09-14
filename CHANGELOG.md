@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added CLT-only menu bar CI checks for installed and newest-offered Command Line Tools, including installed bundle resource checks
+
 - Added a Command Line Tools status row to Sparkdock Manager with a diagnosis and repair action for inconsistent toolchains
 
 - Added a Command Line Tools preflight to provisioning: an inconsistent toolchain now skips the menu bar app and the TUI with a diagnosis instead of failing the run, and `sjust device-info` reports the same state
@@ -132,7 +134,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Pin the menu bar app compiler with Swiftly so builds use the same Swift release after Xcode or Command Line Tools updates
+- Install one selected Command Line Tools package during fresh setup and repair, verify its health, and skip Xcode license acceptance
+
+- Reuse verified menu bar builds when source fingerprints match, with an explicit force-rebuild option
+
+- Replaced the menu bar Swiftly toolchain pin with a minimum Swift version check, using Apple's compiler and SDK
 
 - Changed the menu bar login item entry to open System Settings Login Items instead of toggling SMAppService, leaving launch at login to the LaunchAgent
 
@@ -204,6 +210,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed the retired Swiftly formula, its macOS state, and the Swift.org 6.3.3 toolchain installed for menu bar builds
+
 - Removed the dinghy-proxy to http-proxy transition, 14 months after it landed: the `run-http-proxy` and `run-dinghy-proxy` compatibility symlinks are no longer created, and the block that deleted old dinghy binaries and copied `~/.dinghy/certs` is gone (`spark-http-proxy` creates its own config and certs directories on every run). Symlinks already present on a machine keep working; they are simply no longer managed
 - Removed `config/bin/test-dnsdock`, a 2022 smoke test for the pre-Traefik dnsdock DNS layer that nothing referenced and provisioning never installed
 - Removed the `docker-prune` recipe, which duplicated the Docker half of `system-cleanup`
@@ -217,6 +225,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed `sjust sf-skills-status` backward-compatible alias (use `sf-agents-status` instead)
 
 ### Fixed
+
+- Fixed macOS 15 compiler compatibility, non-interactive menu bar rebuild reuse, CLT rollback, and missing-input fingerprint failures
 
 - Fixed the Sparkdock menu bar app aborting at launch with `unable to find bundle named SparkdockManager_SparkdockManager` after the Swift 6.4 command line tools update: `menu.json` and the logo are now embedded in the binary, `sparkdock-manager --status` checks them, the install and start commands verify the LaunchAgent is actually running, and the single-instance check no longer mistakes a shell mentioning the binary for a running copy
 - Fixed provisioning warning on every run when Homebrew reports a newer Command Line Tools release: that alone is now one informational line pointing at Software Update or `sjust sparkdock-menubar-reinstall`, and no sparkdock message suggests `xcode-select --install` any more

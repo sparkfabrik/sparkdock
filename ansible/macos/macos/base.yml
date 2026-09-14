@@ -950,6 +950,15 @@
         # Build output matching this points at the Xcode command line tools, not at the code.
         build_clt_pattern: 'xcrun: error|unable to find (sdk|utility)|Could not initialize build system|Command Line Tools|CommandLineTools|dyld\[|Symbol not found'
       block:
+        - name: Remove the retired menu bar toolchain and Swiftly state
+          ansible.builtin.file:
+            path: "{{ ansible_facts['env']['HOME'] }}/{{ item }}"
+            state: absent
+          loop:
+            - Library/Developer/Toolchains/swift-6.3.3-RELEASE.xctoolchain
+            - .swiftly
+          become: false
+
         - name: Install or upgrade Claude usage provider without standalone reader
           ansible.builtin.command:
             argv:
@@ -963,113 +972,130 @@
           changed_when: "'installed binaries (' in claude_usage_install.stdout"
           become: false
 
-        - name: Ensure Swiftly is available for menubar-only provisioning
-          community.general.homebrew:
-            name: swiftly
-            state: present
-          become: false
-
-        - name: Initialize Swiftly without changing shell profiles
+        - name: Fingerprint menu bar build inputs
           ansible.builtin.command:
             argv:
-              - "{{ homebrew_brew_bin_path }}/swiftly"
-              - init
-              - --assume-yes
-              - --no-modify-profile
-              - --skip-install
-          register: menubar_swiftly_init
-          changed_when: "'Creating shell environment file' in menubar_swiftly_init.stdout"
+              - /usr/bin/env
+              - bash
+              - "{{ dev_env_dir }}/src/menubar-app/source-fingerprint.sh"
+          register: menubar_source_fingerprint
+          changed_when: false
 
-        - name: Install the pinned Swift toolchain
+        - name: Check the installed menu bar bundle
           ansible.builtin.command:
             argv:
-              - "{{ homebrew_brew_bin_path }}/swiftly"
-              - install
-              - --assume-yes
-            chdir: "{{ dev_env_dir }}/src/menubar-app"
-          register: menubar_swiftly_install
-          changed_when: "'installed successfully!' in menubar_swiftly_install.stdout"
-
-        - name: Build menu bar app
-          # 2>&1 keeps the compiler diagnostics and make's own error in one stream.
-          shell: make -C "{{ dev_env_dir }}/src/menubar-app" build 2>&1
-          environment:
-            PATH: "{{ homebrew_brew_bin_path }}:{{ ansible_facts['env'].PATH }}"
-          register: build_result
-          changed_when: build_result.rc == 0
-          failed_when: false # Don't fail immediately, handle errors in rescue block
-
-        - name: Check if build was successful
-          fail:
-            msg: "Swift build failed. See rescue block for instructions."
-          when: build_result.rc != 0
-
-        - name: Smoke test the staged application bundle
-          ansible.builtin.command:
-            argv:
-              - "{{ dev_env_dir }}/src/menubar-app/.build/Sparkdock Manager.app/Contents/MacOS/sparkdock-manager"
+              - "{{ menubar_app_path }}/Contents/MacOS/sparkdock-manager"
               - --status
-          register: menubar_bundle_status
+          register: menubar_installed_status
           changed_when: false
-          retries: 5
-          delay: 2
-          until: menubar_bundle_status.rc == 0
+          failed_when: false
 
-        - name: Ensure the user Applications directory exists
-          ansible.builtin.file:
-            path: "{{ ansible_facts['env']['HOME'] }}/Applications"
-            state: directory
-            mode: "0755"
-
-        - name: Remove an incomplete staged menu bar bundle
-          ansible.builtin.file:
-            path: "{{ menubar_app_path }}.new"
-            state: absent
-
-        - name: Stage menu bar application bundle
+        - name: Read the last verified menu bar fingerprint
           ansible.builtin.command:
             argv:
-              - /usr/bin/ditto
-              - "{{ dev_env_dir }}/src/menubar-app/.build/Sparkdock Manager.app"
-              - "{{ menubar_app_path }}.new"
-
-        - name: Clear provenance xattr and verify the staged signature
-          ansible.builtin.shell: |
-            set -euo pipefail
-            xattr -d com.apple.provenance {{ (menubar_app_path + ".new") | quote }} 2>/dev/null || true
-            xattr -d com.apple.provenance {{ (menubar_app_path + ".new/Contents/MacOS/sparkdock-manager") | quote }} 2>/dev/null || true
-            codesign --force --sign - --identifier com.sparkfabrik.sparkdock.menubar {{ (menubar_app_path + ".new") | quote }}
-            codesign --verify --strict {{ (menubar_app_path + ".new") | quote }}
-          args:
-            executable: /bin/bash
+              - /bin/cat
+              - "{{ menubar_app_path }}.source-fingerprint"
+          register: menubar_installed_fingerprint
           changed_when: false
+          failed_when: false
 
-        - name: Stop installed menu bar processes before replacing the bundle
-          ansible.builtin.shell: |
-            set -euo pipefail
-            source "{{ dev_env_dir }}/sjust/libs/libshell.sh"
-            launchctl bootout "gui/$(id -u)/com.sparkfabrik.sparkdock.menubar" 2>/dev/null || true
-            menubar_stop_installed_processes
-          args:
-            executable: /bin/bash
-          changed_when: false
+        - name: Decide whether the menu bar bundle needs rebuilding
+          ansible.builtin.set_fact:
+            menubar_rebuild: >-
+              {{ lookup('env', 'SPARKDOCK_FORCE_MENUBAR_BUILD') == '1'
+                 or menubar_installed_status.rc != 0
+                 or menubar_installed_fingerprint.rc != 0
+                 or menubar_installed_fingerprint.stdout | trim != menubar_source_fingerprint.stdout | trim }}
 
-        - name: Replace the menu bar bundle while retaining a rollback copy
-          ansible.builtin.shell: |
-            set -euo pipefail
-            app={{ menubar_app_path | quote }}
-            if [[ -e "${app}.prev" ]]; then
-                echo "Previous rollback bundle still exists: ${app}.prev" >&2
-                exit 1
-            fi
-            if [[ -e "${app}" ]]; then
-                mv "${app}" "${app}.prev"
-                printf 'rollback-ready\n'
-            fi
-            mv "${app}.new" "${app}"
-          args:
-            executable: /bin/bash
-          register: menubar_bundle_replace
+        - name: Rebuild and replace the menu bar bundle when needed
+          when: menubar_rebuild | bool
+          block:
+            - name: Build menu bar app
+              # 2>&1 keeps the compiler diagnostics and make's own error in one stream.
+              shell: |
+                set -euo pipefail
+                ./check-swift-version.sh 2>&1
+                make build 2>&1
+              args:
+                chdir: "{{ dev_env_dir }}/src/menubar-app"
+                executable: /bin/bash
+              environment:
+                PATH: "{{ homebrew_brew_bin_path }}:{{ ansible_facts['env'].PATH }}"
+              register: build_result
+              changed_when: build_result.rc == 0
+              failed_when: false # Don't fail immediately, handle errors in rescue block
+
+            - name: Check if build was successful
+              fail:
+                msg: "Swift build failed. See rescue block for instructions."
+              when: build_result.rc != 0
+
+            - name: Smoke test the staged application bundle
+              ansible.builtin.command:
+                argv:
+                  - "{{ dev_env_dir }}/src/menubar-app/.build/Sparkdock Manager.app/Contents/MacOS/sparkdock-manager"
+                  - --status
+              register: menubar_bundle_status
+              changed_when: false
+              retries: 5
+              delay: 2
+              until: menubar_bundle_status.rc == 0
+
+            - name: Ensure the user Applications directory exists
+              ansible.builtin.file:
+                path: "{{ ansible_facts['env']['HOME'] }}/Applications"
+                state: directory
+                mode: "0755"
+
+            - name: Remove an incomplete staged menu bar bundle
+              ansible.builtin.file:
+                path: "{{ menubar_app_path }}.new"
+                state: absent
+
+            - name: Stage menu bar application bundle
+              ansible.builtin.command:
+                argv:
+                  - /usr/bin/ditto
+                  - "{{ dev_env_dir }}/src/menubar-app/.build/Sparkdock Manager.app"
+                  - "{{ menubar_app_path }}.new"
+
+            - name: Clear provenance xattr and verify the staged signature
+              ansible.builtin.shell: |
+                set -euo pipefail
+                xattr -d com.apple.provenance {{ (menubar_app_path + ".new") | quote }} 2>/dev/null || true
+                xattr -d com.apple.provenance {{ (menubar_app_path + ".new/Contents/MacOS/sparkdock-manager") | quote }} 2>/dev/null || true
+                codesign --force --sign - --identifier com.sparkfabrik.sparkdock.menubar {{ (menubar_app_path + ".new") | quote }}
+                codesign --verify --strict {{ (menubar_app_path + ".new") | quote }}
+              args:
+                executable: /bin/bash
+              changed_when: false
+
+            - name: Stop installed menu bar processes before replacing the bundle
+              ansible.builtin.shell: |
+                set -euo pipefail
+                source "{{ dev_env_dir }}/sjust/libs/libshell.sh"
+                launchctl bootout "gui/$(id -u)/com.sparkfabrik.sparkdock.menubar" 2>/dev/null || true
+                menubar_stop_installed_processes
+              args:
+                executable: /bin/bash
+              changed_when: false
+
+            - name: Replace the menu bar bundle while retaining a rollback copy
+              ansible.builtin.shell: |
+                set -euo pipefail
+                app={{ menubar_app_path | quote }}
+                if [[ -e "${app}.prev" ]]; then
+                    echo "Previous rollback bundle still exists: ${app}.prev" >&2
+                    exit 1
+                fi
+                if [[ -e "${app}" ]]; then
+                    mv "${app}" "${app}.prev"
+                    printf 'rollback-ready\n'
+                fi
+                mv "${app}.new" "${app}"
+              args:
+                executable: /bin/bash
+              register: menubar_bundle_replace
 
         - name: Link the menu bar command to its bundle executable
           ansible.builtin.file:
@@ -1133,11 +1159,16 @@
               become: no
           when: not is_non_interactive
 
-        - name: Remove the rollback bundle after successful running verification
+        - name: Remove the rollback bundle after successful verification
           ansible.builtin.file:
             path: "{{ menubar_app_path }}.prev"
             state: absent
-          when: not is_non_interactive
+
+        - name: Record the fingerprint after successful verification
+          ansible.builtin.copy:
+            content: "{{ menubar_source_fingerprint.stdout | trim }}\n"
+            dest: "{{ menubar_app_path }}.source-fingerprint"
+            mode: "0644"
 
       rescue:
         - name: Restore the previous menu bar bundle after an installation failure
@@ -1173,7 +1204,7 @@
           args:
             executable: /bin/bash
           when:
-            - menubar_bundle_replace is defined
+            - menubar_bundle_replace is defined and menubar_bundle_replace is not skipped
             - not is_non_interactive
 
         - name: Report which task actually failed
@@ -1203,7 +1234,7 @@
               - ""
               - "This will remove and reinstall the Xcode command line tools, then retry the install."
           when:
-            - build_result is defined and build_result.rc != 0
+            - build_result.rc is defined and build_result.rc != 0
             - (build_result.stdout | default('')) is search(build_clt_pattern)
 
         - name: Fail with context-aware message
@@ -1214,7 +1245,7 @@
             build_needs_clt: "{{ (build_result.stdout | default('')) is search(build_clt_pattern) }}"
           fail:
             msg: >-
-              {% if build_result is defined and build_result.rc != 0 %}Menubar app compilation failed:{{ build_newline }}{{ build_tail }}{{ build_newline }}{% if build_needs_clt | bool %}Run 'sjust sparkdock-menubar-reinstall' to fix the Xcode command line tools and retry installation.{% else %}Fix the build error above and retry.{% endif %}{% else %}Menubar app install failed at task '{{ ansible_failed_task.name | default('unknown') }}': {{ ansible_failed_result.msg | default('see output above') }}{% endif %}
+              {% if build_result.rc is defined and build_result.rc != 0 %}Menubar app compilation failed:{{ build_newline }}{{ build_tail }}{{ build_newline }}{% if build_needs_clt | bool %}Run 'sjust sparkdock-menubar-reinstall' to fix the Xcode command line tools and retry installation.{% else %}Fix the build error above and retry.{% endif %}{% else %}Menubar app install failed at task '{{ ansible_failed_task.name | default('unknown') }}': {{ ansible_failed_result.msg | default('see output above') }}{% endif %}
 
     - name: Install Sparkdock TUI
       tags: tui

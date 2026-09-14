@@ -405,6 +405,91 @@ clt_pick_softwareupdate_label() {
     printf '%s\n' "${versioned}" | sort -t. -k1,1n -k2,2n | tail -n 1 | cut -f2-
 }
 
+# Reject missing, unreadable, or older compilers before starting a menu bar build.
+check_swift_minimum_version() {
+    local minimum="${1}" output actual major minor patch required_major required_minor required_patch
+    if [[ ! "${minimum}" =~ ^([0-9]+)\.([0-9]+)(\.([0-9]+))?$ ]]; then
+        printf 'Invalid minimum Swift version: %s\n' "${minimum}" >&2
+        return 1
+    fi
+    required_major="${BASH_REMATCH[1]}"
+    required_minor="${BASH_REMATCH[2]}"
+    required_patch="${BASH_REMATCH[4]:-0}"
+    if ! output="$(swift --version 2>&1)"; then
+        printf 'Swift %s or newer is required; swift --version failed: %s\n' "${minimum}" "${output}" >&2
+        return 1
+    fi
+    if [[ ! "${output}" =~ Swift[[:space:]]version[[:space:]]([0-9]+)\.([0-9]+)(\.([0-9]+))? ]]; then
+        printf 'Cannot read the Swift compiler version; require %s or newer: %s\n' "${minimum}" "${output}" >&2
+        return 1
+    fi
+    actual="${BASH_REMATCH[0]}"
+    major="${BASH_REMATCH[1]}"
+    minor="${BASH_REMATCH[2]}"
+    patch="${BASH_REMATCH[4]:-0}"
+    if (( 10#${major} > 10#${required_major} ||
+          (10#${major} == 10#${required_major} && 10#${minor} > 10#${required_minor}) ||
+          (10#${major} == 10#${required_major} && 10#${minor} == 10#${required_minor} && 10#${patch} >= 10#${required_patch}) )); then
+        return 0
+    fi
+    printf '%s is too old; Sparkdock Manager requires Swift %s or newer. Update Command Line Tools or select a supported Xcode toolchain.\n' "${actual}" "${minimum}" >&2
+    return 1
+}
+
+# Install one advertised CLT package and retain existing tools until verification succeeds.
+clt_install_softwareupdate() (
+    set -euo pipefail
+    local marker updates label diagnosis backup="" previous_developer="" installation_started=false
+    local clt_dir=/Library/Developer/CommandLineTools
+    marker=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+    previous_developer="$(xcode-select -p 2>/dev/null || true)"
+
+    # shellcheck disable=SC2329
+    cleanup_clt_install() {
+        local result=$?
+        trap - EXIT
+        sudo rm -f "${marker}"
+        if [[ "${result}" -ne 0 && "${installation_started}" == true ]]; then
+            sudo rm -rf "${clt_dir}"
+            if [[ -n "${backup}" && -d "${backup}" ]]; then
+                sudo mv "${backup}" "${clt_dir}"
+                echo "Restored the previous Command Line Tools" >&2
+            fi
+            if [[ -n "${previous_developer}" ]]; then
+                sudo xcode-select -s "${previous_developer}"
+            else
+                sudo xcode-select --reset
+            fi
+        fi
+        if [[ "${result}" -eq 0 && -n "${backup}" && -d "${backup}" ]]; then
+            sudo rm -rf "${backup}"
+        fi
+        exit "${result}"
+    }
+    trap cleanup_clt_install EXIT
+    sudo touch "${marker}"
+    updates="$(softwareupdate --list)"
+    if ! label="$(clt_pick_softwareupdate_label "${updates}")" || [[ -z "${label}" ]]; then
+        echo "Software Update offers no Command Line Tools package" >&2
+        return 1
+    fi
+    if [[ -d "${clt_dir}" ]]; then
+        backup="${clt_dir}.broken-$(date +%Y%m%d%H%M%S)-$$"
+        sudo mv "${clt_dir}" "${backup}"
+    fi
+    installation_started=true
+    printf 'Installing Command Line Tools: %s\n' "${label}"
+    sudo softwareupdate -i "${label}"
+    sudo xcode-select -s "${clt_dir}"
+    sudo rm -f "${marker}"
+    # shellcheck source=../../bin/common/utils.sh
+    source "${SPARKDOCK_ROOT}/bin/common/utils.sh"
+    if ! diagnosis="$(SPARKDOCK_SWIFT_BIN="${clt_dir}/usr/bin/swift" SPARKDOCK_SWIFTC_BIN="${clt_dir}/usr/bin/swiftc" check_clt_health)"; then
+        printf '%s\n' "${diagnosis}" >&2
+        return 1
+    fi
+)
+
 # Checks that the menu bar LaunchAgent actually runs after a start. launchctl
 # bootstrap/enable/kickstart exit 0 even when the program aborts right after
 # launch, so the start commands must not report success from those alone.

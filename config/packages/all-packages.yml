@@ -50,7 +50,6 @@ homebrew_packages:
   # on Homebrew's bash being first on PATH; making the dependency explicit here.
   - bash
   - coreutils
-  - swiftly
   - flock
   # Cloud Tools
   - awscli
@@ -123,6 +122,7 @@ linked_packages: []
 
 # Removed packages/taps
 removed_homebrew_packages:
+  - swiftly
   - "node@20"
   - docker-compose
   - "php@8.3"

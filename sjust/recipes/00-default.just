@@ -369,69 +369,13 @@ sparkdock-menubar-reinstall:
     # shellcheck source=/dev/null
     source "{{source_directory()}}/../libs/libshell.sh"
 
-    # Software Update advertises the packages only while this marker exists, the
-    # same one Homebrew's installer creates.
-    cl_marker="/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress"
-    remove_cl_marker() {
-        sudo rm -f "${cl_marker}"
-    }
-    trap remove_cl_marker EXIT
-    sudo touch "${cl_marker}"
-
-    echo "📥 Looking for a Command Line Tools package..."
-    update_list="$(softwareupdate --list 2>/dev/null || true)"
-    if ! cl_label="$(clt_pick_softwareupdate_label "${update_list}")"; then
-        echo "❌ Software Update offers no Command Line Tools package"
-        echo "💡 Check 'softwareupdate --list' and install the tools from there or from Xcode"
-        exit 1
-    fi
-
-    # Kept until the new tools prove themselves, so a failed install is reversible.
-    cl_backup=""
-    restore_cl_backup() {
-        if [[ -z "${cl_backup}" || ! -d "${cl_backup}" ]]; then
-            return 0
-        fi
-        sudo rm -rf /Library/Developer/CommandLineTools
-        sudo mv "${cl_backup}" /Library/Developer/CommandLineTools
-        echo "↩️  Restored the previous command line tools"
-    }
-
-    if [[ -d "/Library/Developer/CommandLineTools" ]]; then
-        cl_backup="/Library/Developer/CommandLineTools.broken-$(date +%Y%m%d%H%M%S)"
-        echo "🗑️  Moving the existing tools aside: ${cl_backup}"
-        sudo mv /Library/Developer/CommandLineTools "${cl_backup}"
-    fi
-
-    echo "📥 Installing: ${cl_label}"
-    if ! sudo softwareupdate -i "${cl_label}"; then
-        restore_cl_backup
-        echo "❌ Installing '${cl_label}' failed"
-        echo "💡 Check 'softwareupdate --list' for another Command Line Tools package"
-        exit 1
-    fi
-    remove_cl_marker
-    trap - EXIT
-    sudo xcode-select -s /Library/Developer/CommandLineTools
-
-    echo "🔍 Verifying the toolchain..."
-    if ! swift_package_version="$(swift package --version 2>&1)"; then
-        echo "❌ The command line tools are still broken:"
-        printf '%s\n' "${swift_package_version}"
-        restore_cl_backup
-        echo "💡 Check 'softwareupdate --list' for another Command Line Tools package"
-        exit 1
-    fi
-    echo "✅ ${swift_package_version}"
-    if [[ -n "${cl_backup}" ]]; then
-        sudo rm -rf "${cl_backup}"
-    fi
+    clt_install_softwareupdate
     echo ""
     echo "🔧 Now attempting to rebuild and install the menubar application..."
     cd {{ sparkdock_path }}
 
     # Try to build the menubar app
-    if ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e ansible_become_pass=; then
+    if SPARKDOCK_FORCE_MENUBAR_BUILD=1 ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e ansible_become_pass=; then
         echo ""
         if ! menubar_agent_verify_running; then
             exit 1
@@ -443,7 +387,10 @@ sparkdock-menubar-reinstall:
         echo "💡 You may need to:"
         echo "   - Restart your terminal/shell session"
         echo "   - Check for other Swift/Xcode related issues"
-        echo "   - Verify Xcode license acceptance: sudo xcodebuild -license accept"
+        source "{{source_directory()}}/../../bin/common/utils.sh"
+        if ! clt_diagnosis="$(check_clt_health)"; then
+            printf '%s\n' "${clt_diagnosis}"
+        fi
         exit 1
     fi
 
