@@ -280,6 +280,10 @@ make build
 
 Keep the exact release version in `.swift-version`; do not replace it with `latest`. Swiftly pins the Swift.org compiler, not Apple's SDK or linker. Command Line Tools (or the selected Xcode installation) must still be healthy. CI tests both Xcode's compiler and the pin on macOS 15 and 26.
 
+Provisioning reuses a healthy installed menu bar bundle when its source fingerprint matches. The SHA-256 covers `Package.swift`, `Package.resolved` when present, `Sources/**` (including resources), `Info.plist`, `bundle.sh`, `Makefile`, `.swift-version`, and the fingerprint script. The verified stamp is the adjacent `Sparkdock Manager.app.source-fingerprint` sidecar, written only after LaunchAgent running verification; it stays outside the signed bundle. CI has no Aqua verification and does not write this stamp.
+
+Use `SPARKDOCK_FORCE_MENUBAR_BUILD=1 sparkdock` to force rebuilding; `sjust sparkdock-menubar-reinstall` sets this flag automatically. Run `src/menubar-app/test-source-fingerprint.sh` after changing fingerprint inputs. CLT-only CI tests the installed tools and the newest package Software Update offers separately, using installed `--status` checks rather than GUI assertions. No offered CLT package fails the newest-tools job explicitly.
+
 ### Integration
 
 - Built automatically during Ansible provisioning with `menubar` tag

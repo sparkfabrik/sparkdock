@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added CLT-only menu bar CI checks for installed and newest-offered Command Line Tools, including installed bundle resource checks
+
 - Added a Command Line Tools status row to Sparkdock Manager with a diagnosis and repair action for inconsistent toolchains
 
 - Added a Command Line Tools preflight to provisioning: an inconsistent toolchain now skips the menu bar app and the TUI with a diagnosis instead of failing the run, and `sjust device-info` reports the same state
@@ -131,6 +133,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added `docker-desktop-install-version-4412` task to download Docker Desktop 4.41.2 to work around network issues
 
 ### Changed
+
+- Install one selected Command Line Tools package during fresh setup and repair, verify its health, and skip Xcode license acceptance
+
+- Reuse verified menu bar builds when source fingerprints match, with an explicit force-rebuild option
 
 - Pin the menu bar app compiler with Swiftly so builds use the same Swift release after Xcode or Command Line Tools updates
 

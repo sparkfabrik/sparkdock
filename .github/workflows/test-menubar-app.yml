@@ -6,11 +6,17 @@ on:
     paths:
       - "src/menubar-app/**"
       - ".github/workflows/test-menubar-app.yml"
+      - "ansible/macos/macos/base.yml"
+      - "sjust/libs/libshell.sh"
+      - "sjust/recipes/00-default.just"
   pull_request:
     branches: [master, main]
     paths:
       - "src/menubar-app/**"
       - ".github/workflows/test-menubar-app.yml"
+      - "ansible/macos/macos/base.yml"
+      - "sjust/libs/libshell.sh"
+      - "sjust/recipes/00-default.just"
 
 jobs:
   test-swift-app:
@@ -101,3 +107,78 @@ jobs:
           else
             echo "No Makefile found, skipping make test"
           fi
+
+  test-clt-app:
+    name: CLT only (${{ matrix.os }}, ${{ matrix.clt }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+        clt: [installed, newest]
+    env:
+      DEVELOPER_DIR: /Library/Developer/CommandLineTools
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install the newest offered Command Line Tools
+        if: matrix.clt == 'newest'
+        shell: bash
+        run: |
+          set -euo pipefail
+          source sjust/libs/libshell.sh
+          clt_install_softwareupdate
+
+      - name: Select Command Line Tools only
+        run: sudo xcode-select -s /Library/Developer/CommandLineTools
+
+      - name: Record Apple compiler and SDK versions
+        if: always()
+        run: |
+          set -euo pipefail
+          swift --version
+          xcode-select -p
+          xcrun --sdk macosx --show-sdk-version
+          xcrun --sdk macosx --show-sdk-path
+
+      - name: Install the pinned toolchain
+        working-directory: src/menubar-app
+        run: |
+          set -euo pipefail
+          brew install swiftly
+          swiftly init --assume-yes --no-modify-profile --skip-install
+          swiftly install --assume-yes
+          swiftly run swift --version
+
+      - name: Test source fingerprints
+        working-directory: src/menubar-app
+        run: ./test-source-fingerprint.sh
+
+      - name: Build and check the bundle with Command Line Tools only
+        working-directory: src/menubar-app
+        run: |
+          set -euo pipefail
+          make build
+          ./test-bundle.sh
+
+      - name: Install and check the bundle through the CLI symlink
+        working-directory: src/menubar-app
+        run: |
+          set -euo pipefail
+          app="${HOME}/Applications/Sparkdock Manager.app"
+          cli="$(brew --prefix)/bin/sparkdock-manager"
+          mkdir -p "${HOME}/Applications"
+          ditto ".build/Sparkdock Manager.app" "${app}.new"
+          xattr -d com.apple.provenance "${app}.new" 2>/dev/null || true
+          xattr -d com.apple.provenance "${app}.new/Contents/MacOS/sparkdock-manager" 2>/dev/null || true
+          codesign --force --sign - --identifier com.sparkfabrik.sparkdock.menubar "${app}.new"
+          codesign --verify --strict "${app}.new"
+          if [[ -e "${app}" ]]; then
+            mv "${app}" "${app}.prev"
+          fi
+          trap 'if [[ -e "${app}.prev" ]]; then if [[ -e "${app}" ]]; then mv "${app}" "${app}.failed"; fi; mv "${app}.prev" "${app}"; fi' ERR
+          mv "${app}.new" "${app}"
+          ln -sfn "${app}/Contents/MacOS/sparkdock-manager" "${cli}"
+          "${cli}" --status
+          codesign --verify --strict "${app}"

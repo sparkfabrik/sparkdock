@@ -128,6 +128,14 @@ make build
 
 Always run `swiftly run` from `src/menubar-app` to select the project pin. The SDK and linker still come from the selected Apple developer tools, normally Command Line Tools. The pin does not repair a mixed CLT installation; the preflight and repair instructions below still apply.
 
+#### Menu bar rebuilds and CI checks
+
+Provisioning skips compilation and bundle replacement when the installed app passes `--status` and its verified source fingerprint matches. Missing bundles, failed resource checks, missing stamps, and changed build inputs trigger rebuilding. The sidecar `~/Applications/Sparkdock Manager.app.source-fingerprint` is written after LaunchAgent running verification, without changing the bundle signature. CI skips LaunchAgent verification and leaves the stamp unwritten.
+
+To rebuild unchanged sources, run `SPARKDOCK_FORCE_MENUBAR_BUILD=1 sparkdock`. The CLT repair command `sjust sparkdock-menubar-reinstall` also forces a rebuild.
+
+The menu bar workflow retains Xcode tests and adds CLT-only jobs with the pinned Swift compiler. One uses installed CLT; another installs the newest offered CLT label. Logs include both Swift versions, the developer directory, and SDK version. If Software Update offers no CLT package, the newest-tools job fails with an explicit message; it has not tested a new package. Installed symlink `--status` and signature checks verify the artifact, not a GUI status item or login registration.
+
 #### Inconsistent Command Line Tools
 
 **Symptom:** a Swift build aborts with `dyld[...]: Symbol not found`, or with `error: SessionFailedError(error: Could not initialize build system)`. The menu bar app fails to build.

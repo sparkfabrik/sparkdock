@@ -405,6 +405,56 @@ clt_pick_softwareupdate_label() {
     printf '%s\n' "${versioned}" | sort -t. -k1,1n -k2,2n | tail -n 1 | cut -f2-
 }
 
+# Install one advertised CLT package; reinstall keeps the old tools until verification succeeds.
+clt_install_softwareupdate() (
+    set -euo pipefail
+    local mode="${1:-install}" marker updates label diagnosis backup="" previous_developer=""
+    local clt_dir=/Library/Developer/CommandLineTools
+    marker=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress
+    previous_developer="$(xcode-select -p 2>/dev/null || true)"
+
+    # shellcheck disable=SC2329
+    cleanup_clt_install() {
+        local result=$?
+        trap - EXIT
+        sudo rm -f "${marker}"
+        if [[ -n "${backup}" && -d "${backup}" ]]; then
+            if [[ "${result}" -eq 0 ]]; then
+                sudo rm -rf "${backup}"
+            else
+                sudo rm -rf "${clt_dir}"
+                sudo mv "${backup}" "${clt_dir}"
+                if [[ -n "${previous_developer}" ]]; then
+                    sudo xcode-select -s "${previous_developer}"
+                fi
+                echo "Restored the previous Command Line Tools" >&2
+            fi
+        fi
+        exit "${result}"
+    }
+    trap cleanup_clt_install EXIT
+    sudo touch "${marker}"
+    updates="$(softwareupdate --list)"
+    if ! label="$(clt_pick_softwareupdate_label "${updates}")" || [[ -z "${label}" ]]; then
+        echo "Software Update offers no Command Line Tools package" >&2
+        return 1
+    fi
+    if [[ "${mode}" == reinstall && -d "${clt_dir}" ]]; then
+        backup="${clt_dir}.broken-$(date +%Y%m%d%H%M%S)-$$"
+        sudo mv "${clt_dir}" "${backup}"
+    fi
+    printf 'Installing Command Line Tools: %s\n' "${label}"
+    sudo softwareupdate -i "${label}"
+    sudo xcode-select -s "${clt_dir}"
+    sudo rm -f "${marker}"
+    # shellcheck source=../../bin/common/utils.sh
+    source "${SPARKDOCK_ROOT}/bin/common/utils.sh"
+    if ! diagnosis="$(SPARKDOCK_SWIFT_BIN="${clt_dir}/usr/bin/swift" SPARKDOCK_SWIFTC_BIN="${clt_dir}/usr/bin/swiftc" check_clt_health)"; then
+        printf '%s\n' "${diagnosis}" >&2
+        return 1
+    fi
+)
+
 # Checks that the menu bar LaunchAgent actually runs after a start. launchctl
 # bootstrap/enable/kickstart exit 0 even when the program aborts right after
 # launch, so the start commands must not report success from those alone.

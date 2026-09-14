@@ -1,9 +1,9 @@
-#!/usr/bin/env -S zsh
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 print() {
-    echo -e "\e[1m\e[93m[ \e[92m•\e[93m ] \e[4m$1\e[0m"
+    echo -e "\e[1m\e[93m[ \e[92m•\e[93m ] \e[4m${1}\e[0m"
 }
 
 checkMacosVersion() {
@@ -20,7 +20,7 @@ PRESERVE_EXISTING=false
 
 # Parse command line arguments
 for arg in "$@"; do
-    case $arg in
+    case ${arg} in
         --non-interactive)
             NON_INTERACTIVE=true
             print "Running in non-interactive mode for CI environment"
@@ -52,15 +52,39 @@ print "Sparkdock installer: This is a MacOS provisioner, to bootstrap the system
 print "Checking for macOS supported version..."
 checkMacosVersion
 
+# Install CLT before Homebrew can trigger its own prerequisite installation.
+if ! xcode-select -p &> /dev/null; then
+  print 'Installing Xcode Command Line Tools...'
+  if [[ "${NON_INTERACTIVE}" == "true" ]]; then
+    print "Skipping Xcode Command Line Tools in non-interactive mode"
+  else
+    installer_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    if [[ ! -f "${installer_root}/sjust/libs/libshell.sh" ]]; then
+      installer_helpers="$(mktemp -d "${TMPDIR:-/tmp}/sparkdock-installer.XXXXXX")"
+      trap 'rm -rf "${installer_helpers}"' EXIT
+      installer_root="${installer_helpers}"
+      mkdir -p "${installer_root}/sjust/libs" "${installer_root}/bin/common"
+      for helper in sjust/libs/libshell.sh bin/common/utils.sh bin/common/logging.sh; do
+        curl -fsSL "https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/${helper}" -o "${installer_root}/${helper}"
+      done
+    fi
+    # shellcheck source=../sjust/libs/libshell.sh
+    source "${installer_root}/sjust/libs/libshell.sh"
+    clt_install_softwareupdate
+  fi
+fi
+
 ## Install or Update Homebrew ##
 print "Installing or Updating Homebrew..."
 if ! command -v brew &> /dev/null; then
     /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
     if [ "${ARCH}" == "arm64" ]; then
-      echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> /Users/${USER}/.zprofile
+      # shellcheck disable=SC2016
+      echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> "/Users/${USER}/.zprofile"
       eval "$(/opt/homebrew/bin/brew shellenv)"
     else
-      echo 'eval "$(/usr/local/bin/brew shellenv)"' >> /Users/${USER}/.zprofile
+      # shellcheck disable=SC2016
+      echo 'eval "$(/usr/local/bin/brew shellenv)"' >> "/Users/${USER}/.zprofile"
       eval "$(/usr/local/bin/brew shellenv)"
     fi
 else
@@ -80,24 +104,8 @@ fi
 
 # Install rosetta2 if needed on Apple Silicon
 print 'Installing Rosetta2 if needed...'
-if [[ $ARCH == "arm64" ]]; then
+if [[ ${ARCH} == "arm64" ]]; then
   softwareupdate --install-rosetta --agree-to-license || true
-fi
-
-# Install xcode command line tools.
-if ! xcode-select -p &> /dev/null; then
-  print 'Installing Xcode Command Line Tools...'
-  if [[ "$NON_INTERACTIVE" == "true" ]]; then
-    # For CI, we assume CLT is already installed, so just skip
-    print "Skipping Xcode Command Line Tools in non-interactive mode"
-  else
-    xcode-select --install
-  fi
-fi
-
-# Accept the license (only if not in CI)
-if [[ "$NON_INTERACTIVE" != "true" ]]; then
-  sudo xcodebuild -license accept || true
 fi
 
 # Install standard utilities.
@@ -108,13 +116,13 @@ brew install git curl python3 just
 print 'Checking out Sparkdock repo...'
 
 # Only remove existing installation if not preserving it
-if [[ "$PRESERVE_EXISTING" != "true" ]]; then
+if [[ "${PRESERVE_EXISTING}" != "true" ]]; then
     sudo rm -rf /opt/sparkdock && \
     sudo mkdir -p /opt/sparkdock && \
-    sudo chown $(id -u):$(id -g) /opt/sparkdock
+    sudo chown "$(id -u):$(id -g)" /opt/sparkdock
 
     # In CI, we have the repo already checked out, so copy it instead of cloning
-    if [[ "$NON_INTERACTIVE" == "true" ]]; then
+    if [[ "${NON_INTERACTIVE}" == "true" ]]; then
       # we are in a CI environment, so we assume the repo is already checked out and we are at the root of the repo.
       rsync -azh --exclude='.git' . /opt/sparkdock
     else
@@ -147,7 +155,7 @@ EOF
 fi
 
 # Non-interactive cleanup of spurious files (part of the tart VM).
-if [[ "$NON_INTERACTIVE" == "true" ]]; then
+if [[ "${NON_INTERACTIVE}" == "true" ]]; then
   # Yarn: /opt/homebrew/lib/node_modules/yarn/bin/yarn.js
   if [[ -e /opt/homebrew/lib/node_modules/yarn/bin/yarn.js ]]; then
     sudo rm -f /opt/homebrew/lib/node_modules/yarn/bin/yarn.js
@@ -155,15 +163,13 @@ if [[ "$NON_INTERACTIVE" == "true" ]]; then
 fi
 
 # Run the playbook.
-just run-ansible-playbook
-
-if [[ $? -ne 0 ]]; then
+if ! just run-ansible-playbook; then
   print "Ansible playbook failed. Exiting..."
   exit 1
 fi
 
 # Run http-proxy.
-if [[ "$NON_INTERACTIVE" != "true" ]]; then
+if [[ "${NON_INTERACTIVE}" != "true" ]]; then
   open --background -a Docker
   print "Run docker http proxy..."
   sleep 60
@@ -175,8 +181,8 @@ if [[ "$NON_INTERACTIVE" != "true" ]]; then
 fi
 
 ## Copy sparkdock.macos to /usr/local/bin
-if [[ -f $PWD/bin/sparkdock.macos ]]; then
-  sudo ln -sf $PWD/bin/sparkdock.macos /usr/local/bin/sparkdock
+if [[ -f ${PWD}/bin/sparkdock.macos ]]; then
+  sudo ln -sf "${PWD}/bin/sparkdock.macos" /usr/local/bin/sparkdock
   sudo chmod +x /usr/local/bin/sparkdock
 else
   print "Warning: sparkdock.macos not found. Skipping symlink creation."
@@ -187,7 +193,7 @@ print "Running sjust to test it works..."
 sjust
 
 ## Print some useful messages.
-if [[ "$NON_INTERACTIVE" != "true" ]]; then
+if [[ "${NON_INTERACTIVE}" != "true" ]]; then
   print "Now remember to add to your .bashrc or .zshrc the following commands:\n"
   brew info gcloud-cli
   echo ""
@@ -197,7 +203,7 @@ if [[ "$NON_INTERACTIVE" != "true" ]]; then
 fi
 
 ## Configure shell.
-if [[ "$NON_INTERACTIVE" != "true" ]]; then
+if [[ "${NON_INTERACTIVE}" != "true" ]]; then
     sjust shell-enable
 fi
 

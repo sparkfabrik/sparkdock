@@ -60,6 +60,8 @@ Integrated [SparkFabrik HTTP Proxy](https://github.com/sparkfabrik/http-proxy) p
 bash <(curl -fsSL https://raw.githubusercontent.com/sparkfabrik/sparkdock/master/bin/install.macos)
 ```
 
+Fresh setup installs one Command Line Tools package selected from Software Update and verifies its health before installing Homebrew. It does not run the graphical CLT installer or accept an Xcode license. CI keeps its existing CLT installation.
+
 ### System Requirements
 
 **Operating System:**
