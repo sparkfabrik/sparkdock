@@ -111,22 +111,19 @@ MulticastDNS setting: no
 - Verify access to GitHub and Homebrew repositories
 - Some corporate networks may block required domains
 
-#### Pinned menu bar toolchain
+#### Menu bar compiler requirements
 
-Sparkdock builds the menu bar app with the Swift.org release pinned in `src/menubar-app/.swift-version`, managed by [Swiftly](https://www.swift.org/swiftly/documentation/swiftly/). The matching version number does not make it identical to Apple's Swift build. Provisioning installs the pin without modifying shell profiles. The first installation requires access to Swift.org; subsequent runs reuse the installed toolchain.
-
-If Swiftly or the pinned toolchain is missing, run:
+Sparkdock builds the menu bar app with Apple's selected compiler and SDK. `src/menubar-app/.swift-minimum-version` requires Swift 6.3 or newer; builds check this before compilation. No separate Swift.org toolchain or Swiftly setup is required.
 
 ```bash
-brew install swiftly
 cd /opt/sparkdock/src/menubar-app
-swiftly init --assume-yes --no-modify-profile --skip-install
-swiftly install --assume-yes
-swiftly run swift --version
+swift --version
+xcode-select -p
+make check-swift-version
 make build
 ```
 
-Always run `swiftly run` from `src/menubar-app` to select the project pin. The SDK and linker still come from the selected Apple developer tools, normally Command Line Tools. The pin does not repair a mixed CLT installation; the preflight and repair instructions below still apply.
+If the compiler is too old, update Command Line Tools or select a supported Xcode installation. An unreadable or failing `swift --version` stops the build with its diagnosis. The minimum check does not detect every compiler regression or repair mixed CLT installations; keep the health preflight and use the repair instructions below. The native-build-system retry addresses backend failures, not broken executable loading.
 
 #### Menu bar rebuilds and CI checks
 
@@ -134,7 +131,7 @@ Provisioning skips compilation and bundle replacement when the installed app pas
 
 To rebuild unchanged sources, run `SPARKDOCK_FORCE_MENUBAR_BUILD=1 sparkdock`. The CLT repair command `sjust sparkdock-menubar-reinstall` also forces a rebuild.
 
-The menu bar workflow retains Xcode tests and adds CLT-only jobs with the pinned Swift compiler. One uses installed CLT; another installs the newest offered CLT label. Logs include both Swift versions, the developer directory, and SDK version. If Software Update offers no CLT package, the newest-tools job fails with an explicit message; it has not tested a new package. Installed symlink `--status` and signature checks verify the artifact, not a GUI status item or login registration.
+The menu bar workflow retains Xcode tests and adds CLT-only jobs with Apple's CLT compiler. One uses installed CLT; another installs the newest offered CLT label. Logs include the selected Swift version, developer directory, and SDK version. If Software Update offers no CLT package, the newest-tools job fails with an explicit message; it has not tested a new package. Installed symlink `--status` and signature checks verify the artifact, not a GUI status item or login registration.
 
 #### Inconsistent Command Line Tools
 

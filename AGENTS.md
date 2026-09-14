@@ -268,19 +268,9 @@ make install                  # Install manually (requires sudo)
 make uninstall               # Remove installation
 ```
 
-The menu bar compiler is pinned in `src/menubar-app/.swift-version`. Run Swift commands through `swiftly run` from that directory so the pin applies regardless of `PATH`. Provisioning installs Swiftly and the pinned toolchain; for manual setup, run:
+The menu bar app builds with the selected Apple Swift compiler and SDK. `.swift-minimum-version` sets the minimum compiler version, currently `6.3`; it does not pin an exact release or install another toolchain. Run `make check-swift-version` from `src/menubar-app` to check the compiler. `make build` and the Ansible build task check it before compiling and report an actionable error for older or unavailable compilers. The build retries with `--build-system native` if the default backend fails.
 
-```bash
-brew install swiftly
-cd src/menubar-app
-swiftly init --assume-yes --no-modify-profile --skip-install
-swiftly install --assume-yes
-make build
-```
-
-Keep the exact release version in `.swift-version`; do not replace it with `latest`. Swiftly pins the Swift.org compiler, not Apple's SDK or linker. Command Line Tools (or the selected Xcode installation) must still be healthy. CI tests both Xcode's compiler and the pin on macOS 15 and 26.
-
-Provisioning reuses a healthy installed menu bar bundle when its source fingerprint matches. The SHA-256 covers `Package.swift`, `Package.resolved` when present, `Sources/**` (including resources), `Info.plist`, `bundle.sh`, `Makefile`, `.swift-version`, and the fingerprint script. The verified stamp is the adjacent `Sparkdock Manager.app.source-fingerprint` sidecar, written only after LaunchAgent running verification; it stays outside the signed bundle. CI has no Aqua verification and does not write this stamp.
+Provisioning reuses a healthy installed menu bar bundle when its source fingerprint matches. The SHA-256 covers `Package.swift`, `Package.resolved` when present, `Sources/**` (including resources), `Info.plist`, `bundle.sh`, `Makefile`, `.swift-minimum-version`, the version-check script, and the fingerprint script. The verified stamp is the adjacent `Sparkdock Manager.app.source-fingerprint` sidecar, written only after LaunchAgent running verification; it stays outside the signed bundle. CI has no Aqua verification and does not write this stamp.
 
 Use `SPARKDOCK_FORCE_MENUBAR_BUILD=1 sparkdock` to force rebuilding; `sjust sparkdock-menubar-reinstall` sets this flag automatically. Run `src/menubar-app/test-source-fingerprint.sh` after changing fingerprint inputs. CLT-only CI tests the installed tools and the newest package Software Update offers separately, using installed `--status` checks rather than GUI assertions. No offered CLT package fails the newest-tools job explicitly.
 

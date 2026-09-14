@@ -40,6 +40,14 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      - name: Test compiler version checks
+        working-directory: src/menubar-app
+        run: ./test-swift-version.sh
+
+      - name: Check minimum compiler version
+        working-directory: src/menubar-app
+        run: ./check-swift-version.sh
+
       - name: Build Swift menubar app
         working-directory: src/menubar-app
         run: |
@@ -52,24 +60,12 @@ jobs:
           echo "Running Swift tests..."
           swift test --verbose
 
-      - name: Install Swiftly and the pinned toolchain
-        working-directory: src/menubar-app
-        run: |
-          set -euo pipefail
-          brew install swiftly
-          swiftly init --assume-yes --no-modify-profile --skip-install
-          swiftly install --assume-yes
-          swiftly run swift --version
-
-      - name: Run tests with the pinned toolchain
-        working-directory: src/menubar-app
-        run: swiftly run swift test --verbose
-
       - name: Test Swift app compilation (release)
         working-directory: src/menubar-app
         run: |
           echo "Building release version..."
           make build
+          swift build -c release --build-system native
 
       - name: Verify executable exists
         working-directory: src/menubar-app
@@ -131,7 +127,9 @@ jobs:
           clt_install_softwareupdate
 
       - name: Select Command Line Tools only
-        run: sudo xcode-select -s /Library/Developer/CommandLineTools
+        run: |
+          sudo xcode-select -s /Library/Developer/CommandLineTools
+          echo /Library/Developer/CommandLineTools/usr/bin >> "${GITHUB_PATH}"
 
       - name: Record Apple compiler and SDK versions
         if: always()
@@ -142,14 +140,13 @@ jobs:
           xcrun --sdk macosx --show-sdk-version
           xcrun --sdk macosx --show-sdk-path
 
-      - name: Install the pinned toolchain
+      - name: Test compiler version checks
         working-directory: src/menubar-app
-        run: |
-          set -euo pipefail
-          brew install swiftly
-          swiftly init --assume-yes --no-modify-profile --skip-install
-          swiftly install --assume-yes
-          swiftly run swift --version
+        run: ./test-swift-version.sh
+
+      - name: Check minimum compiler version
+        working-directory: src/menubar-app
+        run: ./check-swift-version.sh
 
       - name: Test source fingerprints
         working-directory: src/menubar-app
@@ -160,6 +157,7 @@ jobs:
         run: |
           set -euo pipefail
           make build
+          swift build -c release --build-system native
           ./test-bundle.sh
 
       - name: Install and check the bundle through the CLI symlink

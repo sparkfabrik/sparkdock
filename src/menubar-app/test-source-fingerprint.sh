@@ -4,7 +4,7 @@ set -euo pipefail
 package_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 fixture="$(mktemp -d "${TMPDIR:-/tmp}/sparkdock-fingerprint.XXXXXX")"
 mkdir -p "${fixture}/Sources/Resources" "${fixture}/.build"
-for name in Package.swift Info.plist bundle.sh Makefile .swift-version source-fingerprint.sh Sources/main.swift 'Sources/Resources/logo image.png'; do
+for name in Package.swift Info.plist bundle.sh Makefile .swift-minimum-version source-fingerprint.sh check-swift-version.sh Sources/main.swift 'Sources/Resources/logo image.png'; do
     printf 'original\n' > "${fixture}/${name}"
 done
 fingerprint() {
@@ -12,7 +12,7 @@ fingerprint() {
 }
 original="$(fingerprint)"
 [[ "${original}" =~ ^[0-9a-f]{64}$ ]]
-for name in Package.swift Info.plist bundle.sh Makefile .swift-version source-fingerprint.sh Sources/main.swift 'Sources/Resources/logo image.png'; do
+for name in Package.swift Info.plist bundle.sh Makefile .swift-minimum-version source-fingerprint.sh check-swift-version.sh Sources/main.swift 'Sources/Resources/logo image.png'; do
     printf 'changed\n' > "${fixture}/${name}"
     [[ "$(fingerprint)" != "${original}" ]]
     printf 'original\n' > "${fixture}/${name}"

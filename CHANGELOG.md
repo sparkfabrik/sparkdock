@@ -138,7 +138,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Reuse verified menu bar builds when source fingerprints match, with an explicit force-rebuild option
 
-- Pin the menu bar app compiler with Swiftly so builds use the same Swift release after Xcode or Command Line Tools updates
+- Replaced the menu bar Swiftly toolchain pin with a minimum Swift version check, using Apple's compiler and SDK
 
 - Changed the menu bar login item entry to open System Settings Login Items instead of toggling SMAppService, leaving launch at login to the LaunchAgent
 
@@ -209,6 +209,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Renamed `sparkdock-update-repository` command to `sparkdock-fetch-updates` with improved description and updated output messages
 
 ### Removed
+
+- Removed the retired Swiftly formula, its macOS state, and the Swift.org 6.3.3 toolchain installed for menu bar builds
 
 - Removed the dinghy-proxy to http-proxy transition, 14 months after it landed: the `run-http-proxy` and `run-dinghy-proxy` compatibility symlinks are no longer created, and the block that deleted old dinghy binaries and copied `~/.dinghy/certs` is gone (`spark-http-proxy` creates its own config and certs directories on every run). Symlinks already present on a machine keep working; they are simply no longer managed
 - Removed `config/bin/test-dnsdock`, a 2022 smoke test for the pre-Traefik dnsdock DNS layer that nothing referenced and provisioning never installed

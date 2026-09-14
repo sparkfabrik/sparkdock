@@ -405,6 +405,37 @@ clt_pick_softwareupdate_label() {
     printf '%s\n' "${versioned}" | sort -t. -k1,1n -k2,2n | tail -n 1 | cut -f2-
 }
 
+# Reject missing, unreadable, or older compilers before starting a menu bar build.
+check_swift_minimum_version() {
+    local minimum="${1}" output actual major minor patch required_major required_minor required_patch
+    if [[ ! "${minimum}" =~ ^([0-9]+)\.([0-9]+)(\.([0-9]+))?$ ]]; then
+        printf 'Invalid minimum Swift version: %s\n' "${minimum}" >&2
+        return 1
+    fi
+    required_major="${BASH_REMATCH[1]}"
+    required_minor="${BASH_REMATCH[2]}"
+    required_patch="${BASH_REMATCH[4]:-0}"
+    if ! output="$(swift --version 2>&1)"; then
+        printf 'Swift %s or newer is required; swift --version failed: %s\n' "${minimum}" "${output}" >&2
+        return 1
+    fi
+    if [[ ! "${output}" =~ Swift[[:space:]]version[[:space:]]([0-9]+)\.([0-9]+)(\.([0-9]+))? ]]; then
+        printf 'Cannot read the Swift compiler version; require %s or newer: %s\n' "${minimum}" "${output}" >&2
+        return 1
+    fi
+    actual="${BASH_REMATCH[0]}"
+    major="${BASH_REMATCH[1]}"
+    minor="${BASH_REMATCH[2]}"
+    patch="${BASH_REMATCH[4]:-0}"
+    if (( 10#${major} > 10#${required_major} ||
+          (10#${major} == 10#${required_major} && 10#${minor} > 10#${required_minor}) ||
+          (10#${major} == 10#${required_major} && 10#${minor} == 10#${required_minor} && 10#${patch} >= 10#${required_patch}) )); then
+        return 0
+    fi
+    printf '%s is too old; Sparkdock Manager requires Swift %s or newer. Update Command Line Tools or select a supported Xcode toolchain.\n' "${actual}" "${minimum}" >&2
+    return 1
+}
+
 # Install one advertised CLT package; reinstall keeps the old tools until verification succeeds.
 clt_install_softwareupdate() (
     set -euo pipefail

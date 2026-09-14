@@ -1,21 +1,21 @@
 # Makefile for Sparkdock Menu Bar App
 
-.PHONY: build install uninstall clean test dev check-swiftly
+.PHONY: build install uninstall clean test dev check-swift-version
 
-# Build with the pinned toolchain; retry with the native backend if needed.
-build: check-swiftly
-	@swiftly run swift build -c release || { \
-		echo "swiftly run swift build failed; retrying with the native build system"; \
-		swiftly run swift build -c release --build-system native; \
+# Build with the selected Swift compiler; retry with the native backend if needed.
+build: check-swift-version
+	@swift build -c release || { \
+		echo "swift build failed; retrying with the native build system"; \
+		swift build -c release --build-system native; \
 	}
 	./bundle.sh release
 
-check-swiftly:
-	@command -v swiftly >/dev/null 2>&1 || { echo "Swiftly is required. Run brew install swiftly, then follow the toolchain setup in AGENTS.md." >&2; exit 1; }
+check-swift-version:
+	./check-swift-version.sh
 
 # Development build and run
-dev: check-swiftly
-	swiftly run swift build -c debug
+dev: check-swift-version
+	swift build -c debug
 	@echo "Running in development mode..."
 	./bundle.sh debug
 	"./.build/Sparkdock Manager.app/Contents/MacOS/sparkdock-manager"
@@ -31,14 +31,14 @@ uninstall:
 	rm -rf "$(HOME)/Applications/Sparkdock Manager.app"
 
 # Clean build artifacts
-clean: check-swiftly
-	swiftly run swift package clean
+clean:
+	swift package clean
 	rm -rf .build
 
 # Test the application (build + unit tests)
 test: build
 	@echo "Running unit tests..."
-	swiftly run swift test
+	swift test
 	./test-bundle.sh
 	@echo "Menu bar app built and tested successfully"
 	@if test -x .build/release/sparkdock-manager; then \
