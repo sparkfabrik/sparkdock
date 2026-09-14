@@ -294,31 +294,6 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertEqual(BrewVulnsStatus.from(exitCode: nil, output: ""), .unavailable)
     }
 
-    // MARK: - Command Line Tools Status Tests
-
-    func testCLTHealthy() {
-        XCTAssertEqual(CLTStatus.from(exitCode: 0, output: ""), .healthy)
-    }
-
-    func testCLTInconsistentPreservesDiagnosis() {
-        let diagnosis = "Command Line Tools mix packages (receipt 26.6, frameworks Xcode 27.0). Run 'sjust sparkdock-menubar-reinstall' to repair."
-        XCTAssertEqual(CLTStatus.from(exitCode: 1, output: "  \(diagnosis)\n"), .inconsistent(diagnosis))
-    }
-
-    func testCLTInconsistentWithoutDiagnosis() {
-        XCTAssertEqual(
-            CLTStatus.from(exitCode: 1, output: " \n"),
-            .inconsistent("Command Line Tools are inconsistent.")
-        )
-    }
-
-    func testCLTUnavailableOnUnexpectedExitOrTimeout() {
-        let exitCodes: [Int32?] = [2, 127, 134, nil]
-        for exitCode in exitCodes {
-            XCTAssertEqual(CLTStatus.from(exitCode: exitCode, output: "check failed"), .unavailable)
-        }
-    }
-
     // MARK: - Darwin Recheck Notification Tests
 
     /// Expected notification names — must match RecheckNotification constants in main.swift.

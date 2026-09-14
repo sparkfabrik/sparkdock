@@ -11,8 +11,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added CLT-only menu bar CI checks for installed and newest-offered Command Line Tools, including installed bundle resource checks
 
-- Added a Command Line Tools status row to Sparkdock Manager with a diagnosis and repair action for inconsistent toolchains
-
 - Added a Command Line Tools preflight to provisioning: an inconsistent toolchain now skips the menu bar app and the TUI with a diagnosis instead of failing the run, and `sjust device-info` reports the same state
 - Added a Command Line Tools preflight to provisioning: an inconsistent toolchain now skips the menu bar app build with a diagnosis instead of failing the run, and `sjust device-info` reports the same state
 

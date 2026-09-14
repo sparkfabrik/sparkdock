@@ -389,7 +389,7 @@ check_xcode_issues() {
     local clt_lines residual_lines
     clt_lines="$(printf '%s\n' "${brew_doctor_output}" | grep -i "command line tools\|xcode-select" || true)"
     if [[ -n "${clt_lines}" ]] && printf '%s\n' "${brew_doctor_output}" | grep -qi "newer Command Line Tools release is available"; then
-        residual_lines="$(printf '%s\n' "${clt_lines}" | grep -viE "newer Command Line Tools release is available|Update them from Software Update|softwareupdate --all|rm -rf /Library/Developer/CommandLineTools|xcode-select --install" || true)"
+        residual_lines="$(printf '%s\n' "${clt_lines}" | grep -viE "newer Command Line Tools release is available|Update them from Software Update|You should download the Command Line Tools|softwareupdate --all|rm -rf /Library/Developer/CommandLineTools|xcode-select --install" || true)"
         if [[ -z "${residual_lines}" ]]; then
             print_info "Homebrew reports a newer Command Line Tools release; update from Software Update or run 'sjust sparkdock-menubar-reinstall'"
             return 0
