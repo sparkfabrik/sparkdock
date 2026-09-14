@@ -38,7 +38,10 @@ Sparkdock Manager is a native macOS menu bar application built with Swift that p
 - `Sources/SparkdockManager/main.swift` - Complete application implementation (~400 lines)
 - `Sources/SparkdockManager/Resources/menu.json` - Menu structure configuration
 - `Sources/SparkdockManager/Resources/sparkfabrik-logo.png` - Custom logo asset
-- `com.sparkfabrik.sparkdock.menubar.plist` - LaunchAgent configuration
+- `com.sparkfabrik.sparkdock.menubar.plist` - Ansible LaunchAgent template for the installed bundle
+- `bundle.sh` - Bundle assembly and ad-hoc signing
+- `test-bundle.sh` - Relocation, CLI symlink, and resource-failure smoke tests
+- `AppBundle.swift`, `AppResources.swift`, `AppInstance.swift` - Bundle resolution, resource loading, and instance identity
 
 **Configuration Models:**
 
@@ -99,7 +102,7 @@ let finished = await withTaskCancellationHandler(
 - Title: "Sparkdock Manager" (disabled, visual header)
 - Status indicator: Shows "⏳ Checking...", "🔄 Updates Available", or "✅ Up to date"
 - Update Now button: Hidden when no updates available
-- Login item toggle: Uses modern SMAppService framework
+- Login Items settings: Opens System Settings Login Items without an on/off checkmark; it no longer toggles `SMAppService.mainApp`, because the LaunchAgent owns launch at login
 
 **Dynamic Items:**
 Loaded from `menu.json` with configurable sections. Each item supports:
@@ -145,21 +148,21 @@ URL menu items launch as standalone Chrome windows using the `--app` flag, provi
 
 ## Technical Details
 
-**Requirements:** macOS 14.0+ (Sonoma)
+**Requirements:** macOS 15.0+ (Sequoia)
 
 **Dependencies:**
 
 - **System Frameworks**: Cocoa, ServiceManagement, os.log, Network
 - **External Dependencies**: None (pure Swift, no SPM dependencies)
-- **Resource Dependencies**: Optional logo PNG, required menu.json
+- **Resource Dependencies**: Both logo PNG and menu.json must decode for `--status` to succeed
 
 **Bundle and Resource Management:**
 
-```swift
-// SPM resource loading with fallback pattern
-Bundle.module.path(forResource: name, ofType: "png") ??
-Bundle.main.path(forResource: name, ofType: "png")
-```
+The signed application bundle contains `Contents/MacOS/sparkdock-manager`, `Contents/Info.plist`, and both files under `Contents/Resources`. `AppResources` uses `Bundle.main` for application bundles and fails on missing files. `AppBundle` resolves the CLI symlink to its enclosing application, because `Bundle.main` otherwise identifies the symlink directory. `.embedInCode` remains a fallback only for raw SwiftPM test/development executables. `--status` reports the resource container, identifier, and other matching instances, and exits non-zero if either resource fails validation.
+
+`bundle.sh`, called by `make build`, assembles the bundle after SwiftPM compilation and signs it with the ad-hoc identity. `CFBundleIdentifier` is `com.sparkfabrik.sparkdock.menubar`; `CFBundleShortVersionString` and `CFBundleVersion` are `0.0.<git revision count>`, and `SparkdockRevision` records the full commit. Without Git metadata they fall back to `0.0.0` and `unknown`. Exported trees can supply `BUNDLE_VERSION` and `BUNDLE_REVISION`; development builds can override `BUNDLE_IDENTIFIER`.
+
+Single-instance detection uses `NSRunningApplication.runningApplications(withBundleIdentifier:)` and excludes the current PID. It matches identity rather than installation path and is not an atomic lock. An old bare executable without a bundle identifier requires the separate legacy-process shutdown during migration.
 
 **Icon Management:**
 
@@ -193,9 +196,9 @@ Bundle.main.path(forResource: name, ofType: "png")
 
 - **Accessory App Policy**: `NSApp.setActivationPolicy(.accessory)` - no dock icon
 - **Menu Bar Lifecycle**: NSStatusItem with variable length
-- **Modern Login Items**: SMAppService.mainApp for Sonoma+
+- **Login Items settings**: SMAppService opens system settings; the LaunchAgent owns startup
 - **AppleScript Execution**: Escaped command strings via osascript
-- **Bundle Resource Processing**: SPM `.process("Resources")` directive
+- **Bundle Resources**: Explicit resource copies, loaded through `Bundle.main`
 - **Network Monitoring**: NWPathMonitor for battery-efficient connectivity detection
 - **System Event Observation**: NSWorkspace notifications for wake detection
 
@@ -206,7 +209,7 @@ Bundle.main.path(forResource: name, ofType: "png")
 - **Resource Loading**: Graceful fallback to SF Symbols if logo missing
 - **Process Execution**: Timeout protection with user alert notifications
 - **Menu Configuration**: Continues with minimal menu if JSON invalid
-- **Login Item Registration**: User alert on SMAppService failure
+- **Startup Verification**: LaunchAgent state checked after a settling delay
 
 **User Notifications:**
 
@@ -224,15 +227,17 @@ private func showErrorAlert(_ title: String, _ message: String) {
 
 **Local Development:**
 
-- Binary installed to `/opt/homebrew/bin/sparkdock-manager` (user-owned, no sudo)
-- LaunchAgent configuration for auto-startup
+- Bundle installed to `~/Applications/Sparkdock Manager.app` (user-owned, no sudo), with `/opt/homebrew/bin/sparkdock-manager` as a CLI symlink
+- LaunchAgent points directly to the installed bundle executable; no parallel SMAppService registration
 - Ansible integration with `menubar` tag
 
 **CI/CD Considerations:**
 
 - LaunchAgent installation skipped in CI environments
 - Condition: `when: not (ansible_env.CI is defined or ansible_env.GITHUB_ACTIONS is defined)`
-- Binary installation continues for testing purposes
+- Bundle installation and CLI symlink continue for testing purposes
+- The staged bundle is smoke-tested, installed processes are stopped, and the previous bundle is removed before copying; the installed signature and CLI are checked before starting the agent
+- Atomic replacement, rollback, toolchain pinning, and conditional rebuilds remain separate work
 
 ## Performance Characteristics
 
@@ -272,10 +277,9 @@ log stream --predicate 'subsystem == "com.sparkfabrik.sparkdock.manager"'
 
 ```bash
 # Development commands
-swift build -c release      # Build release binary
+make build                  # Build and sign the application bundle
 make install                 # Install with LaunchAgent (local only)
-make build                  # Build only
-make test                   # Run unit tests
+make test                   # Unit tests and relocated-bundle smoke checks
 swift test                  # Alternative test command
 ```
 
@@ -322,7 +326,7 @@ swift test                  # Alternative test command
 
 - `handleDynamicMenuItem(_:)` - Routes dynamic menu items to command/URL handlers
 - `openUrlAsChromeWebApp(_:)` - Launches URLs as Chrome web apps with fallback
-- `toggleLoginItem()` - Modern SMAppService login item registration
+- `toggleLoginItem()` - Opens macOS Login Items settings
 - `updateNow()` - Triggers sparkdock update command
 - `executeTerminalCommand(_:)` - AppleScript-based Terminal command execution
 
@@ -333,3 +337,11 @@ swift test                  # Alternative test command
 - `loadMenuConfiguration()` - JSON configuration parsing with fallback
 
 This specification provides comprehensive context for LLMs working on Swift macOS development tasks, covering architecture decisions, implementation patterns, and operational considerations.
+
+## Bundle verification on a working Mac
+
+On 2026-09-14, the bundle built with CLT Swift 6.3.3 on macOS 26.6.2 under `/tmp`. `codesign -dv` reported `com.sparkfabrik.sparkdock.menubar`, an ad-hoc signature, and two sealed resource files. Direct `--status` decoded two menu sections and the 11,918-byte PNG.
+
+A temporary AppKit probe with the production bundle identifier was reported as one other instance by the copied app; changing the copy's identifier produced zero matches. The existing installed bare process had a nil bundle identifier, so neither identifier query found it. Its PID remained unchanged throughout the probes. Both direct and CLI-symlink smoke tests passed, and missing or corrupt resources returned exit 1 without using the embedded fallback. Identifier matching therefore works for app bundles, but does not replace the legacy-process migration step.
+
+The CLT installation did not provide XCTest (`no such module 'XCTest'`). Full unit tests remain for Xcode CI. Service registration, installation into user Applications, CLI-link replacement, and LaunchAgent startup were not exercised on that working Mac; they require a disposable environment.

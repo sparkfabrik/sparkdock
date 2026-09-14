@@ -14,11 +14,12 @@ private struct AppConstants {
     static let logoResourceName = "sparkfabrik-logo"
     static let menuConfigResourceName = "menu"
     static let iconSize = NSSize(width: 18, height: 18)
-    static let bundleIdentifier = "com.sparkfabrik.sparkdock.manager"
+    static let bundleIdentifier = "com.sparkfabrik.sparkdock.menubar"
     static let processTimeout: TimeInterval = 30.0
     /// `brew vulns` queries OSV.dev per formula: about ten seconds, more on a slow network.
     static let vulnsCheckTimeout: TimeInterval = 120.0
-    static let logger = Logger(subsystem: bundleIdentifier, category: "MenuBar")
+    static let loggerSubsystem = "com.sparkfabrik.sparkdock.manager"
+    static let logger = Logger(subsystem: loggerSubsystem, category: "MenuBar")
 }
 
 // MARK: - Configuration Models
@@ -467,7 +468,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     private func loadMenuConfiguration() {
         do {
-            menuConfig = try JSONDecoder().decode(MenuConfig.self, from: EmbeddedResources.menuConfigData)
+            menuConfig = try JSONDecoder().decode(MenuConfig.self, from: AppResources.data(named: "menu", extension: "json"))
             AppConstants.logger.info("Successfully loaded menu configuration with \(self.menuConfig?.menu.sections.count ?? 0) sections")
         } catch {
             AppConstants.logger.error("Failed to load menu configuration: \(error.localizedDescription)")
@@ -1541,27 +1542,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     @objc private func toggleLoginItem() {
-        let service = SMAppService.mainApp
-        do {
-            if service.status == .enabled {
-                try service.unregister()
-                AppConstants.logger.info("Disabled login item")
-            } else {
-                try service.register()
-                AppConstants.logger.info("Enabled login item")
-            }
-        } catch {
-            AppConstants.logger.error("Failed to toggle login item: \(error.localizedDescription)")
-            showErrorAlert("Login Item Error", "Failed to toggle startup at login setting.")
-        }
-        updateLoginItemStatus()
+        SMAppService.openSystemSettingsLoginItems()
     }
 
     private func updateLoginItemStatus() {
         guard let loginMenuItem = menu?.items.first(where: { $0.tag == MenuItemTag.loginItem.rawValue }) else { return }
-
-        let service = SMAppService.mainApp
-        loginMenuItem.state = service.status == .enabled ? .on : .off
+        loginMenuItem.state = .off
+        loginMenuItem.title = "Login items settings…"
     }
 
     private func loadIcon(hasUpdates: Bool) -> NSImage? {
@@ -1578,10 +1565,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         // Load logo once and cache it
         if cachedLogoImage == nil {
-            cachedLogoImage = NSImage(data: EmbeddedResources.logoData)
+            cachedLogoImage = (try? AppResources.data(named: "sparkfabrik-logo", extension: "png")).flatMap { NSImage(data: $0) }
             if cachedLogoImage == nil {
-                let byteCount = EmbeddedResources.logoData.count
-                AppConstants.logger.error("Embedded logo '\(AppConstants.logoResourceName).png' (\(byteCount) bytes) could not be decoded; using the fallback icon")
+                AppConstants.logger.error("Logo could not be loaded from application resources; using the fallback icon")
             }
         }
 
@@ -1647,43 +1633,6 @@ extension SparkdockMenubarApp: NSMenuDelegate {
 }
 
 // MARK: - CLI Handling
-private func checkForExistingInstance() -> Bool {
-    let currentPID = ProcessInfo.processInfo.processIdentifier
-
-    // Match only a process whose whole command line is the executable, with or
-    // without a directory. A loose substring match also hits unrelated processes
-    // that merely mention the name (a shell running the start script, a
-    // concurrent `sparkdock-manager --status`) and makes the app quit at launch
-    // with "already running" while nothing shows in the menu bar.
-    let process = Process()
-    process.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-    process.arguments = ["-f", "^([^ ]*/)?sparkdock-manager$"]
-
-    let pipe = Pipe()
-    process.standardOutput = pipe
-    process.standardError = FileHandle.nullDevice
-
-    do {
-        try process.run()
-        process.waitUntilExit()
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? ""
-
-        // Parse PIDs from output and check if any other instance is running
-        let pids = output.trimmingCharacters(in: .whitespacesAndNewlines)
-            .components(separatedBy: .newlines)
-            .compactMap { Int32($0) }
-            .filter { $0 != currentPID }
-
-        return !pids.isEmpty
-
-    } catch {
-        AppConstants.logger.warning("Failed to check for existing instances: \(error.localizedDescription)")
-        return false
-    }
-}
-
 /// Handles `--help` and `--status`. Returns the process exit code when an argument
 /// was handled, or `nil` to launch the menu bar application.
 private func handleCLIArguments() -> Int32? {
@@ -1705,29 +1654,30 @@ private func handleCLIArguments() -> Int32? {
     }
 
     if arguments.contains("--status") {
-        // Provisioning runs this right after installing the binary. The menu bar
-        // launch depends on the embedded resources, so decode them here too: a
-        // binary that passes this check must not abort on its first real launch.
+        // Validate the resources used by the real application before installation.
         let menuConfigLine: String
         var healthy = true
         do {
-            let config = try JSONDecoder().decode(MenuConfig.self, from: EmbeddedResources.menuConfigData)
-            menuConfigLine = "Menu configuration: ✅ \(config.menu.sections.count) sections (embedded \(AppConstants.menuConfigResourceName).json)"
+            let config = try JSONDecoder().decode(MenuConfig.self, from: AppResources.data(named: "menu", extension: "json"))
+            menuConfigLine = "Menu configuration: ✅ \(config.menu.sections.count) sections (\(AppConstants.menuConfigResourceName).json)"
         } catch {
-            menuConfigLine = "Menu configuration: ❌ embedded \(AppConstants.menuConfigResourceName).json failed to decode: \(error.localizedDescription)"
+            menuConfigLine = "Menu configuration: ❌ \(AppConstants.menuConfigResourceName).json failed to decode: \(error.localizedDescription)"
             healthy = false
         }
 
         let logoLine: String
-        if NSImage(data: EmbeddedResources.logoData) != nil {
-            logoLine = "Logo: ✅ \(EmbeddedResources.logoData.count) bytes (embedded \(AppConstants.logoResourceName).png)"
+        if let logoData = try? AppResources.data(named: "sparkfabrik-logo", extension: "png"), NSImage(data: logoData) != nil {
+            logoLine = "Logo: ✅ \(logoData.count) bytes (\(AppConstants.logoResourceName).png)"
         } else {
-            logoLine = "Logo: ❌ embedded \(AppConstants.logoResourceName).png failed to decode"
+            logoLine = "Logo: ❌ \(AppConstants.logoResourceName).png failed to decode"
             healthy = false
         }
 
         print("Sparkdock Manager - Status: \(healthy ? "OK" : "ERROR")")
         print("Executable path: \(AppConstants.sparkdockExecutablePath)")
+        print("Resource container: \(AppBundle.current.bundleURL.path)")
+        print("Bundle identifier: \(AppBundle.current.bundleIdentifier ?? "unbundled")")
+        print("Other instances with this identifier: \(AppInstance.otherInstances().count)")
         print(menuConfigLine)
         print(logoLine)
 
@@ -1750,7 +1700,7 @@ if let exitCode = handleCLIArguments() {
 }
 
 // Check if another instance is already running
-if checkForExistingInstance() {
+if !AppInstance.otherInstances().isEmpty {
     print("⚠️  Sparkdock menu bar app is already running")
     print("💡 If you need to restart it, quit the app first from the menu bar")
     print("💡 If the app is stuck or not visible, use: pkill -f sparkdock-manager")

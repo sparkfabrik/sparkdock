@@ -251,7 +251,7 @@ Sparkdock includes a native macOS menu bar application that provides quick acces
 sjust menubar            # Launch the menu bar app manually
 ```
 
-The app is automatically installed as a LaunchAgent (`com.sparkfabrik.sparkdock.menubar.plist`) and starts at login. It shows update availability and provides one-click access to system updates and development tools.
+The app is installed as an ad-hoc-signed bundle at `~/Applications/Sparkdock Manager.app`, with `/opt/homebrew/bin/sparkdock-manager` as a CLI symlink. A user LaunchAgent (`com.sparkfabrik.sparkdock.menubar.plist`) starts the bundle executable at login. It shows update availability and provides one-click access to system updates and development tools.
 
 ## Configuration
 

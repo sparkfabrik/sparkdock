@@ -3,7 +3,6 @@
 sparkdock_path := "/opt/sparkdock"
 default_branch := "master"
 sparkdock_menubar_plist_path := "${HOME}/Library/LaunchAgents/com.sparkfabrik.sparkdock.menubar.plist"
-sparkdock_menubar_process_name := "sparkdock-manager"
 
 # Print system information.
 [group('system')]
@@ -332,8 +331,7 @@ sparkdock-menubar-install:
     echo "Rebuilding and installing Sparkdock menu bar application..."
     cd {{ sparkdock_path }}
     echo "🔧 Running ansible with menubar tag to rebuild and install..."
-    # No sudo needed: binary installs to user-owned /opt/homebrew/bin and the
-    # LaunchAgent is user-level, so no become password is required.
+    # Install the user-owned application bundle and LaunchAgent without sudo.
     ansible-playbook -i ansible/inventory.ini ansible/macos.yml -v --tags "menubar" -e ansible_become_pass=
     # shellcheck source=/dev/null
     source "{{source_directory()}}/../libs/libshell.sh"
@@ -453,27 +451,28 @@ sparkdock-menubar-reinstall:
 [group('sparkdock')]
 sparkdock-menubar-start:
     #!/usr/bin/env bash
+    set -euo pipefail
     # shellcheck source=/dev/null
     source "{{source_directory()}}/../libs/libshell.sh"
 
     # Kill any running processes first
-    pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
+    menubar_stop_installed_processes
 
     just _menubar_plist_unload
 
     # Load and start the service
     PLIST_PATH="{{sparkdock_menubar_plist_path}}"
-    if ! launchctl bootstrap gui/$(id -u) "${PLIST_PATH}"; then
+    if ! launchctl bootstrap "gui/$(id -u)" "${PLIST_PATH}"; then
         echo "❌ Failed to bootstrap menu bar app via LaunchAgent"
         exit 1
     fi
 
-    if ! launchctl enable gui/$(id -u)/com.sparkfabrik.sparkdock.menubar; then
+    if ! launchctl enable "gui/$(id -u)/com.sparkfabrik.sparkdock.menubar"; then
         echo "❌ Failed to enable menu bar app via LaunchAgent"
         exit 1
     fi
 
-    if ! launchctl kickstart gui/$(id -u)/com.sparkfabrik.sparkdock.menubar; then
+    if ! launchctl kickstart "gui/$(id -u)/com.sparkfabrik.sparkdock.menubar"; then
         echo "❌ Failed to kickstart menu bar app via LaunchAgent"
         exit 1
     fi
@@ -488,9 +487,12 @@ sparkdock-menubar-start:
 [group('sparkdock')]
 sparkdock-menubar-stop:
     #!/usr/bin/env bash
+    set -euo pipefail
+    # shellcheck source=/dev/null
+    source "{{source_directory()}}/../libs/libshell.sh"
     just _menubar_plist_unload
 
     # Kill any running processes
-    pkill -f "{{sparkdock_menubar_process_name}}" 2>/dev/null || true
+    menubar_stop_installed_processes
 
     echo "✅ Sparkdock menu bar app stopped successfully"

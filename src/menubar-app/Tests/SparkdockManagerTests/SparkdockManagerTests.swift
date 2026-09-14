@@ -35,6 +35,27 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertNotNil(NSImage(data: EmbeddedResources.logoData), "embedded sparkfabrik-logo.png should decode as an image")
     }
 
+    func testApplicationBundleResourcesAreAuthoritative() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let app = directory.appendingPathComponent("Fixture.app")
+        let resources = app.appendingPathComponent("Contents/Resources")
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let plist: [String: Any] = ["CFBundleIdentifier": "com.sparkfabrik.sparkdock.resource-test", "CFBundlePackageType": "APPL"]
+        let info = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
+        try info.write(to: app.appendingPathComponent("Contents/Info.plist"))
+        let expected = Data("bundle-specific menu".utf8)
+        try expected.write(to: resources.appendingPathComponent("menu.json"))
+        let bundle = try XCTUnwrap(Bundle(url: app))
+
+        XCTAssertEqual(try AppResources.data(named: "menu", extension: "json", in: bundle), expected)
+        XCTAssertThrowsError(try AppResources.data(named: "sparkfabrik-logo", extension: "png", in: bundle))
+    }
+
+    func testUnknownApplicationIdentifierHasNoOtherInstances() {
+        XCTAssertTrue(AppInstance.otherInstances(bundleIdentifier: "com.sparkfabrik.sparkdock.test.\(UUID().uuidString)").isEmpty)
+    }
+
     func testResourcesExist() {
         let currentDir = FileManager.default.currentDirectoryPath
         let logoPath = "\(currentDir)/Sources/SparkdockManager/Resources/sparkfabrik-logo.png"

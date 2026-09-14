@@ -5,11 +5,11 @@
 	<key>CFBundleExecutable</key>
 	<string>sparkdock-manager</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.sparkfabrik.sparkdock.manager</string>
+	<string>com.sparkfabrik.sparkdock.menubar</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>SparkdockManager</string>
+	<string>Sparkdock Manager</string>
 	<key>CFBundleDisplayName</key>
 	<string>Sparkdock Manager</string>
 	<key>CFBundlePackageType</key>
@@ -19,7 +19,7 @@
 	<key>CFBundleVersion</key>
 	<string>1.0</string>
 	<key>LSMinimumSystemVersion</key>
-	<string>14.0</string>
+	<string>15.0</string>
 	<key>LSUIElement</key>
 	<true/>
 	<key>NSHighResolutionCapable</key>
