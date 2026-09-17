@@ -210,12 +210,60 @@ EOF
 
 # --- OpenCode ---
 
+# Major version of the installed OpenCode binary, or 0 when it is missing or
+# does not report one. `opencode --version` prints "opencode v2.0.5"; the first
+# dotted version token anywhere in the output is used, so a leading blank line,
+# a banner, or terminal escape codes around the version do not hide it.
+opencode_major_version() {
+    local version
+    if ! command -v opencode > /dev/null 2>&1; then
+        echo 0
+        return 0
+    fi
+    version="$(opencode --version 2> /dev/null | grep -oE '[0-9]+\.[0-9]+' | head -n 1 | cut -d. -f1 || true)"
+    if [[ "${version}" =~ ^[0-9]+$ ]]; then
+        echo "${version}"
+        return 0
+    fi
+    echo 0
+}
+
+# `rtk init --opencode` still writes an OpenCode 1.x plugin that OpenCode 2.x
+# refuses to load ("Plugin must export a default definition with an id and an
+# effect or setup function"). Replace it with the 2.x version shipped in
+# patches/ when the installed OpenCode is 2.x or newer.
+# Tracked: https://github.com/rtk-ai/rtk/issues/3898
+patch_opencode_plugin() {
+    local plugin_patch="${SCRIPT_DIR}/patches/opencode-plugin.ts"
+    local plugin_dest="${HOME}/.config/opencode/plugins/rtk.ts"
+    local major
+
+    major="$(opencode_major_version)"
+    if (( major < 2 )); then
+        return 0
+    fi
+    if [[ ! -f "${plugin_patch}" ]]; then
+        log_warn "Cannot apply OpenCode 2.x plugin patch: ${plugin_patch} not found"
+        return 0
+    fi
+    if [[ ! -f "${plugin_dest}" ]]; then
+        log_warn "Cannot apply OpenCode 2.x plugin patch: ${plugin_dest} not found"
+        return 0
+    fi
+    if cmp -s "${plugin_patch}" "${plugin_dest}"; then
+        return 0
+    fi
+    cp "${plugin_patch}" "${plugin_dest}"
+    log_success "Applied OpenCode 2.x plugin patch to ${plugin_dest} (rtk#3898)"
+}
+
 setup_opencode() {
     log_info "Setting up RTK for OpenCode..."
     if ! rtk init -g --opencode --auto-patch > /dev/null; then
         log_error "rtk init -g --opencode --auto-patch failed"
         return 1
     fi
+    patch_opencode_plugin
     log_success "RTK configured for OpenCode (global plugin)"
 }
 

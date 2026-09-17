@@ -1,0 +1,20 @@
+name: Test herdr Setup
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test-herdr-setup:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Verify Sparkdock herdr setup
+        run: |
+          bash sjust/scripts/herdr/verify-setup.sh

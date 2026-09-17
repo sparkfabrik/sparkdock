@@ -97,6 +97,56 @@ link_skill() {
     done
 }
 
+# herdr can hook itself into each coding tool (a plugin for OpenCode, a hook for
+# Claude Code, ...) so the pane shows whether the agent is working or idle. Those
+# hooks are versioned. When herdr is updated, hooks already installed can fall
+# behind and stop working, as happened with the OpenCode plugin on OpenCode 2.
+# This function asks herdr which installed hooks are outdated and reinstalls
+# only those. Hooks the user never installed are left alone.
+# Print the name of every integration that `herdr integration status` (read
+# from stdin) reports as outdated, one per line. Lines look like
+# "opencode: outdated (v11 < v12) (/path/to/plugin)"; an experimental one is
+# "letta (experimental): outdated (...)". Only the text before the first colon
+# is inspected, so "outdated" inside a path never matches.
+outdated_integrations() {
+    local line name
+    while IFS= read -r line; do
+        if [[ "${line}" != *": outdated"* ]]; then
+            continue
+        fi
+        name="${line%%:*}"
+        name="${name% (experimental)}"
+        echo "${name}"
+    done
+}
+
+update_integrations() {
+    local status_output
+    if ! status_output="$(herdr integration status 2> /dev/null)"; then
+        log_warn "herdr integration status failed, skipping integration refresh"
+        return 0
+    fi
+
+    local outdated=()
+    local name
+    while IFS= read -r name; do
+        outdated+=("${name}")
+    done < <(outdated_integrations <<< "${status_output}")
+
+    if (( ${#outdated[@]} == 0 )); then
+        log_info "herdr integrations are up to date"
+        return 0
+    fi
+
+    for name in "${outdated[@]}"; do
+        if herdr integration install "${name}" > /dev/null 2>&1; then
+            log_success "herdr integration refreshed: ${name}"
+        else
+            log_warn "herdr integration install ${name} failed"
+        fi
+    done
+}
+
 # --- Uninstall ---
 
 uninstall() {
@@ -141,6 +191,7 @@ main() {
             fi
             write_skill
             link_skill
+            update_integrations
             log_success "herdr skill setup complete. Restart your AI coding tools to pick it up."
             ;;
         uninstall)
@@ -153,4 +204,6 @@ main() {
     esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

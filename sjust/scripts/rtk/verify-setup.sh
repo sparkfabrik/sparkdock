@@ -60,6 +60,14 @@ main() {
 
     perl -0pi -e 's/\[hooks\]\nexclude_commands = \[\]/[hooks]\ntransparent_prefixes = ["direnv exec ."]\nexclude_commands = ["curl"]/' "${rtk_config}"
 
+    # A fake opencode shadows any real one so the OpenCode version gate is
+    # driven by this script: first an opencode that reports no version at all.
+    local fake_bin="${HOME}/fake-bin"
+    mkdir -p "${fake_bin}"
+    printf '#!/bin/sh\nexit 1\n' > "${fake_bin}/opencode"
+    chmod +x "${fake_bin}/opencode"
+    export PATH="${fake_bin}:${PATH}"
+
     log_info "Running Sparkdock RTK setup..."
     "${SPARKDOCK_ROOT}/sjust/scripts/rtk/setup.sh"
 
@@ -72,6 +80,36 @@ main() {
     assert_file_exists "${cli_instructions}"
     assert_file_exists "${opencode_plugin}"
     assert_file_exists "${rtk_run}"
+
+    # With no usable OpenCode version the generated 1.x plugin must stay as rtk
+    # wrote it.
+    local opencode_patch="${SCRIPT_DIR}/patches/opencode-plugin.ts"
+    assert_file_exists "${opencode_patch}"
+    assert_file_contains "${opencode_plugin}" "RtkOpenCodePlugin"
+    if cmp -s "${opencode_patch}" "${opencode_plugin}"; then
+        log_error "OpenCode 2.x patch was applied although opencode reports no version"
+        exit 1
+    fi
+
+    # The version gate is exercised with fake opencode binaries: a 1.x one must
+    # leave rtk's file alone, a 2.x one must replace it with the shipped patch.
+    # The 2.x output carries a leading blank line and terminal escape codes to
+    # make sure the version is still recognised.
+    log_info "Checking the OpenCode version gate..."
+    printf '#!/bin/sh\nprintf "opencode v1.4.0\\n"\n' > "${fake_bin}/opencode"
+    "${SPARKDOCK_ROOT}/sjust/scripts/rtk/setup.sh" > /dev/null
+    assert_file_contains "${opencode_plugin}" "RtkOpenCodePlugin"
+    if cmp -s "${opencode_patch}" "${opencode_plugin}"; then
+        log_error "OpenCode 2.x patch was applied on OpenCode 1.x"
+        exit 1
+    fi
+
+    printf '#!/bin/sh\nprintf "\\n\\033[1mopencode v2.0.5\\033[0m\\n"\n' > "${fake_bin}/opencode"
+    "${SPARKDOCK_ROOT}/sjust/scripts/rtk/setup.sh" > /dev/null
+    if ! cmp -s "${opencode_patch}" "${opencode_plugin}"; then
+        log_error "OpenCode 2.x patch was not applied on OpenCode 2.x"
+        exit 1
+    fi
 
     assert_file_contains "${claude_settings}" "rtk hook claude"
     assert_file_contains "${claude_md}" "@RTK.md"
