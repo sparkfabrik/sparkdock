@@ -73,6 +73,15 @@ main() {
     assert_file_exists "${opencode_plugin}"
     assert_file_exists "${rtk_run}"
 
+    # The OpenCode 2.x plugin shipped in patches/ replaces rtk's generated
+    # plugin on machines running OpenCode 2.x; CI has no OpenCode, so only the
+    # patch file itself is checked here.
+    local opencode_patch="${SCRIPT_DIR}/patches/opencode-plugin.ts"
+    assert_file_exists "${opencode_patch}"
+    assert_file_contains "${opencode_patch}" "export default {"
+    assert_file_contains "${opencode_patch}" 'id: "rtk"'
+    assert_file_contains "${opencode_patch}" '"execute.before"'
+
     assert_file_contains "${claude_settings}" "rtk hook claude"
     assert_file_contains "${claude_md}" "@RTK.md"
     assert_file_contains "${cli_instructions}" "Use \`rtk-run\` for high-output local shell commands such as build, test, lint, search, status, diff, log, and package manager commands"

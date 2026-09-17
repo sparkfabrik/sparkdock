@@ -97,6 +97,44 @@ link_skill() {
     done
 }
 
+# herdr also installs per-tool integrations (hooks or plugins that report the
+# agent state to the herdr pane). They are opt-in, so nothing is installed here;
+# but an installed integration that herdr reports as outdated is refreshed,
+# because a stale one can stop loading after the tool updates (the OpenCode 1.x
+# plugin no longer loads on OpenCode 2.x, for example).
+update_integrations() {
+    local status_output
+    if ! status_output="$(herdr integration status 2> /dev/null)"; then
+        log_warn "herdr integration status failed, skipping integration refresh"
+        return 0
+    fi
+
+    local outdated=()
+    local line name
+    while IFS= read -r line; do
+        # Lines look like "opencode: outdated (v11 < v12) (/path/to/plugin)".
+        if [[ "${line}" != *": outdated"* ]]; then
+            continue
+        fi
+        name="${line%%:*}"
+        name="${name% (experimental)}"
+        outdated+=("${name}")
+    done <<< "${status_output}"
+
+    if (( ${#outdated[@]} == 0 )); then
+        log_info "herdr integrations are up to date"
+        return 0
+    fi
+
+    for name in "${outdated[@]}"; do
+        if herdr integration install "${name}" > /dev/null 2>&1; then
+            log_success "herdr integration refreshed: ${name}"
+        else
+            log_warn "herdr integration install ${name} failed"
+        fi
+    done
+}
+
 # --- Uninstall ---
 
 uninstall() {
@@ -141,6 +179,7 @@ main() {
             fi
             write_skill
             link_skill
+            update_integrations
             log_success "herdr skill setup complete. Restart your AI coding tools to pick it up."
             ;;
         uninstall)

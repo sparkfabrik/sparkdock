@@ -224,6 +224,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the RTK OpenCode plugin failing to load on OpenCode 2.x with "Plugin must export a default definition": `sjust sf-rtk-setup` now installs an OpenCode 2.x version of the plugin over the one `rtk init` generates ([rtk#3898](https://github.com/rtk-ai/rtk/issues/3898))
+- Fixed installed herdr integrations going stale: the herdr skill setup now refreshes every integration that `herdr integration status` reports as outdated, which restores the OpenCode plugin on OpenCode 2.x
 - Fixed macOS 15 compiler compatibility, non-interactive menu bar rebuild reuse, CLT rollback, and missing-input fingerprint failures
 
 - Fixed the Sparkdock menu bar app aborting at launch with `unable to find bundle named SparkdockManager_SparkdockManager` after the Swift 6.4 command line tools update: `menu.json` and the logo are now embedded in the binary, `sparkdock-manager --status` checks them, the install and start commands verify the LaunchAgent is actually running, and the single-instance check no longer mistakes a shell mentioning the binary for a running copy
