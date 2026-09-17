@@ -97,11 +97,12 @@ link_skill() {
     done
 }
 
-# herdr also installs per-tool integrations (hooks or plugins that report the
-# agent state to the herdr pane). They are opt-in, so nothing is installed here;
-# but an installed integration that herdr reports as outdated is refreshed,
-# because a stale one can stop loading after the tool updates (the OpenCode 1.x
-# plugin no longer loads on OpenCode 2.x, for example).
+# herdr can hook itself into each coding tool (a plugin for OpenCode, a hook for
+# Claude Code, ...) so the pane shows whether the agent is working or idle. Those
+# hooks are versioned. When herdr is updated, hooks already installed can fall
+# behind and stop working, as happened with the OpenCode plugin on OpenCode 2.
+# This function asks herdr which installed hooks are outdated and reinstalls
+# only those. Hooks the user never installed are left alone.
 # Print the name of every integration that `herdr integration status` (read
 # from stdin) reports as outdated, one per line. Lines look like
 # "opencode: outdated (v11 < v12) (/path/to/plugin)"; an experimental one is
