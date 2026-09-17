@@ -211,14 +211,16 @@ EOF
 # --- OpenCode ---
 
 # Major version of the installed OpenCode binary, or 0 when it is missing or
-# does not report one (`opencode --version` prints "opencode v2.0.5").
+# does not report one. `opencode --version` prints "opencode v2.0.5"; the first
+# dotted version token anywhere in the output is used, so a leading blank line,
+# a banner, or terminal escape codes around the version do not hide it.
 opencode_major_version() {
     local version
     if ! command -v opencode > /dev/null 2>&1; then
         echo 0
         return 0
     fi
-    version="$(opencode --version 2> /dev/null | sed -E 's/^[^0-9]*([0-9]+).*$/\1/' | head -n 1)"
+    version="$(opencode --version 2> /dev/null | grep -oE '[0-9]+\.[0-9]+' | head -n 1 | cut -d. -f1 || true)"
     if [[ "${version}" =~ ^[0-9]+$ ]]; then
         echo "${version}"
         return 0

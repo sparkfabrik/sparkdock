@@ -102,6 +102,23 @@ link_skill() {
 # but an installed integration that herdr reports as outdated is refreshed,
 # because a stale one can stop loading after the tool updates (the OpenCode 1.x
 # plugin no longer loads on OpenCode 2.x, for example).
+# Print the name of every integration that `herdr integration status` (read
+# from stdin) reports as outdated, one per line. Lines look like
+# "opencode: outdated (v11 < v12) (/path/to/plugin)"; an experimental one is
+# "letta (experimental): outdated (...)". Only the text before the first colon
+# is inspected, so "outdated" inside a path never matches.
+outdated_integrations() {
+    local line name
+    while IFS= read -r line; do
+        if [[ "${line}" != *": outdated"* ]]; then
+            continue
+        fi
+        name="${line%%:*}"
+        name="${name% (experimental)}"
+        echo "${name}"
+    done
+}
+
 update_integrations() {
     local status_output
     if ! status_output="$(herdr integration status 2> /dev/null)"; then
@@ -110,16 +127,10 @@ update_integrations() {
     fi
 
     local outdated=()
-    local line name
-    while IFS= read -r line; do
-        # Lines look like "opencode: outdated (v11 < v12) (/path/to/plugin)".
-        if [[ "${line}" != *": outdated"* ]]; then
-            continue
-        fi
-        name="${line%%:*}"
-        name="${name% (experimental)}"
+    local name
+    while IFS= read -r name; do
         outdated+=("${name}")
-    done <<< "${status_output}"
+    done < <(outdated_integrations <<< "${status_output}")
 
     if (( ${#outdated[@]} == 0 )); then
         log_info "herdr integrations are up to date"
@@ -192,4 +203,6 @@ main() {
     esac
 }
 
-main "$@"
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

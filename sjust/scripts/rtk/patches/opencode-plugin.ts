@@ -14,13 +14,20 @@
 // Requires: rtk >= 0.23.0 in PATH.
 
 import { execFile } from "node:child_process"
+import type { Plugin } from "@opencode/plugin"
+
+// A hung rtk must never stall the agent's shell tool: after this many
+// milliseconds the child is killed and the command runs unchanged.
+const RTK_TIMEOUT_MS = 5000
 
 // Resolves with stdout whenever the process ran, whatever its exit code
 // (`rtk rewrite` exits 3 on a successful rewrite and 1 when the command is
-// excluded). Rejects only when the process could not be spawned at all.
+// excluded). A timeout resolves with the partial stdout (empty in practice),
+// which leaves the command untouched. Rejects only when the process could not
+// be spawned at all (string `code`, such as ENOENT).
 function run(cmd: string, args: string[]): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(cmd, args, { encoding: "utf8" }, (error, stdout) => {
+    execFile(cmd, args, { encoding: "utf8", timeout: RTK_TIMEOUT_MS }, (error, stdout) => {
       if (error && typeof (error as NodeJS.ErrnoException).code === "string") {
         reject(error)
         return
@@ -30,9 +37,9 @@ function run(cmd: string, args: string[]): Promise<string> {
   })
 }
 
-export default {
+const plugin: Plugin.Plugin = {
   id: "rtk",
-  async setup(ctx: any) {
+  async setup(ctx: Plugin.Context) {
     try {
       await run("rtk", ["--version"])
     } catch {
@@ -40,12 +47,14 @@ export default {
       return
     }
 
-    await ctx.tool.hook("execute.before", async (input: any) => {
-      const tool = String(input?.tool ?? "").toLowerCase()
+    // `event.tool` names the tool; `event.input` holds the tool's own
+    // arguments, for bash that is `{ command, ... }`. Both are mutable.
+    await ctx.tool.hook("execute.before", async (event) => {
+      const tool = String(event.tool ?? "").toLowerCase()
       if (tool !== "bash" && tool !== "shell") {
         return
       }
-      const args = input?.input
+      const args = event.input
       if (!args || typeof args !== "object") {
         return
       }
@@ -66,3 +75,5 @@ export default {
     })
   },
 }
+
+export default plugin
