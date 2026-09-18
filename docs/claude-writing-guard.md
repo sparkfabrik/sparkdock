@@ -44,7 +44,7 @@ Claude confirms successful `Skill` calls through `PostToolUse`. A failed call ne
 
 Codex confirms a load when a Bash tool result contains the complete installed skill text. The command must mention `SKILL.md`; mentioning a path or returning truncated text is insufficient. Read the requested file with enough output allowance. Native loaders and partial reads are not tracked.
 
-The first supported call, read or write, requests any missing available skills and is denied until they are loaded. For a publishing call the request also asks the agent to revise its prepared text before retrying. A missing required skill is the only case in which the guard denies a call.
+The first supported call, read or write, is denied once while the guard requests any missing available required skills. For a publishing call the request also asks the agent to revise its prepared text before retrying. This first request is the only case in which the guard denies a call; if the load is not confirmed, the next attempt proceeds with a notice, as described below.
 
 If the skill was already loaded, the first publishing call of each user turn is not blocked and carries a short review reminder as `additionalContext`. The hook returns no permission decision, so the normal approval flow still applies to the call. The reminder reaches the model together with the tool result. It states that the text was not evaluated. Later writes in the same user turn proceed without another reminder. A new user prompt resets only the reminder; it does not force a full reload.
 

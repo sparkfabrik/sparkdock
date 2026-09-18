@@ -225,5 +225,81 @@
       "sjust/scripts/codex-writing-guard.py": "026168e3e016d44afaf3530c339da6c453ff1eceff4d6b73a8772945cf775267"
     },
     "live_session_scope": "Earlier live sessions below retain their original source hashes. Review fixes were validated by regression and isolated Ansible tests, not new model sessions."
+  },
+  "reminder_context_validation": {
+    "date": "2026-09-18",
+    "platform": "macOS",
+    "versions": {
+      "claude": "2.1.275",
+      "codex": "0.155.0"
+    },
+    "method": "Real Claude Code print-mode session with the user's own login. Fixture hooks injected with --settings and routed through a logging wrapper that runs the changed guard from the checkout; the installed guard was switched off with SPARKDOCK_GH_GATE=0 and re-enabled by the wrapper for the checkout script only. Isolated XDG_CACHE_HOME, empty non-git working directory, inert gh executable first on PATH that records its arguments. Real gh and sf-writing-style skills. No external publications.",
+    "unit_tests": 128,
+    "sources": {
+      "sjust/scripts/lib/writing_guard.py": "ed3219112cafff71ca5480de1fbddc2516115b225e62b9d98f47e2874652d883",
+      "sjust/scripts/lib/claude_settings.py": "e168e2f4fdaf254eb98010eadf449653a31716fde3f45d02abcb8df0e11ae30c",
+      "sjust/scripts/claude-gh-gate.py": "44299ab34ac99fece8038bda6860f0586a331d48ebbc3af97d1a982dc693f424",
+      "sjust/scripts/codex-writing-guard.py": "f7f3a410778fc48b0cc1c7a3e4dcf735ba4a7563829b6d063243f9981ee53e36"
+    },
+    "results": [
+      {
+        "engine": "claude",
+        "scenario": "gh publish twice after both skills are loaded",
+        "passed": true,
+        "checks": {
+          "context_only_output_accepted": "PreToolUse exit 0 with hookSpecificOutput.additionalContext and no permissionDecision; no hook error reported",
+          "tool_executed": "inert gh recorded both pr create calls and the model reported their stdout",
+          "context_reached_model": "model quoted the reminder verbatim as 'PreToolUse:Bash hook additional context' for the first call and NONE for the second",
+          "no_permission_granted_by_hook": "in earlier runs whose allow rule did not match the rewritten command, the same context-only output left both calls at 'This command requires approval', so the normal approval flow decided the call"
+        },
+        "gh_calls": [
+          "pr create --title Add dark mode --body WRITING_SKILL_APPLIED Adds a dark mode toggle.",
+          "pr create --title Add export --body WRITING_SKILL_APPLIED Adds CSV export."
+        ],
+        "model_reply": "Stdout, step 3:\n\n```\nhttps://example.invalid/pr/1\n```\n\nStdout, step 4:\n\n```\nhttps://example.invalid/pr/1\n```\n\nHook / additional-context messages with step 3 result:\n\n```\nPreToolUse:Bash hook additional context: Writing guard: this call was not blocked and its text was not evaluated. Apply sf-writing-style to every body you publish in this turn: lead with the change, use useful bullets, remove implementation history and repetition, and keep required actions.\n```\n\nHook / additional-context messages with step 4 result: NONE",
+        "events": [
+          {
+            "event": "SessionStart",
+            "tool": null,
+            "exit_code": 0,
+            "context": false
+          },
+          {
+            "event": "UserPromptSubmit",
+            "tool": null,
+            "exit_code": 0,
+            "context": false
+          },
+          {
+            "event": "PostToolUse",
+            "tool": "Skill",
+            "exit_code": 0,
+            "context": false
+          },
+          {
+            "event": "PostToolUse",
+            "tool": "Skill",
+            "exit_code": 0,
+            "context": false
+          },
+          {
+            "event": "PreToolUse",
+            "tool": "Bash",
+            "exit_code": 0,
+            "context": true
+          },
+          {
+            "event": "PreToolUse",
+            "tool": "Bash",
+            "exit_code": 0,
+            "context": false
+          }
+        ]
+      }
+    ],
+    "limits": [
+      "Codex was not exercised live: the CLI on the validation machine is not logged in. Codex acceptance of context-only PreToolUse output rests on its hooks documentation and the shared unit tests.",
+      "The Claude session ran with the user's other hooks active, including the RTK Bash rewrite hook; the allow rules covered both the original and the rewritten command."
+    ]
   }
 }
