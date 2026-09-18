@@ -46,7 +46,7 @@ Codex confirms a load when a Bash tool result contains the complete installed sk
 
 The first supported write requests any missing available skills and asks the agent to revise its prepared text before retrying. This is the only case in which the guard denies a call.
 
-If the skill was already loaded, the first publishing call of each user turn is allowed and carries a short review reminder as `additionalContext`. The call runs; the reminder reaches the model together with the tool result. It states that the text was not evaluated. Later writes in the same user turn proceed without another reminder. A new user prompt resets only the reminder; it does not force a full reload.
+If the skill was already loaded, the first publishing call of each user turn is not blocked and carries a short review reminder as `additionalContext`. The hook returns no permission decision, so the normal approval flow still applies to the call. The reminder reaches the model together with the tool result. It states that the text was not evaluated. Later writes in the same user turn proceed without another reminder. A new user prompt resets only the reminder; it does not force a full reload.
 
 The reminder used to be delivered as a denial that asked for a verbatim retry. Permission classifiers in automatic modes read that retry as bypassing a block, so the reminder no longer blocks.
 

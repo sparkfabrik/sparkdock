@@ -85,7 +85,7 @@ class CodexGuardTest(unittest.TestCase):
         r = self.run_hook(self.payload())
         self.assertEqual((r.returncode, r.stderr), (0, ""))
         output = json.loads(r.stdout)["hookSpecificOutput"]
-        self.assertEqual(output["permissionDecision"], "allow")
+        self.assertNotIn("permissionDecision", output)
         self.assertIn("text was not evaluated", output["additionalContext"])
         self.assertNotIn("Read these skill files", r.stdout)
         self.assertEqual(self.run_hook(self.payload()).stdout, "")

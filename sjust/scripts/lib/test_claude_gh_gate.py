@@ -117,7 +117,7 @@ class GateHookTest(unittest.TestCase):
         first = self.run_hook(self.bash("gh pr create"))
         self.assertEqual((first.returncode, first.stderr), (0, ""))
         output = json.loads(first.stdout)["hookSpecificOutput"]
-        self.assertEqual(output["permissionDecision"], "allow")
+        self.assertNotIn("permissionDecision", output)
         self.assertIn("text was not evaluated", output["additionalContext"])
         self.assertNotIn("systemMessage", json.loads(first.stdout))
         for _ in range(3):

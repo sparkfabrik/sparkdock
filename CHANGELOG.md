@@ -132,7 +132,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Changed the Claude and Codex writing guards to deliver the once-per-turn `sf-writing-style` reminder as additional context on an allowed call instead of denying the first publishing command; the reminder now states that the text was not evaluated
+- Changed the Claude and Codex writing guards to deliver the once-per-turn `sf-writing-style` reminder as additional context instead of denying the first publishing command, leaving the permission decision to the normal approval flow; the reminder now states that the text was not evaluated
 - Install one selected Command Line Tools package during fresh setup and repair, verify its health, and skip Xcode license acceptance
 
 - Reuse verified menu bar builds when source fingerprints match, with an explicit force-rebuild option

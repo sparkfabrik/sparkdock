@@ -15,7 +15,7 @@ from pathlib import Path
 SKILLS = {"gh", "glab", "sf-writing-style"}
 MATCHER = "Bash|mcp__.*"
 REMINDER = (
-    "Writing guard: this call was allowed and its text was not evaluated. Apply "
+    "Writing guard: this call was not blocked and its text was not evaluated. Apply "
     "sf-writing-style to every body you publish in this turn: lead with the change, "
     "use useful bullets, remove implementation history and repetition, and keep "
     "required actions."
@@ -204,9 +204,10 @@ def lifecycle(payload, state):
 def reminder(required, state):
     """Return context for the first publishing call of a user turn.
 
-    The reminder never blocks: the hook allows the call and attaches the text as
-    additional context. A denial would only trigger a verbatim retry, which auto
-    permission modes read as bypassing a block.
+    The reminder never blocks and never approves: the hook attaches the text as
+    additional context and leaves the permission decision to the normal flow. A
+    denial would only trigger a verbatim retry, which auto permission modes read
+    as bypassing a block.
     """
     if (
         "sf-writing-style" in required
@@ -295,10 +296,10 @@ def run_hook(process, engine):
         if notices:
             output["systemMessage"] = "\n".join(notices)
         if context:
-            # Both Claude and Codex accept this shape for an allowed PreToolUse call.
+            # No permissionDecision: the normal approval flow still decides the
+            # call. Claude and Codex both accept context-only PreToolUse output.
             output["hookSpecificOutput"] = {
                 "hookEventName": "PreToolUse",
-                "permissionDecision": "allow",
                 "additionalContext": "\n".join(context),
             }
         if output:
