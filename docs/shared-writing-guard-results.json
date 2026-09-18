@@ -300,6 +300,12 @@
     "limits": [
       "Codex was not exercised live: the CLI on the validation machine is not logged in. Codex acceptance of context-only PreToolUse output rests on its hooks documentation and the shared unit tests.",
       "The Claude session ran with the user's other hooks active, including the RTK Bash rewrite hook; the allow rules covered both the original and the rewritten command."
-    ]
+    ],
+    "later_changes": {
+      "scope": "After the live session, writing_guard.py derives hookSpecificOutput.hookEventName from the payload instead of a constant, and a regression test covers a skip notice and the reminder in one output. Behavior on the validated PreToolUse path is unchanged; validated by unit tests, not a new model session.",
+      "sources": {
+        "sjust/scripts/lib/writing_guard.py": "d90155aa3a488184aaf1cf0b4b0cd897bc7809c29dbffdb61e5fbc0b3aefe49d"
+      }
+    }
   }
 }

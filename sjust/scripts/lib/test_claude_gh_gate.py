@@ -280,6 +280,19 @@ class GateHookTest(unittest.TestCase):
         self.assertEqual((r := self.run_hook(self.bash("gh pr create"))).returncode, 0)
         self.assertEqual(r.stdout, "")
 
+    def test_skip_notice_and_reminder_share_one_output(self):
+        self.skill_path("gh").rename(self.root / "removed-skill")
+        self.load("sf-writing-style")
+        r = self.run_hook(self.bash("gh pr create"))
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+        output = json.loads(r.stdout)
+        self.assertIn("skipping gh", output["systemMessage"])
+        self.assertEqual(output["hookSpecificOutput"]["hookEventName"], "PreToolUse")
+        self.assertIn(
+            "text was not evaluated", output["hookSpecificOutput"]["additionalContext"]
+        )
+        self.assertEqual(self.run_hook(self.bash("gh pr create")).stdout, "")
+
     def test_missing_all_skills_warns_once(self):
         self.config.rename(self.root / "unlinked-config")
         for index in range(2):

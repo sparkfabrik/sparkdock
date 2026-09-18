@@ -48,8 +48,6 @@ The first supported call, read or write, is denied once while the guard requests
 
 If the skill was already loaded, the first publishing call of each user turn is not blocked and carries a short review reminder as `additionalContext`. The hook returns no permission decision, so the normal approval flow still applies to the call. The reminder reaches the model together with the tool result. It states that the text was not evaluated. Later writes in the same user turn proceed without another reminder. A new user prompt resets only the reminder; it does not force a full reload.
 
-The reminder used to be delivered as a denial that asked for a verbatim retry. Permission classifiers in automatic modes read that retry as bypassing a block, so the reminder no longer blocks.
-
 Resume preserves confirmations. Startup, clear and compaction reset them. State is separate for each engine and session, and also uses `agent_id` when supplied. Codex does not document an agent identifier on every tool event, so isolation of Codex subagents is not guaranteed by this adapter.
 
 The hooks run local Python and never call a model or inject full skill bodies. Reminders and retries still consume some tokens. Loading a skill does not guarantee that the model follows it.

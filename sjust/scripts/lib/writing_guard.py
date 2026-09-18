@@ -299,7 +299,7 @@ def run_hook(process, engine):
             # No permissionDecision: the normal approval flow still decides the
             # call. Claude and Codex both accept context-only PreToolUse output.
             output["hookSpecificOutput"] = {
-                "hookEventName": "PreToolUse",
+                "hookEventName": payload.get("hook_event_name"),
                 "additionalContext": "\n".join(context),
             }
         if output:
