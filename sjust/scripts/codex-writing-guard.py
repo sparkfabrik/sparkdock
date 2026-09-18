@@ -70,7 +70,7 @@ def response_text(value):
 
 def process(payload, state):
     if guard.lifecycle(payload, state):
-        return 0, []
+        return 0, [], []
     cwd = payload.get("cwd")
     args = payload.get("tool_input")
     if (
@@ -78,7 +78,7 @@ def process(payload, state):
         or not Path(cwd).is_absolute()
         or not isinstance(args, dict)
     ):
-        return 0, []
+        return 0, [], []
     cwd = Path(cwd)
     if (
         payload.get("hook_event_name") == "PostToolUse"
@@ -88,7 +88,7 @@ def process(payload, state):
         # A successful exit or a command mentioning SKILL.md alone proves nothing.
         command = args.get("command", "")
         if not isinstance(command, str) or "SKILL.md" not in command:
-            return 0, []
+            return 0, [], []
         output = list(response_text(payload.get("tool_response")))
         for name in sorted(guard.SKILLS):
             path = skill_path(name, cwd)
@@ -96,9 +96,9 @@ def process(payload, state):
                 body = path.read_text().strip()
                 if any(body in text for text in output):
                     state["loaded"].append(name)
-        return 0, []
+        return 0, [], []
     if payload.get("hook_event_name") != "PreToolUse":
-        return 0, []
+        return 0, [], []
     required = guard.requirements(payload)
     needed, notices = [], []
     for name in sorted(required - set(state["loaded"])):
@@ -120,9 +120,8 @@ def process(payload, state):
             + ", ".join(str(path) for _, path in needed)
             + ". Apply their guidance to the prepared text, then retry."
         )
-        return 2, notices
-    result, feedback = guard.reminder(required, state)
-    return result, notices + feedback
+        return 2, notices, []
+    return 0, notices, guard.reminder(required, state)
 
 
 def manage(action):

@@ -112,12 +112,19 @@ class GateHookTest(unittest.TestCase):
             self.assertEqual(r.returncode, 2)
             self.assertNotIn("sf-writing-style", r.stderr)
 
-    def test_successful_loads_remind_once_then_allow_retries(self):
+    def test_successful_loads_remind_once_without_blocking(self):
         self.load("gh", "sf-writing-style")
-        self.assertEqual(self.run_hook(self.bash("gh pr create")).returncode, 2)
+        first = self.run_hook(self.bash("gh pr create"))
+        self.assertEqual((first.returncode, first.stderr), (0, ""))
+        output = json.loads(first.stdout)["hookSpecificOutput"]
+        self.assertEqual(output["permissionDecision"], "allow")
+        self.assertIn("text was not evaluated", output["additionalContext"])
+        self.assertNotIn("systemMessage", json.loads(first.stdout))
         for _ in range(3):
             r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
             self.assertEqual((r.returncode, r.stdout, r.stderr), (0, "", ""))
+        state = json.loads(self.state_path().read_text())
+        self.assertEqual(state["last_check"]["decision"], "continue")
 
     def test_slack_loads_writing_without_cli_skill(self):
         payload = self.bash("") | {
@@ -132,10 +139,11 @@ class GateHookTest(unittest.TestCase):
         self.assertEqual(self.run_hook(payload).returncode, 0)
         self.run_hook({"hook_event_name": "UserPromptSubmit", "session_id": "s1"})
         reminder = self.run_hook(payload)
-        self.assertEqual(reminder.returncode, 2)
-        self.assertIn("Review the actual outgoing body", reminder.stderr)
-        self.assertNotIn("Skill tool", reminder.stderr)
-        self.assertEqual(self.run_hook(payload).returncode, 0)
+        self.assertEqual((reminder.returncode, reminder.stderr), (0, ""))
+        context = json.loads(reminder.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("sf-writing-style", context)
+        self.assertNotIn("Skill tool", context)
+        self.assertEqual(self.run_hook(payload).stdout, "")
 
     def test_pretooluse_is_not_success(self):
         self.run_hook(self.skill("gh", event="PreToolUse"))

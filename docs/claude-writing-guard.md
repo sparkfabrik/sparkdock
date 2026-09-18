@@ -1,6 +1,6 @@
 # Claude and Codex writing guards
 
-The guards request writing guidance before supported publishing calls. They confirm skill loads, then give one short publishing reminder per user turn. They do not score or rewrite the text.
+The guards request writing guidance before supported publishing calls. They confirm skill loads, then attach one short publishing reminder per user turn. They never read, score or rewrite the text: a reminder is not a verdict on the body.
 
 ## Install and inspect
 
@@ -44,7 +44,11 @@ Claude confirms successful `Skill` calls through `PostToolUse`. A failed call ne
 
 Codex confirms a load when a Bash tool result contains the complete installed skill text. The command must mention `SKILL.md`; mentioning a path or returning truncated text is insufficient. Read the requested file with enough output allowance. Native loaders and partial reads are not tracked.
 
-The first supported write requests any missing available skills and asks the agent to revise its prepared text before retrying. If the skill was already loaded, the guard instead gives a short review reminder. Later writes in the same user turn proceed without another reminder. A new user prompt resets only the reminder; it does not force a full reload.
+The first supported write requests any missing available skills and asks the agent to revise its prepared text before retrying. This is the only case in which the guard denies a call.
+
+If the skill was already loaded, the first publishing call of each user turn is allowed and carries a short review reminder as `additionalContext`. The call runs; the reminder reaches the model together with the tool result. It states that the text was not evaluated. Later writes in the same user turn proceed without another reminder. A new user prompt resets only the reminder; it does not force a full reload.
+
+The reminder used to be delivered as a denial that asked for a verbatim retry. Permission classifiers in automatic modes read that retry as bypassing a block, so the reminder no longer blocks.
 
 Resume preserves confirmations. Startup, clear and compaction reset them. State is separate for each engine and session, and also uses `agent_id` when supplied. Codex does not document an agent identifier on every tool event, so isolation of Codex subagents is not guaranteed by this adapter.
 
@@ -62,7 +66,7 @@ Installation preserves unrelated hooks and backs up existing JSON files. Re-runn
 
 `writing-guard-info` reports registrations, bypasses and coverage. In Codex, `/hooks` remains the authority for trust and activation.
 
-State lives under `${XDG_CACHE_HOME:-~/.cache}/sparkdock/{claude,codex}-skill-gate/`. Each private JSON file records confirmed/requested/skipped skills and the last matched tool decision. It does not record message bodies. Read this state together with hook events to distinguish a skipped check from a confirmed load.
+State lives under `${XDG_CACHE_HOME:-~/.cache}/sparkdock/{claude,codex}-skill-gate/`. Each private JSON file records confirmed/requested/skipped skills and the last matched tool decision, including the notices and reminder context it emitted. It does not record message bodies. Read this state together with hook events to distinguish a skipped check from a confirmed load.
 
 Chat-only drafts, arbitrary scripts, aliases, dynamic shell syntax, heredocs, unknown connector tools and hosted tools are outside coverage. Nested tool execution depends on the host emitting hook events; only direct fixture MCP and shell paths have live coverage tests. Sending input to an existing Codex shell session does not trigger a new `PreToolUse` check.
 
