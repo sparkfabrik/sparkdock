@@ -68,14 +68,14 @@ def _skill_available(name, cwd):
 def _process(payload, state):
     event = payload.get("hook_event_name")
     if guard.lifecycle(payload, state):
-        return 0, []
+        return 0, [], []
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
-        return 0, []
+        return 0, [], []
     if payload.get("tool_name") == "Skill":
         name = tool_input.get("skill") or tool_input.get("name")
         if not isinstance(name, str) or name not in GATED_SKILLS:
-            return 0, []
+            return 0, [], []
         if event == "PostToolUse":
             if name not in state["loaded"]:
                 state["loaded"].append(name)
@@ -84,12 +84,12 @@ def _process(payload, state):
         elif event == "PostToolUseFailure":
             if name not in state["failed"]:
                 state["failed"].append(name)
-        return 0, []
+        return 0, [], []
     if event != "PreToolUse":
-        return 0, []
+        return 0, [], []
     cwd = payload.get("cwd")
     if not isinstance(cwd, str) or not Path(cwd).is_absolute():
-        return 0, []
+        return 0, [], []
     required = guard.requirements(payload)
     needed, notices = [], []
     for name in sorted(required - set(state["loaded"])):
@@ -114,9 +114,8 @@ def _process(payload, state):
             + ", ".join(needed)
             + ". Apply their guidance to any prepared text, then retry this command."
         )
-        return 2, notices
-    result, feedback = guard.reminder(required, state)
-    return result, notices + feedback
+        return 2, notices, []
+    return 0, notices, guard.reminder(required, state)
 
 
 def run_hook():
