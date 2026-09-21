@@ -112,7 +112,8 @@ def _process(payload, state):
         notices.append(
             "Load these skills with the Skill tool: "
             + ", ".join(needed)
-            + ". Apply their guidance to any prepared text, then retry this command."
+            + ". Read and apply any task-specific references required by those skills "
+            "to the prepared text, then retry this command."
         )
         return 2, notices, []
     return 0, notices, guard.reminder(required, state)

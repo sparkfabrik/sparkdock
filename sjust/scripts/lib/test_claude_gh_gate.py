@@ -105,6 +105,7 @@ class GateHookTest(unittest.TestCase):
                 self.assertEqual(r.returncode, 2)
                 self.assertIn(cli, r.stderr)
                 self.assertIn("sf-writing-style", r.stderr)
+                self.assertIn("task-specific references", r.stderr)
 
     def test_read_only_needs_platform_only(self):
         for cli in ("gh", "glab"):
@@ -119,6 +120,7 @@ class GateHookTest(unittest.TestCase):
         output = json.loads(first.stdout)["hookSpecificOutput"]
         self.assertNotIn("permissionDecision", output)
         self.assertIn("text was not evaluated", output["additionalContext"])
+        self.assertIn("task-specific reference", output["additionalContext"])
         self.assertNotIn("systemMessage", json.loads(first.stdout))
         for _ in range(3):
             r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))

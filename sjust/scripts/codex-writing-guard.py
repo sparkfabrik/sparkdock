@@ -118,7 +118,8 @@ def process(payload, state):
         notices.append(
             "Read these skill files completely with the shell tool (allow enough output for the full text): "
             + ", ".join(str(path) for _, path in needed)
-            + ". Apply their guidance to the prepared text, then retry."
+            + ". Read and apply any task-specific references required by those skills "
+            "to the prepared text, then retry."
         )
         return 2, notices, []
     return 0, notices, guard.reminder(required, state)
