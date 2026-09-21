@@ -83,10 +83,12 @@ class CodexGuardTest(unittest.TestCase):
             self.assertEqual((r.returncode, r.stderr), (0, ""))
         self.run_hook(self.payload() | {"hook_event_name": "UserPromptSubmit"})
         r = self.run_hook(self.payload())
-        self.assertEqual(r.returncode, 2)
-        self.assertIn("Review the actual outgoing body", r.stderr)
-        self.assertNotIn("Read these skill files", r.stderr)
-        self.assertEqual(self.run_hook(self.payload()).returncode, 0)
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+        output = json.loads(r.stdout)["hookSpecificOutput"]
+        self.assertNotIn("permissionDecision", output)
+        self.assertIn("text was not evaluated", output["additionalContext"])
+        self.assertNotIn("Read these skill files", r.stdout)
+        self.assertEqual(self.run_hook(self.payload()).stdout, "")
 
     def test_partial_read_never_counts_as_loaded(self):
         self.run_hook(self.payload())

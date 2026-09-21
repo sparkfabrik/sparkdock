@@ -14,7 +14,12 @@ from pathlib import Path
 
 SKILLS = {"gh", "glab", "sf-writing-style"}
 MATCHER = "Bash|mcp__.*"
-REMINDER = "Apply sf-writing-style to the prepared text: lead with the change, use useful bullets, remove implementation history and repetition, and keep required actions. Review the actual outgoing body, then retry."
+REMINDER = (
+    "Writing guard: this call was not blocked and its text was not evaluated. Apply "
+    "sf-writing-style to every body you publish in this turn: lead with the change, "
+    "use useful bullets, remove implementation history and repetition, and keep "
+    "required actions."
+)
 
 
 def disabled(variable):
@@ -197,14 +202,21 @@ def lifecycle(payload, state):
 
 
 def reminder(required, state):
+    """Return context for the first publishing call of a user turn.
+
+    The reminder never blocks and never approves: the hook attaches the text as
+    additional context and leaves the permission decision to the normal flow. A
+    denial would only trigger a verbatim retry, which auto permission modes read
+    as bypassing a block.
+    """
     if (
         "sf-writing-style" in required
         and "sf-writing-style" in state["loaded"]
         and not state["reviewed"]
     ):
         state["reviewed"] = ["sf-writing-style"]
-        return 2, [REMINDER]
-    return 0, []
+        return [REMINDER]
+    return []
 
 
 def run_hook(process, engine):
@@ -261,13 +273,14 @@ def run_hook(process, engine):
             ):
                 return 0
             state.setdefault("reviewed", [])
-            result, notices = process(payload, state)
+            result, notices, context = process(payload, state)
             if payload.get("hook_event_name") == "PreToolUse" and requirements(payload):
                 state["last_check"] = {
                     "tool": payload.get("tool_name"),
                     "decision": "retry" if result == 2 else "continue",
                     "required": sorted(requirements(payload)),
                     "notices": notices,
+                    "context": context,
                     "loaded": state["loaded"],
                     "skipped": state["warned"],
                 }
@@ -278,8 +291,19 @@ def run_hook(process, engine):
         # Emit only after state has been saved: storage failure must fail open.
         if result == 2:
             sys.stderr.write("\n".join(notices) + "\n")
-        elif notices:
-            print(json.dumps({"systemMessage": "\n".join(notices)}))
+            return result
+        output = {}
+        if notices:
+            output["systemMessage"] = "\n".join(notices)
+        if context:
+            # No permissionDecision: the normal approval flow still decides the
+            # call. Claude and Codex both accept context-only PreToolUse output.
+            output["hookSpecificOutput"] = {
+                "hookEventName": payload.get("hook_event_name"),
+                "additionalContext": "\n".join(context),
+            }
+        if output:
+            print(json.dumps(output))
         return result
     except (OSError, ValueError, TypeError, AttributeError, KeyError):
         return 0
