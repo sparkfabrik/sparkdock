@@ -16,9 +16,9 @@ SKILLS = {"gh", "glab", "sf-writing-style"}
 MATCHER = "Bash|mcp__.*"
 REMINDER = (
     "Writing guard: this call was not blocked and its text was not evaluated. Apply "
-    "sf-writing-style to every body you publish in this turn: lead with the change, "
-    "use useful bullets, remove implementation history and repetition, and keep "
-    "required actions."
+    "sf-writing-style to each body you publish in this turn, including every "
+    "task-specific reference it requires: lead with the change, use useful bullets, "
+    "remove implementation history and repetition, and keep required actions."
 )
 
 

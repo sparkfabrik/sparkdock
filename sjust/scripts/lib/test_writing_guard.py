@@ -77,6 +77,7 @@ class CodexGuardTest(unittest.TestCase):
         first = self.run_hook(self.payload())
         self.assertEqual(first.returncode, 2)
         self.assertIn(str(self.skills["sf-writing-style"]), first.stderr)
+        self.assertIn("task-specific references", first.stderr)
         self.read()
         for _ in range(2):
             r = self.run_hook(self.payload())
@@ -87,6 +88,7 @@ class CodexGuardTest(unittest.TestCase):
         output = json.loads(r.stdout)["hookSpecificOutput"]
         self.assertNotIn("permissionDecision", output)
         self.assertIn("text was not evaluated", output["additionalContext"])
+        self.assertIn("task-specific reference", output["additionalContext"])
         self.assertNotIn("Read these skill files", r.stdout)
         self.assertEqual(self.run_hook(self.payload()).stdout, "")
 
