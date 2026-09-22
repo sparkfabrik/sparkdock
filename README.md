@@ -261,7 +261,7 @@ An opt-in statusline for Claude Code shows the session at a glance: the director
 
 ![Claude Code statusline showing directory, git branch, model, output style, context usage and rate-limit countdowns](static/claude-statusline.png)
 
-Segments appear only when the session has them, so the bar also shows a dirty working tree, a linked worktree, fast mode, a custom agent, vim mode or a cold prompt cache when those apply.
+Segments appear only when the session has them, so the bar also shows a dirty working tree, a linked worktree, fast mode, a custom agent, vim mode, the caveman mode or a cold prompt cache when those apply.
 
 ```bash
 sjust claude-statusline-enable        # Write the statusLine key into ~/.claude/settings.json

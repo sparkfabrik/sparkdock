@@ -133,6 +133,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed the managed Claude Code statusline to read the caveman mode from the plugin flag file instead of running the plugin's badge script
 - Changed the managed Claude Code statusline to show a countdown to each rate-limit reset (five-hour, weekly and the gateway spend limit) and to draw context usage as a bar
 - Writing guards now remind agents to read task-specific references required by loaded skills before publishing.
 - Changed the Claude and Codex writing guards to deliver the once-per-turn `sf-writing-style` reminder as additional context instead of denying the first publishing command, leaving the permission decision to the normal approval flow; the reminder now states that the text was not evaluated
@@ -212,7 +213,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
-- Removed the caveman badge from the managed Claude Code statusline
 - Removed the retired Swiftly formula, its macOS state, and the Swift.org 6.3.3 toolchain installed for menu bar builds
 
 - Removed the dinghy-proxy to http-proxy transition, 14 months after it landed: the `run-http-proxy` and `run-dinghy-proxy` compatibility symlinks are no longer created, and the block that deleted old dinghy binaries and copied `~/.dinghy/certs` is gone (`spark-http-proxy` creates its own config and certs directories on every run). Symlinks already present on a machine keep working; they are simply no longer managed

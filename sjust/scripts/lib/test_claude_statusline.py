@@ -31,15 +31,21 @@ RENDERER = (
 )
 
 
-def render(payload):
+def render(payload, env=None):
     """Run the real renderer on a payload and return its output with SGR codes removed."""
-    result = subprocess.run(
-        ["bash", str(RENDERER)],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    with tempfile.TemporaryDirectory() as config_dir:
+        run_env = os.environ.copy()
+        run_env["CLAUDE_CONFIG_DIR"] = config_dir
+        if env:
+            run_env.update(env)
+        result = subprocess.run(
+            ["bash", str(RENDERER)],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            check=False,
+            env=run_env,
+        )
     out = result.stdout
     plain = ""
     i = 0
@@ -131,6 +137,11 @@ class SettingsManagerTest(unittest.TestCase):
 
 
 class RendererTest(unittest.TestCase):
+    def setUp(self):
+        self.config_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.config_dir.cleanup)
+        self.render_env = {"CLAUDE_CONFIG_DIR": self.config_dir.name}
+
     def test_exits_zero_on_an_empty_payload(self):
         code, _ = render({})
         self.assertEqual(code, 0)
@@ -227,6 +238,40 @@ class RendererTest(unittest.TestCase):
     def test_the_default_output_style_is_hidden(self):
         _, out = render({"cwd": "/tmp", "output_style": {"name": "default"}})
         self.assertNotIn("✎", out)
+
+    def test_caveman_full_renders_without_a_mode_suffix(self):
+        (Path(self.config_dir.name) / ".caveman-active").write_text("full")
+        _, out = render({"cwd": "/tmp"}, self.render_env)
+        self.assertIn("CAVEMAN", out)
+        self.assertNotIn("CAVEMAN:", out)
+
+    def test_caveman_ultra_renders_its_mode(self):
+        (Path(self.config_dir.name) / ".caveman-active").write_text("ultra")
+        _, out = render({"cwd": "/tmp"}, self.render_env)
+        self.assertIn("CAVEMAN:ULTRA", out)
+
+    def test_caveman_off_renders_nothing(self):
+        (Path(self.config_dir.name) / ".caveman-active").write_text("off")
+        _, out = render({"cwd": "/tmp"}, self.render_env)
+        self.assertNotIn("CAVEMAN", out)
+
+    def test_caveman_without_a_flag_renders_nothing(self):
+        _, out = render({"cwd": "/tmp"}, self.render_env)
+        self.assertNotIn("CAVEMAN", out)
+
+    def test_caveman_symlink_renders_nothing(self):
+        target = Path(self.config_dir.name) / "mode"
+        target.write_text("full")
+        (Path(self.config_dir.name) / ".caveman-active").symlink_to(target)
+        _, out = render({"cwd": "/tmp"}, self.render_env)
+        self.assertNotIn("CAVEMAN", out)
+
+    def test_caveman_strips_terminal_escape_injection(self):
+        (Path(self.config_dir.name) / ".caveman-active").write_text("\033[31mfull")
+        _, out = render({"cwd": "/tmp"}, self.render_env)
+        self.assertIn("CAVEMAN", out)
+        self.assertNotIn("CAVEMAN:", out)
+        self.assertNotIn("\033[31m", out)
 
     def test_every_preview_fixture_renders(self):
         for variant in ("typical", "full"):

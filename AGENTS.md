@@ -353,6 +353,8 @@ The renderer runs on **every render tick**, which is what its structure is for: 
 
 Segments are conditional: each appears only when the payload carries its field, so a build that does not send one simply renders a shorter bar. The single exception is the reasoning effort level, which falls back to `effortLevel` in `settings.json`. The script must always `exit 0`: Claude Code discards the whole statusline on a non-zero exit code.
 
+The caveman segment reads `~/.claude/.caveman-active`, which the caveman plugin writes as disk state rather than payload data. The `full.json` preview cannot show this segment.
+
 ## AI Coding Agents System
 
 Sparkdock syncs AI coding resources from the upstream `sf-agents-harness` repository. This covers two resource types managed by a unified sync system:

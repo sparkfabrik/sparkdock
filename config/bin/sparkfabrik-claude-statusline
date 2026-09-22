@@ -16,7 +16,8 @@
 # the payload carries it:
 #
 #    dir |  branch*↑1↓2 ⑂wt | Opus 5 ⚡high FAST | @agent | vim:NORMAL |
-#   ✎ style | ▰▰▱▱▱ 42% 1M | ❄ | 5h 24% ↻2h30m · 7d 41% ↻2d · $ 137% ↻10d
+#   ✎ style | CAVEMAN | ▰▰▱▱▱ 42% 1M | ❄ |
+#   5h 24% ↻2h30m · 7d 41% ↻2d · $ 137% ↻10d
 #
 # Rate-limit windows render a countdown to their reset rather than a wall-clock
 # time: a bare "01:59" is ambiguous as soon as a window rolls past midnight,
@@ -70,6 +71,7 @@ C_EFF_MAX=$'\033[38;5;201m' # magenta — boosted effort (max/xhigh)
 C_FAST=$'\033[1;38;5;220m'  # bold yellow — fast mode
 C_AGENT=$'\033[38;5;111m'
 C_STYLE=$'\033[38;5;140m'
+C_CAVE=$'\033[38;5;172m'
 C_COLD=$'\033[38;5;117m'
 C_OK=$'\033[38;5;114m'      # green — ahead, low usage
 C_WARN=$'\033[38;5;178m'    # amber
@@ -290,6 +292,22 @@ fi
 # ── Output style (only when non-default) ─────────────────────────────────────
 if [ -n "$style" ] && [ "$style" != "default" ]; then
   append "${C_STYLE}${I_STYLE} ${style}${RST}"
+fi
+
+# ── Caveman mode (flag file written by the caveman plugin) ───────────────────
+# Read with builtins and reduce the value to [a-z0-9-] before rendering it.
+cave_flag="${CFG}/.caveman-active"
+if [ ! -L "$cave_flag" ] && [ -f "$cave_flag" ]; then
+  cave_mode=""
+  IFS= read -r -n 64 cave_mode < "$cave_flag" 2>/dev/null
+  case "$cave_mode" in $'\033['*m*) cave_mode=${cave_mode#*m} ;; esac
+  cave_mode="${cave_mode,,}"
+  cave_mode="${cave_mode//[^a-z0-9-]/}"
+  case "$cave_mode" in
+    ''|off) ;;
+    full)   append "${C_CAVE}CAVEMAN${RST}" ;;
+    *)      append "${C_CAVE}CAVEMAN:${cave_mode^^}${RST}" ;;
+  esac
 fi
 
 # ── Context window: bar + percentage ─────────────────────────────────────────
