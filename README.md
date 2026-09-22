@@ -255,6 +255,23 @@ sjust menubar            # Launch the menu bar app manually
 
 The app is installed as an ad-hoc-signed bundle at `~/Applications/Sparkdock Manager.app`, with `/opt/homebrew/bin/sparkdock-manager` as a CLI symlink. A user LaunchAgent (`com.sparkfabrik.sparkdock.menubar.plist`) starts the bundle executable at login. It shows update availability and provides one-click access to system updates and development tools.
 
+### Claude Code Statusline
+
+An opt-in statusline for Claude Code shows the session at a glance: the directory and git branch, the model and its reasoning effort, context usage, and how much of each rate-limit window is spent with a countdown to its reset.
+
+![Claude Code statusline showing directory, git branch, model, output style, context usage and rate-limit countdowns](static/claude-statusline.png)
+
+Segments appear only when the session has them, so the bar also shows a dirty working tree, a linked worktree, fast mode, a custom agent, vim mode or a cold prompt cache when those apply.
+
+```bash
+sjust claude-statusline-enable        # Write the statusLine key into ~/.claude/settings.json
+sjust claude-statusline-preview       # Render the bar without enabling it
+sjust claude-statusline-preview full  # Render every segment it can draw
+sjust claude-statusline-disable       # Remove it again
+```
+
+Enabling it backs up `~/.claude/settings.json` first and leaves every other key untouched. Provisioning never turns it on.
+
 ## Configuration
 
 ### Directory Structure

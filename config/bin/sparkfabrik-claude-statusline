@@ -9,128 +9,356 @@
 #     "command": "bash /opt/sparkdock/config/bin/sparkfabrik-claude-statusline" }
 #
 # Claude Code pipes a JSON blob on stdin each render and shows whatever this
-# prints on stdout. Portable across macOS (bash 3.2) and Linux. Requires jq
-# (shipped by sparkdock); degrades to a minimal bar if jq is absent.
+# prints on stdout. Requires jq (shipped by sparkdock); degrades to a minimal
+# bar if jq is absent.
 #
-# Security: the output is rendered to the terminal on every render, so every
-# value we emit is stripped of control/escape bytes — git branch names, paths,
-# and model strings can otherwise carry ANSI escapes or OSC hyperlink spoofs.
+# Layout, left to right — every segment is conditional and appears only when
+# the payload carries it:
+#
+#    dir |  branch*↑1↓2 ⑂wt | Opus 5 ⚡high FAST | @agent | vim:NORMAL |
+#   ✎ style | ▰▰▱▱▱ 42% 1M | ❄ | 5h 24% ↻2h30m · 7d 41% ↻2d · $ 137% ↻10d
+#
+# Rate-limit windows render a countdown to their reset rather than a wall-clock
+# time: a bare "01:59" is ambiguous as soon as a window rolls past midnight,
+# which the five-hour one routinely does. The spend window reports past 100%;
+# its color saturates at the top of the scale while the number keeps climbing.
+#
+# Perf: this runs on every render tick, so it makes one jq pass, gets branch,
+# dirty state and divergence from a single `git status` process, caches that
+# segment for 5s per session_id + directory, and forks nothing for work bash
+# can do itself.
+#
+# Security: the output is replayed to the terminal on every render, so every
+# value taken from the payload is stripped of control bytes inside the jq pass
+# (branch names, paths, model strings, agent and worktree names can otherwise
+# carry ANSI escapes or OSC hyperlink spoofs), and the branch, which comes from
+# git rather than the payload, is stripped the same way. The git cache lives in
+# a directory this user owns; an unowned one is ignored rather than read.
 set -uo pipefail
+export LC_NUMERIC=C   # printf '%.0f' must read "23.5" regardless of locale
 
-INPUT=$(cat)
-SEP=$' \033[38;5;240m|\033[0m '   # dim pipe separator
+CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
+
+# One clock per tick, shared by the git cache TTL and every reset deadline.
+# The %(...)T builtin avoids a fork; where it is unsupported, date provides it.
+printf -v NOW '%(%s)T' -1 2>/dev/null || NOW=$(date +%s)
+
+# ── Icons ────────────────────────────────────────────────────────────────────
+# Explicit UTF-8 bytes: a literal glyph is lost by any tool in the chain that
+# cannot encode it, and a \u escape depends on the locale.
+I_GIT=$'\xee\x82\xa0'      # branch (nf-pl-branch U+E0A0)
+I_WT=$'\xe2\x91\x82'       # ⑂ linked worktree (U+2442)
+I_AHEAD=$'\xe2\x86\x91'    # ↑ commits ahead of upstream (U+2191)
+I_BEHIND=$'\xe2\x86\x93'   # ↓ commits behind upstream (U+2193)
+I_ELLIPSIS=$'\xe2\x80\xa6' # … truncated worktree name (U+2026)
+I_EFF=$'\xe2\x9a\xa1'      # ⚡ reasoning effort (U+26A1)
+I_STYLE=$'\xe2\x9c\x8e'    # ✎ output style (U+270E)
+I_COLD=$'\xe2\x9d\x84'     # ❄ cold prompt cache (U+2744)
+I_RESET=$'\xe2\x86\xbb'    # ↻ rate-limit reset (U+21BB)
+I_BAR_ON=$'\xe2\x96\xb0'   # ▰ filled context cell (U+25B0)
+I_BAR_OFF=$'\xe2\x96\xb1'  # ▱ empty context cell (U+25B1)
+I_WARN=$'\xe2\x9a\xa0'     # ⚠ legacy 200k overflow flag (U+26A0)
+
+# ── Palette (256 colors) ─────────────────────────────────────────────────────
+RST=$'\033[0m'
+DIM=$'\033[38;5;240m'
+C_DIR=$'\033[36m'
+C_GIT=$'\033[35m'
+C_MODEL=$'\033[33m'
+C_EFF=$'\033[38;5;86m'      # aquamarine — the model's own default effort
+C_EFF_MAX=$'\033[38;5;201m' # magenta — boosted effort (max/xhigh)
+C_FAST=$'\033[1;38;5;220m'  # bold yellow — fast mode
+C_AGENT=$'\033[38;5;111m'
+C_STYLE=$'\033[38;5;140m'
+C_COLD=$'\033[38;5;117m'
+C_OK=$'\033[38;5;114m'      # green — ahead, low usage
+C_WARN=$'\033[38;5;178m'    # amber
+C_BAD=$'\033[38;5;196m'     # red — dirty, behind, saturated usage
+C_OVER=$'\033[1m'$'\033[38;5;196m'  # bold red — a window past 100%
+C_WT=$'\033[38;5;109m'
+SEP=" ${DIM}|${RST} "
+
 out=""
-
 append() {
   [ -n "$1" ] || return 0
-  if [ -n "$out" ]; then out="$out$SEP$1"; else out="$1"; fi
+  if [ -n "$out" ]; then out="${out}${SEP}$1"; else out="$1"; fi
 }
 
-# Strip C0 control bytes (incl. ESC) from any value before rendering it.
-clean() { printf '%s' "$1" | tr -d '\000-\037'; }
+# Round a possibly fractional percentage into PCT; empty when the value is
+# absent or unreadable, so the caller's guard hides the segment. The digit
+# check is not redundant: printf accepts "inf" and hands back the word.
+PCT=""
+round_pct() {
+  PCT=""
+  # The empty check is not redundant: bash 3.2's printf accepts an empty value
+  # and hands back 0, which would render an absent window as "0%".
+  [ -n "${1:-}" ] || return 0
+  printf -v PCT '%.0f' "$1" 2>/dev/null || PCT=""
+  case "$PCT" in ''|*[!0-9-]*) PCT="" ;; esac
+}
 
-# --- caveman badge (compose, never duplicate) --------------------------------
-# Single source of truth: exec the plugin's own hardened badge script if it is
-# present. Its output already self-sanitizes. `-f` follows symlinks (dotfile
-# managers commonly symlink ~/.claude/hooks); planting a malicious target would
-# require write access to that dir, at which point the file is replaceable anyway.
-CAVEMAN="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/hooks/caveman-statusline.sh"
-if [ -f "$CAVEMAN" ]; then
-  badge=$(bash "$CAVEMAN" 2>/dev/null) || badge=""
-  [ -n "$badge" ] && out="$badge"
-fi
-
-# --- parse Claude Code's JSON -------------------------------------------------
-if command -v jq >/dev/null 2>&1; then
-  cur_dir=$(printf '%s' "$INPUT" | jq -r '.workspace.current_dir // .cwd // empty')
-  model=$(printf '%s'   "$INPUT" | jq -r '.model.display_name // empty')
-  over200=$(printf '%s' "$INPUT" | jq -r '.exceeds_200k_tokens // false')
-  ctx_pct=$(printf '%s' "$INPUT" | jq -r '.context_window.used_percentage // empty')
-  ctx_size=$(printf '%s' "$INPUT" | jq -r '.context_window.context_window_size // empty')
-  five_pct=$(printf '%s'  "$INPUT" | jq -r '.rate_limits.five_hour.used_percentage // empty')
-  seven_pct=$(printf '%s' "$INPUT" | jq -r '.rate_limits.seven_day.used_percentage // empty')
-  effort=$(printf '%s'   "$INPUT" | jq -r '(.effort.level? // .effortLevel.level? // (.effort? | strings) // (.effortLevel? | strings)) // empty')
-else
-  cur_dir="$PWD"; model=""; over200="false"; ctx_pct=""; ctx_size=""; five_pct=""; seven_pct=""; effort=""
-fi
-
-# Fall back to the persisted default in settings.json when stdin omits it.
-# Claude Code's stdin uses `.effort` (object {"level": ...}); settings.json
-# stores `.effortLevel` as a bare string. Extraction handles both shapes.
-# Tolerates jq absence and a corrupt file.
-if [ -z "$effort" ] && command -v jq >/dev/null 2>&1; then
-  settings="${CLAUDE_CONFIG_DIR:-$HOME/.claude}/settings.json"
-  [ -f "$settings" ] && effort=$(jq -r '(.effortLevel.level? // (.effortLevel? | strings) // .effort.level? // (.effort? | strings)) // empty' "$settings" 2>/dev/null) || effort="${effort:-}"
-fi
-
-# Color an integer usage percentage: cyan < 70, amber 70–89, red ≥ 90.
+# One usage scale for every percentage: green < 70, amber 70–89, red ≥ 90.
+PCOLOR=""
 pct_color() {
-  if   [ "$1" -ge 90 ]; then printf '196'
-  elif [ "$1" -ge 70 ]; then printf '178'
-  else                       printf '117'
+  if   [ "$1" -ge 90 ]; then PCOLOR="$C_BAD"
+  elif [ "$1" -ge 70 ]; then PCOLOR="$C_WARN"
+  else                       PCOLOR="$C_OK"
   fi
 }
 
-# --- dir ----------------------------------------------------------------------
-if [ -n "$cur_dir" ]; then
-  append "$(printf '\033[36m%s\033[0m' "$(clean "$(basename "$cur_dir")")")"
+# Relative countdown to a reset deadline: 45m, 2h30m, 2d. Empty once past.
+ETA=""
+fmt_eta() {
+  local rem
+  ETA=""
+  case "${1:-}" in ''|*[!0-9]*) return 0 ;; esac
+  rem=$(( $1 - NOW ))
+  if   [ "$rem" -le 0 ];     then return 0
+  elif [ "$rem" -lt 3600 ];  then printf -v ETA '%dm' $(( rem / 60 ))
+  elif [ "$rem" -lt 86400 ]; then printf -v ETA '%dh%dm' $(( rem / 3600 )) $(( rem % 3600 / 60 ))
+  else                            printf -v ETA '%dd' $(( rem / 86400 ))
+  fi
+}
+
+# ── Parse Claude Code's JSON ─────────────────────────────────────────────────
+# A single jq pass reading the script's own stdin: a field-per-jq fan-out is the
+# most expensive thing a script that re-renders on every tick can do. `c` strips
+# the control bytes at the source, so no value needs washing again downstream.
+# Fields are joined with \x1f (unit separator), which is not IFS whitespace, so
+# empty fields are preserved by `read` instead of collapsing and shifting every
+# value that follows.
+#
+# The effort level lives under a different key depending on where it is read
+# from, so the accepted shapes are written once and reused by both jq calls.
+EFFORT_EXPR='(.effort.level? // .effortLevel.level? // (.effort? | strings) // (.effortLevel? | strings) // "")'
+
+cur_dir=""; model=""; effort=""; fast_mode=""; agent=""; vim_mode=""; style=""
+ctx_pct=""; ctx_size=""; over200=""; cache_warm=""; cache_seen=""
+five_pct=""; five_reset=""; seven_pct=""; seven_reset=""
+spend_pct=""; spend_reset=""; worktree=""; session_id=""
+
+HAVE_JQ=""
+command -v jq >/dev/null 2>&1 && HAVE_JQ=1
+
+if [ -n "$HAVE_JQ" ]; then
+  IFS=$'\x1f' read -r cur_dir model effort fast_mode agent vim_mode style \
+    ctx_pct ctx_size over200 cache_warm cache_seen \
+    five_pct five_reset seven_pct seven_reset spend_pct spend_reset \
+    worktree session_id < <(jq -r 2>/dev/null '
+      def c: tostring | gsub("[[:cntrl:]]"; "");
+      [ (.workspace.current_dir // .cwd // "" | c),
+        (.model.display_name // "" | c),
+        ('"$EFFORT_EXPR"' | c),
+        (.fast_mode // false | tostring),
+        (.agent.name // "" | c),
+        (.vim.mode // "" | ascii_upcase | c),
+        (.output_style.name // "" | c),
+        (.context_window.used_percentage // "" | c),
+        (.context_window.context_window_size // "" | c),
+        (.exceeds_200k_tokens // false | tostring),
+        (.prompt_cache.warm | tostring),
+        (.prompt_cache.caching_observed | tostring),
+        (.rate_limits.five_hour.used_percentage    // "" | c),
+        (.rate_limits.five_hour.resets_at          // "" | c),
+        (.rate_limits.seven_day.used_percentage    // "" | c),
+        (.rate_limits.seven_day.resets_at          // "" | c),
+        (.rate_limits.spend_limit.used_percentage  // "" | c),
+        (.rate_limits.spend_limit.resets_at        // "" | c),
+        (.workspace.git_worktree // .worktree.name // "" | c),
+        (.session_id // "" | c)
+      ] | join("\u001f")')
+fi
+cur_dir="${cur_dir:-$PWD}"
+
+# Fall back to the persisted default when stdin omits the effort level: Claude
+# Code's stdin uses `.effort`, settings.json stores `.effortLevel`. Tolerates a
+# corrupt file, and costs nothing on the builds that do send the level.
+if [ -z "$effort" ] && [ -n "$HAVE_JQ" ] && [ -f "${CFG}/settings.json" ]; then
+  effort=$(jq -r '('"$EFFORT_EXPR"' | tostring | gsub("[[:cntrl:]]"; ""))' "${CFG}/settings.json" 2>/dev/null)
 fi
 
-# --- git branch ---------------------------------------------------------------
-if [ -n "$cur_dir" ]; then
-  branch=$(git -C "$cur_dir" rev-parse --abbrev-ref HEAD 2>/dev/null) || branch=""
-  if [ -n "$branch" ]; then
-    append "$(printf '\033[35m\xee\x82\xa0 %s\033[0m' "$(clean "$branch")")"
+# ── Directory ────────────────────────────────────────────────────────────────
+dir_name="${cur_dir%/}"
+append "${C_DIR}${dir_name##*/}${RST}"
+
+# ── Git: branch, dirty *, ahead ↑ / behind ↓, ⑂ worktree ─────────────────────
+# `status --porcelain -b` answers all three questions in one process: its first
+# line is the branch header (`## master...origin/master [ahead 1, behind 2]`)
+# and any line after it means the tree is dirty. Only two lines are read, so a
+# repository with thousands of changes costs the same as a clean one.
+build_git_seg() {
+  local hdr first branch extra rest ahead behind wt
+  hdr=""; first=""
+  { IFS= read -r hdr; IFS= read -r first; } \
+    < <(git -C "$cur_dir" --no-optional-locks status --porcelain -b 2>/dev/null)
+  [ -n "$hdr" ] || return 0
+  hdr=${hdr#'## '}
+  case "$hdr" in
+    'HEAD (no branch)'*)
+      branch=$(git -C "$cur_dir" --no-optional-locks rev-parse --short HEAD 2>/dev/null)
+      ;;
+    'No commits yet on '*)
+      branch=${hdr#'No commits yet on '}
+      branch=${branch%% *}
+      ;;
+    *)
+      branch=${hdr%% *}        # drop the " [ahead 1, behind 2]" suffix
+      branch=${branch%%...*}   # drop the upstream half
+      ;;
+  esac
+  branch=${branch//[[:cntrl:]]/}
+  [ -n "$branch" ] || return 0
+
+  extra=""
+  [ -n "$first" ] && extra="${extra}${C_BAD}*"
+  case "$hdr" in
+    *'[ahead '*)  rest=${hdr#*'[ahead '};  ahead=${rest%%[,\]]*};  extra="${extra}${C_OK}${I_AHEAD}${ahead}" ;;
+  esac
+  case "$hdr" in
+    *'[behind '*) rest=${hdr#*'[behind '}; behind=${rest%%[,\]]*}; extra="${extra}${C_BAD}${I_BEHIND}${behind}" ;;
+  esac
+  # The worktree name comes from the payload (`workspace.git_worktree`), and is
+  # truncated because it is free-form and would otherwise stretch the line.
+  wt="$worktree"
+  if [ -n "$wt" ]; then
+    [ "${#wt}" -gt 16 ] && wt="${wt:0:16}${I_ELLIPSIS}"
+    extra="${extra} ${C_WT}${I_WT} ${wt}"
+  fi
+  printf '%s' "${C_GIT}${I_GIT} ${branch}${extra}${RST}"
+}
+
+# 5s cache keyed on session_id + directory: the session_id survives a `cd`, so
+# keying on it alone would serve another directory's segment for the whole TTL.
+# The cache directory must belong to this user; otherwise the cache is skipped
+# rather than trusted, because the segment is replayed to the terminal verbatim.
+cache_file=""
+if [ -n "$session_id" ]; then
+  cache_dir="${TMPDIR:-/tmp}/sparkfabrik-claude-statusline-${UID}"
+  [ -d "$cache_dir" ] || { mkdir -p "$cache_dir" 2>/dev/null && chmod 700 "$cache_dir" 2>/dev/null; }
+  if [ -d "$cache_dir" ] && [ -O "$cache_dir" ]; then
+    dir_key="${cur_dir//[^A-Za-z0-9_-]/_}"
+    cache_file="${cache_dir}/git-${session_id//[^A-Za-z0-9_-]/_}-${#cur_dir}${dir_key: -48}"
   fi
 fi
 
-# --- model --------------------------------------------------------------------
-[ -n "$model" ] && append "$(printf '\033[33m%s\033[0m' "$(clean "$model")")"
-
-# --- effort -------------------------------------------------------------------
-# Reasoning effort level. `high` is the Opus 4.8 default (calm green); `max` is
-# boosted (magenta); `low`/`medium` are downgrades worth flagging (amber).
-if [ -n "$effort" ]; then
-  case "$effort" in
-    max)         ecolor=201 ;;
-    low|medium)  ecolor=178 ;;
-    *)           ecolor=114 ;;
+git_seg=""
+cached_at=""
+cache_hit=""
+if [ -n "$cache_file" ] && [ -f "$cache_file" ]; then
+  # The stamp is stored in the file, not read from its mtime: `stat -c` is
+  # GNU-only and `stat -f` is BSD-only, so neither is portable here.
+  { IFS= read -r cached_at; IFS= read -r git_seg; } < "$cache_file" 2>/dev/null
+  case "$cached_at" in
+    ''|*[!0-9]*) git_seg="" ;;
+    *) if [ $(( NOW - cached_at )) -lt 5 ]; then cache_hit=1; else git_seg=""; fi ;;
   esac
-  append "$(printf '\033[38;5;%sm\xe2\x9a\xa1 %s\033[0m' "$ecolor" "$(clean "$effort")")"
+fi
+if [ -z "$cache_hit" ]; then
+  git_seg=$(build_git_seg)
+  if [ -n "$cache_file" ]; then
+    # Atomic publish: a concurrent render never reads a half-written segment.
+    { printf '%s\n%s\n' "$NOW" "$git_seg" > "${cache_file}.$$" && mv -f "${cache_file}.$$" "$cache_file"; } 2>/dev/null
+  fi
+fi
+append "$git_seg"
+
+# ── Model + reasoning effort + fast mode ─────────────────────────────────────
+# `high` is the Opus default (calm aquamarine); `max`/`xhigh` are boosted
+# (magenta); `low`/`medium` are downgrades worth flagging (amber). The context
+# suffix in the display name ("Opus 5 (1M context)") is dropped: the window is
+# already named beside the context bar.
+if [ -n "$model" ]; then
+  model_seg="${C_MODEL}${model%% (*}${RST}"
+  if [ -n "$effort" ]; then
+    case "$effort" in
+      max|xhigh)  ecolor="$C_EFF_MAX" ;;
+      low|medium) ecolor="$C_WARN" ;;
+      *)          ecolor="$C_EFF" ;;
+    esac
+    model_seg="${model_seg} ${ecolor}${I_EFF}${effort}${RST}"
+  fi
+  [ "$fast_mode" = "true" ] && model_seg="${model_seg} ${C_FAST}FAST${RST}"
+  append "$model_seg"
 fi
 
-# --- context window usage -----------------------------------------------------
-# Dynamic: percentage of the *current model's* context window (200k or 1M when
-# extended), not a fixed 200k threshold. Falls back to the exceeds_200k_tokens
-# flag on older Claude Code builds that don't emit `context_window`.
-ctx_int=$(printf '%s' "$ctx_pct" | cut -d. -f1)
-if printf '%s' "$ctx_int" | grep -Eq '^[0-9]+$'; then
+# ── Custom agent (--agent / agent settings) ──────────────────────────────────
+[ -n "$agent" ] && append "${C_AGENT}@${agent}${RST}"
+
+# ── Vim mode (only while vim mode is on) ─────────────────────────────────────
+[ -n "$vim_mode" ] && append "${DIM}vim:${vim_mode}${RST}"
+
+# ── Output style (only when non-default) ─────────────────────────────────────
+if [ -n "$style" ] && [ "$style" != "default" ]; then
+  append "${C_STYLE}${I_STYLE} ${style}${RST}"
+fi
+
+# ── Context window: bar + percentage ─────────────────────────────────────────
+# The percentage alone says nothing about how much room that is — the same 37%
+# is worth five times the tokens on an extended-context model — so the window is
+# named whenever it is not the ordinary 200k. Falls back to the
+# exceeds_200k_tokens flag on builds that predate `context_window`.
+round_pct "$ctx_pct"
+ctx_int="$PCT"
+if [ -n "$ctx_int" ]; then
+  [ "$ctx_int" -lt 0 ] && ctx_int=0
+  [ "$ctx_int" -gt 100 ] && ctx_int=100
+  fill=$(( (ctx_int + 10) / 20 ))
+  bar=""
+  for cell in 1 2 3 4 5; do
+    if [ "$cell" -le "$fill" ]; then bar="${bar}${I_BAR_ON}"; else bar="${bar}${I_BAR_OFF}"; fi
+  done
+  win=""
   case "$ctx_size" in
-    1000000) win="1M" ;;
-    200000)  win="200k" ;;
-    *)       win="" ;;
+    ''|*[!0-9]*|200000) : ;;
+    *) if [ "$ctx_size" -ge 1000000 ]; then win=" ${DIM}$(( ctx_size / 1000000 ))M"
+       else                                 win=" ${DIM}$(( ctx_size / 1000 ))k"
+       fi ;;
   esac
-  label="ctx ${ctx_int}%"
-  [ -n "$win" ] && label="${label}/${win}"
-  append "$(printf '\033[38;5;%sm%s\033[0m' "$(pct_color "$ctx_int")" "$label")"
+  pct_color "$ctx_int"
+  append "${PCOLOR}${bar} ${ctx_int}%${win}${RST}"
 elif [ "$over200" = "true" ]; then
-  append "$(printf '\033[31m\xe2\x9a\xa0 200k+\033[0m')"
+  append "${C_BAD}${I_WARN} 200k+${RST}"
 fi
 
-# --- usage (rate limits) ------------------------------------------------------
-# Mirrors `/usage`: five_hour = current session, seven_day = current week.
-# Claude Code may send fractional percentages (e.g. 14.0000002), so take the
-# integer part the same way the context percentage does above.
-usage=""
-five_int=$(printf '%s' "$five_pct" | cut -d. -f1)
-if printf '%s' "$five_int" | grep -Eq '^[0-9]+$'; then
-  usage="$(printf '5h \033[38;5;%sm%s%%\033[0m' "$(pct_color "$five_int")" "$five_int")"
+# ── Prompt cache gone cold ───────────────────────────────────────────────────
+# `warm` is also false on a session that has simply never cached anything, so
+# gate on caching_observed: the glyph must mean "the cache went cold", not "no
+# cache yet". Both arrive through `tostring` alone, never `// ""`, because jq's
+# alternative operator treats false as empty and would collapse the one value
+# being tested.
+if [ "$cache_seen" = "true" ] && [ "$cache_warm" = "false" ]; then
+  append "${C_COLD}${I_COLD}${RST}"
 fi
-seven_int=$(printf '%s' "$seven_pct" | cut -d. -f1)
-if printf '%s' "$seven_int" | grep -Eq '^[0-9]+$'; then
-  week="$(printf '7d \033[38;5;%sm%s%%\033[0m' "$(pct_color "$seven_int")" "$seven_int")"
-  if [ -n "$usage" ]; then usage="$usage $week"; else usage="$week"; fi
-fi
-[ -n "$usage" ] && append "$usage"
+
+# ── Rate limits (absent for API-key users — hidden when null) ────────────────
+# Mirrors `/usage`: five_hour = current session, seven_day = current week,
+# spend_limit = the gateway spend window when one applies.
+rl_out=""
+rl_add() {   # rl_add <label> <used %> <reset epoch>
+  local pct color txt
+  round_pct "${2:-}"
+  pct="$PCT"
+  [ -n "$pct" ] || return 0
+  # spend_limit is the one window that reports past 100: clamp the color there,
+  # never the number — how far over it has gone is the whole point.
+  if [ "$pct" -gt 100 ]; then
+    color="$C_OVER"
+  else
+    pct_color "$pct"
+    color="$PCOLOR"
+  fi
+  txt="${color}${1} ${pct}%"
+  fmt_eta "${3:-}"
+  [ -n "$ETA" ] && txt="${txt} ${I_RESET}${ETA}"
+  if [ -n "$rl_out" ]; then rl_out="${rl_out} ${DIM}· ${txt}"; else rl_out="$txt"; fi
+}
+rl_add 5h  "$five_pct"  "$five_reset"
+rl_add 7d  "$seven_pct" "$seven_reset"
+rl_add '$' "$spend_pct" "$spend_reset"
+[ -n "$rl_out" ] && append "${rl_out}${RST}"
 
 printf '%s' "$out"
+
+# Always exit 0: Claude Code discards the statusline on a non-zero exit code,
+# and a trailing `[ -n ... ] &&` that fails would otherwise set one.
+exit 0
