@@ -300,7 +300,6 @@ cave_flag="${CFG}/.caveman-active"
 if [ ! -L "$cave_flag" ] && [ -f "$cave_flag" ]; then
   cave_mode=""
   IFS= read -r -n 64 cave_mode < "$cave_flag" 2>/dev/null
-  case "$cave_mode" in $'\033['*m*) cave_mode=${cave_mode#*m} ;; esac
   cave_mode="${cave_mode,,}"
   cave_mode="${cave_mode//[^a-z0-9-]/}"
   case "$cave_mode" in

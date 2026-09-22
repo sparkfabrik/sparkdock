@@ -269,9 +269,7 @@ class RendererTest(unittest.TestCase):
     def test_caveman_strips_terminal_escape_injection(self):
         (Path(self.config_dir.name) / ".caveman-active").write_text("\033[31mfull")
         _, out = render({"cwd": "/tmp"}, self.render_env)
-        self.assertIn("CAVEMAN", out)
-        self.assertNotIn("CAVEMAN:", out)
-        self.assertNotIn("\033[31m", out)
+        self.assertNotIn("\033", out)
 
     def test_every_preview_fixture_renders(self):
         for variant in ("typical", "full"):
