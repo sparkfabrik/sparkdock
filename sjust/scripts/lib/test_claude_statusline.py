@@ -6,6 +6,7 @@ Run with `just test-python` (or `python3 -m unittest discover -s sjust/scripts/l
 import importlib.util
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -15,9 +16,6 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(SCRIPTS_DIR))
-sys.path.insert(0, str(SCRIPTS_DIR / "lib"))
-
-import claude_settings as cs
 
 # The manager is a hyphenated script, so it is loaded by path rather than imported.
 _spec = importlib.util.spec_from_file_location(
@@ -46,17 +44,7 @@ def render(payload, env=None):
             check=False,
             env=run_env,
         )
-    out = result.stdout
-    plain = ""
-    i = 0
-    while i < len(out):
-        if out[i] == "\033" and out[i + 1 : i + 2] == "[":
-            j = out.index("m", i) + 1
-            i = j
-            continue
-        plain += out[i]
-        i += 1
-    return result.returncode, plain
+    return result.returncode, re.sub(r"\033\[[0-9;]*m", "", result.stdout)
 
 
 class ResolveDeadlinesTest(unittest.TestCase):
@@ -92,21 +80,21 @@ class SettingsManagerTest(unittest.TestCase):
 
     def test_enable_writes_the_key_and_keeps_the_others(self):
         self.settings.write_text(json.dumps({"model": "opus"}))
-        self.assertEqual(claude_statusline.cmd_enable(cs), 0)
+        self.assertEqual(claude_statusline.cmd_enable(), 0)
         data = json.loads(self.settings.read_text())
         self.assertEqual(data["model"], "opus")
         self.assertEqual(data["statusLine"]["command"], claude_statusline.COMMAND)
 
     def test_enable_is_idempotent(self):
-        claude_statusline.cmd_enable(cs)
+        claude_statusline.cmd_enable()
         before = sorted(p.name for p in Path(self.tmp.name).iterdir())
-        claude_statusline.cmd_enable(cs)
+        claude_statusline.cmd_enable()
         self.assertEqual(sorted(p.name for p in Path(self.tmp.name).iterdir()), before)
 
     def test_backup_keeps_the_source_mode(self):
         self.settings.write_text(json.dumps({"statusLine": {"command": "other"}}))
         self.settings.chmod(0o600)
-        claude_statusline.cmd_enable(cs)
+        claude_statusline.cmd_enable()
         backups = [p for p in Path(self.tmp.name).iterdir() if ".bak." in p.name]
         self.assertEqual(len(backups), 1)
         self.assertEqual(backups[0].stat().st_mode & 0o777, 0o600)
@@ -117,18 +105,18 @@ class SettingsManagerTest(unittest.TestCase):
                 {"model": "opus", "statusLine": {"command": claude_statusline.COMMAND}}
             )
         )
-        self.assertEqual(claude_statusline.cmd_disable(cs), 0)
+        self.assertEqual(claude_statusline.cmd_disable(), 0)
         data = json.loads(self.settings.read_text())
         self.assertNotIn("statusLine", data)
         self.assertEqual(data["model"], "opus")
 
     def test_disable_without_settings_is_a_no_op(self):
-        self.assertEqual(claude_statusline.cmd_disable(cs), 0)
+        self.assertEqual(claude_statusline.cmd_disable(), 0)
         self.assertFalse(self.settings.exists())
 
     def test_corrupt_settings_does_not_lose_the_file(self):
         self.settings.write_text("{not json")
-        self.assertEqual(claude_statusline.cmd_enable(cs), 0)
+        self.assertEqual(claude_statusline.cmd_enable(), 0)
         self.assertEqual(
             json.loads(self.settings.read_text())["statusLine"]["command"],
             claude_statusline.COMMAND,

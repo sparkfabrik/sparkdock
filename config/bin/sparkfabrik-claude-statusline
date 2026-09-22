@@ -19,30 +19,17 @@
 #   ✎ style | CAVEMAN | ▰▰▱▱▱ 42% 1M | ❄ |
 #   5h 24% ↻2h30m · 7d 41% ↻2d · $ 137% ↻10d
 #
-# Rate-limit windows render a countdown to their reset rather than a wall-clock
-# time: a bare "01:59" is ambiguous as soon as a window rolls past midnight,
-# which the five-hour one routinely does. The spend window reports past 100%;
-# its color saturates at the top of the scale while the number keeps climbing.
-#
-# Perf: this runs on every render tick, so it makes one jq pass, gets branch,
-# dirty state and divergence from a single `git status` process, caches that
-# segment for 5s per session_id + directory, and forks nothing for work bash
-# can do itself.
-#
-# Security: the output is replayed to the terminal on every render, so every
-# value taken from the payload is stripped of control bytes inside the jq pass
-# (branch names, paths, model strings, agent and worktree names can otherwise
-# carry ANSI escapes or OSC hyperlink spoofs), and the branch, which comes from
-# git rather than the payload, is stripped the same way. The git cache lives in
-# a directory this user owns; an unowned one is ignored rather than read.
+# Perf: one jq pass, one git status, and a 5s cache per session_id + directory.
+# Bash handles the rest without forks.
+# Security: payload values and the branch are stripped of control bytes.
+# The git cache is read only from a user-owned directory.
 set -uo pipefail
 export LC_NUMERIC=C   # printf '%.0f' must read "23.5" regardless of locale
 
 CFG="${CLAUDE_CONFIG_DIR:-$HOME/.claude}"
 
 # One clock per tick, shared by the git cache TTL and every reset deadline.
-# The %(...)T builtin avoids a fork; where it is unsupported, date provides it.
-printf -v NOW '%(%s)T' -1 2>/dev/null || NOW=$(date +%s)
+printf -v NOW '%(%s)T' -1
 
 # ── Icons ────────────────────────────────────────────────────────────────────
 # Explicit UTF-8 bytes: a literal glyph is lost by any tool in the chain that
@@ -86,17 +73,13 @@ append() {
   if [ -n "$out" ]; then out="${out}${SEP}$1"; else out="$1"; fi
 }
 
-# Round a possibly fractional percentage into PCT; empty when the value is
-# absent or unreadable, so the caller's guard hides the segment. The digit
-# check is not redundant: printf accepts "inf" and hands back the word.
+# printf accepts "" and "inf"; keep only plain digits.
 PCT=""
 round_pct() {
   PCT=""
-  # The empty check is not redundant: bash 3.2's printf accepts an empty value
-  # and hands back 0, which would render an absent window as "0%".
-  [ -n "${1:-}" ] || return 0
+  [ -n "$1" ] || return 0
   printf -v PCT '%.0f' "$1" 2>/dev/null || PCT=""
-  case "$PCT" in ''|*[!0-9-]*) PCT="" ;; esac
+  case "$PCT" in ''|*[!0-9]*) PCT="" ;; esac
 }
 
 # One usage scale for every percentage: green < 70, amber 70–89, red ≥ 90.
@@ -113,7 +96,7 @@ ETA=""
 fmt_eta() {
   local rem
   ETA=""
-  case "${1:-}" in ''|*[!0-9]*) return 0 ;; esac
+  case "$1" in ''|*[!0-9]*) return 0 ;; esac
   rem=$(( $1 - NOW ))
   if   [ "$rem" -le 0 ];     then return 0
   elif [ "$rem" -lt 3600 ];  then printf -v ETA '%dm' $(( rem / 60 ))
@@ -123,15 +106,8 @@ fmt_eta() {
 }
 
 # ── Parse Claude Code's JSON ─────────────────────────────────────────────────
-# A single jq pass reading the script's own stdin: a field-per-jq fan-out is the
-# most expensive thing a script that re-renders on every tick can do. `c` strips
-# the control bytes at the source, so no value needs washing again downstream.
-# Fields are joined with \x1f (unit separator), which is not IFS whitespace, so
-# empty fields are preserved by `read` instead of collapsing and shifting every
-# value that follows.
-#
-# The effort level lives under a different key depending on where it is read
-# from, so the accepted shapes are written once and reused by both jq calls.
+# Fields use \x1f so empty values survive `read` without shifting later fields.
+# `c` strips control bytes at the source.
 EFFORT_EXPR='(.effort.level? // .effortLevel.level? // (.effort? | strings) // (.effortLevel? | strings) // "")'
 
 cur_dir=""; model=""; effort=""; fast_mode=""; agent=""; vim_mode=""; style=""
@@ -184,10 +160,7 @@ dir_name="${cur_dir%/}"
 append "${C_DIR}${dir_name##*/}${RST}"
 
 # ── Git: branch, dirty *, ahead ↑ / behind ↓, ⑂ worktree ─────────────────────
-# `status --porcelain -b` answers all three questions in one process: its first
-# line is the branch header (`## master...origin/master [ahead 1, behind 2]`)
-# and any line after it means the tree is dirty. Only two lines are read, so a
-# repository with thousands of changes costs the same as a clean one.
+# One porcelain status provides branch, dirty state, and upstream divergence.
 build_git_seg() {
   local hdr first branch extra rest ahead behind wt
   hdr=""; first=""
@@ -229,10 +202,8 @@ build_git_seg() {
   printf '%s' "${C_GIT}${I_GIT} ${branch}${extra}${RST}"
 }
 
-# 5s cache keyed on session_id + directory: the session_id survives a `cd`, so
-# keying on it alone would serve another directory's segment for the whole TTL.
-# The cache directory must belong to this user; otherwise the cache is skipped
-# rather than trusted, because the segment is replayed to the terminal verbatim.
+# 5s cache keyed by session_id and directory.
+# Skip the cache when its directory is not user-owned.
 cache_file=""
 if [ -n "$session_id" ]; then
   cache_dir="${TMPDIR:-/tmp}/sparkfabrik-claude-statusline-${UID}"
@@ -265,10 +236,8 @@ fi
 append "$git_seg"
 
 # ── Model + reasoning effort + fast mode ─────────────────────────────────────
-# `high` is the Opus default (calm aquamarine); `max`/`xhigh` are boosted
-# (magenta); `low`/`medium` are downgrades worth flagging (amber). The context
-# suffix in the display name ("Opus 5 (1M context)") is dropped: the window is
-# already named beside the context bar.
+# High/default effort is aquamarine, boosted effort magenta, low/medium amber.
+# Drop the model's context suffix because the context segment already shows it.
 if [ -n "$model" ]; then
   model_seg="${C_MODEL}${model%% (*}${RST}"
   if [ -n "$effort" ]; then
@@ -310,14 +279,10 @@ if [ ! -L "$cave_flag" ] && [ -f "$cave_flag" ]; then
 fi
 
 # ── Context window: bar + percentage ─────────────────────────────────────────
-# The percentage alone says nothing about how much room that is — the same 37%
-# is worth five times the tokens on an extended-context model — so the window is
-# named whenever it is not the ordinary 200k. Falls back to the
-# exceeds_200k_tokens flag on builds that predate `context_window`.
+# Show non-default window size; retain the legacy 200k overflow fallback.
 round_pct "$ctx_pct"
 ctx_int="$PCT"
 if [ -n "$ctx_int" ]; then
-  [ "$ctx_int" -lt 0 ] && ctx_int=0
   [ "$ctx_int" -gt 100 ] && ctx_int=100
   fill=$(( (ctx_int + 10) / 20 ))
   bar=""
@@ -338,11 +303,8 @@ elif [ "$over200" = "true" ]; then
 fi
 
 # ── Prompt cache gone cold ───────────────────────────────────────────────────
-# `warm` is also false on a session that has simply never cached anything, so
-# gate on caching_observed: the glyph must mean "the cache went cold", not "no
-# cache yet". Both arrive through `tostring` alone, never `// ""`, because jq's
-# alternative operator treats false as empty and would collapse the one value
-# being tested.
+# Gate on caching_observed so false means cold, not never cached.
+# Use tostring without `// ""`; jq's alternative operator drops false.
 if [ "$cache_seen" = "true" ] && [ "$cache_warm" = "false" ]; then
   append "${C_COLD}${I_COLD}${RST}"
 fi
@@ -353,11 +315,10 @@ fi
 rl_out=""
 rl_add() {   # rl_add <label> <used %> <reset epoch>
   local pct color txt
-  round_pct "${2:-}"
+  round_pct "$2"
   pct="$PCT"
   [ -n "$pct" ] || return 0
-  # spend_limit is the one window that reports past 100: clamp the color there,
-  # never the number — how far over it has gone is the whole point.
+  # Clamp spend color past 100%, but keep the reported percentage.
   if [ "$pct" -gt 100 ]; then
     color="$C_OVER"
   else
@@ -365,7 +326,7 @@ rl_add() {   # rl_add <label> <used %> <reset epoch>
     color="$PCOLOR"
   fi
   txt="${color}${1} ${pct}%"
-  fmt_eta "${3:-}"
+  fmt_eta "$3"
   [ -n "$ETA" ] && txt="${txt} ${I_RESET}${ETA}"
   if [ -n "$rl_out" ]; then rl_out="${rl_out} ${DIM}· ${txt}"; else rl_out="$txt"; fi
 }
@@ -376,6 +337,5 @@ rl_add '$' "$spend_pct" "$spend_reset"
 
 printf '%s' "$out"
 
-# Always exit 0: Claude Code discards the statusline on a non-zero exit code,
-# and a trailing `[ -n ... ] &&` that fails would otherwise set one.
+# Always exit 0 because Claude Code discards a failing statusline.
 exit 0

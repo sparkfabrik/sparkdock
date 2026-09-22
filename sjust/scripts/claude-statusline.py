@@ -22,20 +22,16 @@ import time
 from pathlib import Path
 
 SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR / "lib"))
+import claude_settings as cs
+
 SPARKDOCK_ROOT = SCRIPT_DIR.parent.parent
 STATUSLINE_SCRIPT = SPARKDOCK_ROOT / "config" / "bin" / "sparkfabrik-claude-statusline"
 PAYLOAD_DIR = SCRIPT_DIR / "statusline-payloads"
 COMMAND = f'bash "{STATUSLINE_SCRIPT}"'
 
 
-def _settings_lib():
-    sys.path.insert(0, str(SCRIPT_DIR / "lib"))
-    import claude_settings
-
-    return claude_settings
-
-
-def _current_command(cs) -> str:
+def _current_command() -> str:
     """The configured statusLine command, or '' when none is set."""
     entry = cs.load().get("statusLine")
     return entry.get("command", "") if isinstance(entry, dict) else ""
@@ -62,7 +58,6 @@ def _preview(variant="typical") -> str:
         return f"(unavailable — no payload fixture named {variant})"
     payload = _resolve_deadlines(json.loads(fixture.read_text()), int(time.time()))
     payload.setdefault("workspace", {})["current_dir"] = str(SPARKDOCK_ROOT)
-    payload["cwd"] = str(SPARKDOCK_ROOT)
     result = subprocess.run(
         ["bash", str(STATUSLINE_SCRIPT)],
         input=json.dumps(payload),
@@ -73,14 +68,14 @@ def _preview(variant="typical") -> str:
     return result.stdout or "(renderer printed nothing)"
 
 
-def cmd_enable(cs) -> int:
+def cmd_enable() -> int:
     if not STATUSLINE_SCRIPT.is_file():
         print(f"❌ Statusline script not found: {STATUSLINE_SCRIPT}")
         print("💡 Update sparkdock (git pull) and try again.")
         return 1
 
     settings = cs.settings_path()
-    if _current_command(cs) == COMMAND:
+    if _current_command() == COMMAND:
         print(f"ℹ️  SparkFabrik statusline already enabled in {settings}")
         return 0
 
@@ -104,12 +99,12 @@ def cmd_enable(cs) -> int:
     return 0
 
 
-def cmd_disable(cs) -> int:
+def cmd_disable() -> int:
     settings = cs.settings_path()
     if not settings.exists():
         print(f"ℹ️  No {settings} — nothing to disable.")
         return 0
-    if not _current_command(cs):
+    if not _current_command():
         print(f"ℹ️  No statusLine configured in {settings}.")
         return 0
 
@@ -123,7 +118,7 @@ def cmd_disable(cs) -> int:
     return 0
 
 
-def cmd_info(cs) -> int:
+def cmd_info() -> int:
     print(f"Managed script: {STATUSLINE_SCRIPT}")
     print(
         f"  status: {'present' if STATUSLINE_SCRIPT.is_file() else 'MISSING — run git pull in sparkdock'}"
@@ -135,7 +130,7 @@ def cmd_info(cs) -> int:
         print(f"Configured: no ({settings} does not exist)")
         return 0
 
-    current = _current_command(cs)
+    current = _current_command()
     if not current:
         print(f"Configured: no statusLine in {settings}")
     elif current == COMMAND:
@@ -160,8 +155,7 @@ def main(argv) -> int:
             file=sys.stderr,
         )
         return 2
-    cs = _settings_lib()
-    return {"enable": cmd_enable, "disable": cmd_disable, "info": cmd_info}[action](cs)
+    return {"enable": cmd_enable, "disable": cmd_disable, "info": cmd_info}[action]()
 
 
 if __name__ == "__main__":
