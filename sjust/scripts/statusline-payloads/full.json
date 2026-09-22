@@ -1,0 +1,18 @@
+{
+  "_comment": "Every segment the renderer knows how to draw, for `claude-statusline-preview full`. No single session shows all of these at once (a spend limit needs a gateway, the agent and vim segments need those modes on), so this payload is a capability demo, not a typical bar. Same relative \"+seconds\" convention as typical.json.",
+  "model": { "display_name": "Opus 5" },
+  "effort": { "level": "max" },
+  "fast_mode": true,
+  "agent": { "name": "reviewer" },
+  "vim": { "mode": "normal" },
+  "output_style": { "name": "Concise" },
+  "workspace": { "git_worktree": "feature-xyz" },
+  "context_window": { "used_percentage": 88, "context_window_size": 200000 },
+  "exceeds_200k_tokens": false,
+  "prompt_cache": { "warm": false, "caching_observed": true },
+  "rate_limits": {
+    "five_hour": { "used_percentage": 91, "resets_at": "+1500" },
+    "seven_day": { "used_percentage": 41, "resets_at": "+180000" },
+    "spend_limit": { "used_percentage": 137, "resets_at": "+864000" }
+  }
+}

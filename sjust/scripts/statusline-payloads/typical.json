@@ -1,0 +1,14 @@
+{
+  "_comment": "Representative Claude Code statusLine payload for `claude-statusline-preview`. Reset deadlines are written as a relative offset in seconds (\"+9000\") and resolved against the current time before the renderer sees them, so the preview always shows live countdowns. `workspace.current_dir` is filled in with the sparkdock checkout.",
+  "model": { "display_name": "Opus 5 (1M context)" },
+  "effort": { "level": "high" },
+  "fast_mode": false,
+  "output_style": { "name": "Concise" },
+  "context_window": { "used_percentage": 42, "context_window_size": 1000000 },
+  "exceeds_200k_tokens": false,
+  "prompt_cache": { "warm": true, "caching_observed": true },
+  "rate_limits": {
+    "five_hour": { "used_percentage": 18, "resets_at": "+9000" },
+    "seven_day": { "used_percentage": 3, "resets_at": "+180000" }
+  }
+}

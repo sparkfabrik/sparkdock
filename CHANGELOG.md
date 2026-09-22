@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added git dirty state, ahead/behind counts, linked worktree, fast mode, custom agent, vim mode, output style and a cold prompt-cache marker to the managed Claude Code statusline, plus a `sjust claude-statusline-preview full` variant that renders every segment
 - Added CLT-only menu bar CI checks for installed and newest-offered Command Line Tools, including installed bundle resource checks
 
 - Added a Command Line Tools preflight to provisioning: an inconsistent toolchain now skips the menu bar app and the TUI with a diagnosis instead of failing the run, and `sjust device-info` reports the same state
@@ -132,6 +133,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed the managed Claude Code statusline to read the caveman mode from the plugin flag file instead of running the plugin's badge script
+- Changed the managed Claude Code statusline to show a countdown to each rate-limit reset (five-hour, weekly and the gateway spend limit) and to draw context usage as a bar
 - Writing guards now remind agents to read task-specific references required by loaded skills before publishing.
 - Changed the Claude and Codex writing guards to deliver the once-per-turn `sf-writing-style` reminder as additional context instead of denying the first publishing command, leaving the permission decision to the normal approval flow; the reminder now states that the text was not evaluated
 - Install one selected Command Line Tools package during fresh setup and repair, verify its health, and skip Xcode license acceptance

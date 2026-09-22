@@ -340,6 +340,21 @@ go test ./... -count=1                                  # run the suite
 
 `sjust macos-defaults` applies a curated set of macOS preferences (data: `config/macos/defaults.yml`, code: `sjust/scripts/macos-defaults/`, idempotent, per-key snapshot/undo). **Keep the curated YAML to universally-useful defaults only** — personal preferences (dock, finder layout, smart-quotes, trackpad, …) go in user overrides at `~/.local/spark/macos-defaults/overrides.yml`, not the curated set. Run `sjust macos-defaults-info` to inspect.
 
+## Claude Code Statusline
+
+`config/bin/sparkfabrik-claude-statusline` renders the bar Claude Code shows under the prompt. It is **opt-in**: there is no Ansible task, and it is wired up only by `sjust claude-statusline-enable`, which writes the `statusLine` key into `~/.claude/settings.json`.
+
+- **Manager**: `sjust/scripts/claude-statusline.py` (`enable`, `disable`, `info`, `preview [full]`). It delegates every read, backup and write of `settings.json` to `sjust/scripts/lib/claude_settings.py`, like every other sparkdock settings mutator, so backups keep the source's mode and writes are atomic.
+- **Recipes**: `claude-statusline-enable`, `-disable`, `-info`, `-preview [full]` (`sjust/recipes/shared/07-claude-statusline.just`).
+- **Preview payloads**: `sjust/scripts/statusline-payloads/typical.json` (what a normal session looks like) and `full.json` (every segment the renderer can draw). Reset deadlines are written as a relative `"+seconds"` offset and resolved against the current time, so previews always show live countdowns. **Add a new segment's field to `full.json`** — it is the only place that exercises the whole bar.
+- **Tests**: `sjust/scripts/lib/test_claude_statusline.py`, run by `just test-python` and in CI. The renderer tests run the real script, so they cover output, not just the manager.
+
+The renderer runs on **every render tick**, which is what its structure is for: one `jq` pass over the payload (which also strips control bytes, so no value is washed twice), one `git status --porcelain -b` for branch, dirty state and divergence, that segment cached for 5s per session and directory under `${TMPDIR}`, and no fork for anything bash can do itself. Keep it that way — a per-field `jq` call or a `$(basename …)` costs several milliseconds per keystroke.
+
+Segments are conditional: each appears only when the payload carries its field, so a build that does not send one simply renders a shorter bar. The single exception is the reasoning effort level, which falls back to `effortLevel` in `settings.json`. The script must always `exit 0`: Claude Code discards the whole statusline on a non-zero exit code.
+
+The caveman segment reads `~/.claude/.caveman-active`, which the caveman plugin writes as disk state rather than payload data. The `full.json` preview cannot show this segment.
+
 ## AI Coding Agents System
 
 Sparkdock syncs AI coding resources from the upstream `sf-agents-harness` repository. This covers two resource types managed by a unified sync system:
@@ -391,6 +406,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `sf-herdr-skill-{install,uninstall}` — install or remove the `herdr` agent skill. The skill is generated from the installed binary (`herdr --skill`) and symlinked per tool, so it tracks the installed herdr version instead of the upstream harness repo
 - `claude-gh-gate-{enable,disable,info}`: manage the Claude Code platform and writing skill gate; see [the guard guide](docs/claude-writing-guard.md) for bypasses and missing-skill behavior
 - `claude-output-style-{set,reset,info}` — manage the default Claude Code output style. Provisioning sets `Concise` only when no style is configured, so it never overrides a developer's own choice
+- `claude-statusline-{enable,disable,info,preview}` — manage the managed Claude Code statusline; see [Claude Code Statusline](#claude-code-statusline)
 
 ### Ansible Tags
 
