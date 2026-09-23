@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # sparkdock-check-updates — Dispatcher for update checks across sparkdock subsystems.
-# Usage: sparkdock-check-updates <sparkdock|http-proxy|skills|timetracker|vulns>
+# Usage: sparkdock-check-updates <sparkdock|http-proxy|skills|timetracker|engram|vulns>
 # Exit codes: 0 = updates available, 1 = no updates available, 2 = error/usage, 3 = not configured
 
 SCRIPT_NAME="$(basename "$0")"
@@ -234,6 +234,7 @@ usage() {
     echo "  agents       Check for agent skills and agent profile updates"
     echo "  skills       (alias for agents)"
     echo "  timetracker  Check for timetracker CLI updates"
+    echo "  engram       Check for engram CLI updates"
     echo "  vulns        Check installed Homebrew formulae for known vulnerabilities"
     echo ""
     echo "Exit codes:"
@@ -242,6 +243,46 @@ usage() {
     echo "  2  Usage error"
     echo "  3  Not configured (subsystem not set up yet)"
 }
+
+# Check for engram CLI updates
+# Uses subshell to isolate the PATH override
+check_engram_updates() (
+    set -euo pipefail
+
+    # Same LaunchAgent PATH problem as timetracker: add the directories where
+    # user binaries live so an installed engram is discoverable.
+    export PATH="/opt/homebrew/bin:/usr/local/bin:${HOME}/.local/bin:${PATH}"
+
+    if ! command -v engram >/dev/null 2>&1; then
+        return 3
+    fi
+
+    # `engram update --check` mirrors this dispatcher's exit codes:
+    # 0 = update available, 1 = up to date or hub unreachable, 3 = no hub.
+    local output rc=0
+    output=$(engram update --check 2>&1) || rc=$?
+
+    case "${rc}" in
+        0)
+            echo "Engram updates available:"
+            if [[ -n "${output}" ]]; then
+                echo "${output}"
+            fi
+            return 0
+            ;;
+        1)
+            # Also the graceful path for a CLI too old to know `update --check`:
+            # it exits 1 on an unknown command, reported here as "no updates".
+            return 1
+            ;;
+        3)
+            return 3
+            ;;
+        *)
+            return 3
+            ;;
+    esac
+)
 
 # Main dispatcher
 main() {
@@ -265,6 +306,9 @@ main() {
             ;;
         timetracker)
             check_timetracker_updates || rc=$?
+            ;;
+        engram)
+            check_engram_updates || rc=$?
             ;;
         vulns)
             check_brew_vulns || rc=$?

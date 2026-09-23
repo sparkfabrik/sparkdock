@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added engram to the update-notification system: `sparkdock-check-updates engram` delegates to the CLI's own `engram update --check` (exit 3 when the CLI is not installed), and `sjust sf-engram-info` reports the local install state and whether an update is pending
 - Added `sjust sf-harness-tools-upgrade` (also `ajust` on Linux) to upgrade Claude Code and Codex through their install channel: Homebrew casks, the native Claude updater or the Arch `openai-codex` package, leaving Omarchy mise wrappers to `omarchy update`
 - Added git dirty state, ahead/behind counts, linked worktree, fast mode, custom agent, vim mode, output style and a cold prompt-cache marker to the managed Claude Code statusline, plus a `sjust claude-statusline-preview full` variant that renders every segment
 - Added CLT-only menu bar CI checks for installed and newest-offered Command Line Tools, including installed bundle resource checks
