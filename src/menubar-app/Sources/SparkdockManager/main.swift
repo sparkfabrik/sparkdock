@@ -66,7 +66,8 @@ private enum RecheckNotification {
     static let httpProxy = "\(prefix).http-proxy"
     static let agents = "\(prefix).agents"
     static let timetracker = "\(prefix).timetracker"
-    static let all = [sparkdock, brew, httpProxy, agents, timetracker]
+    static let engram = "\(prefix).engram"
+    static let all = [sparkdock, brew, httpProxy, agents, timetracker, engram]
 }
 
 // MARK: - Menu Item Tags
@@ -325,6 +326,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var claudeUsageStatus: ClaudeUsageStatus?
     var hasTimetrackerUpdates = false
     var timetrackerLastStatus: Int32? = nil
+    var hasEngramUpdates = false
+    var engramLastStatus: Int32? = nil
     var brewVulnsStatus: BrewVulnsStatus = .unavailable
     var outdatedBrewFormulaeCount = 0
     var outdatedBrewCasksCount = 0
@@ -349,6 +352,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var refreshClaudeUsageButton: NSButton?
     var claudeUsageSectionSeparator: NSMenuItem?
     var timetrackerStatusMenuItem: NSMenuItem?
+    var engramStatusMenuItem: NSMenuItem?
     private var pathMonitor: NWPathMonitor?
     fileprivate var menuConfig: MenuConfig?
     /// Dynamic menu entries gated on `requires_binary`, kept so their visibility can
@@ -427,12 +431,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             updateStatusMenuItem(claudeWeeklyUsageMenuItem, title: "Weekly limit", badge: "Checking", color: .systemYellow)
         }
         updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(engramStatusMenuItem, title: "Engram", badge: "Checking", color: .systemYellow)
         setStatusMenuItemAction(sparkdockStatusMenuItem, action: nil)
         setStatusMenuItemAction(brewStatusMenuItem, action: nil)
         setStatusMenuItemAction(brewVulnsStatusMenuItem, action: nil)
         setStatusMenuItemAction(httpProxyStatusMenuItem, action: nil)
         setStatusMenuItemAction(agentsStatusMenuItem, action: nil)
         setStatusMenuItemAction(timetrackerStatusMenuItem, action: nil)
+        setStatusMenuItemAction(engramStatusMenuItem, action: nil)
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -544,6 +550,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         timetrackerStatusItem.isHidden = Self.executablePath(for: "timetracker") == nil
         menu.addItem(timetrackerStatusItem)
         self.timetrackerStatusMenuItem = timetrackerStatusItem
+
+        let engramStatusItem = NSMenuItem(title: "Engram", action: nil, keyEquivalent: "")
+        // Hidden the same way as the timetracker row: only machines with the CLI see it.
+        engramStatusItem.isHidden = Self.executablePath(for: "engram") == nil
+        menu.addItem(engramStatusItem)
+        self.engramStatusMenuItem = engramStatusItem
 
         menu.addItem(.separator())
 
@@ -785,7 +797,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 RecheckNotification.brew: self.recheckBrew,
                 RecheckNotification.httpProxy: self.recheckHttpProxy,
                 RecheckNotification.agents: self.recheckAgents,
-                RecheckNotification.timetracker: self.recheckTimetracker
+                RecheckNotification.timetracker: self.recheckTimetracker,
+                RecheckNotification.engram: self.recheckEngram
             ]
             handlers[name]?()
         }
@@ -885,6 +898,18 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func recheckEngram() {
+        checkGeneration += 1
+        updateStatusMenuItem(engramStatusMenuItem, title: "Engram", badge: "Checking", color: .systemYellow)
+        Task(priority: .background) {
+            let result = await runEngramCheck()
+            await MainActor.run {
+                self.hasEngramUpdates = result
+                self.refreshUI()
+            }
+        }
+    }
+
     /// Refresh UI using current instance state (safe for per-subsystem updates)
     private func refreshUI(updateClaudeUsage: Bool = false) {
         updateUI(
@@ -898,6 +923,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             updateClaudeUsage: updateClaudeUsage,
             hasTimetrackerUpdates: hasTimetrackerUpdates,
             timetrackerConfigured: isTimetrackerConfigured(),
+            hasEngramUpdates: hasEngramUpdates,
+            engramConfigured: isEngramConfigured(),
             brewVulnsStatus: brewVulnsStatus
         )
     }
@@ -933,6 +960,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             }
             let hasTimetrackerUpdates = await runTimetrackerCheck()
             let timetrackerConfigured = isTimetrackerConfigured()
+            let hasEngramUpdates = await runEngramCheck()
+            let engramConfigured = isEngramConfigured()
             let brewVulnsStatus = await brewVulnsStatusTask
             await MainActor.run {
                 if self.systemStatusCheckGeneration == expectedSystemStatusGeneration {
@@ -947,7 +976,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 let shouldUpdateClaudeUsage = expectedClaudeUsageGeneration.map {
                     self.claudeUsageCheckGeneration == $0
                 } ?? false
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: checkedClaudeUsageStatus, updateClaudeUsage: shouldUpdateClaudeUsage, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured, brewVulnsStatus: brewVulnsStatus)
+                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: checkedClaudeUsageStatus, updateClaudeUsage: shouldUpdateClaudeUsage, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured, hasEngramUpdates: hasEngramUpdates, engramConfigured: engramConfigured, brewVulnsStatus: brewVulnsStatus)
             }
         }
     }
@@ -1147,6 +1176,21 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status == 0
     }
 
+    private func runEngramCheck() async -> Bool {
+        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
+            AppConstants.logger.info("sparkdock-check-updates not found, engram check skipped")
+            engramLastStatus = nil
+            return false
+        }
+        let status = await runCheckUpdatesCommandStatus("engram")
+        engramLastStatus = status
+        // Exit code 3 = not configured (CLI not installed or no hub set up)
+        if status == 3 {
+            return false
+        }
+        return status == 0
+    }
+
     private func runClaudeUsageCheck(forcePoll: Bool = false) async -> ClaudeUsageStatus? {
         guard let executablePath = Self.executablePath(for: "claude-usage") else {
             AppConstants.logger.info("claude-usage not found, usage check skipped")
@@ -1211,7 +1255,19 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status != 3
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, updateClaudeUsage: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true, brewVulnsStatus: BrewVulnsStatus = .unavailable) {
+    /// Engram is considered configured when the CLI is installed and points at a hub.
+    /// Returns false for: missing script, nil (error/timeout), or exit 3 (CLI absent or no hub).
+    private func isEngramConfigured() -> Bool {
+        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
+            return false
+        }
+        guard let status = engramLastStatus else {
+            return false
+        }
+        return status != 3
+    }
+
+    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, updateClaudeUsage: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true, hasEngramUpdates: Bool = false, engramConfigured: Bool = true, brewVulnsStatus: BrewVulnsStatus = .unavailable) {
         self.hasUpdates = hasUpdates
         self.hasHttpProxyUpdates = hasHttpProxyUpdates
         self.hasAgentUpdates = hasAgentUpdates
@@ -1220,12 +1276,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             self.claudeUsageLastCheckedAt = Date()
         }
         self.hasTimetrackerUpdates = hasTimetrackerUpdates
+        self.hasEngramUpdates = hasEngramUpdates
         self.brewVulnsStatus = brewVulnsStatus
         self.outdatedBrewFormulaeCount = outdatedBrewFormulae
         self.outdatedBrewCasksCount = outdatedBrewCasks
         let totalBrewCount = totalOutdatedBrewCount
 
-        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates || hasAgentUpdates || hasTimetrackerUpdates
+        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates || hasAgentUpdates || hasTimetrackerUpdates || hasEngramUpdates
         statusItem?.button?.image = loadIcon(hasUpdates: hasAnyUpdates)
 
         // Create more detailed tooltip
@@ -1241,6 +1298,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
         if hasTimetrackerUpdates {
             tooltipParts.append("Timetracker updates available")
+        }
+        if hasEngramUpdates {
+            tooltipParts.append("Engram updates available")
         }
         if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
             tooltipParts.append("\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks outdated")
@@ -1335,6 +1395,22 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             setStatusMenuItemAction(timetrackerStatusMenuItem, action: nil)
         }
 
+        // Update Engram status line, hidden like the timetracker one when the CLI is absent.
+        let engramInstalled = Self.executablePath(for: "engram") != nil
+        engramStatusMenuItem?.isHidden = !engramInstalled
+        if !engramInstalled {
+            setStatusMenuItemAction(engramStatusMenuItem, action: nil)
+        } else if !engramConfigured {
+            updateStatusMenuItem(engramStatusMenuItem, title: "Engram", badge: "Not configured", color: .systemGray)
+            setStatusMenuItemAction(engramStatusMenuItem, action: nil)
+        } else if hasEngramUpdates {
+            updateStatusMenuItem(engramStatusMenuItem, title: "Engram", badge: "Upgrade", color: .systemOrange)
+            setStatusMenuItemAction(engramStatusMenuItem, action: #selector(upgradeEngram))
+        } else {
+            updateStatusMenuItem(engramStatusMenuItem, title: "Engram", badge: "Up to date", color: .systemGreen)
+            setStatusMenuItemAction(engramStatusMenuItem, action: nil)
+        }
+
         refreshDynamicMenuItems()
     }
 
@@ -1419,6 +1495,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         // zsh sources ~/.zshrc only for interactive shells, so the function is not
         // defined there. The binary knows how to update itself.
         executeTerminalCommand("timetracker update --apply", recheckNotification: RecheckNotification.timetracker)
+    }
+
+    @objc private func upgradeEngram() {
+        guard hasEngramUpdates else { return }
+        // Same reason as timetracker: the engram-update shell function is not
+        // defined in the non-interactive login shell, the binary updates itself.
+        executeTerminalCommand("engram update --apply", recheckNotification: RecheckNotification.engram)
     }
 
 

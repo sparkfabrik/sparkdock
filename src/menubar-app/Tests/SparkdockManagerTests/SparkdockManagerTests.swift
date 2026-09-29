@@ -239,6 +239,24 @@ final class SparkdockManagerTests: XCTestCase {
         }
     }
 
+    /// The engram entries follow the timetracker rules: conditional on the binary,
+    /// and updating through the CLI rather than the `engram-update` shell function.
+    func testEngramMenuItemsRequireTheBinaryAndUseTheCLI() throws {
+        let items = try shippedMenuItems()
+        let engramItems = items.filter { ($0["command"] as? String)?.hasPrefix("engram") == true }
+
+        XCTAssertFalse(engramItems.isEmpty, "expected engram entries in menu.json")
+        for item in engramItems {
+            XCTAssertEqual(
+                item["requires_binary"] as? String, "engram",
+                "\(item["title"] ?? "item") must be conditional on the engram binary"
+            )
+        }
+        let commands = try shippedMenuCommands()
+        XCTAssertTrue(commands.contains("engram update --apply"), "menu.json should update engram through the CLI; found \(commands)")
+        XCTAssertFalse(commands.contains("engram-update"), "engram-update is a shell function, undefined in the app's login shell")
+    }
+
     func testTimetrackerMenuCommands() throws {
         let commands = try shippedMenuCommands()
 
