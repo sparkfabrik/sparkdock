@@ -32,6 +32,12 @@
             "type": "command",
             "command": "timetracker update --apply",
             "requires_binary": "timetracker"
+          },
+          {
+            "title": "Update engram",
+            "type": "command",
+            "command": "engram update --apply",
+            "requires_binary": "engram"
           }
         ]
       },
