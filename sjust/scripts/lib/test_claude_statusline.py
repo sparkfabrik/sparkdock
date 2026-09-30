@@ -146,7 +146,47 @@ class RendererTest(unittest.TestCase):
             }
         )
         self.assertIn("5h 24% ↻2h30m", out)
-        self.assertIn("7d 41% ↻2d", out)
+        self.assertIn("7d 41% ↻2d2h", out)
+
+    def test_weekly_countdown_formats_and_rounding(self):
+        now = int(time.time())
+        for seconds, expected in (
+            (45 * 60 + 30, "45m"),
+            (2 * 3600 + 20 * 60 + 30, "2h20m"),
+            (2 * 3600 + 30, "2h"),
+            (2 * 86400 + 30, "2d"),
+            (2 * 86400 + 29 * 60, "2d"),
+            (2 * 86400 + 31 * 60, "2d1h"),
+            (int(2.8 * 86400), "2d19h"),
+            (2 * 86400 + 23 * 3600 + 40 * 60, "3d"),
+        ):
+            with self.subTest(seconds=seconds):
+                _, out = render(
+                    {
+                        "cwd": "/tmp",
+                        "rate_limits": {
+                            "seven_day": {
+                                "used_percentage": 41,
+                                "resets_at": now + seconds,
+                            }
+                        },
+                    }
+                )
+                self.assertTrue(out.endswith(f"7d 41% ↻{expected}"), out)
+
+    def test_other_day_countdowns_still_round_to_whole_days(self):
+        _, out = render(
+            {
+                "cwd": "/tmp",
+                "rate_limits": {
+                    "spend_limit": {
+                        "used_percentage": 25,
+                        "resets_at": int(time.time()) + int(2.8 * 86400),
+                    }
+                },
+            }
+        )
+        self.assertIn("$ 25% ↻3d", out)
 
     def test_a_past_deadline_drops_the_countdown_but_keeps_the_percentage(self):
         _, out = render(

@@ -91,17 +91,29 @@ pct_color() {
   fi
 }
 
-# Relative countdown to a reset deadline: 45m, 2h30m, 2d. Empty once past.
+# Relative countdown to a reset deadline: 45m, 2h30m, 2d19h for 7d.
 ETA=""
 fmt_eta() {
-  local rem
+  local rem hours minutes days
   ETA=""
   case "$1" in ''|*[!0-9]*) return 0 ;; esac
   rem=$(( $1 - NOW ))
   if   [ "$rem" -le 0 ];     then return 0
   elif [ "$rem" -lt 3600 ];  then printf -v ETA '%dm' $(( rem / 60 ))
-  elif [ "$rem" -lt 86400 ]; then printf -v ETA '%dh%dm' $(( rem / 3600 )) $(( rem % 3600 / 60 ))
-  else                            printf -v ETA '%dd' $(( rem / 86400 ))
+  elif [ "$rem" -lt 86400 ]; then
+    hours=$(( rem / 3600 ))
+    minutes=$(( rem % 3600 / 60 ))
+    if [ "$2" = "7d" ] && [ "$minutes" -eq 0 ]; then printf -v ETA '%dh' "$hours"
+    else                                               printf -v ETA '%dh%dm' "$hours" "$minutes"
+    fi
+  elif [ "$2" = "7d" ]; then
+    hours=$(( (rem + 1800) / 3600 ))
+    days=$(( hours / 24 ))
+    hours=$(( hours % 24 ))
+    if [ "$hours" -eq 0 ]; then printf -v ETA '%dd' "$days"
+    else                        printf -v ETA '%dd%dh' "$days" "$hours"
+    fi
+  else                            printf -v ETA '%dd' $(( (rem + 43200) / 86400 ))
   fi
 }
 
@@ -326,7 +338,7 @@ rl_add() {   # rl_add <label> <used %> <reset epoch>
     color="$PCOLOR"
   fi
   txt="${color}${1} ${pct}%"
-  fmt_eta "$3"
+  fmt_eta "$3" "$1"
   [ -n "$ETA" ] && txt="${txt} ${I_RESET}${ETA}"
   if [ -n "$rl_out" ]; then rl_out="${rl_out} ${DIM}· ${txt}"; else rl_out="$txt"; fi
 }
