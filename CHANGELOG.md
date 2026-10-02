@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `~/.cache/claude-rate-limits.json` (`$XDG_CACHE_HOME` when set), written by the managed Claude Code statusline with the current session and weekly usage for local readers such as SparkPulse
 - Added engram to the update-notification system: `sparkdock-check-updates engram` delegates to `engram update --check`, the menu bar app shows an Engram status row with an Upgrade action running `engram update --apply` and an "Update engram" Tools entry, all only where the CLI is installed, and `sjust sf-engram-info` and `sjust sf-engram-auth` report the install state and log in to the hub
 - Added `sjust sf-harness-tools-upgrade` (also `ajust` on Linux) to upgrade Claude Code and Codex through their install channel: Homebrew casks, the native Claude updater or the Arch `openai-codex` package, leaving Omarchy mise wrappers to `omarchy update`
 - Added git dirty state, ahead/behind counts, linked worktree, fast mode, custom agent, vim mode, output style and a cold prompt-cache marker to the managed Claude Code statusline, plus a `sjust claude-statusline-preview full` variant that renders every segment
