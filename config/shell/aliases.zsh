@@ -258,6 +258,7 @@ fi
 # giving it a separate login, usage pool and no org-managed policy.
 # The default `claude` command is left untouched and stays on the work/org account.
 if command_exists claude; then
+  alias c='claude'
   claude-personal() {
     local config_dir="${HOME}/.claude_personal"
     [[ -d "${config_dir}" ]] || mkdir -p "${config_dir}"
@@ -276,7 +277,7 @@ fi
 
 # Add some opencode aliases.
 if command_exists opencode; then
-  alias c='opencode'
+  alias oc='opencode'
 fi
 
 # OpenSpec shortcuts
