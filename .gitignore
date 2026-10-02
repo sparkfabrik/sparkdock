@@ -9,3 +9,6 @@ http-proxy
 # OpenSpec - exclude specs and changes (may contain private content)
 openspec/specs/
 openspec/changes/
+
+# Claude Code writes mod type declarations beside a loaded plugin
+config/claude/plugins/*/.claude-plugin/types/

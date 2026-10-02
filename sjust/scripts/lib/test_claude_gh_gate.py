@@ -96,6 +96,42 @@ class GateHookTest(unittest.TestCase):
                 self.run_hook(self.skill(name, session=session)).returncode, 0
             )
 
+    def test_mod_marker_stands_the_hook_down_for_its_session_only(self):
+        marker = self.state_path("s1").parent / (
+            "mod-" + hashlib.sha256(b"s1").hexdigest()
+        )
+        marker.parent.mkdir(parents=True)
+        marker.write_text("")
+        marked = self.run_hook(self.bash("gh pr create", session="s1"))
+        self.assertEqual((marked.returncode, marked.stderr, marked.stdout), (0, "", ""))
+        other = self.run_hook(self.bash("gh pr create", session="s2"))
+        self.assertEqual(other.returncode, 2)
+
+    def test_classify_reports_required_and_available_skills(self):
+        self.skill_path("glab").unlink()
+        for command, required, available in (
+            (
+                "gh pr create --title t",
+                ["gh", "sf-writing-style"],
+                ["gh", "sf-writing-style"],
+            ),
+            ("glab issue list", ["glab"], []),
+            ("ls", [], []),
+        ):
+            with self.subTest(command=command):
+                r = subprocess.run(
+                    [sys.executable, str(GATE), "classify"],
+                    input=json.dumps(self.bash(command)),
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                    env=self.env,
+                )
+                self.assertEqual(r.returncode, 0, r.stderr)
+                self.assertEqual(
+                    json.loads(r.stdout), {"required": required, "available": available}
+                )
+
     def test_platform_and_writing_requirements(self):
         for cli in ("gh", "glab"):
             with self.subTest(cli=cli):

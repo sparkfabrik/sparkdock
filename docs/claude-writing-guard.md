@@ -2,6 +2,8 @@
 
 The guards request writing guidance before supported publishing calls. They confirm skill loads, then attach one short publishing reminder per user turn. They never read, score or rewrite the text: a reminder is not a verdict on the body.
 
+Where the `sparkfabrik-harness` mod loads, it runs the Claude guard instead of the settings hook. It uses the same classifier and bypasses, and it shows each publishing call to the person for confirmation instead of attaching the reminder. Without a person to ask (`claude -p`), it attaches the reminder as the hook does. The settings hook skips every session the mod has marked, so the two never both run.
+
 ## Install and inspect
 
 Sparkdock provisioning installs both guards. The companion sf-toolbox change installs them on Linux. For an existing installation:

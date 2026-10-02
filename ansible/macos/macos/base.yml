@@ -1537,6 +1537,16 @@
           changed_when: "'already set' not in claude_output_style.stdout"
           become: false
 
+    - name: Clear a cached off value for Claude Code mods
+      tags:
+        - claude-mods
+        - ai-harness
+        - ai-harness-sync
+      command: "python3 {{ dev_env_dir }}/sjust/scripts/claude-mods-flag.py clear"
+      register: claude_mods_flag
+      changed_when: "'Cleared' in claude_mods_flag.stdout"
+      become: false
+
     - name: Provision AI coding harness directories and permissions
       tags:
         - skills

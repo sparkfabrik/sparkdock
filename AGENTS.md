@@ -415,10 +415,30 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `ai-harness-sync` — no-sudo tasks (RTK + caveman + gh gate + skills sync)
 - `claude-gh-gate`: register only the Claude Code platform and writing skill gate hooks
 - `claude-output-style` — set the default Claude Code output style
+- `claude-mods`: clear a cached `false` for the mods rollout flag in `~/.claude.json`, so the `sparkfabrik-harness` mod loads
 - `herdr` — install only the herdr agent skill
 - `codex` — move an npm-installed Codex out of the way of the `codex` cask
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
 - `skills` — backward-compat alias
+
+## Claude Code Mods (`sparkfabrik-harness`)
+
+`config/claude/plugins/` is a plugin marketplace named `sparkdock` holding one plugin, `sparkfabrik-harness`: TypeScript [mods](https://code.claude.com/docs/en/plugins/mods/overview) that run inside Claude Code. Managed settings register the marketplace at `/opt/sparkdock/config/claude/plugins` and enable the plugin, so there is no install task. It needs Claude Code 2.1.287 or later.
+
+- **Command guard** (#658): denies credentials in URLs and secret files (the org policy list), asks before destructive commands, denies them where nobody can answer (`claude -p`). Off with `SPARKDOCK_COMMAND_GUARD=0`.
+- **Writing gate** (#659): the mod form of the Claude writing guard. The Python classifier stays the single rule set (`claude-gh-gate.py classify`), shared with Codex. The mod writes a `mod-<sha256(session id)>` marker in the gate's state directory and the Python settings hook skips marked sessions. `$.env.set` does not reach settings hooks, so an environment variable cannot do this. Same bypasses as the guard.
+- **Commit gate** (#660): denies subjects outside the repository's detected format or over 72 characters, asks before a commit with no `Refs:`/`Closes:` footer, and rewrites commit attribution to `Assisted-by: claude-code/<model>`. Off with `SPARKDOCK_COMMIT_GATE=0`.
+
+Rules that do not touch `$` live in `hooks/shell.ts`, `hooks/guard-rules.ts` and `hooks/commit-rules.ts`. Every function that calls `$` lives in `hooks/register.ts`: the engine follows `$` only into functions of the same file, never across an import.
+
+Run before committing a change to the plugin:
+
+```bash
+claude plugin validate config/claude/plugins
+(cd config/claude/plugins/sparkfabrik-harness && claude plugin test .)
+```
+
+`claude plugin test` stops with `the rollout switch served off` when `~/.claude.json` caches the rollout flag as `false`; the `claude-mods` Ansible tag clears it (anthropics/claude-code#91870).
 
 ## Git Workflow
 

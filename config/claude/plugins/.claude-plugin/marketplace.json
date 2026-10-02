@@ -1,0 +1,12 @@
+{
+  "name": "sparkdock",
+  "owner": { "name": "SparkFabrik" },
+  "description": "Claude Code plugins shipped with sparkdock",
+  "plugins": [
+    {
+      "name": "sparkfabrik-harness",
+      "source": "./sparkfabrik-harness",
+      "description": "Command guard, writing gate and commit gate for the SparkFabrik harness"
+    }
+  ]
+}

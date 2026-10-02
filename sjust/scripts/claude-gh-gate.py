@@ -6,6 +6,7 @@ point. This is a fail-open workflow aid, not a shell security boundary. See
 ../../docs/claude-writing-guard.md for scope, bypasses and lifecycle behavior.
 """
 
+import hashlib
 import json
 import os
 import re
@@ -65,7 +66,17 @@ def _skill_available(name, cwd):
     return False
 
 
+def _mod_marker(session_id):
+    cache = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
+    digest = hashlib.sha256(session_id.encode()).hexdigest()
+    return cache / "sparkdock" / "claude-skill-gate" / f"mod-{digest}"
+
+
 def _process(payload, state):
+    # The sparkfabrik-harness mod marks sessions where it runs the gate itself.
+    session_id = payload.get("session_id")
+    if isinstance(session_id, str) and _mod_marker(session_id).exists():
+        return 0, [], []
     event = payload.get("hook_event_name")
     if guard.lifecycle(payload, state):
         return 0, [], []
@@ -121,6 +132,15 @@ def _process(payload, state):
 
 def run_hook():
     return guard.run_hook(_process, "claude")
+
+
+def cmd_classify():
+    payload = json.load(sys.stdin)
+    required = guard.requirements(payload)
+    cwd = Path(payload.get("cwd") or ".")
+    available = [name for name in sorted(required) if _skill_available(name, cwd)]
+    print(json.dumps({"required": sorted(required), "available": available}))
+    return 0
 
 
 def _configured(data, cs):
@@ -200,6 +220,7 @@ def main():
         "enable": cmd_enable,
         "disable": cmd_disable,
         "info": cmd_info,
+        "classify": cmd_classify,
     }
     if arg in actions:
         try:
@@ -207,7 +228,7 @@ def main():
         except (OSError, ValueError, TypeError) as error:
             print(f"Claude writing guard: {error}", file=sys.stderr)
             return 1
-    sys.stderr.write("Usage: claude-gh-gate.py {--hook|enable|disable|info}\n")
+    sys.stderr.write("Usage: claude-gh-gate.py {--hook|enable|disable|info|classify}\n")
     return 2
 
 
