@@ -135,6 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed the `c` shell alias to run Claude Code; OpenCode moves to `oc`
 - Show days and rounded hours in the Claude Code status bar's weekly reset countdown.
 - Changed the managed Claude Code statusline to read the caveman mode from the plugin flag file instead of running the plugin's badge script
 - Changed the managed Claude Code statusline to show a countdown to each rate-limit reset (five-hour, weekly and the gateway spend limit) and to draw context usage as a bar
