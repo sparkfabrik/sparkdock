@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # homebrew-app — opt-in installation of the official Homebrew desktop app
 # (BrewUI). Runs the sparkdock `homebrew-app` Ansible tag, which installs the
-# Homebrew `homebrew-app` cask. macOS only, and macOS 26 (Tahoe) or later.
+# Homebrew `homebrew-app` cask. macOS only.
 # Invoked by sjust/recipes/shared/15-homebrew-app.just.
 
 set -euo pipefail
@@ -16,13 +16,6 @@ usage() {
 }
 
 install_macos() {
-    local version major
-    version="$(sw_vers -productVersion)"
-    major="${version%%.*}"
-    if [[ "${major}" -lt 26 ]]; then
-        echo "The Homebrew desktop app (BrewUI) requires macOS 26 (Tahoe) or later (detected: ${version}). Skipping." >&2
-        exit 0
-    fi
     cd "${SPARKDOCK_ROOT}"
     "${SPARKDOCK_ROOT}/bin/sparkdock.macos" ensure-python3
     # The homebrew-app cask is a plain app bundle, so no sudo password is needed.

@@ -2,7 +2,7 @@ task:
   name: "Sparkdock End-to-End Test"
   # Use Tart VM for testing
   macos_instance:
-    image: ghcr.io/cirruslabs/macos-sequoia-base:latest
+    image: ghcr.io/cirruslabs/macos-tahoe-base:latest
     cpu: 2
     memory: 4
 

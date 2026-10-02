@@ -23,7 +23,7 @@
 #   "com.apple.dock.autohide" replaces the curated value for that exact
 #   setting and leaves every other entry untouched.
 #
-# Apple Silicon, macOS Sequoia (15) or Tahoe (26) per AGENTS.md.
+# Apple Silicon, macOS Tahoe (26) per AGENTS.md.
 
 # ----- UX (universally nicer save/print panels) --------------------------------
 

@@ -42,7 +42,7 @@ run-ansible-playbook TAGS="all":
         BECOME_ARGS+=(--skip-tags "${SPARKDOCK_SKIP_TAGS}")
     fi
 
-    # Opt-in Homebrew desktop app (BrewUI), macOS 26 or later.
+    # Opt-in Homebrew desktop app (BrewUI).
     if [ "${HOMEBREW_APP:-0}" = "1" ]; then
         BECOME_ARGS+=(-e sparkdock_homebrew_app=true)
     fi
@@ -61,7 +61,7 @@ test-python:
 
 # Create macOS VM with Tart (installs Tart if needed)
 # Available VM images: https://tart.run/quick-start/#vm-images
-tart-create-vm IMAGE="ghcr.io/cirruslabs/macos-sequoia-base:latest":
+tart-create-vm IMAGE="ghcr.io/cirruslabs/macos-tahoe-base:latest":
     #!/usr/bin/env bash
     if ! command -v tart >/dev/null 2>&1; then
         echo "Installing Tart via Homebrew..."
