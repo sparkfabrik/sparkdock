@@ -272,6 +272,8 @@ sjust claude-statusline-disable       # Remove it again
 
 Enabling it backs up `~/.claude/settings.json` first and leaves every other key untouched. Provisioning never turns it on.
 
+While enabled, it also writes the current session and weekly usage to `~/.cache/claude-rate-limits.json` (`$XDG_CACHE_HOME` when set), so local tools such as SparkPulse can show fresh limits without polling Anthropic. Each entry has `used_percentage` and a `resets_at` epoch, plus the `updated_at` time of the last render.
+
 ## Configuration
 
 ### Directory Structure
