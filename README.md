@@ -66,7 +66,7 @@ Fresh setup installs one Command Line Tools package selected from Software Updat
 
 **Operating System:**
 
-- macOS Sequoia (15.x) or macOS Tahoe (26.x)
+- macOS Tahoe (26.x)
 - Apple Silicon only
 
 **Hardware Requirements:**
@@ -146,7 +146,7 @@ On macOS this installs the Homebrew `chatgpt` cask (`ChatGPT.app`), which then u
 
 ### Homebrew desktop app (opt-in)
 
-BrewUI, Homebrew's official graphical interface, is never installed by a plain `sparkdock` run. It requires macOS 26 (Tahoe) or later; on anything older the install is skipped with a message. Opt in with either command:
+BrewUI, Homebrew's official graphical interface, is never installed by a plain `sparkdock` run. Opt in with either command:
 
 ```bash
 sjust homebrew-app-install       # install the desktop app

@@ -148,7 +148,7 @@ URL menu items launch as standalone Chrome windows using the `--app` flag, provi
 
 ## Technical Details
 
-**Requirements:** macOS 15.0+ (Sequoia)
+**Requirements:** macOS 26.0+ (Tahoe)
 
 **Dependencies:**
 
