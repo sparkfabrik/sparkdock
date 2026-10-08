@@ -100,16 +100,24 @@ ensure_caveman_repo() {
 
 # Resolve the caveman native installer entrypoint from the `caveman-install`
 # bin entry in upstream package.json, so a relocated installer needs no
-# change here. Returns non-zero when the entry or the file it names is missing.
+# change here. On failure, logs the specific cause to stderr and returns
+# non-zero.
 caveman_installer_path() {
+    local package_json="${CAVEMAN_CACHE_DIR}/package.json"
     local relpath
-    relpath="$(node -e '
+    if ! relpath="$(node -e '
         const bin = require(process.argv[1]).bin;
         const entry = typeof bin === "string" ? bin : (bin || {})["caveman-install"];
         if (!entry) { process.exit(1); }
         process.stdout.write(entry);
-    ' "${CAVEMAN_CACHE_DIR}/package.json" 2>/dev/null)" || return 1
-    [[ -f "${CAVEMAN_CACHE_DIR}/${relpath}" ]] || return 1
+    ' "${package_json}" 2>/dev/null)"; then
+        log_error "Cannot read the caveman-install bin entry from ${package_json}"
+        return 1
+    fi
+    if [[ ! -f "${CAVEMAN_CACHE_DIR}/${relpath}" ]]; then
+        log_error "Caveman installer declared in ${package_json} not found: ${CAVEMAN_CACHE_DIR}/${relpath}"
+        return 1
+    fi
     printf '%s\n' "${CAVEMAN_CACHE_DIR}/${relpath}"
 }
 
@@ -132,7 +140,6 @@ setup_claude() {
     log_info "Setting up caveman for Claude Code..."
     local installer
     if ! installer="$(caveman_installer_path)"; then
-        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (no caveman-install bin entry in package.json)"
         return 1
     fi
     if ! node "${installer}" \
@@ -154,7 +161,6 @@ setup_opencode() {
     log_info "Setting up caveman for OpenCode..."
     local installer
     if ! installer="$(caveman_installer_path)"; then
-        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (no caveman-install bin entry in package.json)"
         return 1
     fi
     if ! node "${installer}" \
@@ -287,7 +293,7 @@ uninstall() {
 
     # Delegate to native uninstaller for Claude Code and OpenCode
     local installer
-    if installer="$(caveman_installer_path)"; then
+    if installer="$(caveman_installer_path 2>/dev/null)"; then
         node "${installer}" --uninstall --non-interactive || true
     fi
 
