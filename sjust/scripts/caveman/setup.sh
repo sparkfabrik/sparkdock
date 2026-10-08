@@ -96,39 +96,21 @@ ensure_caveman_repo() {
         git -C "${CAVEMAN_CACHE_DIR}" reset --hard origin/main
         log_success "Caveman repo updated: ${CAVEMAN_CACHE_DIR}"
     fi
-
-    # Workaround: upstream installer references caveman-compress.md command
-    # but the file is missing from the repo (as of 2026-05-13).  Create a
-    # minimal stub so the OpenCode install doesn't bail mid-way.
-    # Remove this block once upstream ships the file.
-    local compress_cmd="${CAVEMAN_CACHE_DIR}/src/plugins/opencode/commands/caveman-compress.md"
-    if [[ ! -f "${compress_cmd}" ]]; then
-        cat > "${compress_cmd}" << 'STUB'
----
-description: Compress a memory file into caveman format to save input tokens
----
-Compress the following file into caveman format: $ARGUMENTS
-
-Preserve all technical substance, code, URLs, and structure.
-Save a human-readable backup as FILE.original.md before overwriting.
-STUB
-        log_warn "Created stub for missing upstream file: caveman-compress.md"
-    fi
 }
 
-# Resolve the caveman native installer entrypoint.
-# Upstream moved it from `cli/install.js` to `bin/install.js` (force-pushed on
-# 2026-08-25), so probe both layouts and print the first one that exists.
-# Returns non-zero when neither is present.
+# Resolve the caveman native installer entrypoint from the `caveman-install`
+# bin entry in upstream package.json, so a relocated installer needs no
+# change here. Returns non-zero when the entry or the file it names is missing.
 caveman_installer_path() {
-    local candidate
-    for candidate in bin/install.js cli/install.js; do
-        if [[ -f "${CAVEMAN_CACHE_DIR}/${candidate}" ]]; then
-            printf '%s\n' "${CAVEMAN_CACHE_DIR}/${candidate}"
-            return 0
-        fi
-    done
-    return 1
+    local relpath
+    relpath="$(node -e '
+        const bin = require(process.argv[1]).bin;
+        const entry = typeof bin === "string" ? bin : (bin || {})["caveman-install"];
+        if (!entry) { process.exit(1); }
+        process.stdout.write(entry);
+    ' "${CAVEMAN_CACHE_DIR}/package.json" 2>/dev/null)" || return 1
+    [[ -f "${CAVEMAN_CACHE_DIR}/${relpath}" ]] || return 1
+    printf '%s\n' "${CAVEMAN_CACHE_DIR}/${relpath}"
 }
 
 # --- Config ---
@@ -150,7 +132,7 @@ setup_claude() {
     log_info "Setting up caveman for Claude Code..."
     local installer
     if ! installer="$(caveman_installer_path)"; then
-        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (looked for bin/install.js and cli/install.js)"
+        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (no caveman-install bin entry in package.json)"
         return 1
     fi
     if ! node "${installer}" \
@@ -172,7 +154,7 @@ setup_opencode() {
     log_info "Setting up caveman for OpenCode..."
     local installer
     if ! installer="$(caveman_installer_path)"; then
-        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (looked for bin/install.js and cli/install.js)"
+        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (no caveman-install bin entry in package.json)"
         return 1
     fi
     if ! node "${installer}" \
@@ -180,36 +162,6 @@ setup_opencode() {
         log_error "Caveman installer failed for OpenCode"
         return 1
     fi
-    # The native installer copies agents/cavecrew-*.md into
-    # ~/.config/opencode/agents/.  Those files use a `tools` YAML array
-    # that OpenCode rejects ("Expected object | undefined"), breaking
-    # startup entirely.  Remove them until upstream fixes the schema.
-    # Tracked: https://github.com/JuliusBrussee/caveman/issues/386
-    local opencode_agents_dir="${HOME}/.config/opencode/agents"
-    local -a bad_agents=(cavecrew-investigator.md cavecrew-builder.md cavecrew-reviewer.md)
-    for f in "${bad_agents[@]}"; do
-        if [[ -f "${opencode_agents_dir}/${f}" ]]; then
-            rm -f "${opencode_agents_dir}/${f}"
-            log_warn "Removed incompatible agent file: ${opencode_agents_dir}/${f}"
-        fi
-    done
-
-    # Patch: upstream plugin.js uses non-existent opencode hooks
-    # (session.created, tui.prompt.append). Replace with our fixed version
-    # that uses chat.message + experimental.chat.system.transform.
-    # Tracked: https://github.com/JuliusBrussee/caveman/issues/418
-    local plugin_patch
-    plugin_patch="$(dirname "${BASH_SOURCE[0]}")/patches/opencode-plugin.js"
-    local plugin_dest="${HOME}/.config/opencode/plugins/caveman/plugin.js"
-    if [[ -f "${plugin_patch}" ]]; then
-        if [[ -f "${plugin_dest}" ]]; then
-            cp "${plugin_patch}" "${plugin_dest}"
-            log_success "Applied opencode plugin.js patch (issue #418)"
-        else
-            log_warn "Cannot apply plugin.js patch: destination not found (${plugin_dest})"
-        fi
-    fi
-
     log_success "Caveman configured for OpenCode (plugin + skills + commands)"
 }
 

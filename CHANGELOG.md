@@ -218,6 +218,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed the caveman OpenCode workarounds that replaced the upstream `plugin.js`, deleted the `cavecrew-*` agents and stubbed `caveman-compress.md`; caveman 3.2.0 ships these fixes upstream
 - Removed macOS 15 (Sequoia) support: installation and provisioning now require macOS 26 (Tahoe), and CI runs on macOS 26 only
 - Removed the retired Swiftly formula, its macOS state, and the Swift.org 6.3.3 toolchain installed for menu bar builds
 
@@ -235,6 +236,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed caveman setup failing with the upstream 3.2.0 installer layout; the installer path now comes from the upstream `package.json`
 - Fixed `sjust sf-harness-sync` suggesting `sparkdock-agents-sync --force`, a script that is not on `PATH`, when it skips locally modified or orphaned resources; the hint now names `sjust sf-harness-sync force` (`ajust` on Linux)
 - Fixed the RTK OpenCode plugin failing to load on OpenCode 2.x with "Plugin must export a default definition": `sjust sf-rtk-setup` now installs an OpenCode 2.x version of the plugin over the one `rtk init` generates ([rtk#3898](https://github.com/rtk-ai/rtk/issues/3898))
 - Fixed installed herdr integrations going stale: the herdr skill setup now refreshes every integration that `herdr integration status` reports as outdated, which restores the OpenCode plugin on OpenCode 2.x
