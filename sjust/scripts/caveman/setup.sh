@@ -117,12 +117,26 @@ STUB
 }
 
 # Resolve the caveman native installer entrypoint.
-# Upstream moved it from `cli/install.js` to `bin/install.js` (force-pushed on
-# 2026-08-25), so probe both layouts and print the first one that exists.
-# Returns non-zero when neither is present.
+# Upstream has moved it several times (`cli/install.js`, then `bin/install.js`,
+# then `installer/install.js` in 3.2.0), each time with a force-push.  Read the
+# `caveman-install` bin declared in package.json first, so the next move needs
+# no change here, then fall back to the known layouts.
+# Returns non-zero when no installer is found.
 caveman_installer_path() {
     local candidate
-    for candidate in bin/install.js cli/install.js; do
+    candidate="$(node -e '
+        const bin = JSON.parse(require("fs").readFileSync(process.argv[1], "utf8")).bin;
+        const path = typeof bin === "string" ? bin : (bin || {})["caveman-install"];
+        if (path) {
+            process.stdout.write(path);
+        }
+    ' "${CAVEMAN_CACHE_DIR}/package.json" 2>/dev/null || true)"
+    candidate="${candidate#./}"
+    if [[ -n "${candidate}" && -f "${CAVEMAN_CACHE_DIR}/${candidate}" ]]; then
+        printf '%s\n' "${CAVEMAN_CACHE_DIR}/${candidate}"
+        return 0
+    fi
+    for candidate in installer/install.js bin/install.js cli/install.js; do
         if [[ -f "${CAVEMAN_CACHE_DIR}/${candidate}" ]]; then
             printf '%s\n' "${CAVEMAN_CACHE_DIR}/${candidate}"
             return 0
@@ -150,7 +164,7 @@ setup_claude() {
     log_info "Setting up caveman for Claude Code..."
     local installer
     if ! installer="$(caveman_installer_path)"; then
-        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (looked for bin/install.js and cli/install.js)"
+        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (checked the package.json bin, installer/install.js, bin/install.js and cli/install.js)"
         return 1
     fi
     if ! node "${installer}" \
@@ -172,7 +186,7 @@ setup_opencode() {
     log_info "Setting up caveman for OpenCode..."
     local installer
     if ! installer="$(caveman_installer_path)"; then
-        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (looked for bin/install.js and cli/install.js)"
+        log_error "Caveman installer not found under ${CAVEMAN_CACHE_DIR} (checked the package.json bin, installer/install.js, bin/install.js and cli/install.js)"
         return 1
     fi
     if ! node "${installer}" \

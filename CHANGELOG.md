@@ -235,6 +235,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the caveman setup failing with "Caveman installer not found" on caveman 3.2.0; it now finds the installer from the caveman package metadata, falling back to the known layouts
 - Fixed `sjust sf-harness-sync` suggesting `sparkdock-agents-sync --force`, a script that is not on `PATH`, when it skips locally modified or orphaned resources; the hint now names `sjust sf-harness-sync force` (`ajust` on Linux)
 - Fixed the RTK OpenCode plugin failing to load on OpenCode 2.x with "Plugin must export a default definition": `sjust sf-rtk-setup` now installs an OpenCode 2.x version of the plugin over the one `rtk init` generates ([rtk#3898](https://github.com/rtk-ai/rtk/issues/3898))
 - Fixed installed herdr integrations going stale: the herdr skill setup now refreshes every integration that `herdr integration status` reports as outdated, which restores the OpenCode plugin on OpenCode 2.x
