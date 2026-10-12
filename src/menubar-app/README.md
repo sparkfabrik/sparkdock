@@ -86,5 +86,5 @@ sparkdock-manager --help
 
 ## Requirements
 
-- macOS 15.0+ (Sequoia)
+- macOS 26.0+ (Tahoe)
 - Sparkdock installed at `/opt/sparkdock`

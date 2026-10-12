@@ -23,7 +23,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-15, macos-26]
+        os: [macos-26]
 
     steps:
       - name: Checkout code
@@ -110,7 +110,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-15, macos-26]
+        os: [macos-26]
         clt: [installed, newest]
     env:
       DEVELOPER_DIR: /Library/Developer/CommandLineTools

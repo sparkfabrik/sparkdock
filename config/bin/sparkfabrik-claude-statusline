@@ -347,6 +347,19 @@ rl_add 7d  "$seven_pct" "$seven_reset"
 rl_add '$' "$spend_pct" "$spend_reset"
 [ -n "$rl_out" ] && append "${rl_out}${RST}"
 
+# Share the session and weekly windows with local readers (SparkPulse), written atomically.
+# Only plain numbers are written, so the JSON needs no escaping.
+is_num() { [[ "$1" =~ ^[0-9]+(\.[0-9]+)?$ ]]; }
+if is_num "$five_pct" && is_num "$five_reset" && is_num "$seven_pct" && is_num "$seven_reset"; then
+  rl_dir="${XDG_CACHE_HOME:-$HOME/.cache}"
+  rl_file="${rl_dir}/claude-rate-limits.json"
+  if [ -d "$rl_dir" ] || mkdir -p "$rl_dir" 2>/dev/null; then
+    { printf '{"updated_at":%s,"five_hour":{"used_percentage":%s,"resets_at":%s},"seven_day":{"used_percentage":%s,"resets_at":%s}}\n' \
+        "$NOW" "$five_pct" "$five_reset" "$seven_pct" "$seven_reset" > "${rl_file}.$$" \
+        && mv -f "${rl_file}.$$" "$rl_file"; } 2>/dev/null || rm -f "${rl_file}.$$" 2>/dev/null
+  fi
+fi
+
 printf '%s' "$out"
 
 # Always exit 0 because Claude Code discards a failing statusline.

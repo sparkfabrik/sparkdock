@@ -1057,6 +1057,8 @@ print_relocation_notice() {
 }
 
 print_summary() {
+    local runner
+    runner="$(get_harness_runner)"
     local skills_total=$((SKILLS_ADDED + SKILLS_UPDATED + SKILLS_SKIPPED + SKILLS_UNCHANGED + SKILLS_REMOVED + SKILLS_ORPHAN_SKIPPED + SKILLS_RELOCATED + SKILLS_RELOCATION_SKIPPED))
     local agents_total=$((AGENTS_ADDED + AGENTS_UPDATED + AGENTS_SKIPPED + AGENTS_UNCHANGED + AGENTS_REMOVED + AGENTS_ORPHAN_SKIPPED))
     local total=$((skills_total + agents_total))
@@ -1108,7 +1110,7 @@ print_summary() {
     if [[ "${total_skipped}" -gt 0 ]]; then
         echo ""
         log_info "Some resources were skipped due to local modifications."
-        log_info "Run '${SCRIPT_NAME} --force' to overwrite them."
+        log_info "Run '${runner} sf-harness-sync force' to overwrite them."
     fi
 
     print_relocation_notice
@@ -1117,7 +1119,7 @@ print_summary() {
     if [[ "${total_orphan_skipped}" -gt 0 ]]; then
         echo ""
         log_info "Some orphaned resources were skipped because they were locally modified."
-        log_info "Run '${SCRIPT_NAME} --force' to remove them."
+        log_info "Run '${runner} sf-harness-sync force' to remove them."
     fi
 }
 

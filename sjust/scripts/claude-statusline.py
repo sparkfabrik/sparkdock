@@ -16,8 +16,10 @@ shows up here automatically.
 """
 
 import json
+import os
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -58,13 +60,16 @@ def _preview(variant="typical") -> str:
         return f"(unavailable — no payload fixture named {variant})"
     payload = _resolve_deadlines(json.loads(fixture.read_text()), int(time.time()))
     payload.setdefault("workspace", {})["current_dir"] = str(SPARKDOCK_ROOT)
-    result = subprocess.run(
-        ["bash", str(STATUSLINE_SCRIPT)],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    # Sample payloads must not overwrite the shared rate-limit file.
+    with tempfile.TemporaryDirectory() as cache:
+        result = subprocess.run(
+            ["bash", str(STATUSLINE_SCRIPT)],
+            input=json.dumps(payload),
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "XDG_CACHE_HOME": cache},
+        )
     return result.stdout or "(renderer printed nothing)"
 
 

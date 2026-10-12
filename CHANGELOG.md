@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added the `sparkfabrik-harness` Claude Code plugin with three mods: a command guard that denies credentials in URLs and secret files and asks before destructive commands, a writing gate that asks before publishing, and a commit gate that checks the commit convention and issue references
 - Added the `claude-mods` Ansible tag, which clears a cached off value that keeps Claude Code mods from loading
+- Added `~/.cache/claude-rate-limits.json` (`$XDG_CACHE_HOME` when set), written by the managed Claude Code statusline with the current session and weekly usage for local readers such as SparkPulse
 - Added engram to the update-notification system: `sparkdock-check-updates engram` delegates to `engram update --check`, the menu bar app shows an Engram status row with an Upgrade action running `engram update --apply` and an "Update engram" Tools entry, all only where the CLI is installed, and `sjust sf-engram-info` and `sjust sf-engram-auth` report the install state and log in to the hub
 - Added `sjust sf-harness-tools-upgrade` (also `ajust` on Linux) to upgrade Claude Code and Codex through their install channel: Homebrew casks, the native Claude updater or the Arch `openai-codex` package, leaving Omarchy mise wrappers to `omarchy update`
 - Added git dirty state, ahead/behind counts, linked worktree, fast mode, custom agent, vim mode, output style and a cold prompt-cache marker to the managed Claude Code statusline, plus a `sjust claude-statusline-preview full` variant that renders every segment
@@ -220,6 +221,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- Removed macOS 15 (Sequoia) support: installation and provisioning now require macOS 26 (Tahoe), and CI runs on macOS 26 only
 - Removed the retired Swiftly formula, its macOS state, and the Swift.org 6.3.3 toolchain installed for menu bar builds
 
 - Removed the dinghy-proxy to http-proxy transition, 14 months after it landed: the `run-http-proxy` and `run-dinghy-proxy` compatibility symlinks are no longer created, and the block that deleted old dinghy binaries and copied `~/.dinghy/certs` is gone (`spark-http-proxy` creates its own config and certs directories on every run). Symlinks already present on a machine keep working; they are simply no longer managed
@@ -236,6 +238,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the caveman setup failing with "Caveman installer not found" on caveman 3.2.0; it now finds the installer from the caveman package metadata, falling back to the known layouts
+- Fixed `sjust sf-harness-sync` suggesting `sparkdock-agents-sync --force`, a script that is not on `PATH`, when it skips locally modified or orphaned resources; the hint now names `sjust sf-harness-sync force` (`ajust` on Linux)
 - Fixed the RTK OpenCode plugin failing to load on OpenCode 2.x with "Plugin must export a default definition": `sjust sf-rtk-setup` now installs an OpenCode 2.x version of the plugin over the one `rtk init` generates ([rtk#3898](https://github.com/rtk-ai/rtk/issues/3898))
 - Fixed installed herdr integrations going stale: the herdr skill setup now refreshes every integration that `herdr integration status` reports as outdated, which restores the OpenCode plugin on OpenCode 2.x
 - Fixed macOS 15 compiler compatibility, non-interactive menu bar rebuild reuse, CLT rollback, and missing-input fingerprint failures

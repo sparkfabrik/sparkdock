@@ -14,7 +14,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-15, macos-26]
+        os: [macos-26]
     env:
       TERM: xterm-256color
       SHELL: /bin/zsh
@@ -81,26 +81,21 @@ jobs:
           fi
           echo "✅ copilot command is available"
 
-          macos_major=$(sw_vers -productVersion | cut -d. -f1)
-          if [ "${macos_major}" -ge 26 ]; then
-            echo "--- macOS defaults sanity-read ---"
-            for pair in \
-              "com.apple.desktopservices DSDontWriteNetworkStores" \
-              "com.apple.desktopservices DSDontWriteUSBStores" \
-              "com.apple.Terminal SecureKeyboardEntry" \
-              "com.apple.TimeMachine DoNotOfferNewDisksForBackup"; do
-                domain="${pair% *}"; key="${pair#* }"
-                val="$(defaults read "${domain}" "${key}" 2>/dev/null || echo MISSING)"
-                if [ "${val}" = "1" ]; then
-                    echo "✅ ${domain} ${key}=${val}"
-                else
-                    echo "❌ ${domain} ${key}=${val} (expected 1)"
-                    exit 1
-                fi
-            done
-          else
-            echo "macOS ${macos_major}: skipping macos-defaults assertions (requires 26+)"
-          fi
+          echo "--- macOS defaults sanity-read ---"
+          for pair in \
+            "com.apple.desktopservices DSDontWriteNetworkStores" \
+            "com.apple.desktopservices DSDontWriteUSBStores" \
+            "com.apple.Terminal SecureKeyboardEntry" \
+            "com.apple.TimeMachine DoNotOfferNewDisksForBackup"; do
+              domain="${pair% *}"; key="${pair#* }"
+              val="$(defaults read "${domain}" "${key}" 2>/dev/null || echo MISSING)"
+              if [ "${val}" = "1" ]; then
+                  echo "✅ ${domain} ${key}=${val}"
+              else
+                  echo "❌ ${domain} ${key}=${val} (expected 1)"
+                  exit 1
+              fi
+          done
 
           # Test basic functionality
           echo "✅ First installation completed successfully"
@@ -126,17 +121,6 @@ jobs:
             ansible-playbook -i ansible/inventory.ini ansible/macos.yml --tags homebrew-app \
               -e sparkdock_homebrew_app=true -e ansible_become_pass=
           }
-          macos_major=$(sw_vers -productVersion | cut -d. -f1)
-          if [ "${macos_major}" -lt 26 ]; then
-            run_tag | tee /tmp/homebrew-app-skip.log
-            grep -q 'requires macOS 26' /tmp/homebrew-app-skip.log
-            if brew list --cask homebrew-app >/dev/null 2>&1; then
-              echo "cask unexpectedly installed"
-              exit 1
-            fi
-            echo "✅ Homebrew desktop app skipped on macOS ${macos_major}"
-            exit 0
-          fi
           run_tag
           test -f /Applications/Homebrew.app/Contents/Info.plist
           brew list --cask homebrew-app

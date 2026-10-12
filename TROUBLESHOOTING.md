@@ -8,7 +8,6 @@ Please find hints and troubleshooting information on our company playbook: http:
 
 **Supported macOS Versions:**
 
-- macOS Sequoia (15.x)
 - macOS Tahoe (26.x)
 
 **Prerequisites:**
@@ -113,7 +112,7 @@ MulticastDNS setting: no
 
 #### Menu bar compiler requirements
 
-Sparkdock builds the menu bar app with Apple's selected compiler and SDK. `src/menubar-app/.swift-minimum-version` requires Swift 6.1 or newer; builds check this before compilation. Swift 6.1 is the oldest compiler family CI builds with: macOS 15 Command Line Tools 16.4 supplies Swift 6.1.2. No separate Swift.org toolchain or Swiftly setup is required.
+Sparkdock builds the menu bar app with Apple's selected compiler and SDK. `src/menubar-app/.swift-minimum-version` requires Swift 6.1 or newer; builds check this before compilation. No separate Swift.org toolchain or Swiftly setup is required.
 
 ```bash
 cd /opt/sparkdock/src/menubar-app

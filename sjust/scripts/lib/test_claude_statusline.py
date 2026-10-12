@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import unittest
+import unittest.mock
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent.parent
@@ -34,6 +35,8 @@ def render(payload, env=None):
     with tempfile.TemporaryDirectory() as config_dir:
         run_env = os.environ.copy()
         run_env["CLAUDE_CONFIG_DIR"] = config_dir
+        # Keep the shared rate-limit file out of the real cache.
+        run_env["XDG_CACHE_HOME"] = config_dir
         if env:
             run_env.update(env)
         result = subprocess.run(
@@ -197,6 +200,42 @@ class RendererTest(unittest.TestCase):
         )
         self.assertIn("5h 5%", out)
         self.assertNotIn("↻", out)
+
+    def test_rate_limits_are_shared_in_a_cache_file(self):
+        with tempfile.TemporaryDirectory() as cache:
+            render(
+                {
+                    "cwd": "/tmp",
+                    "rate_limits": {
+                        "five_hour": {"used_percentage": 23.5, "resets_at": 2000},
+                        "seven_day": {"used_percentage": 41, "resets_at": 9000},
+                    },
+                },
+                {"XDG_CACHE_HOME": cache},
+            )
+            with open(os.path.join(cache, "claude-rate-limits.json")) as stream:
+                shared = json.load(stream)
+            self.assertAlmostEqual(shared["updated_at"], time.time(), delta=60)
+            self.assertEqual(shared["five_hour"], {"used_percentage": 23.5, "resets_at": 2000})
+            self.assertEqual(shared["seven_day"], {"used_percentage": 41, "resets_at": 9000})
+            self.assertEqual(os.listdir(cache), ["claude-rate-limits.json"])
+
+    def test_incomplete_or_non_numeric_rate_limits_are_not_shared(self):
+        for limits in (
+            {"five_hour": {"used_percentage": 5, "resets_at": 1}},
+            {
+                "five_hour": {"used_percentage": "5,\"x\":1", "resets_at": 1},
+                "seven_day": {"used_percentage": 1, "resets_at": 1},
+            },
+        ):
+            with self.subTest(limits=limits), tempfile.TemporaryDirectory() as cache:
+                render({"cwd": "/tmp", "rate_limits": limits}, {"XDG_CACHE_HOME": cache})
+                self.assertEqual(os.listdir(cache), [])
+
+    def test_preview_does_not_touch_the_shared_file(self):
+        with tempfile.TemporaryDirectory() as cache, unittest.mock.patch.dict(os.environ, {"XDG_CACHE_HOME": cache}):
+            self.assertIn("5h", re.sub(r"\033\[[0-9;]*m", "", claude_statusline._preview("full")))
+            self.assertEqual(os.listdir(cache), [])
 
     def test_spend_limit_reports_past_one_hundred(self):
         _, out = render(

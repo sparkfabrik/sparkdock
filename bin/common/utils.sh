@@ -147,8 +147,8 @@ except Exception:
 }
 
 checkMacosVersion() {
-    if ! [[ $( sw_vers -productVersion ) =~ ^(26.[0-9]+|15.[0-9]+) ]] ; then
-        print_error "Sorry, this script is supposed to be executed on macOS Sequoia (15.x) or macOS Tahoe (26.x). Please use a supported version."
+    if ! [[ $( sw_vers -productVersion ) =~ ^26\.[0-9]+ ]] ; then
+        print_error "Sorry, this script is supposed to be executed on macOS Tahoe (26.x). Please use a supported version."
         return 1
     fi
     return 0

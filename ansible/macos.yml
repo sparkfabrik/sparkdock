@@ -1,11 +1,15 @@
 ---
-# Fact-gathering play: facts feed the import_playbook `when` below.
+# Fact-gathering play: refuses unsupported macOS versions before base.yml runs.
 # Runs unprivileged — root work is elevated per-task in base.yml, so this
 # must not force a sudo password for the whole run.
 - hosts: 127.0.0.1
   connection: local
+  tasks:
+    - name: Refuse unsupported macOS versions
+      tags: always
+      fail:
+        msg: "Sorry, this playbook is supposed to be executed on macOS Tahoe (26.x) (detected: {{ ansible_facts['distribution_version'] }}). Please use a supported version."
+      when: ansible_facts['distribution_version'] | regex_search('^26\.[0-9]+') is none
 
 - name: Import playbook for macOS
   import_playbook: macos/macos/base.yml
-  # Match macOS versions 15.x (Sequoia) and 26.x (Tahoe)
-  when: ansible_facts['distribution_version'] | regex_search('^(15\.[0-9]+|26\.[0-9]+)') is not none

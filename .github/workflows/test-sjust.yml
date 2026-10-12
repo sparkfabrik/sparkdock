@@ -12,7 +12,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [macos-15, macos-26]
+        os: [macos-26]
     env:
       TERM: xterm-256color
       SHELL: /bin/zsh
@@ -197,12 +197,6 @@ jobs:
       - name: Test macos-defaults sjust commands
         run: |
           set -euo pipefail
-          macos_major=$(sw_vers -productVersion | cut -d. -f1)
-          if [[ "${macos_major}" -lt 26 ]]; then
-            echo "macOS ${macos_major} detected — skipping macos-defaults lifecycle test (requires 26+)"
-            exit 0
-          fi
-
           probe_domain="com.apple.desktopservices"
           probe_key="DSDontWriteNetworkStores"
 
