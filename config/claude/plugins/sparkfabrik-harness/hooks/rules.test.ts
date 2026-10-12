@@ -26,6 +26,33 @@ describe('shell', () => {
     expect(argvs("cat > out.txt <<'EOF'\nrm -rf /\nEOF\necho done")).toEqual([['cat'], ['echo', 'done']])
   })
 
+  test('reads substitutions the shell runs in unquoted heredocs and backticks', () => {
+    expect(argvs('cat <<EOF\n$(rm -rf build)\nEOF')).toEqual([['cat'], ['rm', '-rf', 'build']])
+    expect(argvs('cat <<EOF\n`rm -rf build`\nEOF')).toEqual([['cat'], ['rm', '-rf', 'build']])
+    expect(argvs('echo "`rm -rf build`"')).toEqual([['echo', '`rm -rf build`'], ['rm', '-rf', 'build']])
+  })
+
+  test('keeps redirection targets apart from arguments', () => {
+    expect(parseCommands('cat < .env').map(c => [c.argv, c.redirects])).toEqual([[['cat'], ['.env']]])
+    expect(parseCommands('printf x > .env 2>&1').map(c => [c.argv, c.redirects])).toEqual([[['printf', 'x'], ['.env', '1']]])
+  })
+
+  test('reads through eval, shell option clusters and wrapper option values', () => {
+    expect(argvs(`eval 'rm -rf build'`)).toEqual([['rm', '-rf', 'build']])
+    expect(argvs(`bash -lc 'rm -rf build'`)).toEqual([['rm', '-rf', 'build']])
+    expect(argvs(`bash -e -o pipefail -c 'terraform destroy'`)).toEqual([['terraform', 'destroy']])
+    expect(argvs('bash script.sh')).toEqual([['bash', 'script.sh']])
+    expect(argvs('env -u FOO rm -rf build')).toEqual([['rm', '-rf', 'build']])
+    expect(argvs('nice -n 5 rm -rf build')).toEqual([['rm', '-rf', 'build']])
+    expect(argvs('timeout -s KILL 10 rm -rf build')).toEqual([['rm', '-rf', 'build']])
+  })
+
+  test('tracks the directory set by cd', () => {
+    expect(parseCommands('cd other && git push').map(c => c.cwd)).toEqual([undefined, 'other'])
+    expect(parseCommands('cd /a && cd b && cat x').map(c => c.cwd)).toEqual([undefined, '/a', '/a/b'])
+    expect(parseCommands('cd "$DIR" && git push').map(c => c.cwd)).toEqual([undefined, null])
+  })
+
   test('keeps a heredoc inside a substitution whole, apostrophes included', () => {
     const command = `git commit -m "$(cat <<'EOF'\nfix(x): don't break\n\nRefs: a/b#1\nEOF\n)"`
     expect(argvs(command)[0]).toEqual(['git', 'commit', '-m', "$(cat <<'EOF'\nfix(x): don't break\n\nRefs: a/b#1\nEOF\n)"])
@@ -52,6 +79,7 @@ describe('command guard rules', () => {
     expect(parseCommands('ls -la .env').flatMap(secretCandidates)).toEqual([])
     expect(parseCommands('cat .env | head').flatMap(secretCandidates)).toEqual(['.env'])
     expect(parseCommands('gcloud secrets versions access latest').flatMap(secretCandidates)).toEqual(['secrets'])
+    expect(parseCommands('ls > .env').flatMap(secretCandidates)).toEqual(['.env'])
   })
 
   test('destructive commands', () => {
@@ -79,6 +107,8 @@ describe('command guard rules', () => {
     expect(reason('docker rm -f web')).toBe('force-removes containers (docker rm -f)')
     expect(reason('sudo ls')).toBe('runs as root with sudo')
     expect(reason('echo rm -rf')).toBeUndefined()
+    expect(reason(`eval 'rm -rf build'`)).toBe('deletes recursively')
+    expect(reason('git push')).toBe('pushes the current branch, which could not be determined')
   })
 
   test('only branchless pushes need the current branch', () => {
@@ -111,6 +141,7 @@ describe('commit gate rules', () => {
     expect(detectFormat(['ACME-1: a'])).toBe('jira')
     expect(detectFormat(['initial', 'wip'])).toBeUndefined()
     expect(detectFormat(['refs #1: a', 'feat: b'])).toBe('legacy')
+    expect(detectFormat(['ACME-1: a', 'feat: b', 'refs #1: c', 'fix: d', 'refs #2: e'])).toBe('conventional')
   })
 
   test('subject and footer checks', () => {

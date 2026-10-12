@@ -14,6 +14,8 @@ export const CREDENTIAL_DENY =
 
 const ENV_TEMPLATE = /^\.env\.(?:example|sample|template|dist)$/
 const NON_READING = new Set(['ls', 'stat', 'test', '['])
+// Commands that read the files beneath a directory operand.
+const DIRECTORY_READERS = new Set(['grep', 'egrep', 'fgrep', 'rg', 'ag', 'ack', 'find', 'tar', 'zip', 'cp', 'rsync', 'scp', 'tree'])
 const GIT_VALUED = new Set(['-C', '-c'])
 const PUSH_VALUED = new Set(['--repo', '-o', '--push-option', '--receive-pack', '--exec'])
 const KUBECTL_VALUED = new Set(['-n', '--namespace', '--context', '--kubeconfig', '--cluster', '--user', '-s', '--server'])
@@ -48,13 +50,16 @@ export function secretDeny(path: string): string {
   return `${path} is a secret file under SparkFabrik policy: do not read or edit it. Ask the person to handle it, or use a template such as .env.example.`
 }
 
-// Arguments that may name a secret file the command reads; the caller checks
-// which of them exist.
+// Arguments and redirection targets that may name a secret file the command
+// reads or writes; the caller checks which of them exist.
 export function secretCandidates(command: ShellCommand): string[] {
-  if (NON_READING.has(basename(command.argv[0] ?? ''))) {
-    return []
-  }
-  return command.argv.slice(1).filter(word => !word.startsWith('-') && !word.includes('$') && isSecretPath(word))
+  const operands = NON_READING.has(basename(command.argv[0] ?? '')) ? [] : command.argv.slice(1)
+  return [...operands, ...command.redirects].filter(word => !word.startsWith('-') && !word.includes('$') && isSecretPath(word))
+}
+
+// True when the command reads the contents of a directory operand.
+export function readsDirectories(command: ShellCommand): boolean {
+  return DIRECTORY_READERS.has(basename(command.argv[0] ?? ''))
 }
 
 function pushRefspecs(args: string[]): string[] {
@@ -96,7 +101,8 @@ export function pushesCurrentBranch(command: ShellCommand): boolean {
 }
 
 // Why a command needs the person's confirmation, or undefined when it does not.
-// `branch` is the current branch, for a push that targets it.
+// `branch` is the current branch, for a push that targets it; undefined when
+// it could not be determined.
 export function destructiveReason(command: ShellCommand, branch: string | undefined): string | undefined {
   const { argv } = command
   const name = basename(argv[0] ?? '')
@@ -132,6 +138,9 @@ export function destructiveReason(command: ShellCommand, branch: string | undefi
       }
       if (args.includes('--all') || args.includes('--mirror')) {
         return 'pushes every branch, main or master included'
+      }
+      if (branch === undefined && pushesCurrentBranch(command)) {
+        return 'pushes the current branch, which could not be determined'
       }
       const branches = refspecs.map(branchOf).map(b => (b === 'HEAD' ? (branch ?? '') : b))
       if (refspecs.length === 0) {

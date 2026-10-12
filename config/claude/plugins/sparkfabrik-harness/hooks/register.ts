@@ -7,15 +7,16 @@ import {
   hasCredentialUrl,
   isSecretPath,
   pushesCurrentBranch,
+  readsDirectories,
   secretCandidates,
   secretDeny,
 } from './guard-rules'
-import { parseCommands } from './shell'
+import { joinPath, parseCommands, type ShellCommand } from './shell'
 
 // Skills the writing gate tracks; the Python classifier, shared with Codex,
 // decides which of them a call requires.
 const GATED_SKILLS = new Set(['gh', 'glab', 'sf-writing-style'])
-const PLATFORM_CLI = /(^|[\s;&|(`/])(gh|glab)(\s|$)/
+const PLATFORM_CLI = /(^|[\s;&|(`/'"])(gh|glab)(\s|$)/
 const PLATFORM_MCP = /slack|github|gitlab/i
 const REMINDER =
   'Writing guard: this call was not blocked and its text was not evaluated. Apply ' +
@@ -72,6 +73,28 @@ async function confirm($: EngineInterface, question: string, header: string, pro
   }
 }
 
+// Where a path points, relative to the session's directory; null when an
+// earlier `cd` or a missing HOME makes it unknowable.
+function locate(path: string, cwd: string | null | undefined, home: string | undefined): string | null {
+  if (path === '~' || path.startsWith('~/')) {
+    return home === undefined ? null : home + path.slice(1)
+  }
+  if (path.startsWith('/') || cwd === undefined) {
+    return path
+  }
+  const base = cwd === null ? null : locate(cwd, undefined, home)
+  return base === null ? null : joinPath(base, path)
+}
+
+// The directory a command runs in, `git -C` included.
+function workdir(command: ShellCommand, home: string | undefined): string | null | undefined {
+  const dir = gitDirectory(command.argv)
+  if (dir !== undefined) {
+    return locate(dir, command.cwd, home)
+  }
+  return command.cwd === undefined || command.cwd === null ? command.cwd : locate(command.cwd, undefined, home)
+}
+
 async function guardBash<E extends BashCall>($: EngineInterface, e: E, next: Next<E>): Promise<ToolCallResult> {
   if (hasCredentialUrl(e.command)) {
     return { deny: CREDENTIAL_DENY }
@@ -80,9 +103,13 @@ async function guardBash<E extends BashCall>($: EngineInterface, e: E, next: Nex
   const home = await $.env.get('HOME')
   for (const command of commands) {
     for (const word of secretCandidates(command)) {
-      const path = word.startsWith('~/') && home !== undefined ? home + word.slice(1) : word
+      const path = locate(word, command.cwd, home)
+      // A path whose directory the shell decides is treated as present.
+      if (path === null) {
+        return { deny: secretDeny(word) }
+      }
       const found = await $.fs.stat(path).catch(() => undefined)
-      if (found?.kind === 'file') {
+      if (found?.kind === 'file' || (found?.kind === 'dir' && readsDirectories(command))) {
         return { deny: secretDeny(word) }
       }
     }
@@ -90,10 +117,9 @@ async function guardBash<E extends BashCall>($: EngineInterface, e: E, next: Nex
   const reasons: string[] = []
   for (const command of commands) {
     let branch: string | undefined
-    if (pushesCurrentBranch(command)) {
-      const ran = await $.process
-        .run(['git', 'branch', '--show-current'], { cwd: gitDirectory(command.argv), timeoutMs: 5000 })
-        .catch(() => undefined)
+    const cwd = pushesCurrentBranch(command) ? workdir(command, home) : null
+    if (cwd !== null) {
+      const ran = await $.process.run(['git', 'branch', '--show-current'], { cwd, timeoutMs: 5000 }).catch(() => undefined)
       branch = ran?.exitCode === 0 ? ran.stdout.trim() : undefined
     }
     const reason = destructiveReason(command, branch)
@@ -116,16 +142,24 @@ async function guardBash<E extends BashCall>($: EngineInterface, e: E, next: Nex
 }
 
 async function classify($: EngineInterface, e: ToolCallInput): Promise<{ required: string[]; available: string[] }> {
+  // A classifier that cannot answer still leaves the call to the person.
+  const unknown = { required: ['sf-writing-style'], available: [] }
   // The plugin lives at <sparkdock>/config/claude/plugins/sparkfabrik-harness.
   const script = `${$.plugin.root.replace(/\/+$/, '')}/../../../../sjust/scripts/claude-gh-gate.py`
   const payload = { tool_name: e.tool, tool_input: toolInput(e), cwd: await $.session.cwd() }
   const ran = await $.process.run(['python3', script, 'classify'], { stdin: JSON.stringify(payload), timeoutMs: 10000 }).catch(() => undefined)
+  if (ran?.exitCode !== 0) {
+    return unknown
+  }
   try {
-    const parsed = JSON.parse(ran?.exitCode === 0 ? ran.stdout : '{}') as { required?: unknown; available?: unknown }
+    const parsed = JSON.parse(ran.stdout) as { required?: unknown; available?: unknown }
+    if (!Array.isArray(parsed.required)) {
+      return unknown
+    }
     const strings = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [])
     return { required: strings(parsed.required), available: strings(parsed.available) }
   } catch {
-    return { required: [], available: [] }
+    return unknown
   }
 }
 
@@ -172,16 +206,24 @@ async function gateWriting<E extends ToolCallInput>($: EngineInterface, e: E, ne
 
 async function gateCommit<E extends BashCall>($: EngineInterface, e: E, next: Next<E>): Promise<ToolCallResult> {
   const notes: string[] = []
-  for (const { argv, message } of findCommits(e.command)) {
+  const home = await $.env.get('HOME')
+  for (const { command, message } of findCommits(e.command)) {
     if ('skip' in message) {
       continue
     }
-    const fromFile = message.file === undefined ? '' : await $.fs.read(message.file).then(t => (typeof t === 'string' ? t : undefined)).catch(() => undefined)
+    const cwd = workdir(command, home)
+    if (cwd === null) {
+      continue
+    }
+    // Git reads a relative message file from the repository it commits in.
+    const file = message.file === undefined ? undefined : locate(message.file, cwd, home)
+    const fromFile =
+      file === undefined ? '' : file === null ? undefined : await $.fs.read(file).then(t => (typeof t === 'string' ? t : undefined)).catch(() => undefined)
     if (fromFile === undefined) {
       continue
     }
     const text = [fromFile, ...message.parts].filter(Boolean).join('\n\n')
-    const log = await $.process.run(['git', 'log', '--format=%s', '-n', '30'], { cwd: gitDirectory(argv), timeoutMs: 5000 }).catch(() => undefined)
+    const log = await $.process.run(['git', 'log', '--format=%s', '-n', '30'], { cwd, timeoutMs: 5000 }).catch(() => undefined)
     const format = detectFormat(log?.exitCode === 0 ? log.stdout.split('\n').filter(Boolean) : [])
     const subject = (text.split('\n')[0] ?? '').trim()
     const problem = subjectProblem(subject, format)
@@ -205,19 +247,30 @@ async function gateCommit<E extends BashCall>($: EngineInterface, e: E, next: Ne
 // Session ids that already carry the marker standing the Python settings hook down.
 const marked = new Set<string>()
 
+async function markerPath($: EngineInterface, id: string): Promise<string> {
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(id)))
+  const hex = [...digest].map(b => b.toString(16).padStart(2, '0')).join('')
+  const cache = (await $.env.get('XDG_CACHE_HOME')) || `${await $.env.get('HOME')}/.cache`
+  return `${cache}/sparkdock/claude-skill-gate/mod-${hex}`
+}
+
 // The Python hook skips a session whose marker exists in its state directory.
 async function markSession($: EngineInterface): Promise<void> {
   const id = await $.session.id()
   if (marked.has(id)) {
     return
   }
-  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(id)))
-  const hex = [...digest].map(b => b.toString(16).padStart(2, '0')).join('')
-  const cache = (await $.env.get('XDG_CACHE_HOME')) || `${await $.env.get('HOME')}/.cache`
   await $.fs
-    .write(`${cache}/sparkdock/claude-skill-gate/mod-${hex}`, '')
+    .write(await markerPath($, id), '')
     .then(() => marked.add(id))
     .catch(() => undefined)
+}
+
+// Hands the session back to the Python hook, for a resume without the mod.
+async function unmarkSession($: EngineInterface): Promise<void> {
+  const id = await $.session.id()
+  marked.delete(id)
+  await $.process.run(['rm', '-f', await markerPath($, id)], { timeoutMs: 5000 }).catch(() => undefined)
 }
 
 export const register: Register = on => {
@@ -228,6 +281,7 @@ export const register: Register = on => {
 
   on('session.end', async ($, e, next) => {
     loops.clear()
+    await unmarkSession($)
     return next(e)
   })
 
@@ -264,15 +318,20 @@ export const register: Register = on => {
   })
 
   on('tool.call', { tool: ['Read', 'Edit', 'Write', 'WebFetch'] }, async ($, e, next) => {
-    const path = e.tool === 'Read' || e.tool === 'Edit' || e.tool === 'Write' ? e.file_path : undefined
-    const url = e.tool === 'WebFetch' ? e.url : undefined
-    if ((path === undefined && url === undefined) || isOff(await $.env.get('SPARKDOCK_COMMAND_GUARD'))) {
+    if (isOff(await $.env.get('SPARKDOCK_COMMAND_GUARD'))) {
       return next(e)
     }
-    if (path !== undefined && isSecretPath(path)) {
-      return { deny: secretDeny(path) }
+    if (e.tool === 'WebFetch') {
+      return hasCredentialUrl(e.url) ? { deny: CREDENTIAL_DENY } : next(e)
     }
-    return url !== undefined && hasCredentialUrl(url) ? { deny: CREDENTIAL_DENY } : next(e)
+    return isSecretPath(e.file_path) ? { deny: secretDeny(e.file_path) } : next(e)
+  })
+
+  // Builds that ship a Grep tool; its input is not in every build's types.
+  on('tool.call', { tool: /^Grep$/ }, async ($, e, next) => {
+    const { path, glob } = toolInput(e)
+    const secret = [path, glob].find((p): p is string => typeof p === 'string' && isSecretPath(p))
+    return secret === undefined || isOff(await $.env.get('SPARKDOCK_COMMAND_GUARD')) ? next(e) : { deny: secretDeny(secret) }
   })
 
   // Writing gate (#659).

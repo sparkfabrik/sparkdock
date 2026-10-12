@@ -73,7 +73,8 @@ def _mod_marker(session_id):
 
 
 def _process(payload, state):
-    # The sparkfabrik-harness mod marks sessions where it runs the gate itself.
+    # The sparkfabrik-harness mod marks sessions where it runs the gate itself
+    # and removes the mark when the session ends.
     session_id = payload.get("session_id")
     if isinstance(session_id, str) and _mod_marker(session_id).exists():
         return 0, [], []

@@ -1,4 +1,4 @@
-import { basename, parseCommands, subcommand } from './shell'
+import { basename, parseCommands, subcommand, type ShellCommand } from './shell'
 
 const CONVENTIONAL = /^(?:feat|fix|chore|test|docs|refactor|style|perf|ci|build|revert)(?:\([^)\s]+\))?!?: \S/
 const LEGACY = /^refs #\d+: \S/
@@ -23,7 +23,7 @@ const FORMATS: { format: Format; pattern: RegExp; example: string }[] = [
 // What git would use as the message. `file` asks the caller to read it.
 export type CommitMessage = { parts: string[]; file?: string } | { skip: 'dynamic' | 'editor' | 'reuse' }
 
-export type Commit = { argv: string[]; message: CommitMessage }
+export type Commit = { command: ShellCommand; message: CommitMessage }
 
 // A message part as git receives it, or undefined when the shell computes it.
 function literal(value: string): string | undefined {
@@ -79,13 +79,13 @@ export function commitMessage(args: string[]): CommitMessage {
 
 export function findCommits(command: string): Commit[] {
   const commits: Commit[] = []
-  for (const { argv } of parseCommands(command)) {
-    if (basename(argv[0] ?? '') !== 'git') {
+  for (const parsed of parseCommands(command)) {
+    if (basename(parsed.argv[0] ?? '') !== 'git') {
       continue
     }
-    const sub = subcommand(argv, GIT_VALUED)
+    const sub = subcommand(parsed.argv, GIT_VALUED)
     if (sub?.name === 'commit') {
-      commits.push({ argv, message: commitMessage(sub.args) })
+      commits.push({ command: parsed, message: commitMessage(sub.args) })
     }
   }
   return commits
@@ -93,15 +93,14 @@ export function findCommits(command: string): Commit[] {
 
 // The format most recent subjects follow; the newest decides a tie.
 export function detectFormat(subjects: string[]): Format | undefined {
+  // Insertion order puts the newest format first.
   const counts = new Map<Format, number>()
-  let newest: Format | undefined
   for (const subject of subjects) {
     if (EXEMPT.test(subject)) {
       continue
     }
     const match = FORMATS.find(f => f.pattern.test(subject))
     if (match !== undefined) {
-      newest ??= match.format
       counts.set(match.format, (counts.get(match.format) ?? 0) + 1)
     }
   }
@@ -109,8 +108,7 @@ export function detectFormat(subjects: string[]): Format | undefined {
   if (top === 0) {
     return undefined
   }
-  const leaders = [...counts].filter(([, n]) => n === top).map(([f]) => f)
-  return leaders.length === 1 ? leaders[0] : newest
+  return [...counts].find(([, n]) => n === top)?.[0]
 }
 
 export function isExempt(subject: string): boolean {
