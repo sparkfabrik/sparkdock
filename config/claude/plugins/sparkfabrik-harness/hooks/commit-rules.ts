@@ -116,7 +116,8 @@ export function isExempt(subject: string): boolean {
 }
 
 export function subjectProblem(subject: string, format: Format | undefined): string | undefined {
-  if (EXEMPT.test(subject)) {
+  // Repositories with no recognizable format are not checked.
+  if (format === undefined || EXEMPT.test(subject)) {
     return undefined
   }
   if (subject.length > MAX_SUBJECT) {

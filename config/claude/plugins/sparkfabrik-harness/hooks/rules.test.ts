@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'claude-code/testing'
 import { commitMessage, detectFormat, findCommits, hasIssueReference, subjectProblem } from './commit-rules'
-import { destructiveReason, hasCredentialUrl, isSecretPath, pushesCurrentBranch, secretCandidates } from './guard-rules'
+import { destructiveReason, gitDirectories, hasCredentialUrl, isSecretPath, pushesCurrentBranch, secretCandidates } from './guard-rules'
 import { parseCommands } from './shell'
 
 const argvs = (command: string) => parseCommands(command).map(c => c.argv)
@@ -116,6 +116,11 @@ describe('command guard rules', () => {
     expect(parseCommands('git push origin HEAD').some(pushesCurrentBranch)).toBe(true)
     expect(parseCommands('git push origin feat/x').some(pushesCurrentBranch)).toBe(false)
   })
+
+  test('collects every git -C directory before the subcommand', () => {
+    expect(gitDirectories(['git', '-C', 'a', '-c', 'x=y', '-C', 'b', 'push'])).toEqual(['a', 'b'])
+    expect(gitDirectories(['git', 'commit', '-C', 'HEAD'])).toEqual([])
+  })
 })
 
 describe('commit gate rules', () => {
@@ -149,6 +154,7 @@ describe('commit gate rules', () => {
     expect(subjectProblem('Add guard', 'conventional')).toMatch(/conventional commit subjects/)
     expect(subjectProblem(`feat: ${'x'.repeat(80)}`, 'conventional')).toMatch(/characters/)
     expect(subjectProblem('Add guard', undefined)).toBeUndefined()
+    expect(subjectProblem(`Add ${'x'.repeat(80)}`, undefined)).toBeUndefined()
     expect(subjectProblem('Merge branch main', 'conventional')).toBeUndefined()
     expect(hasIssueReference('feat: a\n\nRefs: o/r#1', 'conventional')).toBe(true)
     expect(hasIssueReference('feat: a\n\nCloses: o/r#1', 'conventional')).toBe(true)

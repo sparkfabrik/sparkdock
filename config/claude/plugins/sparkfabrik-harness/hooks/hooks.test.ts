@@ -97,6 +97,18 @@ describe('command guard', () => {
     expect(ran).toEqual([])
   })
 
+  test('denies creating a secret file through a redirection', async ($, on) => {
+    const { ran } = world(on, {})
+    expect(refusal(await $.tool.call(bash('printf x > credentials.txt')))).toMatch(/secret file/)
+    expect(ran).toEqual([])
+  })
+
+  test('reads the branch after every git -C', async ($, on) => {
+    const { asked } = world(on, { answer: 'Run it', branch: { '.': 'feat/x', 'repo/other': 'main' } })
+    await $.tool.call(bash('git -C repo -C other push'))
+    expect(asked[0]).toMatch(/pushes to main/)
+  })
+
   test('checks secret files where an earlier cd points', async ($, on) => {
     const { ran } = world(on, { files: ['app/.env'] })
     expect(refusal(await $.tool.call(bash('cd app && cat .env')))).toMatch(/secret file/)
@@ -190,6 +202,13 @@ describe('writing gate', () => {
     expect(asked[0]).toMatch(/Publish this\?/)
     expect(refusal(out)).toMatch(/did not publish/)
     expect(ran).toEqual([])
+  })
+
+  test('shows the whole text, however long', async ($, on) => {
+    const { asked } = world(on, { classify: { required: ['sf-writing-style'], available: [] }, answer: 'Publish' })
+    const body = `${'x'.repeat(3000)}END`
+    await $.tool.call(bash(`gh pr create --title t --body ${body}`))
+    expect(asked[0]).toMatch(/END$/)
   })
 
   test('shows the text and publishes only when confirmed', async ($, on) => {

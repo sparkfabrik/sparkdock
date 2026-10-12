@@ -80,10 +80,18 @@ function branchOf(refspec: string): string {
   return destination.replace(/^\+/, '').replace(/^refs\/heads\//, '')
 }
 
-// The `-C` directory of a git command, for commands the guard runs beside it.
-export function gitDirectory(argv: string[]): string | undefined {
-  const at = argv.indexOf('-C')
-  return at !== -1 ? argv[at + 1] : undefined
+// The `-C` directories of a git command, in the order git applies them.
+export function gitDirectories(argv: string[]): string[] {
+  const dirs: string[] = []
+  for (let i = 1; i < argv.length && (argv[i] ?? '').startsWith('-'); i++) {
+    if (GIT_VALUED.has(argv[i] ?? '')) {
+      if (argv[i] === '-C' && argv[i + 1] !== undefined) {
+        dirs.push(argv[i + 1] ?? '')
+      }
+      i++
+    }
+  }
+  return dirs
 }
 
 // True for a `git push` whose target branch is the current one.

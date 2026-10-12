@@ -3,7 +3,7 @@ import { detectFormat, findCommits, hasIssueReference, isExempt, subjectProblem 
 import {
   CREDENTIAL_DENY,
   destructiveReason,
-  gitDirectory,
+  gitDirectories,
   hasCredentialUrl,
   isSecretPath,
   pushesCurrentBranch,
@@ -86,13 +86,13 @@ function locate(path: string, cwd: string | null | undefined, home: string | und
   return base === null ? null : joinPath(base, path)
 }
 
-// The directory a command runs in, `git -C` included.
+// The directory a command runs in, every `git -C` included.
 function workdir(command: ShellCommand, home: string | undefined): string | null | undefined {
-  const dir = gitDirectory(command.argv)
-  if (dir !== undefined) {
-    return locate(dir, command.cwd, home)
+  let cwd = command.cwd === undefined || command.cwd === null ? command.cwd : locate(command.cwd, undefined, home)
+  for (const dir of gitDirectories(command.argv)) {
+    cwd = locate(dir, cwd, home)
   }
-  return command.cwd === undefined || command.cwd === null ? command.cwd : locate(command.cwd, undefined, home)
+  return cwd
 }
 
 async function guardBash<E extends BashCall>($: EngineInterface, e: E, next: Next<E>): Promise<ToolCallResult> {
@@ -104,8 +104,9 @@ async function guardBash<E extends BashCall>($: EngineInterface, e: E, next: Nex
   for (const command of commands) {
     for (const word of secretCandidates(command)) {
       const path = locate(word, command.cwd, home)
-      // A path whose directory the shell decides is treated as present.
-      if (path === null) {
+      // A path whose directory the shell decides is treated as present, and a
+      // redirection may create the file.
+      if (path === null || command.redirects.includes(word)) {
         return { deny: secretDeny(word) }
       }
       const found = await $.fs.stat(path).catch(() => undefined)
@@ -193,7 +194,7 @@ async function gateWriting<E extends ToolCallInput>($: EngineInterface, e: E, ne
     return withContext(await next(e), notes)
   }
   const text = e.tool === 'Bash' ? e.command : `${e.tool} ${JSON.stringify(toolInput(e), null, 1)}`
-  const answer = await confirm($, `Publish this?\n\n${preview(text, 1500)}`, 'Publish', 'Publish')
+  const answer = await confirm($, `Publish this?\n\n${text.trim()}`, 'Publish', 'Publish')
   if (answer === 'no') {
     return { deny: 'The person did not publish this text. Ask what to change before trying again.' }
   }
