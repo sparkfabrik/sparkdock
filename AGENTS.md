@@ -431,12 +431,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 
 Rules that do not touch `$` live in `hooks/shell.ts`, `hooks/guard-rules.ts` and `hooks/commit-rules.ts`. Every function that calls `$` lives in `hooks/register.ts`: the engine follows `$` only into functions of the same file, never across an import.
 
-Run before committing a change to the plugin:
-
-```bash
-claude plugin validate config/claude/plugins
-(cd config/claude/plugins/sparkfabrik-harness && claude plugin test .)
-```
+Run `just test-claude-harness` before committing a change to the plugin, and `just test-claude-harness-live` before a release. See [docs/claude-harness-testing.md](docs/claude-harness-testing.md) for the live smoke run and the manual dialog check.
 
 `claude plugin test` stops with `the rollout switch served off` when `~/.claude.json` caches the rollout flag as `false`; the `claude-mods` Ansible tag clears it (anthropics/claude-code#91870).
 

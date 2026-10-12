@@ -59,6 +59,17 @@ test-python:
     set -euo pipefail
     python3 -m unittest discover -s sjust/scripts/lib -p 'test_*.py' -v
 
+# Validate and unit test the sparkfabrik-harness Claude Code plugin (no model calls).
+test-claude-harness:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    claude plugin validate config/claude/plugins/sparkfabrik-harness
+    claude plugin test config/claude/plugins/sparkfabrik-harness
+
+# Run live `claude -p` smoke checks against the sparkfabrik-harness plugin (makes model calls).
+test-claude-harness-live:
+    sjust/scripts/claude-harness-smoke.sh
+
 # Create macOS VM with Tart (installs Tart if needed)
 # Available VM images: https://tart.run/quick-start/#vm-images
 tart-create-vm IMAGE="ghcr.io/cirruslabs/macos-tahoe-base:latest":

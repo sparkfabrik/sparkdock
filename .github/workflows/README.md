@@ -27,6 +27,13 @@ Tests for the Swift menubar application.
 
 Tests for the SparkJust task runner.
 
+### Test Claude Harness Plugin (`test-claude-harness.yml`)
+
+Validates and unit tests the `sparkfabrik-harness` Claude Code plugin with `just test-claude-harness`.
+
+- Runs on pushes and pull requests that touch the plugin or the shared writing guard classifier
+- Pins the Claude Code version in the workflow; no API key needed
+
 ### Slack Notifications (`daily-slack-digest.yml`)
 
 Automated daily Slack digests for meaningful Sparkdock updates.
