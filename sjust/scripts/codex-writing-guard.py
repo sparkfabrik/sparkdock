@@ -14,6 +14,9 @@ import writing_guard as guard
 
 SCRIPT_PATH = str(Path(__file__).resolve())
 HOOK_COMMAND = f"python3 {shlex.quote(SCRIPT_PATH)} --hook"
+# Matches this guard wherever it is installed, so enabling the managed copy
+# replaces a registration of the checkout copy and the reverse.
+MARKER = Path(__file__).name
 HOOKS = {
     "PreToolUse": guard.MATCHER,
     "PostToolUse": "Bash",
@@ -131,9 +134,13 @@ def manage(action):
     data = json.loads(path.read_text()) if path.exists() else {}
     settings.validate_hooks(data, HOOKS)
     matches = {
-        event: settings.registered_matchers(data, event, SCRIPT_PATH) for event in HOOKS
+        event: settings.registered_matchers(data, event, MARKER) for event in HOOKS
     }
-    configured = all(matches[event] == {matcher} for event, matcher in HOOKS.items())
+    configured = all(
+        matches[event] == {matcher}
+        and settings.registered_commands(data, event, MARKER) == [HOOK_COMMAND]
+        for event, matcher in HOOKS.items()
+    )
     if action == "info":
         status = (
             "enabled"
@@ -162,9 +169,9 @@ def manage(action):
     if path.exists():
         settings.backup(path)
     for event, matcher in HOOKS.items():
-        settings.unregister_hook(data, event, SCRIPT_PATH)
+        settings.unregister_hook(data, event, MARKER)
         if action == "enable":
-            settings.register_hook(data, event, matcher, HOOK_COMMAND, SCRIPT_PATH)
+            settings.register_hook(data, event, matcher, HOOK_COMMAND, MARKER)
     settings.atomic_write(data, path)
     print(f"Codex writing guard {action}d in {path}")
     if action == "enable":

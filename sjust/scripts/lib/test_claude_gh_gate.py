@@ -497,6 +497,22 @@ class InstallerTest(unittest.TestCase):
             {"hooks": {"PreToolUse": [other]}, "outputStyle": "Concise"},
         )
 
+    def test_enable_replaces_another_copy(self):
+        other_copy = "python3 /old/checkout/claude-gh-gate.py --hook"
+        data = {}
+        for event, matcher in gate.HOOKS.items():
+            self.cs.register_hook(data, event, matcher, other_copy, gate.MARKER)
+        self.settings.write_text(json.dumps(data))
+        self.assertFalse(gate._configured(data, self.cs))
+        self.assertEqual(gate.cmd_enable(), 0)
+        data = json.loads(self.settings.read_text())
+        self.assertTrue(gate._configured(data, self.cs))
+        for event in gate.HOOKS:
+            self.assertEqual(
+                self.cs.registered_commands(data, event, gate.MARKER),
+                [gate.HOOK_COMMAND],
+            )
+
     def test_fresh_and_partial_settings(self):
         self.assertEqual(gate.cmd_enable(), 0)
         data = json.loads(self.settings.read_text())

@@ -1,0 +1,88 @@
+---
+# Installs the writing guards and the Claude Code plugin marketplace into a
+# root-owned directory, so an agent running as the developer cannot change
+# them. Imported by sparkdock on macOS and by sf-toolbox on Linux.
+#
+# Requires:
+#   managed_harness_source: the sparkdock checkout to copy from
+#   managed_harness_dir: the install directory
+
+- name: Create the managed harness directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    owner: "0"
+    group: "0"
+    mode: "0755"
+  loop:
+    - "{{ managed_harness_dir | dirname }}"
+    - "{{ managed_harness_dir }}"
+    - "{{ managed_harness_dir }}/guards/lib"
+    - "{{ managed_harness_dir }}/claude/plugins"
+
+- name: Install the writing guards
+  become: true
+  ansible.builtin.copy:
+    src: "{{ managed_harness_source }}/sjust/scripts/{{ item }}"
+    dest: "{{ managed_harness_dir }}/guards/{{ item }}"
+    owner: "0"
+    group: "0"
+    mode: "0644"
+  loop:
+    - claude-gh-gate.py
+    - codex-writing-guard.py
+    - lib/claude_settings.py
+    - lib/writing_guard.py
+
+# Copy only tracked files, so files Claude Code generates beside a loaded
+# plugin stay out. safe.directory lets root read a checkout the user owns.
+- name: List the plugin marketplace files
+  ansible.builtin.command:
+    argv:
+      - git
+      - -c
+      - "safe.directory={{ managed_harness_source }}"
+      - -C
+      - "{{ managed_harness_source }}/config/claude/plugins"
+      - ls-files
+  register: managed_harness_plugin_files
+  changed_when: false
+
+- name: Create the plugin marketplace directories
+  become: true
+  ansible.builtin.file:
+    path: "{{ managed_harness_dir }}/claude/plugins/{{ item }}"
+    state: directory
+    owner: "0"
+    group: "0"
+    mode: "0755"
+  loop: "{{ managed_harness_plugin_files.stdout_lines | map('dirname') | unique | reject('equalto', '') | list }}"
+
+- name: Install the plugin marketplace
+  become: true
+  ansible.builtin.copy:
+    src: "{{ managed_harness_source }}/config/claude/plugins/{{ item }}"
+    dest: "{{ managed_harness_dir }}/claude/plugins/{{ item }}"
+    owner: "0"
+    group: "0"
+    mode: "0644"
+  loop: "{{ managed_harness_plugin_files.stdout_lines }}"
+
+- name: Find the installed plugin marketplace files
+  ansible.builtin.find:
+    paths: "{{ managed_harness_dir }}/claude/plugins"
+    recurse: true
+    hidden: true
+  register: managed_harness_installed
+
+- name: Remove plugin marketplace files deleted from sparkdock
+  become: true
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: absent
+  loop: >-
+    {{ managed_harness_installed.files | map(attribute='path')
+       | difference(managed_harness_plugin_files.stdout_lines
+         | map('regex_replace', '^', managed_harness_dir ~ '/claude/plugins/'))
+       | list }}

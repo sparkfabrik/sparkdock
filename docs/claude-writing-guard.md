@@ -11,6 +11,8 @@ sjust writing-guard-enable
 sjust writing-guard-info
 ```
 
+Provisioning copies the guards into `/opt/sparkfabrik/sf-managed-harness-config/guards`, owned by root, and registers that copy, so an agent cannot edit the code its hooks run. The commands above use that copy when it exists. Codex asks to trust the hooks again after they move there.
+
 Use `ajust` on Linux. Start a new Claude session after installation. In Codex, open `/hooks` and review/trust the new definitions. Registration alone does not activate untrusted hooks. The installer never changes trust, approval or sandbox settings.
 
 Remove both registrations with `sjust writing-guard-disable`. Provisioning can reinstall them. For a persistent runtime opt-out, set an environment variable before starting the agent:

@@ -175,14 +175,11 @@ class CodexGuardTest(unittest.TestCase):
             codex.manage("enable")
         self.assertEqual(path.read_text(), "broken")
 
-    def test_shared_installer_reports_partial_changes(self):
-        script = SCRIPT.with_name("agent-writing-guard.py")
-        env = self.env | {"CLAUDE_CONFIG_DIR": str(self.root / "claude")}
-
+    def test_installer_repairs_partial_registration(self):
         def enable():
             result = subprocess.run(
-                [sys.executable, str(script), "enable"],
-                env=env,
+                [sys.executable, str(SCRIPT), "enable"],
+                env=self.env,
                 text=True,
                 capture_output=True,
                 check=False,
@@ -198,6 +195,22 @@ class CodexGuardTest(unittest.TestCase):
         path.write_text(json.dumps(data))
         self.assertNotIn("already enabled", enable())
         self.assertIn("already enabled", enable())
+
+    def test_installer_replaces_another_copy(self):
+        path = self.config / "hooks.json"
+        other_copy = "python3 /old/checkout/codex-writing-guard.py --hook"
+        data = {}
+        for event, matcher in codex.HOOKS.items():
+            codex.settings.register_hook(data, event, matcher, other_copy, codex.MARKER)
+        path.write_text(json.dumps(data))
+        with patch.dict(os.environ, self.env), patch("sys.stdout", io.StringIO()):
+            codex.manage("enable")
+        data = json.loads(path.read_text())
+        for event in codex.HOOKS:
+            self.assertEqual(
+                codex.settings.registered_commands(data, event, codex.MARKER),
+                [codex.HOOK_COMMAND],
+            )
 
 
 class InstallerSafetyTest(unittest.TestCase):

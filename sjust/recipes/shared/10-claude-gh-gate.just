@@ -1,8 +1,11 @@
 # vim: set ft=make :
 
-# Path to the helper script, resolved from this recipe file's location:
-# shared/10-claude-gh-gate.just lives at <sparkdock_root>/sjust/recipes/shared/
-_claude_gh_gate_py := clean(source_directory() / "../../..") / "sjust/scripts/claude-gh-gate.py"
+# Provisioning installs the guards into a root-owned directory. Use that copy
+# when present, else the one in this checkout, which this file lives in at
+# <sparkdock_root>/sjust/recipes/shared/.
+_managed_guards := "/opt/sparkfabrik/sf-managed-harness-config/guards"
+_guards := if path_exists(_managed_guards) == "true" { _managed_guards } else { clean(source_directory() / "../../..") / "sjust/scripts" }
+_claude_gh_gate_py := _guards / "claude-gh-gate.py"
 
 # Enable the Claude platform and writing skill gate (idempotent; missing skills are skipped).
 [group('claude')]
@@ -19,23 +22,19 @@ claude-gh-gate-disable:
 claude-gh-gate-info:
     @python3 "{{_claude_gh_gate_py}}" info
 
-_agent_writing_guard_py := clean(source_directory() / "../../..") / "sjust/scripts/agent-writing-guard.py"
-_codex_writing_guard_py := clean(source_directory() / "../../..") / "sjust/scripts/codex-writing-guard.py"
+_codex_writing_guard_py := _guards / "codex-writing-guard.py"
 
 # Install both writing guards; Codex requires review in /hooks.
 [group('ai-harness')]
-writing-guard-enable:
-    @python3 "{{_agent_writing_guard_py}}" enable
+writing-guard-enable: claude-gh-gate-enable codex-writing-guard-enable
 
 # Remove both guards' registrations, preserving unrelated hooks.
 [group('ai-harness')]
-writing-guard-disable:
-    @python3 "{{_agent_writing_guard_py}}" disable
+writing-guard-disable: claude-gh-gate-disable codex-writing-guard-disable
 
 # Inspect both guards.
 [group('ai-harness')]
-writing-guard-info:
-    @python3 "{{_agent_writing_guard_py}}" info
+writing-guard-info: claude-gh-gate-info codex-writing-guard-info
 
 # Install only the Codex guard; review it with /hooks.
 [group('codex')]

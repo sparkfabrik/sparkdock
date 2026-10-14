@@ -27,6 +27,7 @@
 
   vars:
     dev_env_dir: /opt/sparkdock
+    managed_harness_dir: /opt/sparkfabrik/sf-managed-harness-config
     homebrew_prefix: "{{ (ansible_facts['machine'] == 'arm64') | ternary('/opt/homebrew', '/usr/local') }}"
     homebrew_install_path: "{{ homebrew_prefix }}/Homebrew"
     homebrew_brew_bin_path: "{{ homebrew_prefix }}/bin"
@@ -1469,6 +1470,29 @@
           changed_when: true
           become: false
 
+    - name: Install the managed harness config
+      tags:
+        - managed-harness
+        - writing-guard
+        - ai-harness
+        - ai-harness-provision
+      import_tasks: ../../shared/managed-harness.yml
+      vars:
+        managed_harness_source: "{{ dev_env_dir }}"
+
+    # The no-sudo ai-harness-sync runs skip the install above, so register the
+    # checkout copy until the managed copy exists.
+    - name: Find the writing guards to register
+      tags:
+        - claude-gh-gate
+        - codex-writing-guard
+        - writing-guard
+        - ai-harness
+        - ai-harness-sync
+      stat:
+        path: "{{ managed_harness_dir }}/guards"
+      register: managed_guards
+
     - name: Enable the Claude platform and writing skill guard
       tags:
         - claude-gh-gate
@@ -1478,7 +1502,7 @@
       command:
         argv:
           - python3
-          - "{{ dev_env_dir }}/sjust/scripts/claude-gh-gate.py"
+          - "{{ managed_guards.stat.exists | ternary(managed_harness_dir ~ '/guards', dev_env_dir ~ '/sjust/scripts') }}/claude-gh-gate.py"
           - enable
       register: claude_guard_output
       changed_when: "'already enabled' not in claude_guard_output.stdout"
@@ -1493,7 +1517,7 @@
       command:
         argv:
           - python3
-          - "{{ dev_env_dir }}/sjust/scripts/codex-writing-guard.py"
+          - "{{ managed_guards.stat.exists | ternary(managed_harness_dir ~ '/guards', dev_env_dir ~ '/sjust/scripts') }}/codex-writing-guard.py"
           - enable
       register: codex_guard_output
       changed_when: "'already enabled' not in codex_guard_output.stdout"
@@ -1522,16 +1546,6 @@
           register: claude_output_style
           changed_when: "'already set' not in claude_output_style.stdout"
           become: false
-
-    - name: Clear a cached off value for Claude Code mods
-      tags:
-        - claude-mods
-        - ai-harness
-        - ai-harness-sync
-      command: "python3 {{ dev_env_dir }}/sjust/scripts/claude-mods-flag.py clear"
-      register: claude_mods_flag
-      changed_when: "'Cleared' in claude_mods_flag.stdout"
-      become: false
 
     - name: Provision AI coding harness directories and permissions
       tags:
