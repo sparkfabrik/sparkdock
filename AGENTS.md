@@ -427,7 +427,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 Provisioning copies the configuration that polices AI agents into `/opt/sparkfabrik/sf-managed-harness-config`, owned by root, so an agent running as the developer cannot change it:
 
 - `guards/`: the Claude and Codex writing guards with their `lib/` modules
-- `claude/plugins/`: the `sparkdock` Claude Code plugin marketplace, tracked files only
+- `claude/plugins/`: the `sparkdock` Claude Code plugin marketplace, without the type declarations Claude Code generates beside a loaded plugin
 
 The tasks live in `ansible/shared/managed-harness.yml`, imported by `base.yml` on macOS and by sf-toolbox on Linux, so both platforms install the same files. Add a file the guards import to its `Install the writing guards` list. The copy runs with the sudo tasks (`ai-harness-provision`), not with `ai-harness-sync`.
 

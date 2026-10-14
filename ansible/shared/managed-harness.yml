@@ -35,19 +35,21 @@
     - lib/claude_settings.py
     - lib/writing_guard.py
 
-# Copy only tracked files, so files Claude Code generates beside a loaded
-# plugin stay out. safe.directory lets root read a checkout the user owns.
+- name: Find the plugin marketplace files
+  ansible.builtin.find:
+    paths: "{{ managed_harness_source }}/config/claude/plugins"
+    recurse: true
+    hidden: true
+  register: managed_harness_source_files
+
+# Skip the type declarations Claude Code writes beside a loaded plugin.
 - name: List the plugin marketplace files
-  ansible.builtin.command:
-    argv:
-      - git
-      - -c
-      - "safe.directory={{ managed_harness_source }}"
-      - -C
-      - "{{ managed_harness_source }}/config/claude/plugins"
-      - ls-files
-  register: managed_harness_plugin_files
-  changed_when: false
+  ansible.builtin.set_fact:
+    managed_harness_plugin_files: >-
+      {{ managed_harness_source_files.files | map(attribute='path')
+         | map('relpath', managed_harness_source ~ '/config/claude/plugins')
+         | reject('search', '(^|/)[.]claude-plugin/types/')
+         | list }}
 
 - name: Create the plugin marketplace directories
   become: true
@@ -57,7 +59,7 @@
     owner: "0"
     group: "0"
     mode: "0755"
-  loop: "{{ managed_harness_plugin_files.stdout_lines | map('dirname') | unique | reject('equalto', '') | list }}"
+  loop: "{{ managed_harness_plugin_files | map('dirname') | unique | reject('equalto', '') | list }}"
 
 - name: Install the plugin marketplace
   become: true
@@ -67,7 +69,7 @@
     owner: "0"
     group: "0"
     mode: "0644"
-  loop: "{{ managed_harness_plugin_files.stdout_lines }}"
+  loop: "{{ managed_harness_plugin_files }}"
 
 - name: Find the installed plugin marketplace files
   ansible.builtin.find:
@@ -83,6 +85,6 @@
     state: absent
   loop: >-
     {{ managed_harness_installed.files | map(attribute='path')
-       | difference(managed_harness_plugin_files.stdout_lines
+       | difference(managed_harness_plugin_files
          | map('regex_replace', '^', managed_harness_dir ~ '/claude/plugins/'))
        | list }}
