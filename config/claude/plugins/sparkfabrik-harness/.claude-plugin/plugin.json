@@ -1,0 +1,8 @@
+{
+  "name": "sparkfabrik-harness",
+  "version": "0.1.0",
+  "description": "Claude Code mods for the SparkFabrik harness",
+  "author": {
+    "name": "SparkFabrik"
+  }
+}

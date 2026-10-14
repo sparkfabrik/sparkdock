@@ -19,6 +19,9 @@ import writing_guard as guard
 GATED_SKILLS = guard.SKILLS
 SCRIPT_PATH = str(Path(__file__).resolve())
 HOOK_COMMAND = f"python3 {shlex.quote(SCRIPT_PATH)} --hook"
+# Matches this guard wherever it is installed, so enabling the managed copy
+# replaces a registration of the checkout copy and the reverse.
+MARKER = Path(__file__).name
 HOOKS = {
     "PreToolUse": guard.MATCHER,
     "UserPromptSubmit": "*",
@@ -125,7 +128,8 @@ def run_hook():
 
 def _configured(data, cs):
     return all(
-        cs.registered_matchers(data, event, SCRIPT_PATH) == {matcher}
+        cs.registered_matchers(data, event, MARKER) == {matcher}
+        and cs.registered_commands(data, event, MARKER) == [HOOK_COMMAND]
         for event, matcher in HOOKS.items()
     )
 
@@ -143,8 +147,8 @@ def cmd_enable():
         return 0
     backup = cs.backup()
     for event, matcher in HOOKS.items():
-        cs.unregister_hook(data, event, SCRIPT_PATH)
-        cs.register_hook(data, event, matcher, HOOK_COMMAND, SCRIPT_PATH)
+        cs.unregister_hook(data, event, MARKER)
+        cs.register_hook(data, event, matcher, HOOK_COMMAND, MARKER)
     cs.atomic_write(data)
     print(f"Skill gate enabled in {settings}. Backup: {backup}")
     print("Start a new Claude Code session. Disable with: claude-gh-gate-disable")
@@ -159,12 +163,12 @@ def cmd_disable():
         return 0
     data = json.loads(settings.read_text())
     cs.validate_hooks(data, HOOKS)
-    if not any(cs.registered_matchers(data, event, SCRIPT_PATH) for event in HOOKS):
+    if not any(cs.registered_matchers(data, event, MARKER) for event in HOOKS):
         print(f"Skill gate not registered in {settings}.")
         return 0
     backup = cs.backup()
     for event in HOOKS:
-        cs.unregister_hook(data, event, SCRIPT_PATH)
+        cs.unregister_hook(data, event, MARKER)
     cs.atomic_write(data)
     print(f"Skill gate removed from {settings}. Backup: {backup}")
     return 0
@@ -178,7 +182,7 @@ def cmd_info():
         "enabled"
         if _configured(data, cs)
         else "partial"
-        if any(cs.registered_matchers(data, event, SCRIPT_PATH) for event in HOOKS)
+        if any(cs.registered_matchers(data, event, MARKER) for event in HOOKS)
         else "disabled"
     )
     print(f"Configured: {configured} in {cs.settings_path()}")

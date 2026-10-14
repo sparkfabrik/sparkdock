@@ -1,0 +1,46 @@
+name: Test Claude Harness Plugin
+
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "config/claude/plugins/**"
+      - ".github/workflows/test-claude-harness.yml"
+      - "Justfile"
+  pull_request:
+    branches: [main, master]
+    paths:
+      - "config/claude/plugins/**"
+      - ".github/workflows/test-claude-harness.yml"
+      - "Justfile"
+  workflow_dispatch:
+
+env:
+  # Exact Claude Code build the plugin is tested against.
+  CLAUDE_CODE_VERSION: "2.1.296"
+
+jobs:
+  test-claude-harness:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Just command runner
+        uses: extractions/setup-just@v2
+
+      - name: Install Claude Code
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash -s "${CLAUDE_CODE_VERSION}"
+          echo "${HOME}/.local/bin" >> "${GITHUB_PATH}"
+
+      - name: Validate and test the plugin
+        run: |
+          claude --version
+          just test-claude-harness

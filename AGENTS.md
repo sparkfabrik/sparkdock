@@ -407,6 +407,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `claude-gh-gate-{enable,disable,info}`: manage the Claude Code platform and writing skill gate; see [the guard guide](docs/claude-writing-guard.md) for bypasses and missing-skill behavior
 - `claude-output-style-{set,reset,info}` — manage the default Claude Code output style. Provisioning sets `Concise` only when no style is configured, so it never overrides a developer's own choice
 - `claude-statusline-{enable,disable,info,preview}` — manage the managed Claude Code statusline; see [Claude Code Statusline](#claude-code-statusline)
+- `claude-mods-flag-{clear,info}`: clear or show a cached `false` for the mods rollout flag in `~/.claude.json` (anthropics/claude-code#91870)
 
 ### Ansible Tags
 
@@ -415,10 +416,32 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `ai-harness-sync` — no-sudo tasks (RTK + caveman + gh gate + skills sync)
 - `claude-gh-gate`: register only the Claude Code platform and writing skill gate hooks
 - `claude-output-style` — set the default Claude Code output style
+- `managed-harness`: install the managed harness config into `/opt/sparkfabrik/sf-managed-harness-config` (sudo); see [Managed Harness Config](#managed-harness-config)
 - `herdr` — install only the herdr agent skill
 - `codex` — move an npm-installed Codex out of the way of the `codex` cask
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
 - `skills` — backward-compat alias
+
+## Managed Harness Config
+
+Provisioning copies the configuration that polices AI agents into `/opt/sparkfabrik/sf-managed-harness-config`, owned by root, so an agent running as the developer cannot change it:
+
+- `guards/`: the Claude and Codex writing guards with their `lib/` modules
+- `claude/plugins/`: the `sparkdock` Claude Code plugin marketplace, without the type declarations Claude Code generates beside a loaded plugin
+
+The tasks live in `ansible/shared/managed-harness.yml`, imported by `base.yml` on macOS and by sf-toolbox on Linux, so both platforms install the same files. Add a file the guards import to its `Install the writing guards` list. The copy runs with the sudo tasks (`ai-harness-provision`), not with `ai-harness-sync`.
+
+The guard `enable` commands register the copy they run from, and replace a registration of any other copy of the same guard. Provisioning and the `sjust` recipes use the managed copy when it exists and the checkout copy otherwise. The hook entries themselves stay in the user's settings (sparkfabrik-innovation-team/board#5143).
+
+## Claude Code Mods (`sparkfabrik-harness`)
+
+`config/claude/plugins/` is a plugin marketplace named `sparkdock` holding one plugin, `sparkfabrik-harness`, the home for SparkFabrik [mods](https://code.claude.com/docs/en/plugins/mods/overview): TypeScript hooks that run inside Claude Code. The plugin ships no mods yet. Provisioning installs it with the [Managed Harness Config](#managed-harness-config). Managed settings register the marketplace at `/opt/sparkfabrik/sf-managed-harness-config/claude/plugins` and enable the plugin. Mods need Claude Code 2.1.287 or later.
+
+To add a mod, name its module in `hooks/hooks.json` (`{ "modules": ["./register.ts"] }`) and add `*.test.ts` files beside it. Every function that calls `$` must live in the module file itself: the engine follows `$` only into functions of the same file, never across an import.
+
+Run `just test-claude-harness` before committing a change to the plugin; CI runs it too. It validates the plugin and, once a hooks module exists, runs `claude plugin test`.
+
+`claude plugin test` stops with `the rollout switch served off` when `~/.claude.json` caches the rollout flag as `false`; `sjust claude-mods-flag-clear` clears it.
 
 ## Git Workflow
 

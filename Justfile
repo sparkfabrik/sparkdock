@@ -59,6 +59,17 @@ test-python:
     set -euo pipefail
     python3 -m unittest discover -s sjust/scripts/lib -p 'test_*.py' -v
 
+# Validate and unit test the sparkfabrik-harness Claude Code plugin (no model calls).
+test-claude-harness:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    plugin="config/claude/plugins/sparkfabrik-harness"
+    claude plugin validate "${plugin}"
+    # `claude plugin test` fails on a plugin with no hooks module.
+    if [[ -f "${plugin}/hooks/hooks.json" ]]; then
+        claude plugin test "${plugin}"
+    fi
+
 # Create macOS VM with Tart (installs Tart if needed)
 # Available VM images: https://tart.run/quick-start/#vm-images
 tart-create-vm IMAGE="ghcr.io/cirruslabs/macos-tahoe-base:latest":

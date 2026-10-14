@@ -111,6 +111,23 @@ def registered_matchers(data: dict, event: str, marker: str) -> set:
     return {e.get("matcher") for e in entries if _entry_has_marker(e, marker)}
 
 
+def registered_commands(data: dict, event: str, marker: str) -> list:
+    """Commands of our (marker-owned) hooks under hooks[event], in order."""
+    hooks = data.get("hooks")
+    if not isinstance(hooks, dict):
+        return []
+    entries = hooks.get(event)
+    if not isinstance(entries, list):
+        return []
+    return [
+        str(hook.get("command", ""))
+        for entry in entries
+        if isinstance(entry, dict)
+        for hook in entry.get("hooks", []) or []
+        if isinstance(hook, dict) and marker in str(hook.get("command", ""))
+    ]
+
+
 def register_hook(
     data: dict, event: str, matcher: str, command: str, marker: str
 ) -> None:
