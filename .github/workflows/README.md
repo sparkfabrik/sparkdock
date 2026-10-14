@@ -31,7 +31,7 @@ Tests for the SparkJust task runner.
 
 Validates and unit tests the `sparkfabrik-harness` Claude Code plugin with `just test-claude-harness`.
 
-- Runs on pushes and pull requests that touch the plugin or the shared writing guard classifier
+- Runs on pushes and pull requests that touch the plugin
 - Pins the Claude Code version in the workflow; no API key needed
 
 ### Slack Notifications (`daily-slack-digest.yml`)

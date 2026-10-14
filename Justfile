@@ -63,12 +63,12 @@ test-python:
 test-claude-harness:
     #!/usr/bin/env bash
     set -euo pipefail
-    claude plugin validate config/claude/plugins/sparkfabrik-harness
-    claude plugin test config/claude/plugins/sparkfabrik-harness
-
-# Run live `claude -p` smoke checks against the sparkfabrik-harness plugin (makes model calls).
-test-claude-harness-live:
-    sjust/scripts/claude-harness-smoke.sh
+    plugin="config/claude/plugins/sparkfabrik-harness"
+    claude plugin validate "${plugin}"
+    # `claude plugin test` fails on a plugin with no hooks module.
+    if [[ -f "${plugin}/hooks/hooks.json" ]]; then
+        claude plugin test "${plugin}"
+    fi
 
 # Create macOS VM with Tart (installs Tart if needed)
 # Available VM images: https://tart.run/quick-start/#vm-images

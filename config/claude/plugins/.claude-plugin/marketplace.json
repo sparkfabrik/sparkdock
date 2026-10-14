@@ -6,7 +6,7 @@
     {
       "name": "sparkfabrik-harness",
       "source": "./sparkfabrik-harness",
-      "description": "Command guard, writing gate and commit gate for the SparkFabrik harness"
+      "description": "Claude Code mods for the SparkFabrik harness"
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "name": "sparkfabrik-harness",
   "version": "0.1.0",
-  "description": "Command guard, writing gate and commit gate for the SparkFabrik harness",
+  "description": "Claude Code mods for the SparkFabrik harness",
   "author": {
     "name": "SparkFabrik"
   }

@@ -5,16 +5,12 @@ on:
     branches: [main, master]
     paths:
       - "config/claude/plugins/**"
-      - "sjust/scripts/claude-gh-gate.py"
-      - "sjust/scripts/lib/writing_guard.py"
       - ".github/workflows/test-claude-harness.yml"
       - "Justfile"
   pull_request:
     branches: [main, master]
     paths:
       - "config/claude/plugins/**"
-      - "sjust/scripts/claude-gh-gate.py"
-      - "sjust/scripts/lib/writing_guard.py"
       - ".github/workflows/test-claude-harness.yml"
       - "Justfile"
   workflow_dispatch:

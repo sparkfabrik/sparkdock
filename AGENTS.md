@@ -415,7 +415,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `ai-harness-sync` — no-sudo tasks (RTK + caveman + gh gate + skills sync)
 - `claude-gh-gate`: register only the Claude Code platform and writing skill gate hooks
 - `claude-output-style` — set the default Claude Code output style
-- `claude-mods`: clear a cached `false` for the mods rollout flag in `~/.claude.json`, so the `sparkfabrik-harness` mod loads
+- `claude-mods`: clear a cached `false` for the mods rollout flag in `~/.claude.json`, so `sparkfabrik-harness` mods load
 - `herdr` — install only the herdr agent skill
 - `codex` — move an npm-installed Codex out of the way of the `codex` cask
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
@@ -423,15 +423,11 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 
 ## Claude Code Mods (`sparkfabrik-harness`)
 
-`config/claude/plugins/` is a plugin marketplace named `sparkdock` holding one plugin, `sparkfabrik-harness`: TypeScript [mods](https://code.claude.com/docs/en/plugins/mods/overview) that run inside Claude Code. Managed settings register the marketplace at `/opt/sparkdock/config/claude/plugins` and enable the plugin, so there is no install task. It needs Claude Code 2.1.287 or later.
+`config/claude/plugins/` is a plugin marketplace named `sparkdock` holding one plugin, `sparkfabrik-harness`, the home for SparkFabrik [mods](https://code.claude.com/docs/en/plugins/mods/overview): TypeScript hooks that run inside Claude Code. The plugin ships no mods yet. Managed settings register the marketplace at `/opt/sparkdock/config/claude/plugins` and enable the plugin, so there is no install task. Mods need Claude Code 2.1.287 or later. On Linux, sf-toolbox links `/opt/sparkdock` to the sparkdock checkout so the same path resolves.
 
-- **Command guard** (#658): denies credentials in URLs and secret files (the org policy list), asks before destructive commands, denies them where nobody can answer (`claude -p`). Off with `SPARKDOCK_COMMAND_GUARD=0`.
-- **Writing gate** (#659): the mod form of the Claude writing guard. The Python classifier stays the single rule set (`claude-gh-gate.py classify`), shared with Codex. The mod writes a `mod-<sha256(session id)>` marker in the gate's state directory and the Python settings hook skips marked sessions. `$.env.set` does not reach settings hooks, so an environment variable cannot do this. Same bypasses as the guard.
-- **Commit gate** (#660): denies subjects outside the repository's detected format or over 72 characters, asks before a commit with no `Refs:`/`Closes:` footer, and rewrites commit attribution to `Assisted-by: claude-code/<model>`. Off with `SPARKDOCK_COMMIT_GATE=0`.
+To add a mod, name its module in `hooks/hooks.json` (`{ "modules": ["./register.ts"] }`) and add `*.test.ts` files beside it. Every function that calls `$` must live in the module file itself: the engine follows `$` only into functions of the same file, never across an import.
 
-Rules that do not touch `$` live in `hooks/shell.ts`, `hooks/guard-rules.ts` and `hooks/commit-rules.ts`. Every function that calls `$` lives in `hooks/register.ts`: the engine follows `$` only into functions of the same file, never across an import.
-
-Run `just test-claude-harness` before committing a change to the plugin, and `just test-claude-harness-live` before a release. See [docs/claude-harness-testing.md](docs/claude-harness-testing.md) for the live smoke run and the manual dialog check.
+Run `just test-claude-harness` before committing a change to the plugin; CI runs it too. It validates the plugin and, once a hooks module exists, runs `claude plugin test`.
 
 `claude plugin test` stops with `the rollout switch served off` when `~/.claude.json` caches the rollout flag as `false`; the `claude-mods` Ansible tag clears it (anthropics/claude-code#91870).
 
