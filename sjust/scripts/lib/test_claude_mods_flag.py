@@ -48,6 +48,17 @@ class ModsFlagTest(unittest.TestCase):
         )
         self.assertEqual(self.state.stat().st_mode & 0o777, 0o600)
 
+    def test_keeps_a_symlinked_state_file_linked(self):
+        target = self.home / "dotfiles.json"
+        target.write_text(json.dumps({"cachedGrowthBookFeatures": {FLAG: False}}))
+        self.state.symlink_to(target)
+        result = self.run_script("clear")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(self.state.is_symlink())
+        self.assertEqual(
+            json.loads(target.read_text()), {"cachedGrowthBookFeatures": {}}
+        )
+
     def test_leaves_true_and_absent_values_alone(self):
         for features in ({FLAG: True}, {"other": 1}):
             self.write({"cachedGrowthBookFeatures": features})

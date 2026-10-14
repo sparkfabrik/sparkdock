@@ -31,7 +31,8 @@ def load(path):
 
 
 def cmd_clear():
-    path = state_path()
+    # Resolve a symlinked state file so the rename updates its target.
+    path = state_path().resolve()
     if not path.exists():
         print(f"Mods flag not cached: {path} does not exist")
         return 0
