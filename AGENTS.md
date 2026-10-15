@@ -253,9 +253,11 @@ A Swift-based menu bar application provides battery-efficient visual update noti
 
 ### Key Features
 
-- **Event-Driven Updates**: Only checks on system wake and network connectivity changes (no periodic polling)
+- **Event-Driven Updates**: Checks run on launch, system wake, network changes, manual refresh, and a daily `NSBackgroundActivityScheduler` fallback. There is no polling timer.
+- **Network Change Filter**: `NWPathMonitor` re-emits identical paths every few seconds on machines with VPN, Tailscale, or Docker interfaces. `NetworkChangePolicy` only triggers a check when connectivity returns or the physical interface type changes. Keep every new trigger behind a similar filter.
+- **Single Full Check**: Automatic triggers are dropped while a full check is running; a manual refresh cancels it and starts over.
+- **Cached Vulnerability Scan**: `sparkdock-check-updates vulns` answers from a 24-hour cache in `~/.cache/sparkdock/brew-vulns`. Manual refresh and post-upgrade rechecks pass `--force`.
 - **Modern Swift Concurrency**: Uses structured concurrency with proper cancellation and timeout handling
-- **Battery Efficient**: NWPathMonitor for lightweight network monitoring
 - **Resource Debugging**: Enhanced logging for missing logo/resource troubleshooting
 
 ### Building and Testing

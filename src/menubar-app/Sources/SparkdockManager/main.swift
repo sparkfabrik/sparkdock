@@ -354,6 +354,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var timetrackerStatusMenuItem: NSMenuItem?
     var engramStatusMenuItem: NSMenuItem?
     private var pathMonitor: NWPathMonitor?
+    private var lastNetworkFingerprint: NetworkFingerprint?
+    private var dailyCheckScheduler: NSBackgroundActivityScheduler?
+    /// The full check in flight, so automatic triggers do not stack overlapping runs.
+    private var fullCheckTask: Task<Void, Never>?
     fileprivate var menuConfig: MenuConfig?
     /// Dynamic menu entries gated on `requires_binary`, kept so their visibility can
     /// be re-evaluated on every UI refresh instead of only at menu construction.
@@ -450,8 +454,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         setupUpdateObservers()
         setupRecheckObservers()
 
-        // Set initial status and check for updates
-        showAllStatusesChecking()
         checkForUpdates()
     }
 
@@ -734,21 +736,42 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         // Monitor network changes
         let monitor = NWPathMonitor()
         monitor.pathUpdateHandler = { [weak self] path in
-            if path.status == .satisfied {
-                DispatchQueue.main.async {
-                    self?.showAllStatusesChecking()
-                    self?.checkForUpdates()
+            let fingerprint = NetworkFingerprint(path: path)
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                let shouldCheck = NetworkChangePolicy.shouldCheck(previous: self.lastNetworkFingerprint, current: fingerprint)
+                self.lastNetworkFingerprint = fingerprint
+                if shouldCheck {
+                    AppConstants.logger.info("Network connectivity changed - checking for updates")
+                    self.checkForUpdates()
                 }
             }
         }
         monitor.start(queue: DispatchQueue.global(qos: .background))
         self.pathMonitor = monitor
+        // Fallback for a machine that stays awake and connected for days. The system
+        // picks the moment inside the tolerance, when running costs the least energy.
+        let scheduler = NSBackgroundActivityScheduler(identifier: "\(AppConstants.bundleIdentifier).daily-check")
+        scheduler.repeats = true
+        scheduler.interval = 24 * 60 * 60
+        scheduler.tolerance = 60 * 60
+        scheduler.qualityOfService = .background
+        scheduler.schedule { [weak self] completion in
+            DispatchQueue.main.async {
+                AppConstants.logger.info("Daily scheduled update check")
+                self?.checkForUpdates()
+            }
+            completion(.finished)
+        }
+        self.dailyCheckScheduler = scheduler
         AppConstants.logger.info("Update observers configured")
     }
     private func cleanupUpdateObservers() {
         NSWorkspace.shared.notificationCenter.removeObserver(self)
         pathMonitor?.cancel()
         pathMonitor = nil
+        dailyCheckScheduler?.invalidate()
+        dailyCheckScheduler = nil
         CFNotificationCenterRemoveEveryObserver(
             CFNotificationCenterGetDarwinNotifyCenter(),
             Unmanaged.passUnretained(self).toOpaque()
@@ -757,13 +780,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
     @objc private func systemDidWake() {
         AppConstants.logger.info("System woke from sleep - checking for updates")
-        showAllStatusesChecking()
         checkForUpdates()
     }
 
     @objc private func checkForUpdatesAction() {
-        showAllStatusesChecking(includeClaudeUsage: false)
-        checkForUpdates(includeClaudeUsage: false)
+        checkForUpdates(includeClaudeUsage: false, manual: true)
     }
 
     @objc private func checkClaudeUsageAction() {
@@ -822,7 +843,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         // An upgrade can resolve a vulnerability, so the row would otherwise stay stale.
         updateStatusMenuItem(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
-            async let brewVulnsStatusTask = self.runBrewVulnsCheck()
+            async let brewVulnsStatusTask = self.runBrewVulnsCheck(force: true)
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
             let brewVulnsStatus = await brewVulnsStatusTask
             await MainActor.run {
@@ -929,7 +950,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         )
     }
 
-    private func checkForUpdates(includeClaudeUsage: Bool = true) {
+    /// Runs every check. Automatic triggers are dropped while a full check is in
+    /// flight; a manual refresh cancels it, terminating its processes, and starts over.
+    private func checkForUpdates(includeClaudeUsage: Bool = true, manual: Bool = false) {
+        if fullCheckTask != nil {
+            guard manual else {
+                AppConstants.logger.info("Full check already running - skipping automatic trigger")
+                return
+            }
+            fullCheckTask?.cancel()
+        }
+        showAllStatusesChecking(includeClaudeUsage: includeClaudeUsage)
         checkGeneration += 1
         let expectedGeneration = checkGeneration
         systemStatusCheckGeneration += 1
@@ -943,10 +974,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         } else {
             expectedClaudeUsageGeneration = nil
         }
-        Task(priority: .background) {
+        fullCheckTask = Task(priority: .background) {
             // Started first and awaited last: the OSV scan is the slowest check and
             // must not hold the other rows on "Checking".
-            async let brewVulnsStatusTask = self.runBrewVulnsCheck()
+            async let brewVulnsStatusTask = self.runBrewVulnsCheck(force: manual)
             let hasUpdates = await runSparkdockCheck()
             let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
             let hasHttpProxyUpdates = await runHttpProxyCheck()
@@ -965,6 +996,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             let brewVulnsStatus = await brewVulnsStatusTask
             await MainActor.run {
                 if self.systemStatusCheckGeneration == expectedSystemStatusGeneration {
+                    self.fullCheckTask = nil
                     self.refreshSystemStatusButton?.title = "Refresh"
                     self.refreshSystemStatusButton?.isEnabled = true
                 }
@@ -1017,6 +1049,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         // Set environment variables including PATH
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        // A status check must not start a full `brew update`.
+        environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         process.environment = environment
 
         let pipe = Pipe()
@@ -1126,7 +1160,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     /// Runs `sparkdock-check-updates vulns`, whose summary line feeds the row badge.
-    private func runBrewVulnsCheck() async -> BrewVulnsStatus {
+    /// The script answers from a daily cache unless `force` asks for a fresh scan.
+    private func runBrewVulnsCheck(force: Bool = false) async -> BrewVulnsStatus {
         let checkUpdatesPath = AppConstants.checkUpdatesExecutablePath
         guard FileManager.default.fileExists(atPath: checkUpdatesPath) else {
             AppConstants.logger.info("sparkdock-check-updates not found, vulnerability check skipped")
@@ -1135,10 +1170,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: checkUpdatesPath)
-        process.arguments = ["vulns"]
+        process.arguments = force ? ["vulns", "--force"] : ["vulns"]
         // The subcommand runs python3, which launchd's PATH does not always carry.
         var environment = ProcessInfo.processInfo.environment
         environment["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         process.environment = environment
 
         let outputPipe = Pipe()

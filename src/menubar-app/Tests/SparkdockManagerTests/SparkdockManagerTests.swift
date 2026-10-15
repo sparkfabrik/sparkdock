@@ -1,6 +1,7 @@
 import XCTest
 import AppKit
 import Foundation
+import Network
 @testable import SparkdockManager
 
 final class SparkdockManagerTests: XCTestCase {
@@ -19,6 +20,40 @@ final class SparkdockManagerTests: XCTestCase {
         let now = Date()
         let lastChecked = now.addingTimeInterval(-ClaudeUsageRefreshPolicy.minimumInterval)
         XCTAssertTrue(ClaudeUsageRefreshPolicy.shouldRefresh(lastCheckedAt: lastChecked, now: now))
+    }
+
+    func testNetworkFirstPathOnlyRecordsBaseline() {
+        let current = NetworkFingerprint(isSatisfied: true, interfaceTypes: [.wifi])
+        XCTAssertFalse(NetworkChangePolicy.shouldCheck(previous: nil, current: current))
+    }
+
+    func testNetworkRepeatedPathDoesNotCheck() {
+        let path = NetworkFingerprint(isSatisfied: true, interfaceTypes: [.wifi])
+        XCTAssertFalse(NetworkChangePolicy.shouldCheck(previous: path, current: path))
+    }
+
+    func testNetworkTunnelChurnDoesNotCheck() {
+        let previous = NetworkFingerprint(isSatisfied: true, interfaceTypes: [.wifi])
+        let current = NetworkFingerprint(isSatisfied: true, interfaceTypes: [.wifi, .other, .loopback])
+        XCTAssertFalse(NetworkChangePolicy.shouldCheck(previous: previous, current: current))
+    }
+
+    func testNetworkReconnectChecks() {
+        let previous = NetworkFingerprint(isSatisfied: false, interfaceTypes: [])
+        let current = NetworkFingerprint(isSatisfied: true, interfaceTypes: [.wifi])
+        XCTAssertTrue(NetworkChangePolicy.shouldCheck(previous: previous, current: current))
+    }
+
+    func testNetworkInterfaceSwitchChecks() {
+        let previous = NetworkFingerprint(isSatisfied: true, interfaceTypes: [.wifi])
+        let current = NetworkFingerprint(isSatisfied: true, interfaceTypes: [.wiredEthernet])
+        XCTAssertTrue(NetworkChangePolicy.shouldCheck(previous: previous, current: current))
+    }
+
+    func testNetworkDisconnectDoesNotCheck() {
+        let previous = NetworkFingerprint(isSatisfied: true, interfaceTypes: [.wifi])
+        let current = NetworkFingerprint(isSatisfied: false, interfaceTypes: [])
+        XCTAssertFalse(NetworkChangePolicy.shouldCheck(previous: previous, current: current))
     }
 
     func testPackageStructure() {
