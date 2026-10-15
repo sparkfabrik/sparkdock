@@ -17,10 +17,12 @@ struct NetworkFingerprint: Equatable {
         self.interfaceTypes = interfaceTypes.intersection(Self.physicalInterfaceTypes)
     }
 
+    /// Uses the interface types carrying the path, not every available one, so a
+    /// switch between two connected interfaces still changes the fingerprint.
     init(path: NWPath) {
         self.init(
             isSatisfied: path.status == .satisfied,
-            interfaceTypes: Set(path.availableInterfaces.map(\.type))
+            interfaceTypes: Self.physicalInterfaceTypes.filter { path.usesInterfaceType($0) }
         )
     }
 }

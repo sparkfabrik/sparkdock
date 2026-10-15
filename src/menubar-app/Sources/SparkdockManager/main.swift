@@ -760,8 +760,14 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             DispatchQueue.main.async {
                 AppConstants.logger.info("Daily scheduled update check")
                 self?.checkForUpdates()
+                // Report completion only once the checks end, so the activity keeps
+                // its App Nap protection while they run.
+                let task = self?.fullCheckTask
+                Task {
+                    await task?.value
+                    completion(.finished)
+                }
             }
-            completion(.finished)
         }
         self.dailyCheckScheduler = scheduler
         AppConstants.logger.info("Update observers configured")
@@ -950,15 +956,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         )
     }
 
-    /// Runs every check. Automatic triggers are dropped while a full check is in
-    /// flight; a manual refresh cancels it, terminating its processes, and starts over.
+    /// Runs every check, unless a full check is already in flight. Only a manual
+    /// refresh forces a fresh vulnerability scan; its button is disabled while a
+    /// check runs.
     private func checkForUpdates(includeClaudeUsage: Bool = true, manual: Bool = false) {
-        if fullCheckTask != nil {
-            guard manual else {
-                AppConstants.logger.info("Full check already running - skipping automatic trigger")
-                return
-            }
-            fullCheckTask?.cancel()
+        guard fullCheckTask == nil else {
+            AppConstants.logger.info("Full check already running - skipping trigger")
+            return
         }
         showAllStatusesChecking(includeClaudeUsage: includeClaudeUsage)
         checkGeneration += 1
