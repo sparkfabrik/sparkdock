@@ -136,6 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed the removal of a deprecated Homebrew tap to reinstall its formulae and casks from Homebrew core, warning about any that are not available there
 - Changed the `c` shell alias to run Claude Code; OpenCode moves to `oc`
 - Show days and rounded hours in the Claude Code status bar's weekly reset countdown.
 - Changed the managed Claude Code statusline to read the caveman mode from the plugin flag file instead of running the plugin's badge script
