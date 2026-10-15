@@ -181,6 +181,33 @@
       become: false
       changed_when: false
 
+    # `brew untap --force` uninstalls every formula and cask installed from the
+    # tap, so record them first and reinstall them from Homebrew core afterwards.
+    - name: List packages installed from deprecated taps
+      tags: brew_packages
+      ansible.builtin.command:
+        argv:
+          - brew
+          - list
+          - "{{ item }}"
+          - --full-name
+      loop:
+        - --formula
+        - --cask
+      register: deprecated_tap_listing
+      when: all_removed_taps | intersect(installed_taps.stdout_lines | default([])) | length > 0
+      become: false
+      changed_when: false
+
+    - name: Collect packages to migrate from deprecated taps
+      tags: brew_packages
+      ansible.builtin.set_fact:
+        deprecated_tap_formulae: "{{ (deprecated_tap_listing.results[0].stdout_lines | default([])) | select('match', deprecated_tap_pattern) | map('regex_replace', '^.*/', '') | list }}"
+        deprecated_tap_casks: "{{ (deprecated_tap_listing.results[1].stdout_lines | default([])) | select('match', deprecated_tap_pattern) | map('regex_replace', '^.*/', '') | list }}"
+      vars:
+        deprecated_tap_pattern: "^({{ all_removed_taps | map('regex_escape') | join('|') }})/"
+      when: deprecated_tap_listing.results is defined
+
     - name: Remove deprecated taps before homebrew update
       tags: brew_packages
       ansible.builtin.command:
@@ -202,6 +229,45 @@
         update_homebrew: true
         upgrade_all: false
       become: false
+
+    - name: Reinstall formulae from deprecated taps through Homebrew core
+      tags: brew_packages
+      ansible.builtin.command:
+        argv:
+          - brew
+          - install
+          - --formula
+          - "{{ item }}"
+      loop: "{{ deprecated_tap_formulae | default([]) }}"
+      register: migrated_tap_formulae
+      become: false
+      failed_when: false
+      changed_when: migrated_tap_formulae.rc == 0
+
+    - name: Reinstall casks from deprecated taps through Homebrew core
+      tags: brew_packages
+      ansible.builtin.command:
+        argv:
+          - brew
+          - install
+          - --cask
+          - "{{ item }}"
+      loop: "{{ deprecated_tap_casks | default([]) }}"
+      register: migrated_tap_casks
+      become: false
+      failed_when: false
+      changed_when: migrated_tap_casks.rc == 0
+
+    - name: Warn about packages from deprecated taps missing from Homebrew core
+      tags: brew_packages
+      ansible.builtin.debug:
+        msg: >-
+          These packages came from a Homebrew tap that Sparkdock no longer uses and
+          are not in Homebrew core, so they were uninstalled: {{ unmigrated_packages | join(', ') }}.
+          Add their tap again and reinstall them if you still need them.
+      vars:
+        unmigrated_packages: "{{ ((migrated_tap_formulae.results | default([])) + (migrated_tap_casks.results | default([]))) | rejectattr('rc', 'equalto', 0) | map(attribute='item') | list }}"
+      when: unmigrated_packages | length > 0
 
     - name: Check unwanted Homebrew formulae
       tags: brew_packages

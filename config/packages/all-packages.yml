@@ -1,6 +1,5 @@
 taps:
   - asmvik/formulae
-  - charmbracelet/tap
   - anomalyco/tap
   - owenthereal/upterm
 
@@ -65,7 +64,7 @@ homebrew_packages:
   - atuin
   - bat
   - bc
-  - charmbracelet/tap/gum
+  - gum
   - btop
   - fastfetch
   - fd
@@ -132,6 +131,7 @@ removed_homebrew_packages:
   - llm
 
 removed_taps:
+  - charmbracelet/tap
   - koekeishiya/formulae
   - homebrew/cask-versions
   - homebrew/cask-fonts
