@@ -43,3 +43,5 @@ keybind = cmd+v=paste_from_clipboard
 # herdr) can distinguish them from plain Enter.
 keybind = shift+enter=csi:13;2u
 keybind = alt+shift+enter=csi:13;4u
+# Ghostty binds ctrl+enter to toggle_fullscreen by default; Claude Code uses it to send the message.
+keybind = ctrl+enter=csi:13;5u
