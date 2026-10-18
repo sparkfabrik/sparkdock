@@ -232,7 +232,7 @@ spark-http-proxy stop    # Stop proxy services
 spark-http-proxy status  # Check service status
 ```
 
-`sproxy` is a shorter alias for the same command, so `sproxy status` works too.
+`sproxy` and `sth` are shorter aliases for the same command, so `sproxy status` and `sth status` work too.
 
 ### Menu Bar App
 
