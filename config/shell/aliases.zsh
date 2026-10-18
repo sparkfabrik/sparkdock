@@ -292,10 +292,11 @@ if command_exists openspec; then
 fi
 
 # Spark HTTP proxy
-# Zsh completes through the alias expansion, so 'sproxy sta<TAB>' still works
-# wherever 'spark-http-proxy install-completion' has run.
+# Zsh completes through the alias expansion, so 'sproxy sta<TAB>' and
+# 'sth sta<TAB>' still work wherever 'spark-http-proxy install-completion' has run.
 if command_exists spark-http-proxy; then
   alias sproxy='spark-http-proxy'
+  alias sth='spark-http-proxy'
 fi
 
 # Directory navigation
