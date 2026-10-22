@@ -179,13 +179,6 @@ final class SparkdockManagerTests: XCTestCase {
         }
     }
 
-    func testBrewCommandFormat() {
-        let brewCommand = "brew outdated --quiet | wc -l"
-        XCTAssertTrue(brewCommand.contains("brew outdated"), "Command should check for outdated packages")
-        XCTAssertTrue(brewCommand.contains("--quiet"), "Command should use quiet mode")
-        XCTAssertTrue(brewCommand.contains("wc -l"), "Command should count lines for package count")
-    }
-
     func testBrewUpgradeCommand() {
         let upgradeCommand = "brew upgrade"
         XCTAssertEqual(upgradeCommand, "brew upgrade", "Brew upgrade command should be correct")
@@ -345,6 +338,30 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertEqual(BrewVulnsStatus.from(exitCode: 3, output: ""), .unavailable)
         XCTAssertEqual(BrewVulnsStatus.from(exitCode: 2, output: ""), .unavailable)
         XCTAssertEqual(BrewVulnsStatus.from(exitCode: nil, output: ""), .unavailable)
+    }
+
+    // MARK: - Homebrew Outdated Check Tests
+
+    func testBrewOutdatedCountsOnePackagePerLine() {
+        XCTAssertEqual(BrewOutdatedCount.from(exitCode: 0, output: "gh\nnode\nuv\n"), 3)
+    }
+
+    func testBrewOutdatedCountsNothingOutdated() {
+        XCTAssertEqual(BrewOutdatedCount.from(exitCode: 0, output: ""), 0)
+        XCTAssertEqual(BrewOutdatedCount.from(exitCode: 0, output: "\n"), 0)
+    }
+
+    func testBrewOutdatedFailureIsNotUpToDate() {
+        XCTAssertNil(BrewOutdatedCount.from(exitCode: 1, output: ""))
+        XCTAssertNil(BrewOutdatedCount.from(exitCode: 1, output: "gh\n"))
+    }
+
+    /// Without auto-update, `brew outdated` compares against data nothing refreshes.
+    func testBrewEnvironmentKeepsAutoUpdate() {
+        let environment = BrewEnvironment.make(base: ["HOME": "/Users/test"])
+        XCTAssertNil(environment["HOMEBREW_NO_AUTO_UPDATE"])
+        XCTAssertEqual(environment["PATH"], BrewEnvironment.path)
+        XCTAssertEqual(environment["HOME"], "/Users/test")
     }
 
     // MARK: - Darwin Recheck Notification Tests
