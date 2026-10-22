@@ -1036,8 +1036,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             return nil
         }
 
-        if refresh {
-            await runBrewUpdate(brewPath: brewPath)
+        // Counts from stale data would read as up to date after the refresh the user asked for.
+        if refresh, !(await runBrewUpdate(brewPath: brewPath)) {
+            return nil
         }
 
         guard let formulaeCount = await getBrewOutdatedCount(brewPath: brewPath, type: .formulae),
@@ -1050,9 +1051,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return (formulaeCount, casksCount)
     }
 
-    /// A failure, such as no network or brew busy in a terminal, leaves the
-    /// outdated check on the data already on disk.
-    private func runBrewUpdate(brewPath: String) async {
+    /// Returns false when `brew update` fails, for example with no network or brew busy in a terminal.
+    private func runBrewUpdate(brewPath: String) async -> Bool {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: brewPath)
         process.arguments = ["update", "--quiet"]
@@ -1062,13 +1062,17 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         do {
             let terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.brewTimeout)
-            if terminationStatus != 0 {
+            guard terminationStatus == 0 else {
                 AppConstants.logger.warning("brew update failed with exit code \(terminationStatus)")
+                return false
             }
+            return true
         } catch ProcessTimeoutError.timedOut {
             AppConstants.logger.error("brew update timed out after \(AppConstants.brewTimeout) seconds")
+            return false
         } catch {
             AppConstants.logger.error("brew update failed: \(error.localizedDescription)")
+            return false
         }
     }
 
