@@ -238,6 +238,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed Sparkdock Manager no longer reporting new Homebrew versions: checks refresh stale Homebrew data again, manual refresh runs `brew update`, and a failed check shows the Homebrew row as unavailable instead of up to date
 - Fixed Ctrl+Enter toggling fullscreen in Ghostty instead of reaching Claude Code: the base Ghostty config now sends it as a CSI-u key sequence
 - Fixed provisioning failing when the `charmbracelet/tap` Homebrew tap cannot be added; `gum` now installs from homebrew-core and the tap is removed
 - Fixed Sparkdock Manager draining the battery by rerunning every update check every few seconds on machines with VPN or Docker networks; checks now run on launch, wake, real network changes, manual refresh and once a day, and the Homebrew vulnerability scan is cached for a day

@@ -17,6 +17,8 @@ private struct AppConstants {
     static let processTimeout: TimeInterval = 30.0
     /// `brew vulns` queries OSV.dev per formula: about ten seconds, more on a slow network.
     static let vulnsCheckTimeout: TimeInterval = 120.0
+    /// `brew update`, and `brew outdated` when it refreshes stale data first, download from the Homebrew API.
+    static let brewTimeout: TimeInterval = 60.0
     static let loggerSubsystem = "com.sparkfabrik.sparkdock.manager"
     static let logger = Logger(subsystem: loggerSubsystem, category: "MenuBar")
 }
@@ -329,9 +331,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var hasEngramUpdates = false
     var engramLastStatus: Int32? = nil
     var brewVulnsStatus: BrewVulnsStatus = .unavailable
-    var outdatedBrewFormulaeCount = 0
-    var outdatedBrewCasksCount = 0
-    var totalOutdatedBrewCount: Int { outdatedBrewFormulaeCount + outdatedBrewCasksCount }
+    /// Nil when Homebrew is missing or the outdated check failed.
+    var brewOutdated: (formulae: Int, casks: Int)?
+    var totalOutdatedBrewCount: Int { brewOutdated.map { $0.formulae + $0.casks } ?? 0 }
     /// Generation counter to discard stale full-check results after a per-subsystem recheck
     private var checkGeneration: Int = 0
     private var systemStatusCheckGeneration: Int = 0
@@ -850,11 +852,10 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         updateStatusMenuItem(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
             async let brewVulnsStatusTask = self.runBrewVulnsCheck(force: true)
-            let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
+            let brewOutdated = await runBrewOutdatedCheck()
             let brewVulnsStatus = await brewVulnsStatusTask
             await MainActor.run {
-                self.outdatedBrewFormulaeCount = formulaeCount
-                self.outdatedBrewCasksCount = casksCount
+                self.brewOutdated = brewOutdated
                 self.brewVulnsStatus = brewVulnsStatus
                 self.refreshUI()
             }
@@ -941,8 +942,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     private func refreshUI(updateClaudeUsage: Bool = false) {
         updateUI(
             hasUpdates: hasUpdates,
-            outdatedBrewFormulae: outdatedBrewFormulaeCount,
-            outdatedBrewCasks: outdatedBrewCasksCount,
+            brewOutdated: brewOutdated,
             hasHttpProxyUpdates: hasHttpProxyUpdates,
             hasAgentUpdates: hasAgentUpdates,
             agentsConfigured: isAgentsConfigured(),
@@ -957,8 +957,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     /// Runs every check, unless a full check is already in flight. Only a manual
-    /// refresh forces a fresh vulnerability scan; its button is disabled while a
-    /// check runs.
+    /// refresh runs `brew update` and forces a fresh vulnerability scan; its button
+    /// is disabled while a check runs.
     private func checkForUpdates(includeClaudeUsage: Bool = true, manual: Bool = false) {
         guard fullCheckTask == nil else {
             AppConstants.logger.info("Full check already running - skipping trigger")
@@ -979,11 +979,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             expectedClaudeUsageGeneration = nil
         }
         fullCheckTask = Task(priority: .background) {
-            // Started first and awaited last: the OSV scan is the slowest check and
-            // must not hold the other rows on "Checking".
+            // Started first and awaited last: the OSV scan and the Homebrew data
+            // refresh are the slowest checks and must not hold the other rows on "Checking".
             async let brewVulnsStatusTask = self.runBrewVulnsCheck(force: manual)
+            async let brewOutdatedTask = self.runBrewOutdatedCheck(refresh: manual)
             let hasUpdates = await runSparkdockCheck()
-            let (formulaeCount, casksCount) = await runBrewOutdatedCheck()
             let hasHttpProxyUpdates = await runHttpProxyCheck()
             let hasAgentUpdates = await runAgentsCheck()
             let agentsConfigured = isAgentsConfigured()
@@ -997,6 +997,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             let timetrackerConfigured = isTimetrackerConfigured()
             let hasEngramUpdates = await runEngramCheck()
             let engramConfigured = isEngramConfigured()
+            let brewOutdated = await brewOutdatedTask
             let brewVulnsStatus = await brewVulnsStatusTask
             await MainActor.run {
                 if self.systemStatusCheckGeneration == expectedSystemStatusGeneration {
@@ -1012,7 +1013,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 let shouldUpdateClaudeUsage = expectedClaudeUsageGeneration.map {
                     self.claudeUsageCheckGeneration == $0
                 } ?? false
-                updateUI(hasUpdates: hasUpdates, outdatedBrewFormulae: formulaeCount, outdatedBrewCasks: casksCount, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: checkedClaudeUsageStatus, updateClaudeUsage: shouldUpdateClaudeUsage, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured, hasEngramUpdates: hasEngramUpdates, engramConfigured: engramConfigured, brewVulnsStatus: brewVulnsStatus)
+                updateUI(hasUpdates: hasUpdates, brewOutdated: brewOutdated, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: checkedClaudeUsageStatus, updateClaudeUsage: shouldUpdateClaudeUsage, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured, hasEngramUpdates: hasEngramUpdates, engramConfigured: engramConfigured, brewVulnsStatus: brewVulnsStatus)
             }
         }
     }
@@ -1026,36 +1027,60 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return nil
     }
 
-    private func runBrewOutdatedCheck() async -> (formulae: Int, casks: Int) {
+    /// Returns nil when Homebrew is missing or a check fails. `refresh` runs
+    /// `brew update` first; otherwise `brew outdated` refreshes stale data itself.
+    private func runBrewOutdatedCheck(refresh: Bool = false) async -> (formulae: Int, casks: Int)? {
         AppConstants.logger.info("runBrewOutdatedCheck called")
         guard let brewPath = await findBrewPath() else {
             AppConstants.logger.warning("Homebrew not found at expected locations")
-            return (0, 0)
+            return nil
         }
 
-        // Get outdated formulae count
-        let formulaeCount = await getBrewOutdatedCount(brewPath: brewPath, type: .formulae)
-        // Get outdated casks count
-        let casksCount = await getBrewOutdatedCount(brewPath: brewPath, type: .casks)
+        // Counts from stale data would read as up to date after the refresh the user asked for.
+        if refresh, !(await runBrewUpdate(brewPath: brewPath)) {
+            return nil
+        }
+
+        guard let formulaeCount = await getBrewOutdatedCount(brewPath: brewPath, type: .formulae),
+              let casksCount = await getBrewOutdatedCount(brewPath: brewPath, type: .casks) else {
+            return nil
+        }
 
         let totalCount = formulaeCount + casksCount
         AppConstants.logger.info("Found \(formulaeCount) outdated formulae and \(casksCount) outdated casks (total: \(totalCount))")
         return (formulaeCount, casksCount)
     }
 
-    private func getBrewOutdatedCount(brewPath: String, type: BrewPackageType) async -> Int {
+    /// Returns false when `brew update` fails, for example with no network or brew busy in a terminal.
+    private func runBrewUpdate(brewPath: String) async -> Bool {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.executableURL = URL(fileURLWithPath: brewPath)
+        process.arguments = ["update", "--quiet"]
+        process.environment = BrewEnvironment.make()
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
 
-        let command = "\(brewPath) outdated \(type.commandSuffix) --quiet | wc -l"
-        process.arguments = ["-c", command]
+        do {
+            let terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.brewTimeout)
+            guard terminationStatus == 0 else {
+                AppConstants.logger.warning("brew update failed with exit code \(terminationStatus)")
+                return false
+            }
+            return true
+        } catch ProcessTimeoutError.timedOut {
+            AppConstants.logger.error("brew update timed out after \(AppConstants.brewTimeout) seconds")
+            return false
+        } catch {
+            AppConstants.logger.error("brew update failed: \(error.localizedDescription)")
+            return false
+        }
+    }
 
-        // Set environment variables including PATH
-        var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-        // A status check must not start a full `brew update`.
-        environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
-        process.environment = environment
+    private func getBrewOutdatedCount(brewPath: String, type: BrewPackageType) async -> Int? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: brewPath)
+        process.arguments = ["outdated", type.commandSuffix, "--quiet"]
+        process.environment = BrewEnvironment.make()
 
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -1063,25 +1088,23 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
         let terminationStatus: Int32
         do {
-            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
+            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.brewTimeout)
         } catch ProcessTimeoutError.timedOut {
-            AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.processTimeout) seconds")
-            return 0
+            AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.brewTimeout) seconds")
+            return nil
         } catch {
             AppConstants.logger.error("Brew outdated check (\(type.description)) failed: \(error.localizedDescription)")
-            return 0
+            return nil
         }
 
-        if terminationStatus == 0 {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "0"
-            let count = Int(output) ?? 0
-            AppConstants.logger.info("Found \(count) outdated \(type.description)")
-            return count
-        } else {
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let output = String(data: data, encoding: .utf8) ?? ""
+        guard let count = BrewOutdatedCount.from(exitCode: terminationStatus, output: output) else {
             AppConstants.logger.warning("Brew outdated check (\(type.description)) failed with exit code \(terminationStatus)")
-            return 0
+            return nil
         }
+        AppConstants.logger.info("Found \(count) outdated \(type.description)")
+        return count
     }
 
     private func runSparkdockCommand(_ command: String) async -> Bool {
@@ -1176,8 +1199,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.executableURL = URL(fileURLWithPath: checkUpdatesPath)
         process.arguments = force ? ["vulns", "--force"] : ["vulns"]
         // The subcommand runs python3, which launchd's PATH does not always carry.
-        var environment = ProcessInfo.processInfo.environment
-        environment["PATH"] = "/usr/local/bin:/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+        // `brew vulns` reads installed versions only, so it skips the data refresh.
+        var environment = BrewEnvironment.make()
         environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
         process.environment = environment
 
@@ -1307,7 +1330,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         return status != 3
     }
 
-    private func updateUI(hasUpdates: Bool, outdatedBrewFormulae: Int = 0, outdatedBrewCasks: Int = 0, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, updateClaudeUsage: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true, hasEngramUpdates: Bool = false, engramConfigured: Bool = true, brewVulnsStatus: BrewVulnsStatus = .unavailable) {
+    private func updateUI(hasUpdates: Bool, brewOutdated: (formulae: Int, casks: Int)?, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, updateClaudeUsage: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true, hasEngramUpdates: Bool = false, engramConfigured: Bool = true, brewVulnsStatus: BrewVulnsStatus = .unavailable) {
         self.hasUpdates = hasUpdates
         self.hasHttpProxyUpdates = hasHttpProxyUpdates
         self.hasAgentUpdates = hasAgentUpdates
@@ -1318,8 +1341,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         self.hasTimetrackerUpdates = hasTimetrackerUpdates
         self.hasEngramUpdates = hasEngramUpdates
         self.brewVulnsStatus = brewVulnsStatus
-        self.outdatedBrewFormulaeCount = outdatedBrewFormulae
-        self.outdatedBrewCasksCount = outdatedBrewCasks
+        self.brewOutdated = brewOutdated
+        let outdatedBrewFormulae = brewOutdated?.formulae ?? 0
+        let outdatedBrewCasks = brewOutdated?.casks ?? 0
         let totalBrewCount = totalOutdatedBrewCount
 
         let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates || hasAgentUpdates || hasTimetrackerUpdates || hasEngramUpdates
@@ -1366,7 +1390,11 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
 
         // Update Brew status line
-        if totalBrewCount > 0 {
+        if brewOutdated == nil {
+            updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Unavailable", color: .systemGray)
+            setStatusMenuItemAction(brewStatusMenuItem, action: nil)
+            brewStatusMenuItem?.toolTip = nil
+        } else if totalBrewCount > 0 {
             updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Upgrade (\(totalBrewCount))", color: .systemOrange)
             setStatusMenuItemAction(brewStatusMenuItem, action: #selector(upgradeBrew))
             brewStatusMenuItem?.toolTip = "\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks"

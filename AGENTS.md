@@ -257,6 +257,7 @@ A Swift-based menu bar application provides battery-efficient visual update noti
 - **Network Change Filter**: `NWPathMonitor` re-emits identical paths every few seconds on machines with VPN, Tailscale, or Docker interfaces. `NetworkChangePolicy` only triggers a check when connectivity returns or the physical interface type changes. Keep every new trigger behind a similar filter.
 - **Single Full Check**: Triggers are dropped while a full check is running. The Refresh button stays disabled until it ends.
 - **Cached Vulnerability Scan**: `sparkdock-check-updates vulns` answers from a 24-hour cache in `~/.cache/sparkdock/brew-vulns`. Manual refresh and post-upgrade rechecks pass `--force`.
+- **Fresh Homebrew Data**: Do not set `HOMEBREW_NO_AUTO_UPDATE` on `brew outdated`. Nothing else refreshes Homebrew's formula and cask data, so the Homebrew row would stop reporting new versions. Manual refresh also runs `brew update` first.
 - **Modern Swift Concurrency**: Uses structured concurrency with proper cancellation and timeout handling
 - **Resource Debugging**: Enhanced logging for missing logo/resource troubleshooting
 
