@@ -3,8 +3,12 @@
 set -euo pipefail
 
 # sparkdock-check-updates — Dispatcher for update checks across sparkdock subsystems.
-# Usage: sparkdock-check-updates <sparkdock|http-proxy|skills|timetracker|engram|vulns [--force]>
-# Exit codes: 0 = updates available, 1 = no updates available, 2 = error/usage, 3 = not configured
+# Usage: sparkdock-check-updates <sparkdock|http-proxy|skills|timetracker|engram|brew [--force]|vulns [--force]>
+# Exit codes: 0 = updates available, 1 = no updates available, 2 = check failed or usage error,
+# 3 = not configured or not supported
+#
+# SPARKDOCK_CHECK_ROOT and SPARKDOCK_CHECK_BREW point the checks at another sparkdock
+# checkout and brew executable, so tests can run them against fixtures.
 
 SCRIPT_NAME="$(basename "$0")"
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
@@ -21,7 +25,27 @@ get_root_dir() {
     fi
 }
 
-SPARKDOCK_ROOT="$(get_root_dir)"
+SPARKDOCK_ROOT="${SPARKDOCK_CHECK_ROOT:-$(get_root_dir)}"
+
+# Print the brew executable, or nothing when Homebrew is missing.
+# The LaunchAgent PATH is /usr/bin:/bin:/usr/sbin:/sbin, so look in the Homebrew prefixes first.
+find_brew() {
+    if [[ -n "${SPARKDOCK_CHECK_BREW:-}" ]]; then
+        if [[ -x "${SPARKDOCK_CHECK_BREW}" ]]; then
+            echo "${SPARKDOCK_CHECK_BREW}"
+        fi
+        return 0
+    fi
+
+    local candidate
+    for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
+        if [[ -x "${candidate}" ]]; then
+            echo "${candidate}"
+            return 0
+        fi
+    done
+    command -v brew 2>/dev/null || true
+}
 
 # Check for sparkdock updates (compares local HEAD vs origin)
 # Uses subshell to isolate cd
@@ -29,12 +53,16 @@ check_sparkdock_updates() (
     set -euo pipefail
     local sparkdock_dir="${SPARKDOCK_ROOT}"
 
-    if [[ "${sparkdock_dir}" != "/opt/sparkdock" ]]; then
+    if [[ -z "${SPARKDOCK_CHECK_ROOT:-}" ]] && [[ "${sparkdock_dir}" != "/opt/sparkdock" ]]; then
         return 1
     fi
 
     cd "${sparkdock_dir}"
-    git fetch origin "${DEFAULT_BRANCH}" -q
+    # The dispatcher runs this behind `||`, where bash ignores set -e, so a failed
+    # fetch must return on its own instead of comparing against stale refs.
+    if ! git fetch origin "${DEFAULT_BRANCH}" -q; then
+        return 2
+    fi
     local local_rev remote_rev
     local_rev=$(git rev-parse HEAD)
     remote_rev=$(git rev-parse "origin/${DEFAULT_BRANCH}")
@@ -51,7 +79,7 @@ check_sparkdock_updates() (
 # Uses subshell to isolate cd
 check_http_proxy_updates() (
     set -euo pipefail
-    local http_proxy_dir="/opt/sparkdock/http-proxy"
+    local http_proxy_dir="${SPARKDOCK_CHECK_ROOT:-/opt/sparkdock}/http-proxy"
 
     if [[ ! -d "${http_proxy_dir}" ]]; then
         return 1
@@ -63,7 +91,9 @@ check_http_proxy_updates() (
         return 1
     fi
 
-    git fetch origin main -q
+    if ! git fetch origin main -q; then
+        return 2
+    fi
     local local_rev remote_rev
     local_rev=$(git rev-parse HEAD)
     remote_rev=$(git rev-parse origin/main)
@@ -93,7 +123,9 @@ check_skills_updates() (
         return 3
     fi
 
-    git fetch origin -q 2>/dev/null || return 1
+    if ! git fetch origin -q 2>/dev/null; then
+        return 2
+    fi
 
     local default_branch_name
     default_branch_name=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@' || echo "main")
@@ -207,18 +239,17 @@ check_engram_updates() (
 scan_brew_vulns() (
     set -euo pipefail
 
-    # The LaunchAgent PATH is /usr/bin:/bin:/usr/sbin:/sbin, so look in the Homebrew prefixes first.
-    local brew_bin=""
-    for candidate in /opt/homebrew/bin/brew /usr/local/bin/brew; do
-        if [[ -x "${candidate}" ]]; then
-            brew_bin="${candidate}"
-            break
-        fi
-    done
+    local brew_bin
+    brew_bin="$(find_brew)"
     if [[ -z "${brew_bin}" ]]; then
-        brew_bin="$(command -v brew 2>/dev/null || true)"
+        return 3
     fi
-    if [[ -z "${brew_bin}" ]]; then
+
+    # The scan reads installed versions only, so it skips Homebrew's data refresh.
+    export HOMEBREW_NO_AUTO_UPDATE=1
+
+    # Homebrew releases without `brew vulns` cannot scan at all, which is not a failed scan.
+    if ! "${brew_bin}" vulns --help >/dev/null 2>&1; then
         return 3
     fi
 
@@ -264,10 +295,52 @@ print('Homebrew vulnerabilities: %d in %d formulae, %d high or critical' % (tota
             return 1
             ;;
         *)
-            # Unparseable output means brew could not answer, which is not a clean bill.
-            return 3
+            # Unparseable output means the scan failed, for example offline, which is not a clean bill.
+            return 2
             ;;
     esac
+)
+
+# Count the non-empty lines of a command's output.
+count_lines() {
+    printf '%s\n' "$1" | grep -c '[^[:space:]]' || true
+}
+
+# Check for outdated Homebrew formulae and casks.
+# Auto-update stays on, so `brew outdated` first refreshes formula and cask data older
+# than Homebrew's own staleness window; nothing else refreshes that data.
+# Pass --force to run `brew update` first, as a manual refresh in the menu bar app does.
+check_brew_outdated() (
+    set -euo pipefail
+    local force="${1:-}"
+
+    local brew_bin
+    brew_bin="$(find_brew)"
+    if [[ -z "${brew_bin}" ]]; then
+        return 3
+    fi
+
+    # Counts from stale data would read as up to date after the refresh that was asked for.
+    if [[ "${force}" == "--force" ]] && ! "${brew_bin}" update --quiet >/dev/null 2>&1; then
+        return 2
+    fi
+
+    local formulae casks
+    if ! formulae="$("${brew_bin}" outdated --formula --quiet 2>/dev/null)"; then
+        return 2
+    fi
+    if ! casks="$("${brew_bin}" outdated --cask --quiet 2>/dev/null)"; then
+        return 2
+    fi
+
+    local formulae_count casks_count
+    formulae_count="$(count_lines "${formulae}")"
+    casks_count="$(count_lines "${casks}")"
+    if ((formulae_count + casks_count == 0)); then
+        return 1
+    fi
+    echo "Homebrew: ${formulae_count} formulae, ${casks_count} casks outdated"
+    return 0
 )
 
 # Check for Homebrew vulnerabilities, answering from a daily cache.
@@ -309,7 +382,7 @@ check_brew_vulns() {
 
 # Usage message
 usage() {
-    echo "Usage: ${SCRIPT_NAME} <subsystem>"
+    echo "Usage: ${SCRIPT_NAME} <subsystem> [--force]"
     echo ""
     echo "Check for updates in a sparkdock subsystem."
     echo ""
@@ -320,14 +393,16 @@ usage() {
     echo "  skills       (alias for agents)"
     echo "  timetracker  Check for timetracker CLI updates"
     echo "  engram       Check for engram CLI updates"
+    echo "  brew         Check for outdated Homebrew formulae and casks"
+    echo "               (pass --force to run brew update first)"
     echo "  vulns        Check installed Homebrew formulae for known vulnerabilities"
     echo "               (cached for a day; pass --force to scan again)"
     echo ""
     echo "Exit codes:"
     echo "  0  Updates available"
     echo "  1  No updates available"
-    echo "  2  Usage error"
-    echo "  3  Not configured (subsystem not set up yet)"
+    echo "  2  Check failed, or usage error"
+    echo "  3  Not configured or not supported (subsystem not set up yet)"
 }
 
 # Main dispatcher
@@ -355,6 +430,9 @@ main() {
             ;;
         engram)
             check_engram_updates || rc=$?
+            ;;
+        brew)
+            check_brew_outdated "${2:-}" || rc=$?
             ;;
         vulns)
             check_brew_vulns "${2:-}" || rc=$?
