@@ -15,10 +15,9 @@ private struct AppConstants {
     static let iconSize = NSSize(width: 18, height: 18)
     static let bundleIdentifier = "com.sparkfabrik.sparkdock.menubar"
     static let processTimeout: TimeInterval = 30.0
-    /// `brew vulns` queries OSV.dev per formula: about ten seconds, more on a slow network.
-    static let vulnsCheckTimeout: TimeInterval = 120.0
-    /// `brew update`, and `brew outdated` when it refreshes stale data first, download from the Homebrew API.
-    static let brewTimeout: TimeInterval = 60.0
+    /// The `brew` check downloads from the Homebrew API, and `vulns` queries OSV.dev per
+    /// formula: about ten seconds each, more on a slow network.
+    static let brewCheckTimeout: TimeInterval = 120.0
     static let loggerSubsystem = "com.sparkfabrik.sparkdock.manager"
     static let logger = Logger(subsystem: loggerSubsystem, category: "MenuBar")
 }
@@ -75,30 +74,6 @@ private enum RecheckNotification {
 // MARK: - Menu Item Tags
 private enum MenuItemTag: Int {
     case loginItem = 1
-}
-
-// MARK: - Brew Package Types
-private enum BrewPackageType {
-    case formulae
-    case casks
-
-    var commandSuffix: String {
-        switch self {
-        case .formulae:
-            return "--formula"
-        case .casks:
-            return "--cask"
-        }
-    }
-
-    var description: String {
-        switch self {
-        case .formulae:
-            return "formulae"
-        case .casks:
-            return "casks"
-        }
-    }
 }
 
 // MARK: - Async Utilities
@@ -181,6 +156,18 @@ func runProcessWithTimeout(_ process: Process, seconds: TimeInterval) async thro
             }
         )
     }
+}
+
+/// Runs a check and returns its exit code and output. Output is read only when
+/// `capturesOutput` is set: it is read after exit, so a command that prints more than
+/// the pipe holds (64 KB) would block until the timeout.
+func runCheckProcess(_ process: Process, capturesOutput: Bool, seconds: TimeInterval) async throws -> (exitCode: Int32, output: String) {
+    let outputPipe = capturesOutput ? Pipe() : nil
+    process.standardOutput = outputPipe ?? FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    let exitCode = try await runProcessWithTimeout(process, seconds: seconds)
+    let output = outputPipe.map { String(data: $0.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "" } ?? ""
+    return (exitCode, output)
 }
 
 // MARK: - Darwin Notification Callback (C-compatible, must be top-level)
@@ -321,19 +308,17 @@ private final class ClaudeUsageRowView: NSView {
 class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     var statusItem: NSStatusItem?
     var menu: NSMenu?
-    var hasUpdates = false
-    var hasHttpProxyUpdates = false
-    var hasAgentUpdates = false
-    var agentsLastStatus: Int32? = nil
+    var sparkdockStatus: CheckStatus = .unavailable
+    var brewStatus: CheckStatus = .unavailable
+    /// Counts behind the Homebrew badge and tooltips; nil unless Homebrew needs attention.
+    var brewOutdated: BrewOutdatedSummary?
+    /// Starts as not configured, so the row stays hidden until a check answers.
+    var brewVulnsStatus: CheckStatus = .notConfigured
+    var httpProxyStatus: CheckStatus = .unavailable
+    var agentsStatus: CheckStatus = .unavailable
     var claudeUsageStatus: ClaudeUsageStatus?
-    var hasTimetrackerUpdates = false
-    var timetrackerLastStatus: Int32? = nil
-    var hasEngramUpdates = false
-    var engramLastStatus: Int32? = nil
-    var brewVulnsStatus: BrewVulnsStatus = .unavailable
-    /// Nil when Homebrew is missing or the outdated check failed.
-    var brewOutdated: (formulae: Int, casks: Int)?
-    var totalOutdatedBrewCount: Int { brewOutdated.map { $0.formulae + $0.casks } ?? 0 }
+    var timetrackerStatus: CheckStatus = .unavailable
+    var engramStatus: CheckStatus = .unavailable
     /// Generation counter to discard stale full-check results after a per-subsystem recheck
     private var checkGeneration: Int = 0
     private var systemStatusCheckGeneration: Int = 0
@@ -410,6 +395,35 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         item?.action = action
         item?.target = action == nil ? nil : self
         item?.isEnabled = action != nil
+    }
+
+    /// Draws one System status row from its check state. Every state has a default
+    /// badge and color; rows pass their actions, a not-configured label, and a tooltip.
+    private func renderStatusRow(_ item: NSMenuItem?, title: String, status: CheckStatus, upgradeAction: Selector, okAction: Selector? = nil, notConfiguredBadge: String = "Not configured", notConfiguredAction: Selector? = nil, tooltip: String? = nil) {
+        let badge: String
+        let color: NSColor
+        let action: Selector?
+        switch status {
+        case .needsAttention(let customBadge):
+            badge = customBadge ?? "Upgrade"
+            color = .systemOrange
+            action = upgradeAction
+        case .ok(let customBadge):
+            badge = customBadge ?? "Up to date"
+            color = .systemGreen
+            action = okAction
+        case .notConfigured:
+            badge = notConfiguredBadge
+            color = .systemGray
+            action = notConfiguredAction
+        case .unavailable:
+            badge = "Unavailable"
+            color = .systemGray
+            action = nil
+        }
+        updateStatusMenuItem(item, title: title, badge: badge, color: color)
+        setStatusMenuItemAction(item, action: action)
+        item?.toolTip = tooltip
     }
 
     private func menuSymbol(named name: String, description: String) -> NSImage? {
@@ -822,24 +836,25 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             let handlers: [String: () -> Void] = [
-                RecheckNotification.sparkdock: self.recheckSparkdock,
+                RecheckNotification.sparkdock: { self.recheck("sparkdock", item: self.sparkdockStatusMenuItem, title: "Sparkdock", into: \.sparkdockStatus) },
                 RecheckNotification.brew: self.recheckBrew,
-                RecheckNotification.httpProxy: self.recheckHttpProxy,
-                RecheckNotification.agents: self.recheckAgents,
-                RecheckNotification.timetracker: self.recheckTimetracker,
-                RecheckNotification.engram: self.recheckEngram
+                RecheckNotification.httpProxy: { self.recheck("http-proxy", item: self.httpProxyStatusMenuItem, title: "HTTP proxy", into: \.httpProxyStatus) },
+                RecheckNotification.agents: { self.recheck("agents", item: self.agentsStatusMenuItem, title: "Agent skills", into: \.agentsStatus) },
+                RecheckNotification.timetracker: { self.recheck("timetracker", item: self.timetrackerStatusMenuItem, title: "Timetracker", into: \.timetrackerStatus) },
+                RecheckNotification.engram: { self.recheck("engram", item: self.engramStatusMenuItem, title: "Engram", into: \.engramStatus) }
             ]
             handlers[name]?()
         }
     }
 
-    private func recheckSparkdock() {
+    /// Rechecks one row whose state is a plain `CheckStatus`, after its upgrade command finishes.
+    private func recheck(_ subsystem: String, item: NSMenuItem?, title: String, into status: ReferenceWritableKeyPath<SparkdockMenubarApp, CheckStatus>) {
         checkGeneration += 1
-        updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(item, title: title, badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
-            let result = await runSparkdockCheck()
+            let result = await runStatusCheck(subsystem)
             await MainActor.run {
-                self.hasUpdates = result
+                self[keyPath: status] = result
                 self.refreshUI()
             }
         }
@@ -852,35 +867,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         updateStatusMenuItem(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
             async let brewVulnsStatusTask = self.runBrewVulnsCheck(force: true)
-            let brewOutdated = await runBrewOutdatedCheck()
+            let brew = await runBrewCheck()
             let brewVulnsStatus = await brewVulnsStatusTask
             await MainActor.run {
-                self.brewOutdated = brewOutdated
+                self.brewStatus = brew.status
+                self.brewOutdated = brew.summary
                 self.brewVulnsStatus = brewVulnsStatus
-                self.refreshUI()
-            }
-        }
-    }
-
-    private func recheckHttpProxy() {
-        checkGeneration += 1
-        updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Checking", color: .systemYellow)
-        Task(priority: .background) {
-            let result = await runHttpProxyCheck()
-            await MainActor.run {
-                self.hasHttpProxyUpdates = result
-                self.refreshUI()
-            }
-        }
-    }
-
-    private func recheckAgents() {
-        checkGeneration += 1
-        updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Checking", color: .systemYellow)
-        Task(priority: .background) {
-            let result = await runAgentsCheck()
-            await MainActor.run {
-                self.hasAgentUpdates = result
                 self.refreshUI()
             }
         }
@@ -914,46 +906,62 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func recheckTimetracker() {
-        checkGeneration += 1
-        updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Checking", color: .systemYellow)
-        Task(priority: .background) {
-            let result = await runTimetrackerCheck()
-            await MainActor.run {
-                self.hasTimetrackerUpdates = result
-                self.refreshUI()
-            }
-        }
-    }
-
-    private func recheckEngram() {
-        checkGeneration += 1
-        updateStatusMenuItem(engramStatusMenuItem, title: "Engram", badge: "Checking", color: .systemYellow)
-        Task(priority: .background) {
-            let result = await runEngramCheck()
-            await MainActor.run {
-                self.hasEngramUpdates = result
-                self.refreshUI()
-            }
-        }
-    }
-
-    /// Refresh UI using current instance state (safe for per-subsystem updates)
+    /// Redraws every row and the menu bar icon from the stored check states.
     private func refreshUI(updateClaudeUsage: Bool = false) {
-        updateUI(
-            hasUpdates: hasUpdates,
-            brewOutdated: brewOutdated,
-            hasHttpProxyUpdates: hasHttpProxyUpdates,
-            hasAgentUpdates: hasAgentUpdates,
-            agentsConfigured: isAgentsConfigured(),
-            claudeUsageStatus: claudeUsageStatus,
-            updateClaudeUsage: updateClaudeUsage,
-            hasTimetrackerUpdates: hasTimetrackerUpdates,
-            timetrackerConfigured: isTimetrackerConfigured(),
-            hasEngramUpdates: hasEngramUpdates,
-            engramConfigured: isEngramConfigured(),
-            brewVulnsStatus: brewVulnsStatus
-        )
+        let updateRows: [(status: CheckStatus, name: String)] = [
+            (sparkdockStatus, "Sparkdock"),
+            (httpProxyStatus, "HTTP proxy"),
+            (agentsStatus, "Agent skills"),
+            (timetrackerStatus, "Timetracker"),
+            (engramStatus, "Engram")
+        ]
+        statusItem?.button?.image = loadIcon(hasUpdates: brewStatus.needsAction || updateRows.contains { $0.status.needsAction })
+
+        // Create more detailed tooltip
+        var tooltipParts = updateRows.filter { $0.status.needsAction }.map { "\($0.name) updates available" }
+        let outdatedBrewFormulae = brewOutdated?.formulae ?? 0
+        let outdatedBrewCasks = brewOutdated?.casks ?? 0
+        if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
+            tooltipParts.append("\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks outdated")
+        } else if outdatedBrewFormulae > 0 {
+            tooltipParts.append("\(outdatedBrewFormulae) brew formulae outdated")
+        } else if outdatedBrewCasks > 0 {
+            tooltipParts.append("\(outdatedBrewCasks) brew casks outdated")
+        }
+
+        if tooltipParts.isEmpty {
+            statusItem?.button?.toolTip = "Sparkdock: up to date"
+        } else {
+            statusItem?.button?.toolTip = "Sparkdock: " + tooltipParts.joined(separator: ", ")
+        }
+
+        renderStatusRow(sparkdockStatusMenuItem, title: "Sparkdock", status: sparkdockStatus, upgradeAction: #selector(updateNow))
+        renderStatusRow(brewStatusMenuItem, title: "Homebrew", status: brewStatus, upgradeAction: #selector(upgradeBrew),
+                        tooltip: brewOutdated.map { "\($0.formulae) formulae, \($0.casks) casks" })
+
+        // Hidden only on a Homebrew without `brew vulns`. Findings are not a pending
+        // update, so they stay out of the icon tint above.
+        brewVulnsStatusMenuItem?.isHidden = brewVulnsStatus == .notConfigured
+        renderStatusRow(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", status: brewVulnsStatus,
+                        upgradeAction: #selector(showBrewVulns), okAction: #selector(showBrewVulns))
+
+        renderStatusRow(httpProxyStatusMenuItem, title: "HTTP proxy", status: httpProxyStatus, upgradeAction: #selector(upgradeHttpProxy))
+        renderStatusRow(agentsStatusMenuItem, title: "Agent skills", status: agentsStatus, upgradeAction: #selector(upgradeAgents),
+                        notConfiguredBadge: "Set up", notConfiguredAction: #selector(upgradeAgents))
+
+        if updateClaudeUsage {
+            updateClaudeUsageUI(claudeUsageStatus)
+        }
+
+        // Timetracker and Engram rows are hidden outright when their CLI is not on the
+        // machine: a permanent "not installed" row would sit in every developer's
+        // menu advertising a tool they have not adopted.
+        timetrackerStatusMenuItem?.isHidden = Self.executablePath(for: "timetracker") == nil
+        renderStatusRow(timetrackerStatusMenuItem, title: "Timetracker", status: timetrackerStatus, upgradeAction: #selector(upgradeTimetracker))
+        engramStatusMenuItem?.isHidden = Self.executablePath(for: "engram") == nil
+        renderStatusRow(engramStatusMenuItem, title: "Engram", status: engramStatus, upgradeAction: #selector(upgradeEngram))
+
+        refreshDynamicMenuItems()
     }
 
     /// Runs every check, unless a full check is already in flight. Only a manual
@@ -982,22 +990,19 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             // Started first and awaited last: the OSV scan and the Homebrew data
             // refresh are the slowest checks and must not hold the other rows on "Checking".
             async let brewVulnsStatusTask = self.runBrewVulnsCheck(force: manual)
-            async let brewOutdatedTask = self.runBrewOutdatedCheck(refresh: manual)
-            let hasUpdates = await runSparkdockCheck()
-            let hasHttpProxyUpdates = await runHttpProxyCheck()
-            let hasAgentUpdates = await runAgentsCheck()
-            let agentsConfigured = isAgentsConfigured()
+            async let brewTask = self.runBrewCheck(force: manual)
+            let sparkdockStatus = await runStatusCheck("sparkdock")
+            let httpProxyStatus = await runStatusCheck("http-proxy")
+            let agentsStatus = await runStatusCheck("agents")
             let checkedClaudeUsageStatus: ClaudeUsageStatus?
             if includeClaudeUsage {
                 checkedClaudeUsageStatus = await runClaudeUsageCheck()
             } else {
                 checkedClaudeUsageStatus = nil
             }
-            let hasTimetrackerUpdates = await runTimetrackerCheck()
-            let timetrackerConfigured = isTimetrackerConfigured()
-            let hasEngramUpdates = await runEngramCheck()
-            let engramConfigured = isEngramConfigured()
-            let brewOutdated = await brewOutdatedTask
+            let timetrackerStatus = await runStatusCheck("timetracker")
+            let engramStatus = await runStatusCheck("engram")
+            let brew = await brewTask
             let brewVulnsStatus = await brewVulnsStatusTask
             await MainActor.run {
                 if self.systemStatusCheckGeneration == expectedSystemStatusGeneration {
@@ -1013,245 +1018,67 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 let shouldUpdateClaudeUsage = expectedClaudeUsageGeneration.map {
                     self.claudeUsageCheckGeneration == $0
                 } ?? false
-                updateUI(hasUpdates: hasUpdates, brewOutdated: brewOutdated, hasHttpProxyUpdates: hasHttpProxyUpdates, hasAgentUpdates: hasAgentUpdates, agentsConfigured: agentsConfigured, claudeUsageStatus: checkedClaudeUsageStatus, updateClaudeUsage: shouldUpdateClaudeUsage, hasTimetrackerUpdates: hasTimetrackerUpdates, timetrackerConfigured: timetrackerConfigured, hasEngramUpdates: hasEngramUpdates, engramConfigured: engramConfigured, brewVulnsStatus: brewVulnsStatus)
+                self.sparkdockStatus = sparkdockStatus
+                self.brewStatus = brew.status
+                self.brewOutdated = brew.summary
+                self.brewVulnsStatus = brewVulnsStatus
+                self.httpProxyStatus = httpProxyStatus
+                self.agentsStatus = agentsStatus
+                self.timetrackerStatus = timetrackerStatus
+                self.engramStatus = engramStatus
+                if shouldUpdateClaudeUsage {
+                    self.claudeUsageStatus = checkedClaudeUsageStatus
+                    self.claudeUsageLastCheckedAt = Date()
+                }
+                self.refreshUI(updateClaudeUsage: shouldUpdateClaudeUsage)
             }
         }
     }
 
-    private func findBrewPath() async -> String? {
-        if FileManager.default.fileExists(atPath: "/opt/homebrew/bin/brew") {
-            return "/opt/homebrew/bin/brew"
-        } else if FileManager.default.fileExists(atPath: "/usr/local/bin/brew") {
-            return "/usr/local/bin/brew"
-        }
-        return nil
-    }
-
-    /// Returns nil when Homebrew is missing or a check fails. `refresh` runs
-    /// `brew update` first; otherwise `brew outdated` refreshes stale data itself.
-    private func runBrewOutdatedCheck(refresh: Bool = false) async -> (formulae: Int, casks: Int)? {
-        AppConstants.logger.info("runBrewOutdatedCheck called")
-        guard let brewPath = await findBrewPath() else {
-            AppConstants.logger.warning("Homebrew not found at expected locations")
-            return nil
-        }
-
-        // Counts from stale data would read as up to date after the refresh the user asked for.
-        if refresh, !(await runBrewUpdate(brewPath: brewPath)) {
-            return nil
-        }
-
-        guard let formulaeCount = await getBrewOutdatedCount(brewPath: brewPath, type: .formulae),
-              let casksCount = await getBrewOutdatedCount(brewPath: brewPath, type: .casks) else {
-            return nil
-        }
-
-        let totalCount = formulaeCount + casksCount
-        AppConstants.logger.info("Found \(formulaeCount) outdated formulae and \(casksCount) outdated casks (total: \(totalCount))")
-        return (formulaeCount, casksCount)
-    }
-
-    /// Returns false when `brew update` fails, for example with no network or brew busy in a terminal.
-    private func runBrewUpdate(brewPath: String) async -> Bool {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: brewPath)
-        process.arguments = ["update", "--quiet"]
-        process.environment = BrewEnvironment.make()
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-
-        do {
-            let terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.brewTimeout)
-            guard terminationStatus == 0 else {
-                AppConstants.logger.warning("brew update failed with exit code \(terminationStatus)")
-                return false
-            }
-            return true
-        } catch ProcessTimeoutError.timedOut {
-            AppConstants.logger.error("brew update timed out after \(AppConstants.brewTimeout) seconds")
-            return false
-        } catch {
-            AppConstants.logger.error("brew update failed: \(error.localizedDescription)")
-            return false
-        }
-    }
-
-    private func getBrewOutdatedCount(brewPath: String, type: BrewPackageType) async -> Int? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: brewPath)
-        process.arguments = ["outdated", type.commandSuffix, "--quiet"]
-        process.environment = BrewEnvironment.make()
-
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = FileHandle.nullDevice
-
-        let terminationStatus: Int32
-        do {
-            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.brewTimeout)
-        } catch ProcessTimeoutError.timedOut {
-            AppConstants.logger.error("Brew outdated check (\(type.description)) process timed out after \(AppConstants.brewTimeout) seconds")
-            return nil
-        } catch {
-            AppConstants.logger.error("Brew outdated check (\(type.description)) failed: \(error.localizedDescription)")
-            return nil
-        }
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? ""
-        guard let count = BrewOutdatedCount.from(exitCode: terminationStatus, output: output) else {
-            AppConstants.logger.warning("Brew outdated check (\(type.description)) failed with exit code \(terminationStatus)")
-            return nil
-        }
-        AppConstants.logger.info("Found \(count) outdated \(type.description)")
-        return count
-    }
-
-    private func runSparkdockCommand(_ command: String) async -> Bool {
-        guard FileManager.default.fileExists(atPath: AppConstants.sparkdockExecutablePath) else {
-            AppConstants.logger.warning("Sparkdock executable not found at \(AppConstants.sparkdockExecutablePath)")
-            return false
-        }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: AppConstants.sparkdockExecutablePath)
-        process.arguments = [command]
-
-        let terminationStatus: Int32
-        do {
-            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
-        } catch ProcessTimeoutError.timedOut {
-            AppConstants.logger.error("Sparkdock command '\(command)' process timed out after \(AppConstants.processTimeout) seconds")
-            return false
-        } catch {
-            AppConstants.logger.error("Sparkdock command '\(command)' failed: \(error.localizedDescription)")
-            return false
-        }
-
-        return terminationStatus == 0
-    }
-
-    private func runSparkdockCheck() async -> Bool {
-        return await runSparkdockCommand("check-updates")
-    }
-
-    private func runHttpProxyCheck() async -> Bool {
-        return await runSparkdockCommand("http-proxy-check-updates")
-    }
-
-    private func runCheckUpdatesCommand(_ subsystem: String) async -> Bool {
-        let status = await runCheckUpdatesCommandStatus(subsystem)
-        return status == 0
-    }
-
-    /// Returns the termination status of sparkdock-check-updates, or nil on error/timeout.
-    /// Exit codes: 0 = updates available, 1 = no updates, 3 = not configured
-    private func runCheckUpdatesCommandStatus(_ subsystem: String) async -> Int32? {
+    /// Runs `sparkdock-check-updates` for one subsystem. The exit code is nil when the
+    /// script is missing, fails to start, or does not finish in time. Only `brew` and
+    /// `vulns` capture output: the other checks can print a long pending-commit log.
+    private func runCheckUpdates(_ subsystem: String, arguments: [String] = [], capturesOutput: Bool = false, timeout: TimeInterval = AppConstants.processTimeout) async -> (exitCode: Int32?, output: String) {
         let checkUpdatesPath = AppConstants.checkUpdatesExecutablePath
         guard FileManager.default.fileExists(atPath: checkUpdatesPath) else {
             AppConstants.logger.warning("sparkdock-check-updates not found at \(checkUpdatesPath)")
-            return nil
+            return (nil, "")
         }
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: checkUpdatesPath)
-        process.arguments = [subsystem]
+        process.arguments = [subsystem] + arguments
+        process.environment = CheckUpdatesEnvironment.make()
 
-        let terminationStatus: Int32
+        let result: (exitCode: Int32, output: String)
         do {
-            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.processTimeout)
+            result = try await runCheckProcess(process, capturesOutput: capturesOutput, seconds: timeout)
         } catch ProcessTimeoutError.timedOut {
-            AppConstants.logger.error("sparkdock-check-updates '\(subsystem)' timed out after \(AppConstants.processTimeout) seconds")
-            return nil
+            AppConstants.logger.error("sparkdock-check-updates '\(subsystem, privacy: .public)' timed out after \(timeout) seconds")
+            return (nil, "")
         } catch {
-            AppConstants.logger.error("sparkdock-check-updates '\(subsystem)' failed: \(error.localizedDescription)")
-            return nil
+            AppConstants.logger.error("sparkdock-check-updates '\(subsystem, privacy: .public)' failed: \(error.localizedDescription)")
+            return (nil, "")
         }
 
-        return terminationStatus
+        AppConstants.logger.info("sparkdock-check-updates '\(subsystem, privacy: .public)' exited with \(result.exitCode)")
+        return (result.exitCode, result.output)
     }
 
-    private func runAgentsCheck() async -> Bool {
-        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
-            AppConstants.logger.info("sparkdock-check-updates not found, agents check skipped")
-            agentsLastStatus = nil
-            return false
-        }
-        let status = await runCheckUpdatesCommandStatus("agents")
-        agentsLastStatus = status
-        // Exit code 3 = not configured (cache not synced yet)
-        if status == 3 {
-            return false
-        }
-        return status == 0
+    private func runStatusCheck(_ subsystem: String) async -> CheckStatus {
+        return CheckStatus.from(exitCode: await runCheckUpdates(subsystem).exitCode)
     }
 
-    /// Runs `sparkdock-check-updates vulns`, whose summary line feeds the row badge.
+    /// `force` runs `brew update` first; otherwise `brew outdated` refreshes stale data itself.
+    private func runBrewCheck(force: Bool = false) async -> (status: CheckStatus, summary: BrewOutdatedSummary?) {
+        let result = await runCheckUpdates("brew", arguments: force ? ["--force"] : [], capturesOutput: true, timeout: AppConstants.brewCheckTimeout)
+        return BrewOutdatedSummary.status(exitCode: result.exitCode, output: result.output)
+    }
+
     /// The script answers from a daily cache unless `force` asks for a fresh scan.
-    private func runBrewVulnsCheck(force: Bool = false) async -> BrewVulnsStatus {
-        let checkUpdatesPath = AppConstants.checkUpdatesExecutablePath
-        guard FileManager.default.fileExists(atPath: checkUpdatesPath) else {
-            AppConstants.logger.info("sparkdock-check-updates not found, vulnerability check skipped")
-            return .unavailable
-        }
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: checkUpdatesPath)
-        process.arguments = force ? ["vulns", "--force"] : ["vulns"]
-        // The subcommand runs python3, which launchd's PATH does not always carry.
-        // `brew vulns` reads installed versions only, so it skips the data refresh.
-        var environment = BrewEnvironment.make()
-        environment["HOMEBREW_NO_AUTO_UPDATE"] = "1"
-        process.environment = environment
-
-        let outputPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = FileHandle.nullDevice
-
-        let terminationStatus: Int32
-        do {
-            terminationStatus = try await runProcessWithTimeout(process, seconds: AppConstants.vulnsCheckTimeout)
-        } catch ProcessTimeoutError.timedOut {
-            AppConstants.logger.error("Vulnerability check timed out after \(AppConstants.vulnsCheckTimeout) seconds")
-            return .unavailable
-        } catch {
-            AppConstants.logger.error("Vulnerability check failed: \(error.localizedDescription)")
-            return .unavailable
-        }
-
-        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        let output = String(data: data, encoding: .utf8) ?? ""
-        return BrewVulnsStatus.from(exitCode: terminationStatus, output: output)
-    }
-
-    private func runTimetrackerCheck() async -> Bool {
-        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
-            AppConstants.logger.info("sparkdock-check-updates not found, timetracker check skipped")
-            timetrackerLastStatus = nil
-            return false
-        }
-        let status = await runCheckUpdatesCommandStatus("timetracker")
-        timetrackerLastStatus = status
-        // Exit code 3 = not configured (CLI not installed yet)
-        if status == 3 {
-            return false
-        }
-        return status == 0
-    }
-
-    private func runEngramCheck() async -> Bool {
-        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
-            AppConstants.logger.info("sparkdock-check-updates not found, engram check skipped")
-            engramLastStatus = nil
-            return false
-        }
-        let status = await runCheckUpdatesCommandStatus("engram")
-        engramLastStatus = status
-        // Exit code 3 = not configured (CLI not installed or no hub set up)
-        if status == 3 {
-            return false
-        }
-        return status == 0
+    private func runBrewVulnsCheck(force: Bool = false) async -> CheckStatus {
+        let result = await runCheckUpdates("vulns", arguments: force ? ["--force"] : [], capturesOutput: true, timeout: AppConstants.brewCheckTimeout)
+        return BrewVulnsSummary.status(exitCode: result.exitCode, output: result.output)
     }
 
     private func runClaudeUsageCheck(forcePoll: Bool = false) async -> ClaudeUsageStatus? {
@@ -1290,196 +1117,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             AppConstants.logger.error("Failed to decode Claude usage status: \(error.localizedDescription)")
             return nil
         }
-    }
-
-    /// Agent resources are considered configured when script exists AND last check returned a known good status.
-    /// Returns false for: missing script, nil (error/timeout), or exit 3 (not configured).
-    private func isAgentsConfigured() -> Bool {
-        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
-            return false
-        }
-        guard let status = agentsLastStatus else {
-            // Unknown/failed status — treat as not configured to avoid misleading green UI
-            return false
-        }
-        return status != 3
-    }
-
-    /// Timetracker is considered configured when the CLI is installed and reachable.
-    /// Returns false for: missing script, nil (error/timeout), or exit 3 (CLI absent or not set up).
-    private func isTimetrackerConfigured() -> Bool {
-        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
-            return false
-        }
-        guard let status = timetrackerLastStatus else {
-            // Unknown/failed status — treat as not configured to avoid misleading green UI
-            return false
-        }
-        return status != 3
-    }
-
-    /// Engram is considered configured when the CLI is installed and points at a hub.
-    /// Returns false for: missing script, nil (error/timeout), or exit 3 (CLI absent or no hub).
-    private func isEngramConfigured() -> Bool {
-        guard FileManager.default.fileExists(atPath: AppConstants.checkUpdatesExecutablePath) else {
-            return false
-        }
-        guard let status = engramLastStatus else {
-            return false
-        }
-        return status != 3
-    }
-
-    private func updateUI(hasUpdates: Bool, brewOutdated: (formulae: Int, casks: Int)?, hasHttpProxyUpdates: Bool = false, hasAgentUpdates: Bool = false, agentsConfigured: Bool = true, claudeUsageStatus: ClaudeUsageStatus? = nil, updateClaudeUsage: Bool = true, hasTimetrackerUpdates: Bool = false, timetrackerConfigured: Bool = true, hasEngramUpdates: Bool = false, engramConfigured: Bool = true, brewVulnsStatus: BrewVulnsStatus = .unavailable) {
-        self.hasUpdates = hasUpdates
-        self.hasHttpProxyUpdates = hasHttpProxyUpdates
-        self.hasAgentUpdates = hasAgentUpdates
-        if updateClaudeUsage {
-            self.claudeUsageStatus = claudeUsageStatus
-            self.claudeUsageLastCheckedAt = Date()
-        }
-        self.hasTimetrackerUpdates = hasTimetrackerUpdates
-        self.hasEngramUpdates = hasEngramUpdates
-        self.brewVulnsStatus = brewVulnsStatus
-        self.brewOutdated = brewOutdated
-        let outdatedBrewFormulae = brewOutdated?.formulae ?? 0
-        let outdatedBrewCasks = brewOutdated?.casks ?? 0
-        let totalBrewCount = totalOutdatedBrewCount
-
-        let hasAnyUpdates = hasUpdates || totalBrewCount > 0 || hasHttpProxyUpdates || hasAgentUpdates || hasTimetrackerUpdates || hasEngramUpdates
-        statusItem?.button?.image = loadIcon(hasUpdates: hasAnyUpdates)
-
-        // Create more detailed tooltip
-        var tooltipParts: [String] = []
-        if hasUpdates {
-            tooltipParts.append("Sparkdock updates available")
-        }
-        if hasHttpProxyUpdates {
-            tooltipParts.append("HTTP proxy updates available")
-        }
-        if hasAgentUpdates {
-            tooltipParts.append("Agent skills updates available")
-        }
-        if hasTimetrackerUpdates {
-            tooltipParts.append("Timetracker updates available")
-        }
-        if hasEngramUpdates {
-            tooltipParts.append("Engram updates available")
-        }
-        if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
-            tooltipParts.append("\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks outdated")
-        } else if outdatedBrewFormulae > 0 {
-            tooltipParts.append("\(outdatedBrewFormulae) brew formulae outdated")
-        } else if outdatedBrewCasks > 0 {
-            tooltipParts.append("\(outdatedBrewCasks) brew casks outdated")
-        }
-
-        if tooltipParts.isEmpty {
-            statusItem?.button?.toolTip = "Sparkdock: up to date"
-        } else {
-            statusItem?.button?.toolTip = "Sparkdock: " + tooltipParts.joined(separator: ", ")
-        }
-
-        // Update Sparkdock status line
-        if hasUpdates {
-            updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Upgrade", color: .systemOrange)
-            setStatusMenuItemAction(sparkdockStatusMenuItem, action: #selector(updateNow))
-        } else {
-            updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Up to date", color: .systemGreen)
-            setStatusMenuItemAction(sparkdockStatusMenuItem, action: nil)
-        }
-
-        // Update Brew status line
-        if brewOutdated == nil {
-            updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Unavailable", color: .systemGray)
-            setStatusMenuItemAction(brewStatusMenuItem, action: nil)
-            brewStatusMenuItem?.toolTip = nil
-        } else if totalBrewCount > 0 {
-            updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Upgrade (\(totalBrewCount))", color: .systemOrange)
-            setStatusMenuItemAction(brewStatusMenuItem, action: #selector(upgradeBrew))
-            brewStatusMenuItem?.toolTip = "\(outdatedBrewFormulae) formulae, \(outdatedBrewCasks) casks"
-        } else {
-            updateStatusMenuItem(brewStatusMenuItem, title: "Homebrew", badge: "Up to date", color: .systemGreen)
-            setStatusMenuItemAction(brewStatusMenuItem, action: nil)
-            brewStatusMenuItem?.toolTip = nil
-        }
-
-        // Hidden when the check cannot answer. Findings are not a pending update, so
-        // they stay out of the icon tint above.
-        switch brewVulnsStatus {
-        case .unavailable:
-            brewVulnsStatusMenuItem?.isHidden = true
-            setStatusMenuItemAction(brewVulnsStatusMenuItem, action: nil)
-        case .clean:
-            brewVulnsStatusMenuItem?.isHidden = false
-            updateStatusMenuItem(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", badge: "None", color: .systemGreen)
-            setStatusMenuItemAction(brewVulnsStatusMenuItem, action: #selector(showBrewVulns))
-        case .findings(let badge):
-            brewVulnsStatusMenuItem?.isHidden = false
-            updateStatusMenuItem(brewVulnsStatusMenuItem, title: "Homebrew vulnerabilities", badge: badge, color: .systemOrange)
-            setStatusMenuItemAction(brewVulnsStatusMenuItem, action: #selector(showBrewVulns))
-        }
-
-        // Update HTTP proxy status line
-        if hasHttpProxyUpdates {
-            updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Upgrade", color: .systemOrange)
-            setStatusMenuItemAction(httpProxyStatusMenuItem, action: #selector(upgradeHttpProxy))
-        } else {
-            updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Up to date", color: .systemGreen)
-            setStatusMenuItemAction(httpProxyStatusMenuItem, action: nil)
-        }
-
-        // Update agent skills status line
-        if !agentsConfigured {
-            updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Set up", color: .systemGray)
-            setStatusMenuItemAction(agentsStatusMenuItem, action: #selector(upgradeAgents))
-        } else if hasAgentUpdates {
-            updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Upgrade", color: .systemOrange)
-            setStatusMenuItemAction(agentsStatusMenuItem, action: #selector(upgradeAgents))
-        } else {
-            updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Up to date", color: .systemGreen)
-            setStatusMenuItemAction(agentsStatusMenuItem, action: nil)
-        }
-
-        if updateClaudeUsage {
-            updateClaudeUsageUI(claudeUsageStatus)
-        }
-
-        // Update Timetracker status line. Hidden outright when the CLI is not on the
-        // machine: a permanent "not installed" row would sit in every developer's
-        // menu advertising a tool they have not adopted.
-        let timetrackerInstalled = Self.executablePath(for: "timetracker") != nil
-        timetrackerStatusMenuItem?.isHidden = !timetrackerInstalled
-        if !timetrackerInstalled {
-            setStatusMenuItemAction(timetrackerStatusMenuItem, action: nil)
-        } else if !timetrackerConfigured {
-            updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Not configured", color: .systemGray)
-            setStatusMenuItemAction(timetrackerStatusMenuItem, action: nil)
-        } else if hasTimetrackerUpdates {
-            updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Upgrade", color: .systemOrange)
-            setStatusMenuItemAction(timetrackerStatusMenuItem, action: #selector(upgradeTimetracker))
-        } else {
-            updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Up to date", color: .systemGreen)
-            setStatusMenuItemAction(timetrackerStatusMenuItem, action: nil)
-        }
-
-        // Update Engram status line, hidden like the timetracker one when the CLI is absent.
-        let engramInstalled = Self.executablePath(for: "engram") != nil
-        engramStatusMenuItem?.isHidden = !engramInstalled
-        if !engramInstalled {
-            setStatusMenuItemAction(engramStatusMenuItem, action: nil)
-        } else if !engramConfigured {
-            updateStatusMenuItem(engramStatusMenuItem, title: "Engram", badge: "Not configured", color: .systemGray)
-            setStatusMenuItemAction(engramStatusMenuItem, action: nil)
-        } else if hasEngramUpdates {
-            updateStatusMenuItem(engramStatusMenuItem, title: "Engram", badge: "Upgrade", color: .systemOrange)
-            setStatusMenuItemAction(engramStatusMenuItem, action: #selector(upgradeEngram))
-        } else {
-            updateStatusMenuItem(engramStatusMenuItem, title: "Engram", badge: "Up to date", color: .systemGreen)
-            setStatusMenuItemAction(engramStatusMenuItem, action: nil)
-        }
-
-        refreshDynamicMenuItems()
     }
 
     private func updateClaudeUsageUI(_ status: ClaudeUsageStatus?) {
@@ -1529,12 +1166,12 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     @objc private func updateNow() {
-        guard hasUpdates else { return }
+        guard sparkdockStatus.needsAction else { return }
         executeTerminalCommand("sparkdock", recheckNotification: RecheckNotification.sparkdock)
     }
 
     @objc private func upgradeBrew() {
-        guard totalOutdatedBrewCount > 0 else { return }
+        guard brewStatus.needsAction else { return }
         // Create a compound command that only runs the second upgrade if the first succeeds
         let upgradeCommand = "brew upgrade && brew upgrade --cask"
         executeTerminalCommand(upgradeCommand, recheckNotification: RecheckNotification.brew)
@@ -1545,19 +1182,18 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     @objc private func upgradeHttpProxy() {
-        guard hasHttpProxyUpdates else { return }
+        guard httpProxyStatus.needsAction else { return }
         executeTerminalCommand("sjust http-proxy-install-update", recheckNotification: RecheckNotification.httpProxy)
     }
 
     @objc private func upgradeAgents() {
         // Allow refresh when agent resources have updates OR are not configured (initial setup)
-        let agentsConfigured = isAgentsConfigured()
-        guard hasAgentUpdates || !agentsConfigured else { return }
+        guard agentsStatus.needsAction || agentsStatus == .notConfigured else { return }
         executeTerminalCommand("sjust sf-harness-sync", recheckNotification: RecheckNotification.agents)
     }
 
     @objc private func upgradeTimetracker() {
-        guard hasTimetrackerUpdates else { return }
+        guard timetrackerStatus.needsAction else { return }
         // `timetracker update --apply` and not the `timetracker-update` shell
         // function: executeTerminalCommand runs a non-interactive login shell, and
         // zsh sources ~/.zshrc only for interactive shells, so the function is not
@@ -1566,7 +1202,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     @objc private func upgradeEngram() {
-        guard hasEngramUpdates else { return }
+        guard engramStatus.needsAction else { return }
         // Same reason as timetracker: the engram-update shell function is not
         // defined in the non-interactive login shell, the binary updates itself.
         executeTerminalCommand("engram update --apply", recheckNotification: RecheckNotification.engram)

@@ -1,24 +1,17 @@
 import Foundation
 
-/// Result of `sparkdock-check-updates vulns`: exit 0 with findings, 1 with none,
-/// 3 when Homebrew is missing or older than the 7 that added `brew vulns`.
-enum BrewVulnsStatus: Equatable {
-    /// No answer: Homebrew missing or older than 7, or the check failed.
-    case unavailable
-    /// Checked, nothing found.
-    case clean
-    /// Findings, with the badge text for the status row.
-    case findings(String)
-
-    /// Maps one run of the subcommand to a status.
-    static func from(exitCode: Int32?, output: String) -> BrewVulnsStatus {
-        switch exitCode {
-        case .some(0):
-            return .findings(badge(from: output) ?? "Found")
-        case .some(1):
-            return .clean
-        default:
-            return .unavailable
+/// Badge text from the line `sparkdock-check-updates vulns` prints when it finds vulnerabilities.
+enum BrewVulnsSummary {
+    /// Maps one run of `sparkdock-check-updates vulns` to the row state. Findings are
+    /// not a pending update, so the caller keeps them out of the icon tint.
+    static func status(exitCode: Int32?, output: String) -> CheckStatus {
+        switch CheckStatus.from(exitCode: exitCode) {
+        case .needsAttention:
+            return .needsAttention(badge: badge(from: output) ?? "Found")
+        case .ok:
+            return .ok(badge: "None")
+        case let status:
+            return status
         }
     }
 

@@ -161,6 +161,29 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(startedAt), 2)
     }
 
+    /// An exit-code-only check that prints more than the 64 KB pipe buffer still finishes.
+    func testCheckProcessDiscardsLargeOutput() async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "head -c 200000 /dev/zero; exit 0"]
+
+        let result = try await runCheckProcess(process, capturesOutput: false, seconds: 5)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.output, "")
+    }
+
+    func testCheckProcessCapturesSummaryLine() async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "echo 'Homebrew: 1 formulae, 0 casks outdated'; exit 0"]
+
+        let result = try await runCheckProcess(process, capturesOutput: true, seconds: 5)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.output, "Homebrew: 1 formulae, 0 casks outdated\n")
+    }
+
     func testPgrepExecutablePath() {
         let pgrepPath = "/usr/bin/pgrep"
         let fileExists = FileManager.default.fileExists(atPath: pgrepPath)
@@ -187,11 +210,6 @@ final class SparkdockManagerTests: XCTestCase {
     func testHttpProxyUpgradeCommand() {
         let httpProxyUpgradeCommand = "sjust http-proxy-install-update"
         XCTAssertEqual(httpProxyUpgradeCommand, "sjust http-proxy-install-update", "HTTP proxy upgrade command should be correct")
-    }
-
-    func testHttpProxyCheckUpdatesCommand() {
-        let httpProxyCheckCommand = ["http-proxy-check-updates"]
-        XCTAssertEqual(httpProxyCheckCommand.first, "http-proxy-check-updates", "HTTP proxy check command should be correct")
     }
 
     func testClaudeUsageStatusDecodingAndDisplay() throws {
@@ -313,54 +331,114 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertEqual(vulnsItem["requires_binary"] as? String, "brew")
     }
 
+    // MARK: - Check Status Tests
+
+    func testCheckStatusFromExitCode() {
+        XCTAssertEqual(CheckStatus.from(exitCode: 0), .needsAttention(badge: nil))
+        XCTAssertEqual(CheckStatus.from(exitCode: 1), .ok(badge: nil))
+        XCTAssertEqual(CheckStatus.from(exitCode: 3), .notConfigured)
+    }
+
+    /// A failed check never reads as current: exit 2, a crash or a timeout is unavailable.
+    func testCheckStatusFailuresAreUnavailable() {
+        XCTAssertEqual(CheckStatus.from(exitCode: 2), .unavailable)
+        XCTAssertEqual(CheckStatus.from(exitCode: 128), .unavailable)
+        XCTAssertEqual(CheckStatus.from(exitCode: nil), .unavailable)
+    }
+
+    /// Only a row that needs attention tints the menu bar icon, whatever its badge.
+    func testCheckStatusNeedsAction() {
+        XCTAssertTrue(CheckStatus.needsAttention(badge: nil).needsAction)
+        XCTAssertTrue(CheckStatus.needsAttention(badge: "Upgrade (3)").needsAction)
+        XCTAssertFalse(CheckStatus.ok(badge: nil).needsAction)
+        XCTAssertFalse(CheckStatus.notConfigured.needsAction)
+        XCTAssertFalse(CheckStatus.unavailable.needsAction)
+    }
+
+    // MARK: - Homebrew Outdated Summary Tests
+
+    func testBrewOutdatedSummaryParsesCounts() {
+        let summary = BrewOutdatedSummary.parse("Homebrew: 11 formulae, 6 casks outdated\n")
+        XCTAssertEqual(summary, BrewOutdatedSummary(formulae: 11, casks: 6))
+        XCTAssertEqual(summary?.total, 17)
+    }
+
+    func testBrewOutdatedSummaryParsesZeroCounts() {
+        XCTAssertEqual(BrewOutdatedSummary.parse("Homebrew: 0 formulae, 2 casks outdated"), BrewOutdatedSummary(formulae: 0, casks: 2))
+    }
+
+    func testBrewOutdatedSummaryRejectsOtherOutput() {
+        XCTAssertNil(BrewOutdatedSummary.parse(""))
+        XCTAssertNil(BrewOutdatedSummary.parse("gh\nnode\n"))
+        XCTAssertNil(BrewOutdatedSummary.parse("Homebrew: many formulae, 6 casks outdated"))
+    }
+
+    func testBrewStatusOutdated() {
+        let result = BrewOutdatedSummary.status(exitCode: 0, output: "Homebrew: 11 formulae, 6 casks outdated\n")
+        XCTAssertEqual(result.status, .needsAttention(badge: "Upgrade (17)"))
+        XCTAssertEqual(result.summary, BrewOutdatedSummary(formulae: 11, casks: 6))
+    }
+
+    func testBrewStatusUpToDate() {
+        let result = BrewOutdatedSummary.status(exitCode: 1, output: "")
+        XCTAssertEqual(result.status, .ok(badge: nil))
+        XCTAssertNil(result.summary)
+    }
+
+    /// Outdated packages with no readable counts must not read as up to date.
+    func testBrewStatusUnreadableSummaryIsUnavailable() {
+        let result = BrewOutdatedSummary.status(exitCode: 0, output: "")
+        XCTAssertEqual(result.status, .unavailable)
+        XCTAssertNil(result.summary)
+    }
+
+    func testBrewStatusFailures() {
+        XCTAssertEqual(BrewOutdatedSummary.status(exitCode: 2, output: "").status, .unavailable)
+        XCTAssertEqual(BrewOutdatedSummary.status(exitCode: nil, output: "").status, .unavailable)
+        XCTAssertEqual(BrewOutdatedSummary.status(exitCode: 3, output: "").status, .notConfigured)
+    }
+
     // MARK: - Homebrew Vulnerability Status Tests
 
     func testBrewVulnsFindingsBadge() {
         let output = "Homebrew vulnerabilities: 4 in 2 formulae, 2 high or critical\n"
-        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 0, output: output), .findings("4, 2 high"))
+        XCTAssertEqual(BrewVulnsSummary.badge(from: output), "4, 2 high")
     }
 
     func testBrewVulnsFindingsBadgeOmitsZeroSevere() {
         let output = "Homebrew vulnerabilities: 3 in 1 formulae, 0 high or critical\n"
-        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 0, output: output), .findings("3"))
+        XCTAssertEqual(BrewVulnsSummary.badge(from: output), "3")
+    }
+
+    func testBrewVulnsBadgeWithoutSummaryLine() {
+        XCTAssertNil(BrewVulnsSummary.badge(from: ""))
+    }
+
+    func testBrewVulnsFindingsStatus() {
+        let output = "Homebrew vulnerabilities: 4 in 2 formulae, 2 high or critical\n"
+        XCTAssertEqual(BrewVulnsSummary.status(exitCode: 0, output: output), .needsAttention(badge: "4, 2 high"))
     }
 
     func testBrewVulnsFindingsWithoutSummaryLine() {
-        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 0, output: ""), .findings("Found"))
+        XCTAssertEqual(BrewVulnsSummary.status(exitCode: 0, output: ""), .needsAttention(badge: "Found"))
     }
 
     func testBrewVulnsClean() {
-        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 1, output: ""), .clean)
+        XCTAssertEqual(BrewVulnsSummary.status(exitCode: 1, output: ""), .ok(badge: "None"))
     }
 
-    /// Exit 3 is Homebrew missing or older than 7, which has no `vulns` command.
-    func testBrewVulnsUnavailable() {
-        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 3, output: ""), .unavailable)
-        XCTAssertEqual(BrewVulnsStatus.from(exitCode: 2, output: ""), .unavailable)
-        XCTAssertEqual(BrewVulnsStatus.from(exitCode: nil, output: ""), .unavailable)
+    /// Exit 3 is a Homebrew without `brew vulns`, which hides the row; a failed scan stays visible.
+    func testBrewVulnsUnsupportedAndFailed() {
+        XCTAssertEqual(BrewVulnsSummary.status(exitCode: 3, output: ""), .notConfigured)
+        XCTAssertEqual(BrewVulnsSummary.status(exitCode: 2, output: ""), .unavailable)
+        XCTAssertEqual(BrewVulnsSummary.status(exitCode: nil, output: ""), .unavailable)
     }
 
-    // MARK: - Homebrew Outdated Check Tests
-
-    func testBrewOutdatedCountsOnePackagePerLine() {
-        XCTAssertEqual(BrewOutdatedCount.from(exitCode: 0, output: "gh\nnode\nuv\n"), 3)
-    }
-
-    func testBrewOutdatedCountsNothingOutdated() {
-        XCTAssertEqual(BrewOutdatedCount.from(exitCode: 0, output: ""), 0)
-        XCTAssertEqual(BrewOutdatedCount.from(exitCode: 0, output: "\n"), 0)
-    }
-
-    func testBrewOutdatedFailureIsNotUpToDate() {
-        XCTAssertNil(BrewOutdatedCount.from(exitCode: 1, output: ""))
-        XCTAssertNil(BrewOutdatedCount.from(exitCode: 1, output: "gh\n"))
-    }
-
-    /// Without auto-update, `brew outdated` compares against data nothing refreshes.
-    func testBrewEnvironmentKeepsAutoUpdate() {
-        let environment = BrewEnvironment.make(base: ["HOME": "/Users/test"])
+    /// Without auto-update, the `brew` check compares against data nothing refreshes.
+    func testCheckUpdatesEnvironmentKeepsAutoUpdate() {
+        let environment = CheckUpdatesEnvironment.make(base: ["HOME": "/Users/test"])
         XCTAssertNil(environment["HOMEBREW_NO_AUTO_UPDATE"])
-        XCTAssertEqual(environment["PATH"], BrewEnvironment.path)
+        XCTAssertEqual(environment["PATH"], CheckUpdatesEnvironment.path)
         XCTAssertEqual(environment["HOME"], "/Users/test")
     }
 
