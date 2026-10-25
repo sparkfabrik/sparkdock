@@ -145,45 +145,34 @@ class GitSubsystemsTest(CheckUpdatesTestCase):
             self.skipTest("the script runs from the installed checkout")
         self.assertEqual(self.run_check("sparkdock", SPARKDOCK_CHECK_ROOT=None)[0], 1)
 
-    def test_sparkdock_current(self):
-        self.assertEqual(self.run_check("sparkdock")[0], 1)
+    def git_checks(self):
+        """Each git subsystem with its remote seed, branch and checkout."""
+        return [
+            ("sparkdock", "sparkdock", "master", self.root),
+            ("http-proxy", "proxy", "main", self.root / "http-proxy"),
+            ("agents", "skills", "main", self.skills),
+        ]
 
-    def test_sparkdock_new_commits(self):
-        self.push_new_commit("sparkdock", "master")
-        self.assertEqual(self.run_check("sparkdock")[0], 0)
+    def test_current(self):
+        for subsystem, *_ in self.git_checks():
+            with self.subTest(subsystem=subsystem):
+                self.assertEqual(self.run_check(subsystem)[0], 1)
 
-    def test_sparkdock_fetch_fails(self):
-        self.push_new_commit("sparkdock", "master")
-        self.git(self.root, "fetch", "-q", "origin")
-        self.git(self.root, "reset", "-q", "--hard", "origin/master")
-        self.break_remote(self.root)
-        self.assertEqual(self.run_check("sparkdock")[0], 2)
+    def test_new_commits(self):
+        for subsystem, seed, branch, _ in self.git_checks():
+            with self.subTest(subsystem=subsystem):
+                self.push_new_commit(seed, branch)
+                self.assertEqual(self.run_check(subsystem)[0], 0)
 
-    def test_http_proxy_current(self):
-        self.assertEqual(self.run_check("http-proxy")[0], 1)
-
-    def test_http_proxy_new_commits(self):
-        self.push_new_commit("proxy", "main")
-        self.assertEqual(self.run_check("http-proxy")[0], 0)
-
-    def test_http_proxy_fetch_fails(self):
-        self.break_remote(self.root / "http-proxy")
-        self.assertEqual(self.run_check("http-proxy")[0], 2)
+    def test_fetch_fails(self):
+        for subsystem, _, _, checkout in self.git_checks():
+            with self.subTest(subsystem=subsystem):
+                self.break_remote(checkout)
+                self.assertEqual(self.run_check(subsystem)[0], 2)
 
     def test_http_proxy_not_installed(self):
         shutil.rmtree(self.root / "http-proxy")
         self.assertEqual(self.run_check("http-proxy")[0], 1)
-
-    def test_agents_current(self):
-        self.assertEqual(self.run_check("agents")[0], 1)
-
-    def test_agents_new_commits(self):
-        self.push_new_commit("skills", "main")
-        self.assertEqual(self.run_check("agents")[0], 0)
-
-    def test_agents_fetch_fails(self):
-        self.break_remote(self.skills)
-        self.assertEqual(self.run_check("agents")[0], 2)
 
     def test_agents_not_synced(self):
         shutil.rmtree(self.skills)

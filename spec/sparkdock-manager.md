@@ -58,8 +58,8 @@ struct MenuItem { let title: String; let type: MenuItemType; let command/url: St
 
 1. System event triggers (wake from sleep or network connectivity) → `checkForUpdates()`
 2. Background Task spawned with `.background` priority
-3. Async process executes `/opt/sparkdock/bin/sparkdock.macos check-updates` with structured concurrency timeout
-4. Exit code interpreted (0 = updates available, non-zero = no updates)
+3. Each status row runs `/opt/sparkdock/bin/sparkdock-check-updates <subsystem>` with a structured concurrency timeout
+4. `CheckStatus.from(exitCode:)` maps the exit code (0 = updates available, 1 = up to date, 3 = not configured, anything else or a timeout = unavailable)
 5. MainActor synchronizes UI component updates
 
 ### Menu Interaction Flow
@@ -71,11 +71,12 @@ struct MenuItem { let title: String; let type: MenuItemType; let command/url: St
 
 ## Update Detection
 
-The app executes `/opt/sparkdock/bin/sparkdock.macos check-updates` to detect available updates:
+Every status row runs `/opt/sparkdock/bin/sparkdock-check-updates <subsystem>` (`sparkdock`, `brew`, `vulns`, `http-proxy`, `agents`, `timetracker`, `engram`) to detect available updates:
 
-- **Exit code 0**: Updates available (shows orange tinted icon)
-- **Non-zero exit**: No updates (shows template gray icon)
-- **Timeout/Error**: Assumes no updates, logs error
+- **Exit code 0**: Updates available (orange row; tints the icon, except for vulnerabilities)
+- **Exit code 1**: Up to date (green row)
+- **Exit code 3**: Not configured (gray row, or hidden for vulnerabilities)
+- **Any other exit, timeout or error**: Unavailable (gray row, no tint), logs error
 
 **Modern Async Timeout Protection:**
 
@@ -269,7 +270,7 @@ log stream --predicate 'subsystem == "com.sparkfabrik.sparkdock.manager"'
 **Common Issues:**
 
 - Menu not appearing: Check `NSApp.setActivationPolicy(.accessory)`
-- Updates not detected: Verify `/opt/sparkdock/bin/sparkdock.macos` exists
+- Updates not detected: Verify `/opt/sparkdock/bin/sparkdock-check-updates` exists and run it by hand, for example `sparkdock-check-updates brew; echo $?`
 - Commands not working: Check AppleScript Terminal integration
 - Login item fails: Requires user approval in System Settings > Login Items
 
@@ -320,8 +321,8 @@ swift test      # Unit tests only
 **Update Management:**
 
 - `checkForUpdates()` - Async update check with background Task
-- `runSparkdockCheck() async -> Bool` - Async process execution with structured concurrency timeout
-- `updateUI(hasUpdates: Bool)` - MainActor UI state synchronization
+- `runCheckUpdates(_:arguments:timeout:) async` - Runs `sparkdock-check-updates` for one subsystem with a structured concurrency timeout
+- `refreshUI(updateClaudeUsage:)` - MainActor redraw of every row and the icon from the stored `CheckStatus` values, through `renderStatusRow`
 
 **Menu Event Handlers:**
 

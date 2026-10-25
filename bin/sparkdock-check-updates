@@ -26,6 +26,8 @@ get_root_dir() {
 }
 
 SPARKDOCK_ROOT="${SPARKDOCK_CHECK_ROOT:-$(get_root_dir)}"
+# The installed checkout, the only one the sparkdock check fetches.
+INSTALL_DIR="${SPARKDOCK_CHECK_ROOT:-/opt/sparkdock}"
 
 # Print the brew executable, or nothing when Homebrew is missing.
 # The LaunchAgent PATH is /usr/bin:/bin:/usr/sbin:/sbin, so look in the Homebrew prefixes first.
@@ -53,7 +55,7 @@ check_sparkdock_updates() (
     set -euo pipefail
     local sparkdock_dir="${SPARKDOCK_ROOT}"
 
-    if [[ -z "${SPARKDOCK_CHECK_ROOT:-}" ]] && [[ "${sparkdock_dir}" != "/opt/sparkdock" ]]; then
+    if [[ "${sparkdock_dir}" != "${INSTALL_DIR}" ]]; then
         return 1
     fi
 
@@ -79,7 +81,7 @@ check_sparkdock_updates() (
 # Uses subshell to isolate cd
 check_http_proxy_updates() (
     set -euo pipefail
-    local http_proxy_dir="${SPARKDOCK_CHECK_ROOT:-/opt/sparkdock}/http-proxy"
+    local http_proxy_dir="${INSTALL_DIR}/http-proxy"
 
     if [[ ! -d "${http_proxy_dir}" ]]; then
         return 1

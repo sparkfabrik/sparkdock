@@ -824,24 +824,25 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             let handlers: [String: () -> Void] = [
-                RecheckNotification.sparkdock: self.recheckSparkdock,
+                RecheckNotification.sparkdock: { self.recheck("sparkdock", item: self.sparkdockStatusMenuItem, title: "Sparkdock", into: \.sparkdockStatus) },
                 RecheckNotification.brew: self.recheckBrew,
-                RecheckNotification.httpProxy: self.recheckHttpProxy,
-                RecheckNotification.agents: self.recheckAgents,
-                RecheckNotification.timetracker: self.recheckTimetracker,
-                RecheckNotification.engram: self.recheckEngram
+                RecheckNotification.httpProxy: { self.recheck("http-proxy", item: self.httpProxyStatusMenuItem, title: "HTTP proxy", into: \.httpProxyStatus) },
+                RecheckNotification.agents: { self.recheck("agents", item: self.agentsStatusMenuItem, title: "Agent skills", into: \.agentsStatus) },
+                RecheckNotification.timetracker: { self.recheck("timetracker", item: self.timetrackerStatusMenuItem, title: "Timetracker", into: \.timetrackerStatus) },
+                RecheckNotification.engram: { self.recheck("engram", item: self.engramStatusMenuItem, title: "Engram", into: \.engramStatus) }
             ]
             handlers[name]?()
         }
     }
 
-    private func recheckSparkdock() {
+    /// Rechecks one row whose state is a plain `CheckStatus`, after its upgrade command finishes.
+    private func recheck(_ subsystem: String, item: NSMenuItem?, title: String, into status: ReferenceWritableKeyPath<SparkdockMenubarApp, CheckStatus>) {
         checkGeneration += 1
-        updateStatusMenuItem(sparkdockStatusMenuItem, title: "Sparkdock", badge: "Checking", color: .systemYellow)
+        updateStatusMenuItem(item, title: title, badge: "Checking", color: .systemYellow)
         Task(priority: .background) {
-            let status = await runStatusCheck("sparkdock")
+            let result = await runStatusCheck(subsystem)
             await MainActor.run {
-                self.sparkdockStatus = status
+                self[keyPath: status] = result
                 self.refreshUI()
             }
         }
@@ -860,30 +861,6 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
                 self.brewStatus = brew.status
                 self.brewOutdated = brew.summary
                 self.brewVulnsStatus = brewVulnsStatus
-                self.refreshUI()
-            }
-        }
-    }
-
-    private func recheckHttpProxy() {
-        checkGeneration += 1
-        updateStatusMenuItem(httpProxyStatusMenuItem, title: "HTTP proxy", badge: "Checking", color: .systemYellow)
-        Task(priority: .background) {
-            let status = await runStatusCheck("http-proxy")
-            await MainActor.run {
-                self.httpProxyStatus = status
-                self.refreshUI()
-            }
-        }
-    }
-
-    private func recheckAgents() {
-        checkGeneration += 1
-        updateStatusMenuItem(agentsStatusMenuItem, title: "Agent skills", badge: "Checking", color: .systemYellow)
-        Task(priority: .background) {
-            let status = await runStatusCheck("agents")
-            await MainActor.run {
-                self.agentsStatus = status
                 self.refreshUI()
             }
         }
@@ -917,51 +894,19 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func recheckTimetracker() {
-        checkGeneration += 1
-        updateStatusMenuItem(timetrackerStatusMenuItem, title: "Timetracker", badge: "Checking", color: .systemYellow)
-        Task(priority: .background) {
-            let status = await runStatusCheck("timetracker")
-            await MainActor.run {
-                self.timetrackerStatus = status
-                self.refreshUI()
-            }
-        }
-    }
-
-    private func recheckEngram() {
-        checkGeneration += 1
-        updateStatusMenuItem(engramStatusMenuItem, title: "Engram", badge: "Checking", color: .systemYellow)
-        Task(priority: .background) {
-            let status = await runStatusCheck("engram")
-            await MainActor.run {
-                self.engramStatus = status
-                self.refreshUI()
-            }
-        }
-    }
-
     /// Redraws every row and the menu bar icon from the stored check states.
     private func refreshUI(updateClaudeUsage: Bool = false) {
-        statusItem?.button?.image = loadIcon(hasUpdates: [sparkdockStatus, brewStatus, httpProxyStatus, agentsStatus, timetrackerStatus, engramStatus].contains { $0.needsAction })
+        let updateRows: [(status: CheckStatus, name: String)] = [
+            (sparkdockStatus, "Sparkdock"),
+            (httpProxyStatus, "HTTP proxy"),
+            (agentsStatus, "Agent skills"),
+            (timetrackerStatus, "Timetracker"),
+            (engramStatus, "Engram")
+        ]
+        statusItem?.button?.image = loadIcon(hasUpdates: brewStatus.needsAction || updateRows.contains { $0.status.needsAction })
 
         // Create more detailed tooltip
-        var tooltipParts: [String] = []
-        if sparkdockStatus.needsAction {
-            tooltipParts.append("Sparkdock updates available")
-        }
-        if httpProxyStatus.needsAction {
-            tooltipParts.append("HTTP proxy updates available")
-        }
-        if agentsStatus.needsAction {
-            tooltipParts.append("Agent skills updates available")
-        }
-        if timetrackerStatus.needsAction {
-            tooltipParts.append("Timetracker updates available")
-        }
-        if engramStatus.needsAction {
-            tooltipParts.append("Engram updates available")
-        }
+        var tooltipParts = updateRows.filter { $0.status.needsAction }.map { "\($0.name) updates available" }
         let outdatedBrewFormulae = brewOutdated?.formulae ?? 0
         let outdatedBrewCasks = brewOutdated?.casks ?? 0
         if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {
