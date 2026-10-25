@@ -153,7 +153,7 @@ Set `SPARKDOCK_SKIP_CLT_CHECK=1` to bypass the check.
 
 **Failed updates:**
 
-- Sparkdock automatically rolls back failed updates
+- Sparkdock rolls back only when downloading the update fails. A run that fails later, for example on a wrong password, keeps the new code: the menu bar shows **Retry** on the Sparkdock row until `sparkdock` completes
 - Check `/opt/sparkdock` directory exists and has proper permissions
 - Ensure git repository in `/opt/sparkdock` is in a clean state
 

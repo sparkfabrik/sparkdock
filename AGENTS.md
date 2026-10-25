@@ -257,7 +257,7 @@ A Swift-based menu bar application provides battery-efficient visual update noti
 - **Network Change Filter**: `NWPathMonitor` re-emits identical paths every few seconds on machines with VPN, Tailscale, or Docker interfaces. `NetworkChangePolicy` only triggers a check when connectivity returns or the physical interface type changes. Keep every new trigger behind a similar filter.
 - **Single Full Check**: Triggers are dropped while a full check is running. The Refresh button stays disabled until it ends.
 - **Cached Vulnerability Scan**: `sparkdock-check-updates vulns` answers from a 24-hour cache in `~/.cache/sparkdock/brew-vulns`. Manual refresh and post-upgrade rechecks pass `--force`.
-- **One Source per Row**: Every System status row runs `sparkdock-check-updates <subsystem>`, never `sparkdock.macos` or `brew` directly. `CheckStatus.from(exitCode:)` maps the exit code (0 needs attention, 1 up to date, 3 not configured, anything else or a timeout unavailable), and `renderStatusRow` draws every row from that state. An unavailable row never tints the icon.
+- **One Source per Row**: Every System status row runs `sparkdock-check-updates <subsystem>`, never `sparkdock.macos` or `brew` directly. `CheckStatus.from(exitCode:)` maps the exit code (0 needs attention, 1 up to date, 3 not configured, 4 last update did not complete, shown as "Retry" with the upgrade action, anything else or a timeout unavailable), and `renderStatusRow` draws every row from that state. An unavailable row never tints the icon.
 - **Fresh Homebrew Data**: `sparkdock-check-updates brew` runs `brew outdated` with Homebrew auto-update on. Do not set `HOMEBREW_NO_AUTO_UPDATE` for it: nothing else refreshes Homebrew's formula and cask data, so the Homebrew row would stop reporting new versions. Manual refresh passes `--force`, which runs `brew update` first.
 - **Modern Swift Concurrency**: Uses structured concurrency with proper cancellation and timeout handling
 - **Resource Debugging**: Enhanced logging for missing logo/resource troubleshooting
@@ -429,7 +429,8 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - **Default branch**: `master` (not `main`)
 - Automatic stashing of local changes during updates
 - Lock file at `/tmp/sparkdock.lock` prevents concurrent updates
-- Built-in rollback on failed updates using stored commit hashes
+- Rollback to the stored commit only when downloading the update fails
+- `.last_update` and `.last_provisioned` (both git-ignored) record the last successful full run: the time, shown as "Last update" by `sparkdock` and the TUI, and the commit. Only `sparkdock` and `install.macos` write them, as their last step. `sparkdock-check-updates sparkdock` exits 4 when the checkout matches origin but not `.last_provisioned`, because a run that fails during provisioning keeps the new code.
 
 ## Troubleshooting
 

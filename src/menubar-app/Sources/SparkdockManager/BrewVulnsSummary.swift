@@ -6,6 +6,8 @@ enum BrewVulnsSummary {
     /// not a pending update, so the caller keeps them out of the icon tint.
     static func status(exitCode: Int32?, output: String) -> CheckStatus {
         switch CheckStatus.from(exitCode: exitCode) {
+        case .retry:
+            return .retry
         case .needsAttention:
             return .needsAttention(badge: badge(from: output) ?? "Found")
         case .ok:

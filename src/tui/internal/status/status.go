@@ -60,13 +60,13 @@ type CmdChecker struct {
 }
 
 // checkUpdates exit-code contract: 0 = updates available, 1 = none,
-// 3 = not configured, anything else = error/unknown.
+// 3 = not configured, 4 = last update did not complete, anything else = error/unknown.
 func healthFromCheckUpdates(r CommandResult) Health {
 	if r.Err != nil {
 		return Unknown
 	}
 	switch r.ExitCode {
-	case 0:
+	case 0, 4:
 		return Stale
 	case 1:
 		return OK
@@ -106,7 +106,11 @@ func (c CmdChecker) CheckOne(ctx context.Context, key string) Subsystem {
 func (c CmdChecker) checkUpdatesSubsystem(ctx context.Context, key, name, arg string) Subsystem {
 	res := c.Run(ctx, c.CheckUpdatesBin, arg)
 	h := healthFromCheckUpdates(res)
-	return Subsystem{Key: key, Name: name, Health: h, Detail: detailFor(h)}
+	detail := detailFor(h)
+	if res.Err == nil && res.ExitCode == 4 {
+		detail = "update did not complete"
+	}
+	return Subsystem{Key: key, Name: name, Health: h, Detail: detail}
 }
 
 func (c CmdChecker) brewSubsystem(ctx context.Context) Subsystem {
@@ -137,12 +141,14 @@ func (c CmdChecker) vulnsSubsystem(ctx context.Context) Subsystem {
 	sub := Subsystem{Key: "vulns", Name: "Vulnerabilities"}
 	h := healthFromCheckUpdates(res)
 	sub.Health = h
-	switch h {
-	case Stale:
+	switch {
+	case h == Stale && res.ExitCode == 4:
+		sub.Detail = "update did not complete"
+	case h == Stale:
 		sub.Detail = vulnsDetail(res.Stdout)
-	case OK:
+	case h == OK:
 		sub.Detail = "none"
-	case Unconfigured:
+	case h == Unconfigured:
 		sub.Detail = "not available"
 	default:
 		sub.Detail = failDetail(res)

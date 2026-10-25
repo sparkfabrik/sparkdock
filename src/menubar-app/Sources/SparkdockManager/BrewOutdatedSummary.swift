@@ -11,7 +11,7 @@ struct BrewOutdatedSummary: Equatable {
     /// Outdated packages without a readable summary are unavailable, not up to date.
     static func status(exitCode: Int32?, output: String) -> (status: CheckStatus, summary: BrewOutdatedSummary?) {
         let status = CheckStatus.from(exitCode: exitCode)
-        guard status.needsAction else { return (status, nil) }
+        guard status.needsAction, !status.isRetry else { return (status, nil) }
         guard let summary = parse(output) else { return (.unavailable, nil) }
         return (.needsAttention(badge: "Upgrade (\(summary.total))"), summary)
     }

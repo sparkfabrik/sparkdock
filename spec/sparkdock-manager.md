@@ -59,7 +59,7 @@ struct MenuItem { let title: String; let type: MenuItemType; let command/url: St
 1. System event triggers (wake from sleep or network connectivity) → `checkForUpdates()`
 2. Background Task spawned with `.background` priority
 3. Each status row runs `/opt/sparkdock/bin/sparkdock-check-updates <subsystem>` with a structured concurrency timeout
-4. `CheckStatus.from(exitCode:)` maps the exit code (0 = updates available, 1 = up to date, 3 = not configured, anything else or a timeout = unavailable)
+4. `CheckStatus.from(exitCode:)` maps the exit code (0 = updates available, 1 = up to date, 3 = not configured, 4 = last update did not complete, anything else or a timeout = unavailable)
 5. MainActor synchronizes UI component updates
 
 ### Menu Interaction Flow
@@ -76,6 +76,7 @@ Every status row runs `/opt/sparkdock/bin/sparkdock-check-updates <subsystem>` (
 - **Exit code 0**: Updates available (orange row; tints the icon, except for vulnerabilities)
 - **Exit code 1**: Up to date (green row)
 - **Exit code 3**: Not configured (gray row, or hidden for vulnerabilities)
+- **Exit code 4**: Last update did not complete (orange "Retry" row with the upgrade action, tinted icon)
 - **Any other exit, timeout or error**: Unavailable (gray row, no tint), logs error
 
 **Modern Async Timeout Protection:**

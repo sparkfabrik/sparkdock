@@ -423,7 +423,7 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         }
         updateStatusMenuItem(item, title: title, badge: badge, color: color)
         setStatusMenuItemAction(item, action: action)
-        item?.toolTip = tooltip
+        item?.toolTip = tooltip ?? (status.isRetry ? "\(title) update did not complete" : nil)
     }
 
     private func menuSymbol(named name: String, description: String) -> NSImage? {
@@ -918,7 +918,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         statusItem?.button?.image = loadIcon(hasUpdates: brewStatus.needsAction || updateRows.contains { $0.status.needsAction })
 
         // Create more detailed tooltip
-        var tooltipParts = updateRows.filter { $0.status.needsAction }.map { "\($0.name) updates available" }
+        var tooltipParts = updateRows.filter { $0.status.needsAction }.map {
+            $0.status.isRetry ? "\($0.name) update did not complete" : "\($0.name) updates available"
+        }
         let outdatedBrewFormulae = brewOutdated?.formulae ?? 0
         let outdatedBrewCasks = brewOutdated?.casks ?? 0
         if outdatedBrewFormulae > 0 && outdatedBrewCasks > 0 {

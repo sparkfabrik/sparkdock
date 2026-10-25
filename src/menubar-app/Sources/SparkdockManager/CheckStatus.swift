@@ -11,6 +11,9 @@ enum CheckStatus: Equatable {
     /// Any other exit, a timeout, or a check that did not start.
     case unavailable
 
+    /// Exit 4: the last update did not complete. It needs the same action as an update.
+    static let retry = CheckStatus.needsAttention(badge: "Retry")
+
     /// Maps an exit code to a state; nil stands for a timeout or a launch failure.
     static func from(exitCode: Int32?) -> CheckStatus {
         switch exitCode {
@@ -20,6 +23,8 @@ enum CheckStatus: Equatable {
             return .ok(badge: nil)
         case .some(3):
             return .notConfigured
+        case .some(4):
+            return .retry
         default:
             return .unavailable
         }
@@ -32,4 +37,6 @@ enum CheckStatus: Equatable {
         }
         return false
     }
+
+    var isRetry: Bool { self == .retry }
 }
