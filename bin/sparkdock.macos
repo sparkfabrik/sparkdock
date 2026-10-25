@@ -145,9 +145,6 @@ if [ "$1" != "skip-update" ] ; then
         # Backup current version for rollback
         CURRENT_VERSION=$(git rev-parse HEAD)
 
-        # Store last update time
-        date "+%Y-%m-%d %H:%M:%S" > "$SPARKDOCK_ROOT/.last_update"
-
         # A flag to track if any update action is performed.
         update_actions_performed=false
 
@@ -259,6 +256,9 @@ if ! is_ci_environment; then
     print_section "Shell Configuration"
     sjust shell-enable
 fi
+
+# Written last, so a run that fails anywhere before this reads as incomplete.
+record_successful_provisioning "${SPARKDOCK_ROOT}"
 
 print_success "Installation completed successfully"
 

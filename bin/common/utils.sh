@@ -292,6 +292,17 @@ get_last_update() {
     fi
 }
 
+# Records a completed provisioning run: the commit it provisioned, which the
+# sparkdock update check compares with HEAD, and the time shown as "Last update".
+record_successful_provisioning() {
+    local root="$1" head
+    date "+%Y-%m-%d %H:%M:%S" > "${root}/.last_update"
+    # A copy without git history, as CI installs, has no commit to record.
+    if head="$(git -C "${root}" rev-parse HEAD 2>/dev/null)"; then
+        echo "${head}" > "${root}/.last_provisioned"
+    fi
+}
+
 get_version_info() {
     # check if /opt/sparkdock exists, if not, it is a first run, just return
     if [ ! -d /opt/sparkdock ]; then

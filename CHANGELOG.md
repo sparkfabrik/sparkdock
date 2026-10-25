@@ -239,6 +239,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed Sparkdock showing as up to date after an upgrade that failed during provisioning, for example with a wrong password: `sparkdock-check-updates sparkdock` now exits 4 until a run completes
 - Fixed Sparkdock Manager status rows showing "Up to date" when a check fails: every row now reads `sparkdock-check-updates`, and a failed check shows the row as "Unavailable", including the Homebrew vulnerabilities row
 - Fixed `sparkdock-check-updates` reporting a failed check as up to date: a failed fetch for `sparkdock`, `http-proxy` or `agents`, or a failed `vulns` scan, now exits 2, which the terminal hub shows as unknown
 - Fixed Sparkdock Manager no longer reporting new Homebrew versions: checks refresh stale Homebrew data again, manual refresh runs `brew update`, and a failed check shows the Homebrew row as unavailable instead of up to date

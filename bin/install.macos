@@ -188,6 +188,11 @@ else
   print "Warning: sparkdock.macos not found. Skipping symlink creation."
 fi
 
+# Mark the install as provisioned, so the update check does not report it as
+# incomplete. The subshell keeps utils.sh from replacing this script's print.
+# shellcheck source=common/utils.sh
+( source "${PWD}/bin/common/utils.sh" && record_successful_provisioning "${PWD}" )
+
 # Just run sjust to the test it works.
 print "Running sjust to test it works..."
 sjust

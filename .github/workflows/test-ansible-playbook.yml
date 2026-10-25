@@ -67,6 +67,14 @@ jobs:
           fi
           echo "✅ /usr/local/bin/sparkdock symlink exists"
 
+          # Check that a successful install records its time. CI copies the repo
+          # without .git, so there is no commit to record in .last_provisioned.
+          if [ ! -f "/opt/sparkdock/.last_update" ]; then
+            echo "❌ /opt/sparkdock/.last_update not found"
+            exit 1
+          fi
+          echo "✅ /opt/sparkdock/.last_update exists"
+
           # Check that sjust was installed
           if ! command -v sjust >/dev/null 2>&1; then
             echo "❌ sjust command not found"

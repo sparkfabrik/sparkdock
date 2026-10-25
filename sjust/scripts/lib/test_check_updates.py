@@ -16,6 +16,7 @@ import unittest
 from pathlib import Path
 
 SCRIPT = Path(__file__).resolve().parents[3] / "bin" / "sparkdock-check-updates"
+UTILS = SCRIPT.parent / "common" / "utils.sh"
 
 STUB_BREW = """#!/usr/bin/env bash
 printf '%s|%s\\n' "$*" "${HOMEBREW_NO_AUTO_UPDATE:-}" >>"${STUB_LOG}"
@@ -122,6 +123,31 @@ class ExitContractTest(CheckUpdatesTestCase):
         self.assertEqual(rc, 0)
         self.assertIn("brew", out)
         self.assertIn("2  Check failed", out)
+        self.assertIn("4  Last update did not complete", out)
+
+
+class ProvisioningRecordTest(CheckUpdatesTestCase):
+    def test_copy_without_git_records_only_the_time(self):
+        result = subprocess.run(
+            [
+                "bash",
+                "-euo",
+                "pipefail",
+                "-c",
+                'source "$1"; record_successful_provisioning "$2"',
+                "_",
+                str(UTILS),
+                str(self.root),
+            ],
+            capture_output=True,
+            check=False,
+            env=self.env(),
+        )
+        self.assertEqual(result.returncode, 0)
+        time.strptime(
+            (self.root / ".last_update").read_text().strip(), "%Y-%m-%d %H:%M:%S"
+        )
+        self.assertFalse((self.root / ".last_provisioned").exists())
 
 
 class GitSubsystemsTest(CheckUpdatesTestCase):
@@ -136,6 +162,28 @@ class GitSubsystemsTest(CheckUpdatesTestCase):
         self.skills = self.home / ".cache" / "sparkdock" / "agent-skills"
         self.skills.parent.mkdir(parents=True)
         self.clone(self.skills_remote, self.skills)
+        self.record_provisioning()
+
+    def record_provisioning(self):
+        """Mark the sparkdock checkout as provisioned, as a successful run does."""
+        subprocess.run(
+            [
+                "bash",
+                "-euo",
+                "pipefail",
+                "-c",
+                'source "$1"; record_successful_provisioning "$2"',
+                "_",
+                str(UTILS),
+                str(self.root),
+            ],
+            check=True,
+            capture_output=True,
+            env=self.env(),
+        )
+
+    def provisioned(self):
+        return self.root / ".last_provisioned"
 
     def break_remote(self, checkout):
         self.git(checkout, "remote", "set-url", "origin", str(self.dir / "missing.git"))
@@ -169,6 +217,37 @@ class GitSubsystemsTest(CheckUpdatesTestCase):
             with self.subTest(subsystem=subsystem):
                 self.break_remote(checkout)
                 self.assertEqual(self.run_check(subsystem)[0], 2)
+
+    def test_record_holds_head_and_time(self):
+        head = subprocess.run(
+            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+        self.assertEqual(self.provisioned().read_text().strip(), head)
+        last_update = (self.root / ".last_update").read_text().strip()
+        time.strptime(last_update, "%Y-%m-%d %H:%M:%S")
+
+    def test_sparkdock_record_missing(self):
+        self.provisioned().unlink()
+        rc, out = self.run_check("sparkdock")
+        self.assertEqual(rc, 4)
+        self.assertIn("Last update did not complete", out)
+
+    def test_sparkdock_record_older(self):
+        self.provisioned().write_text("0" * 40 + "\n")
+        self.assertEqual(self.run_check("sparkdock")[0], 4)
+
+    def test_sparkdock_new_commits_win_over_record(self):
+        self.provisioned().unlink()
+        self.push_new_commit("sparkdock", "master")
+        self.assertEqual(self.run_check("sparkdock")[0], 0)
+
+    def test_sparkdock_fetch_fails_with_incomplete_record(self):
+        self.provisioned().unlink()
+        self.break_remote(self.root)
+        self.assertEqual(self.run_check("sparkdock")[0], 2)
 
     def test_http_proxy_not_installed(self):
         shutil.rmtree(self.root / "http-proxy")
