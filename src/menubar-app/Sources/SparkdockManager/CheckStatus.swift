@@ -38,5 +38,8 @@ enum CheckStatus: Equatable {
         return false
     }
 
-    var isRetry: Bool { self == .retry }
+    /// Tooltip naming an update that did not complete, or nil for every other state.
+    func incompleteUpdateTooltip(for name: String) -> String? {
+        self == .retry ? "\(name) update did not complete" : nil
+    }
 }

@@ -8,10 +8,11 @@ struct BrewOutdatedSummary: Equatable {
     var total: Int { formulae + casks }
 
     /// Maps one run of `sparkdock-check-updates brew` to the row state and its counts.
-    /// Outdated packages without a readable summary are unavailable, not up to date.
+    /// Only exit 0 carries counts; every other state passes through. Outdated packages
+    /// without a readable summary are unavailable, not up to date.
     static func status(exitCode: Int32?, output: String) -> (status: CheckStatus, summary: BrewOutdatedSummary?) {
         let status = CheckStatus.from(exitCode: exitCode)
-        guard status.needsAction, !status.isRetry else { return (status, nil) }
+        guard exitCode == 0 else { return (status, nil) }
         guard let summary = parse(output) else { return (.unavailable, nil) }
         return (.needsAttention(badge: "Upgrade (\(summary.total))"), summary)
     }

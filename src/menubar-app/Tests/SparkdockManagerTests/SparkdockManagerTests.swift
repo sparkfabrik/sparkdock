@@ -342,9 +342,9 @@ final class SparkdockManagerTests: XCTestCase {
     /// Exit 4 is an update that did not complete: it needs the same action, with a Retry badge.
     func testCheckStatusRetry() {
         XCTAssertEqual(CheckStatus.from(exitCode: 4), .needsAttention(badge: "Retry"))
-        XCTAssertTrue(CheckStatus.from(exitCode: 4).isRetry)
         XCTAssertTrue(CheckStatus.from(exitCode: 4).needsAction)
-        XCTAssertFalse(CheckStatus.from(exitCode: 0).isRetry)
+        XCTAssertEqual(CheckStatus.from(exitCode: 4).incompleteUpdateTooltip(for: "Sparkdock"), "Sparkdock update did not complete")
+        XCTAssertNil(CheckStatus.from(exitCode: 0).incompleteUpdateTooltip(for: "Sparkdock"))
     }
 
     /// A failed check never reads as current: exit 2, a crash or a timeout is unavailable.

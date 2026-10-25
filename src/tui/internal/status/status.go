@@ -106,11 +106,16 @@ func (c CmdChecker) CheckOne(ctx context.Context, key string) Subsystem {
 func (c CmdChecker) checkUpdatesSubsystem(ctx context.Context, key, name, arg string) Subsystem {
 	res := c.Run(ctx, c.CheckUpdatesBin, arg)
 	h := healthFromCheckUpdates(res)
-	detail := detailFor(h)
+	return Subsystem{Key: key, Name: name, Health: h, Detail: checkUpdatesDetail(res, h)}
+}
+
+// checkUpdatesDetail is the row detail for a check-updates result, naming an
+// update that did not complete (exit 4) apart from one that is available.
+func checkUpdatesDetail(res CommandResult, h Health) string {
 	if res.Err == nil && res.ExitCode == 4 {
-		detail = "update did not complete"
+		return "update did not complete"
 	}
-	return Subsystem{Key: key, Name: name, Health: h, Detail: detail}
+	return detailFor(h)
 }
 
 func (c CmdChecker) brewSubsystem(ctx context.Context) Subsystem {
@@ -141,14 +146,16 @@ func (c CmdChecker) vulnsSubsystem(ctx context.Context) Subsystem {
 	sub := Subsystem{Key: "vulns", Name: "Vulnerabilities"}
 	h := healthFromCheckUpdates(res)
 	sub.Health = h
-	switch {
-	case h == Stale && res.ExitCode == 4:
-		sub.Detail = "update did not complete"
-	case h == Stale:
-		sub.Detail = vulnsDetail(res.Stdout)
-	case h == OK:
+	switch h {
+	case Stale:
+		// Only exit 0 carries findings; another stale exit keeps the generic detail.
+		sub.Detail = checkUpdatesDetail(res, h)
+		if res.ExitCode == 0 {
+			sub.Detail = vulnsDetail(res.Stdout)
+		}
+	case OK:
 		sub.Detail = "none"
-	case h == Unconfigured:
+	case Unconfigured:
 		sub.Detail = "not available"
 	default:
 		sub.Detail = failDetail(res)

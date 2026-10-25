@@ -84,10 +84,29 @@ class CheckUpdatesTestCase(unittest.TestCase):
         return [tuple(line.split("|", 1)) for line in self.log.read_text().splitlines()]
 
     def git(self, cwd, *args):
-        subprocess.run(
+        return subprocess.run(
             ["git", *args],
             cwd=cwd,
             check=True,
+            capture_output=True,
+            text=True,
+            env=self.env(),
+        ).stdout.strip()
+
+    def record_provisioning(self, check=True):
+        """Run the helper a successful sparkdock run ends with, on the sparkdock root."""
+        return subprocess.run(
+            [
+                "bash",
+                "-euo",
+                "pipefail",
+                "-c",
+                'source "$1"; record_successful_provisioning "$2"',
+                "_",
+                str(UTILS),
+                str(self.root),
+            ],
+            check=check,
             capture_output=True,
             env=self.env(),
         )
@@ -128,22 +147,7 @@ class ExitContractTest(CheckUpdatesTestCase):
 
 class ProvisioningRecordTest(CheckUpdatesTestCase):
     def test_copy_without_git_records_only_the_time(self):
-        result = subprocess.run(
-            [
-                "bash",
-                "-euo",
-                "pipefail",
-                "-c",
-                'source "$1"; record_successful_provisioning "$2"',
-                "_",
-                str(UTILS),
-                str(self.root),
-            ],
-            capture_output=True,
-            check=False,
-            env=self.env(),
-        )
-        self.assertEqual(result.returncode, 0)
+        self.assertEqual(self.record_provisioning(check=False).returncode, 0)
         time.strptime(
             (self.root / ".last_update").read_text().strip(), "%Y-%m-%d %H:%M:%S"
         )
@@ -163,24 +167,6 @@ class GitSubsystemsTest(CheckUpdatesTestCase):
         self.skills.parent.mkdir(parents=True)
         self.clone(self.skills_remote, self.skills)
         self.record_provisioning()
-
-    def record_provisioning(self):
-        """Mark the sparkdock checkout as provisioned, as a successful run does."""
-        subprocess.run(
-            [
-                "bash",
-                "-euo",
-                "pipefail",
-                "-c",
-                'source "$1"; record_successful_provisioning "$2"',
-                "_",
-                str(UTILS),
-                str(self.root),
-            ],
-            check=True,
-            capture_output=True,
-            env=self.env(),
-        )
 
     def provisioned(self):
         return self.root / ".last_provisioned"
@@ -219,12 +205,7 @@ class GitSubsystemsTest(CheckUpdatesTestCase):
                 self.assertEqual(self.run_check(subsystem)[0], 2)
 
     def test_record_holds_head_and_time(self):
-        head = subprocess.run(
-            ["git", "-C", str(self.root), "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True,
-        ).stdout.strip()
+        head = self.git(self.root, "rev-parse", "HEAD")
         self.assertEqual(self.provisioned().read_text().strip(), head)
         last_update = (self.root / ".last_update").read_text().strip()
         time.strptime(last_update, "%Y-%m-%d %H:%M:%S")

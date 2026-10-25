@@ -5,15 +5,13 @@ enum BrewVulnsSummary {
     /// Maps one run of `sparkdock-check-updates vulns` to the row state. Findings are
     /// not a pending update, so the caller keeps them out of the icon tint.
     static func status(exitCode: Int32?, output: String) -> CheckStatus {
-        switch CheckStatus.from(exitCode: exitCode) {
-        case .retry:
-            return .retry
-        case .needsAttention:
+        switch exitCode {
+        case .some(0):
             return .needsAttention(badge: badge(from: output) ?? "Found")
-        case .ok:
+        case .some(1):
             return .ok(badge: "None")
-        case let status:
-            return status
+        default:
+            return CheckStatus.from(exitCode: exitCode)
         }
     }
 
