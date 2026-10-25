@@ -121,6 +121,12 @@ func TestVulns_States(t *testing.T) {
 			wantDetail: "not available",
 		},
 		{
+			name:       "last update did not complete",
+			res:        CommandResult{ExitCode: 4},
+			wantHealth: Stale,
+			wantDetail: "update did not complete",
+		},
+		{
 			name:       "check failed",
 			res:        CommandResult{ExitCode: 2, Stderr: "Error: no such command\n"},
 			wantHealth: Unknown,
@@ -180,8 +186,19 @@ func TestCheckOne_ErrorsBecomeUnknown(t *testing.T) {
 	}
 }
 
+func TestCheckOne_IncompleteUpdate(t *testing.T) {
+	c := CmdChecker{
+		CheckUpdatesBin: "check-updates",
+		Run:             fakeRunner(map[string]CommandResult{"sparkdock": {ExitCode: 4}}),
+	}
+	got := c.CheckOne(context.Background(), "sparkdock")
+	if got.Health != Stale || got.Detail != "update did not complete" {
+		t.Errorf("sparkdock exit 4 -> %v %q, want Stale %q", got.Health, got.Detail, "update did not complete")
+	}
+}
+
 func TestHealthFromCheckUpdates(t *testing.T) {
-	cases := map[int]Health{0: Stale, 1: OK, 3: Unconfigured, 2: Unknown, 99: Unknown}
+	cases := map[int]Health{0: Stale, 1: OK, 3: Unconfigured, 4: Stale, 2: Unknown, 99: Unknown}
 	for code, want := range cases {
 		if got := healthFromCheckUpdates(CommandResult{ExitCode: code}); got != want {
 			t.Errorf("exit %d -> %v, want %v", code, got, want)

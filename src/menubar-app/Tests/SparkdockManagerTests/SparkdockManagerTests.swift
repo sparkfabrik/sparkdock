@@ -339,6 +339,14 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertEqual(CheckStatus.from(exitCode: 3), .notConfigured)
     }
 
+    /// Exit 4 is an update that did not complete: it needs the same action, with a Retry badge.
+    func testCheckStatusRetry() {
+        XCTAssertEqual(CheckStatus.from(exitCode: 4), .needsAttention(badge: "Retry"))
+        XCTAssertTrue(CheckStatus.from(exitCode: 4).needsAction)
+        XCTAssertEqual(CheckStatus.from(exitCode: 4).incompleteUpdateTooltip(for: "Sparkdock"), "Sparkdock update did not complete")
+        XCTAssertNil(CheckStatus.from(exitCode: 0).incompleteUpdateTooltip(for: "Sparkdock"))
+    }
+
     /// A failed check never reads as current: exit 2, a crash or a timeout is unavailable.
     func testCheckStatusFailuresAreUnavailable() {
         XCTAssertEqual(CheckStatus.from(exitCode: 2), .unavailable)
@@ -392,6 +400,12 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertNil(result.summary)
     }
 
+    func testBrewStatusRetry() {
+        let result = BrewOutdatedSummary.status(exitCode: 4, output: "")
+        XCTAssertEqual(result.status, .retry)
+        XCTAssertNil(result.summary)
+    }
+
     func testBrewStatusFailures() {
         XCTAssertEqual(BrewOutdatedSummary.status(exitCode: 2, output: "").status, .unavailable)
         XCTAssertEqual(BrewOutdatedSummary.status(exitCode: nil, output: "").status, .unavailable)
@@ -421,6 +435,10 @@ final class SparkdockManagerTests: XCTestCase {
 
     func testBrewVulnsFindingsWithoutSummaryLine() {
         XCTAssertEqual(BrewVulnsSummary.status(exitCode: 0, output: ""), .needsAttention(badge: "Found"))
+    }
+
+    func testBrewVulnsRetry() {
+        XCTAssertEqual(BrewVulnsSummary.status(exitCode: 4, output: ""), .retry)
     }
 
     func testBrewVulnsClean() {

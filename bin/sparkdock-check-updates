@@ -4,8 +4,12 @@ set -euo pipefail
 
 # sparkdock-check-updates — Dispatcher for update checks across sparkdock subsystems.
 # Usage: sparkdock-check-updates <sparkdock|http-proxy|skills|timetracker|engram|brew [--force]|vulns [--force]>
-# Exit codes: 0 = updates available, 1 = no updates available, 2 = check failed or usage error,
-# 3 = not configured or not supported
+# Exit codes:
+#   0 = updates available
+#   1 = no updates available
+#   2 = check failed or usage error
+#   3 = not configured or not supported
+#   4 = last update did not complete, run it again
 #
 # SPARKDOCK_CHECK_ROOT and SPARKDOCK_CHECK_BREW point the checks at another sparkdock
 # checkout and brew executable, so tests can run them against fixtures.
@@ -73,6 +77,17 @@ check_sparkdock_updates() (
         echo "Updates available:"
         git --no-pager log --oneline "HEAD..origin/${DEFAULT_BRANCH}"
         return 0
+    fi
+
+    # sparkdock downloads the code before provisioning, so matching origin alone
+    # does not mean the last run finished; it records the commit when it does.
+    local provisioned_rev=""
+    if [[ -f .last_provisioned ]]; then
+        provisioned_rev="$(<.last_provisioned)"
+    fi
+    if [[ "${provisioned_rev}" != "${local_rev}" ]]; then
+        echo "Last update did not complete: run sparkdock again"
+        return 4
     fi
     return 1
 )
@@ -405,6 +420,7 @@ usage() {
     echo "  1  No updates available"
     echo "  2  Check failed, or usage error"
     echo "  3  Not configured or not supported (subsystem not set up yet)"
+    echo "  4  Last update did not complete; run it again"
 }
 
 # Main dispatcher
