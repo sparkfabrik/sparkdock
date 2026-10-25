@@ -161,6 +161,29 @@ final class SparkdockManagerTests: XCTestCase {
         XCTAssertLessThan(Date().timeIntervalSince(startedAt), 2)
     }
 
+    /// An exit-code-only check that prints more than the 64 KB pipe buffer still finishes.
+    func testCheckProcessDiscardsLargeOutput() async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "head -c 200000 /dev/zero; exit 0"]
+
+        let result = try await runCheckProcess(process, capturesOutput: false, seconds: 5)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.output, "")
+    }
+
+    func testCheckProcessCapturesSummaryLine() async throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", "echo 'Homebrew: 1 formulae, 0 casks outdated'; exit 0"]
+
+        let result = try await runCheckProcess(process, capturesOutput: true, seconds: 5)
+
+        XCTAssertEqual(result.exitCode, 0)
+        XCTAssertEqual(result.output, "Homebrew: 1 formulae, 0 casks outdated\n")
+    }
+
     func testPgrepExecutablePath() {
         let pgrepPath = "/usr/bin/pgrep"
         let fileExists = FileManager.default.fileExists(atPath: pgrepPath)

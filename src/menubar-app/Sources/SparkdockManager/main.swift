@@ -158,6 +158,18 @@ func runProcessWithTimeout(_ process: Process, seconds: TimeInterval) async thro
     }
 }
 
+/// Runs a check and returns its exit code and output. Output is read only when
+/// `capturesOutput` is set: it is read after exit, so a command that prints more than
+/// the pipe holds (64 KB) would block until the timeout.
+func runCheckProcess(_ process: Process, capturesOutput: Bool, seconds: TimeInterval) async throws -> (exitCode: Int32, output: String) {
+    let outputPipe = capturesOutput ? Pipe() : nil
+    process.standardOutput = outputPipe ?? FileHandle.nullDevice
+    process.standardError = FileHandle.nullDevice
+    let exitCode = try await runProcessWithTimeout(process, seconds: seconds)
+    let output = outputPipe.map { String(data: $0.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? "" } ?? ""
+    return (exitCode, output)
+}
+
 // MARK: - Darwin Notification Callback (C-compatible, must be top-level)
 private let darwinRecheckCallback: CFNotificationCallback = { _, observer, name, _, _ in
     guard let observer = observer else { return }
@@ -1024,8 +1036,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
     }
 
     /// Runs `sparkdock-check-updates` for one subsystem. The exit code is nil when the
-    /// script is missing, fails to start, or does not finish in time.
-    private func runCheckUpdates(_ subsystem: String, arguments: [String] = [], timeout: TimeInterval = AppConstants.processTimeout) async -> (exitCode: Int32?, output: String) {
+    /// script is missing, fails to start, or does not finish in time. Only `brew` and
+    /// `vulns` capture output: the other checks can print a long pending-commit log.
+    private func runCheckUpdates(_ subsystem: String, arguments: [String] = [], capturesOutput: Bool = false, timeout: TimeInterval = AppConstants.processTimeout) async -> (exitCode: Int32?, output: String) {
         let checkUpdatesPath = AppConstants.checkUpdatesExecutablePath
         guard FileManager.default.fileExists(atPath: checkUpdatesPath) else {
             AppConstants.logger.warning("sparkdock-check-updates not found at \(checkUpdatesPath)")
@@ -1037,13 +1050,9 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
         process.arguments = [subsystem] + arguments
         process.environment = CheckUpdatesEnvironment.make()
 
-        let outputPipe = Pipe()
-        process.standardOutput = outputPipe
-        process.standardError = FileHandle.nullDevice
-
-        let terminationStatus: Int32
+        let result: (exitCode: Int32, output: String)
         do {
-            terminationStatus = try await runProcessWithTimeout(process, seconds: timeout)
+            result = try await runCheckProcess(process, capturesOutput: capturesOutput, seconds: timeout)
         } catch ProcessTimeoutError.timedOut {
             AppConstants.logger.error("sparkdock-check-updates '\(subsystem, privacy: .public)' timed out after \(timeout) seconds")
             return (nil, "")
@@ -1052,9 +1061,8 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
             return (nil, "")
         }
 
-        let data = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        AppConstants.logger.info("sparkdock-check-updates '\(subsystem, privacy: .public)' exited with \(terminationStatus)")
-        return (terminationStatus, String(data: data, encoding: .utf8) ?? "")
+        AppConstants.logger.info("sparkdock-check-updates '\(subsystem, privacy: .public)' exited with \(result.exitCode)")
+        return (result.exitCode, result.output)
     }
 
     private func runStatusCheck(_ subsystem: String) async -> CheckStatus {
@@ -1063,13 +1071,13 @@ class SparkdockMenubarApp: NSObject, NSApplicationDelegate {
 
     /// `force` runs `brew update` first; otherwise `brew outdated` refreshes stale data itself.
     private func runBrewCheck(force: Bool = false) async -> (status: CheckStatus, summary: BrewOutdatedSummary?) {
-        let result = await runCheckUpdates("brew", arguments: force ? ["--force"] : [], timeout: AppConstants.brewCheckTimeout)
+        let result = await runCheckUpdates("brew", arguments: force ? ["--force"] : [], capturesOutput: true, timeout: AppConstants.brewCheckTimeout)
         return BrewOutdatedSummary.status(exitCode: result.exitCode, output: result.output)
     }
 
     /// The script answers from a daily cache unless `force` asks for a fresh scan.
     private func runBrewVulnsCheck(force: Bool = false) async -> CheckStatus {
-        let result = await runCheckUpdates("vulns", arguments: force ? ["--force"] : [], timeout: AppConstants.brewCheckTimeout)
+        let result = await runCheckUpdates("vulns", arguments: force ? ["--force"] : [], capturesOutput: true, timeout: AppConstants.brewCheckTimeout)
         return BrewVulnsSummary.status(exitCode: result.exitCode, output: result.output)
     }
 
