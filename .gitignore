@@ -1,6 +1,7 @@
 *__pycache*
 .last_update
 .last_provisioned
+.last_provisioned_http_proxy
 http-proxy
 .build
 .claude/settings.local.json

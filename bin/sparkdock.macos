@@ -257,8 +257,11 @@ if ! is_ci_environment; then
     sjust shell-enable
 fi
 
-# Written last, so a run that fails anywhere before this reads as incomplete.
-record_successful_provisioning "${SPARKDOCK_ROOT}"
+# Written last, so a run that fails anywhere before this reads as incomplete. A run
+# that skipped tags, including the menu bar on broken Command Line Tools, is partial.
+if [[ -z "${SPARKDOCK_SKIP_TAGS:-}" ]]; then
+    record_successful_provisioning "${SPARKDOCK_ROOT}"
+fi
 
 print_success "Installation completed successfully"
 

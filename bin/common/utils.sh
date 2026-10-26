@@ -295,11 +295,17 @@ get_last_update() {
 # Records a completed provisioning run: the commit it provisioned, which the
 # sparkdock update check compares with HEAD, and the time shown as "Last update".
 record_successful_provisioning() {
-    local root="$1" head
+    local root="$1"
     date "+%Y-%m-%d %H:%M:%S" > "${root}/.last_update"
-    # A copy without git history, as CI installs, has no commit to record.
-    if head="$(git -C "${root}" rev-parse HEAD 2>/dev/null)"; then
-        echo "${head}" > "${root}/.last_provisioned"
+    record_provisioned_commit "${root}" "${root}/.last_provisioned"
+}
+
+# Writes a checkout's HEAD to a record file. A copy without git history, as CI
+# installs, has no commit to record, so nothing is written.
+record_provisioned_commit() {
+    local checkout="$1" record_file="$2" head
+    if head="$(git -C "${checkout}" rev-parse HEAD 2>/dev/null)"; then
+        echo "${head}" > "${record_file}"
     fi
 }
 

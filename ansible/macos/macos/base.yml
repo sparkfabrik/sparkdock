@@ -905,6 +905,13 @@
           debug:
             msg: "⚠️  Docker not available, skipping http-proxy service restart"
           when: docker_check.rc != 0
+
+        # Written last, so a run that fails above reads as incomplete. Kept in
+        # the sparkdock checkout, which git ignores, so the proxy repository
+        # stays clean.
+        - name: Record the provisioned http-proxy commit
+          shell: git -C "{{ dev_env_dir }}/http-proxy" rev-parse HEAD > "{{ dev_env_dir }}/.last_provisioned_http_proxy"
+          changed_when: false
       become: no
 
     - name: Configure keyboard settings
