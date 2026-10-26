@@ -430,7 +430,8 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - Automatic stashing of local changes during updates
 - Lock file at `/tmp/sparkdock.lock` prevents concurrent updates
 - Rollback to the stored commit only when downloading the update fails
-- `.last_update` and `.last_provisioned` (both git-ignored) record the last successful full run: the time, shown as "Last update" by `sparkdock` and the TUI, and the commit. Only `sparkdock` and `install.macos` write them, as their last step. `sparkdock-check-updates sparkdock` exits 4 when the checkout matches origin but not `.last_provisioned`, because a run that fails during provisioning keeps the new code.
+- `.last_update` and `.last_provisioned` (both git-ignored) record the last successful full run: the time, shown as "Last update" by `sparkdock` and the TUI, and the commit. Only a full run of `sparkdock` (no skipped tags), as its last step, and `install.macos`, after provisioning, write them. `sparkdock-check-updates sparkdock` exits 4 when the checkout matches origin but not `.last_provisioned`, because a run that fails during provisioning keeps the new code.
+- `.last_provisioned_http_proxy` (git-ignored, in the sparkdock checkout so the proxy repository stays clean) records the HTTP proxy commit, written by the last task of the `http-proxy` Ansible tag, so every run that provisions the proxy writes it, including `sjust http-proxy-install-update`, which resets the proxy before provisioning it. `sparkdock-check-updates http-proxy` exits 4 on the same terms.
 
 ## Troubleshooting
 

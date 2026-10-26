@@ -154,6 +154,7 @@ Set `SPARKDOCK_SKIP_CLT_CHECK=1` to bypass the check.
 **Failed updates:**
 
 - Sparkdock rolls back only when downloading the update fails. A run that fails later, for example on a wrong password, keeps the new code: the menu bar shows **Retry** on the Sparkdock row until `sparkdock` completes
+- An HTTP proxy upgrade that fails during provisioning works the same way: the HTTP proxy row shows **Retry** until `sjust http-proxy-install-update` completes
 - Check `/opt/sparkdock` directory exists and has proper permissions
 - Ensure git repository in `/opt/sparkdock` is in a clean state
 
@@ -174,6 +175,14 @@ sjust dns-flush-cache          # Clear macOS DNS cache
 ```
 
 - Verify DNS resolver configuration in `/etc/resolver/loc`
+
+**Old proxy version after an upgrade made with Docker stopped:**
+
+An upgrade with Docker stopped skips the container restart, so the old containers come back when Docker starts. Restarting them, from Docker Desktop or with `spark-http-proxy restart`, keeps the old version. Recreate them with the new one:
+
+```bash
+spark-http-proxy start          # Recreate the proxy containers
+```
 
 #### Package Installation Issues
 

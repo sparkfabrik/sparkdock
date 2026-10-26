@@ -33,6 +33,22 @@ SPARKDOCK_ROOT="${SPARKDOCK_CHECK_ROOT:-$(get_root_dir)}"
 # The installed checkout, the only one the sparkdock check fetches.
 INSTALL_DIR="${SPARKDOCK_CHECK_ROOT:-/opt/sparkdock}"
 
+# Compare a checkout that already matches origin with the commit its last successful
+# run recorded: updates download the code before provisioning, so matching origin
+# alone does not mean the last run finished. Returns 1 when it did, or prints how to
+# finish the update and returns 4.
+check_provisioned_record() {
+    local record_file="$1" local_rev="$2" rerun="$3" provisioned_rev=""
+    if [[ -f "${record_file}" ]]; then
+        provisioned_rev="$(<"${record_file}")"
+    fi
+    if [[ "${provisioned_rev}" != "${local_rev}" ]]; then
+        echo "Last update did not complete: run ${rerun} again"
+        return 4
+    fi
+    return 1
+}
+
 # Print the brew executable, or nothing when Homebrew is missing.
 # The LaunchAgent PATH is /usr/bin:/bin:/usr/sbin:/sbin, so look in the Homebrew prefixes first.
 find_brew() {
@@ -78,18 +94,7 @@ check_sparkdock_updates() (
         git --no-pager log --oneline "HEAD..origin/${DEFAULT_BRANCH}"
         return 0
     fi
-
-    # sparkdock downloads the code before provisioning, so matching origin alone
-    # does not mean the last run finished; it records the commit when it does.
-    local provisioned_rev=""
-    if [[ -f .last_provisioned ]]; then
-        provisioned_rev="$(<.last_provisioned)"
-    fi
-    if [[ "${provisioned_rev}" != "${local_rev}" ]]; then
-        echo "Last update did not complete: run sparkdock again"
-        return 4
-    fi
-    return 1
+    check_provisioned_record .last_provisioned "${local_rev}" sparkdock
 )
 
 # Check for http-proxy updates
@@ -120,7 +125,7 @@ check_http_proxy_updates() (
         git --no-pager log --oneline HEAD..origin/main
         return 0
     fi
-    return 1
+    check_provisioned_record "${INSTALL_DIR}/.last_provisioned_http_proxy" "${local_rev}" "sjust http-proxy-install-update"
 )
 
 # Check for agent skills updates

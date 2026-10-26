@@ -239,6 +239,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the HTTP proxy showing as up to date after an upgrade that failed during provisioning: `sparkdock-check-updates http-proxy` now exits 4, shown as "Retry", until an upgrade completes
+- Fixed a `sparkdock` run that skipped tags counting as a completed update
 - Fixed Sparkdock Manager and the terminal hub not showing an update that did not complete: the Sparkdock row now shows "Retry" in the menu bar and "update did not complete" in `sparkdock tui`
 - Fixed Sparkdock showing as up to date after an upgrade that failed during provisioning, for example with a wrong password: `sparkdock-check-updates sparkdock` now exits 4 until a run completes
 - Fixed Sparkdock Manager status rows showing "Up to date" when a check fails: every row now reads `sparkdock-check-updates`, and a failed check shows the row as "Unavailable", including the Homebrew vulnerabilities row

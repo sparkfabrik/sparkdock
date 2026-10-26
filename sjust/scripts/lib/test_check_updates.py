@@ -14,6 +14,7 @@ import tempfile
 import time
 import unittest
 from pathlib import Path
+from typing import NamedTuple
 
 SCRIPT = Path(__file__).resolve().parents[3] / "bin" / "sparkdock-check-updates"
 UTILS = SCRIPT.parent / "common" / "utils.sh"
@@ -29,6 +30,14 @@ case "$1 ${2:-}" in
 esac
 exit 1
 """
+
+
+class GitCheck(NamedTuple):
+    subsystem: str
+    seed: str
+    branch: str
+    checkout: Path
+
 
 # CLI subsystem name and the label its update notice starts with.
 CLIS = {"timetracker": "Timetracker", "engram": "Engram"}
@@ -167,9 +176,15 @@ class GitSubsystemsTest(CheckUpdatesTestCase):
         self.skills.parent.mkdir(parents=True)
         self.clone(self.skills_remote, self.skills)
         self.record_provisioning()
+        # Written by the last task of the http-proxy Ansible tag.
+        proxy_head = self.git(self.root / "http-proxy", "rev-parse", "HEAD")
+        self.proxy_provisioned().write_text(proxy_head + "\n")
 
     def provisioned(self):
         return self.root / ".last_provisioned"
+
+    def proxy_provisioned(self):
+        return self.root / ".last_provisioned_http_proxy"
 
     def break_remote(self, checkout):
         self.git(checkout, "remote", "set-url", "origin", str(self.dir / "missing.git"))
@@ -182,9 +197,9 @@ class GitSubsystemsTest(CheckUpdatesTestCase):
     def git_checks(self):
         """Each git subsystem with its remote seed, branch and checkout."""
         return [
-            ("sparkdock", "sparkdock", "master", self.root),
-            ("http-proxy", "proxy", "main", self.root / "http-proxy"),
-            ("agents", "skills", "main", self.skills),
+            GitCheck("sparkdock", "sparkdock", "master", self.root),
+            GitCheck("http-proxy", "proxy", "main", self.root / "http-proxy"),
+            GitCheck("agents", "skills", "main", self.skills),
         ]
 
     def test_current(self):
@@ -204,31 +219,51 @@ class GitSubsystemsTest(CheckUpdatesTestCase):
                 self.break_remote(checkout)
                 self.assertEqual(self.run_check(subsystem)[0], 2)
 
-    def test_record_holds_head_and_time(self):
+    def record_checks(self):
+        """Each git check with a provisioning record, and the command to run again."""
+        records = {
+            "sparkdock": (self.provisioned(), "sparkdock"),
+            "http-proxy": (self.proxy_provisioned(), "sjust http-proxy-install-update"),
+        }
+        return [
+            (check, *records[check.subsystem])
+            for check in self.git_checks()
+            if check.subsystem in records
+        ]
+
+    def test_record_holds_head(self):
         head = self.git(self.root, "rev-parse", "HEAD")
         self.assertEqual(self.provisioned().read_text().strip(), head)
         last_update = (self.root / ".last_update").read_text().strip()
         time.strptime(last_update, "%Y-%m-%d %H:%M:%S")
 
-    def test_sparkdock_record_missing(self):
-        self.provisioned().unlink()
-        rc, out = self.run_check("sparkdock")
-        self.assertEqual(rc, 4)
-        self.assertIn("Last update did not complete", out)
+    def test_record_missing(self):
+        for check, record, rerun in self.record_checks():
+            with self.subTest(subsystem=check.subsystem):
+                record.unlink()
+                rc, out = self.run_check(check.subsystem)
+                self.assertEqual(rc, 4)
+                self.assertIn(f"run {rerun} again", out)
 
-    def test_sparkdock_record_older(self):
-        self.provisioned().write_text("0" * 40 + "\n")
-        self.assertEqual(self.run_check("sparkdock")[0], 4)
+    def test_record_older(self):
+        for check, record, _ in self.record_checks():
+            with self.subTest(subsystem=check.subsystem):
+                record.write_text("0" * 40 + "\n")
+                self.assertEqual(self.run_check(check.subsystem)[0], 4)
 
-    def test_sparkdock_new_commits_win_over_record(self):
-        self.provisioned().unlink()
-        self.push_new_commit("sparkdock", "master")
-        self.assertEqual(self.run_check("sparkdock")[0], 0)
+    def test_new_commits_win_over_record(self):
+        for check, record, _ in self.record_checks():
+            with self.subTest(subsystem=check.subsystem):
+                record.unlink()
+                self.push_new_commit(check.seed, check.branch)
+                self.assertEqual(self.run_check(check.subsystem)[0], 0)
 
-    def test_sparkdock_fetch_fails_with_incomplete_record(self):
-        self.provisioned().unlink()
-        self.break_remote(self.root)
-        self.assertEqual(self.run_check("sparkdock")[0], 2)
+    def test_fetch_fails_with_incomplete_record(self):
+        for check, record, _ in self.record_checks():
+            with self.subTest(subsystem=check.subsystem):
+                record.unlink()
+                self.break_remote(check.checkout)
+                self.assertEqual(self.run_check(check.subsystem)[0], 2)
 
     def test_http_proxy_not_installed(self):
         shutil.rmtree(self.root / "http-proxy")
