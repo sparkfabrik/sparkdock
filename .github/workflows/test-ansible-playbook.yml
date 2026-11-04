@@ -89,6 +89,12 @@ jobs:
           fi
           echo "✅ copilot command is available"
 
+          if [ ! -d "/Applications/Herdr.app" ]; then
+            echo "❌ Herdr desktop app not found in /Applications"
+            exit 1
+          fi
+          echo "✅ Herdr desktop app is installed"
+
           echo "--- macOS defaults sanity-read ---"
           for pair in \
             "com.apple.desktopservices DSDontWriteNetworkStores" \
