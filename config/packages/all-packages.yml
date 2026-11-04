@@ -26,6 +26,8 @@ cask_install_once_packages:
     app: "Docker"
   - name: google-chrome
     app: "Google Chrome"
+  - name: herdr-app
+    app: "Herdr"
   - name: visual-studio-code
     app: "Visual Studio Code"
   - name: visual-studio-code@insiders

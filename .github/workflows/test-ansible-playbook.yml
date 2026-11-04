@@ -89,8 +89,8 @@ jobs:
           fi
           echo "✅ copilot command is available"
 
-          if [ ! -d "${HOME}/Applications/Herdr.app" ]; then
-            echo "❌ Herdr desktop app not found in ~/Applications"
+          if [ ! -d "/Applications/Herdr.app" ]; then
+            echo "❌ Herdr desktop app not found in /Applications"
             exit 1
           fi
           echo "✅ Herdr desktop app is installed"

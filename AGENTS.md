@@ -420,7 +420,6 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `claude-gh-gate`: register only the Claude Code platform and writing skill gate hooks
 - `claude-output-style` — set the default Claude Code output style
 - `herdr` — install only the herdr agent skill
-- `herdr-app`: install the Herdr desktop app once with Herdr's official installer, when it is missing; the app updates itself afterwards. `SPARKDOCK_HERDR_APP=0` skips it
 - `codex` — move an npm-installed Codex out of the way of the `codex` cask
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
 - `skills` — backward-compat alias
