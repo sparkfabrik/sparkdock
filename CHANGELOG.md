@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added the herdr Claude Code and Codex integrations to the herdr skill setup on macOS and Linux, installed when missing and the tool is present; `SPARKDOCK_HERDR_DEFAULT_INTEGRATIONS=0` turns this off
 - Added the Herdr desktop app (`herdr-app` cask) next to the `herdr` TUI, installed only when missing and updated by the app itself afterwards
 - Added a `brew` subsystem to `sparkdock-check-updates` that reports outdated Homebrew formulae and casks, with `--force` to run `brew update` first
 - Added `~/.cache/claude-rate-limits.json` (`$XDG_CACHE_HOME` when set), written by the managed Claude Code statusline with the current session and weekly usage for local readers such as SparkPulse

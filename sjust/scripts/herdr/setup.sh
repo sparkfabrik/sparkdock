@@ -102,7 +102,7 @@ link_skill() {
 # hooks are versioned. When herdr is updated, hooks already installed can fall
 # behind and stop working, as happened with the OpenCode plugin on OpenCode 2.
 # This function asks herdr which installed hooks are outdated and reinstalls
-# only those. Hooks the user never installed are left alone.
+# only those. Missing hooks are installed only for DEFAULT_INTEGRATIONS below.
 # Print the name of every integration that `herdr integration status` (read
 # from stdin) reports as outdated, one per line. Lines look like
 # "opencode: outdated (v11 < v12) (/path/to/plugin)"; an experimental one is
@@ -120,6 +120,46 @@ outdated_integrations() {
     done
 }
 
+# Integrations installed by default when missing, so herdr can track and resume
+# the agents the team uses. Every other integration stays opt-in.
+DEFAULT_INTEGRATIONS=(claude codex)
+
+# A tool counts as present when its binary is on PATH or its config directory
+# exists. The directory check covers provisioning runs whose PATH lacks
+# ~/.local/bin, where the native Claude Code installer puts its binary.
+tool_present() {
+    local name="$1"
+    local config_dir
+    case "${name}" in
+        claude) config_dir="${HOME}/.claude" ;;
+        codex) config_dir="${CODEX_HOME:-${HOME}/.codex}" ;;
+        *) return 1 ;;
+    esac
+    command -v "${name}" &> /dev/null || [[ -d "${config_dir}" ]]
+}
+
+# Print every default integration that `herdr integration status` (read from
+# stdin) reports as not installed and whose tool is present, one per line.
+# SPARKDOCK_HERDR_DEFAULT_INTEGRATIONS=0 turns this off, so an integration the
+# user removed is not installed again on the next run.
+missing_default_integrations() {
+    local line name default
+    if [[ "${SPARKDOCK_HERDR_DEFAULT_INTEGRATIONS:-1}" == "0" ]]; then
+        return 0
+    fi
+    while IFS= read -r line; do
+        if [[ "${line}" != *": not installed"* ]]; then
+            continue
+        fi
+        name="${line%%:*}"
+        for default in "${DEFAULT_INTEGRATIONS[@]}"; do
+            if [[ "${name}" == "${default}" ]] && tool_present "${name}"; then
+                echo "${name}"
+            fi
+        done
+    done
+}
+
 update_integrations() {
     local status_output
     if ! status_output="$(herdr integration status 2> /dev/null)"; then
@@ -128,12 +168,16 @@ update_integrations() {
     fi
 
     local outdated=()
+    local missing=()
     local name
     while IFS= read -r name; do
         outdated+=("${name}")
     done < <(outdated_integrations <<< "${status_output}")
+    while IFS= read -r name; do
+        missing+=("${name}")
+    done < <(missing_default_integrations <<< "${status_output}")
 
-    if (( ${#outdated[@]} == 0 )); then
+    if (( ${#outdated[@]} == 0 && ${#missing[@]} == 0 )); then
         log_info "herdr integrations are up to date"
         return 0
     fi
@@ -141,6 +185,14 @@ update_integrations() {
     for name in "${outdated[@]}"; do
         if herdr integration install "${name}" > /dev/null 2>&1; then
             log_success "herdr integration refreshed: ${name}"
+        else
+            log_warn "herdr integration install ${name} failed"
+        fi
+    done
+
+    for name in "${missing[@]}"; do
+        if herdr integration install "${name}" > /dev/null 2>&1; then
+            log_success "herdr integration installed: ${name}"
         else
             log_warn "herdr integration install ${name} failed"
         fi
