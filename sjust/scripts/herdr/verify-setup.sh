@@ -34,7 +34,8 @@ main() {
     fixture="$(cat <<'STATUS'
 pi: not installed (/tmp/home/.pi/agent/extensions/herdr-agent-state.ts)
 claude: outdated (v9 < v10) (/tmp/home/.claude/hooks/herdr-agent-state.sh)
-codex: current (v8) (/tmp/home/.codex/herdr-agent-state.sh)
+codex: not installed (/tmp/home/.codex/herdr-agent-state.sh)
+copilot: current (v8) (/tmp/home/.copilot/hooks/herdr-agent-state.sh)
 opencode: outdated (v11 < v12) (/tmp/home/.config/opencode/plugins/herdr-agent-state.js)
 kilo: not installed (/tmp/home/outdated/kilo/plugin/herdr-agent-state.js)
 letta (experimental): outdated (v1 < v2) (/tmp/home/.letta/hooks/herdr-agent-session.sh)
@@ -46,6 +47,16 @@ STATUS
 
     parsed="$(outdated_integrations <<< "" | tr '\n' ' ')"
     assert_equals "" "${parsed}" "outdated integrations on empty status"
+
+    log_info "Checking the missing default integrations..."
+    # Codex counts as present through its config directory, whatever PATH holds.
+    # Pi and kilo are missing too, but they are not default integrations.
+    mkdir -p "${HOME}/.codex"
+    parsed="$(missing_default_integrations <<< "${fixture}" | tr '\n' ' ')"
+    assert_equals "codex " "${parsed}" "missing default integrations"
+
+    parsed="$(SPARKDOCK_HERDR_DEFAULT_INTEGRATIONS=0 missing_default_integrations <<< "${fixture}" | tr '\n' ' ')"
+    assert_equals "" "${parsed}" "missing default integrations when turned off"
 
     log_info "Running the herdr skill setup against a stubbed herdr..."
     local fake_bin="${HOME}/fake-bin"
@@ -82,7 +93,7 @@ STUB
 
     local installed
     installed="$(tr '\n' ' ' < "${install_log}")"
-    assert_equals "claude opencode letta " "${installed}" "refreshed integrations"
+    assert_equals "claude opencode letta codex " "${installed}" "refreshed and installed integrations"
 
     log_success "herdr setup verification passed"
 }
