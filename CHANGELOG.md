@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `sjust battery-health` (also `ajust` on Linux) to show battery cycle count, condition, maximum capacity, adapter and charging state, with a verdict against Apple's rating of 80% capacity at the model's rated cycle count and, on macOS, raw controller capacities and lifetime temperatures
+- Added `sjust macos-battery-health` to show battery cycle count, condition, maximum capacity, adapter and charging state, with a verdict against Apple's rating of 80% capacity at the model's rated cycle count, raw controller capacities and lifetime temperatures
 - Added the herdr Claude Code and Codex integrations to the herdr skill setup on macOS and Linux, installed when missing and the tool is present; `SPARKDOCK_HERDR_DEFAULT_INTEGRATIONS=0` turns this off
 - Added the Herdr desktop app (`herdr-app` cask) next to the `herdr` TUI, installed only when missing and updated by the app itself afterwards
 - Added a `brew` subsystem to `sparkdock-check-updates` that reports outdated Homebrew formulae and casks, with `--force` to run `brew update` first

@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# sjust/scripts/battery-health.sh: show battery health (cycle count, condition,
-# maximum capacity, adapter and charging state).
+# sjust/scripts/macos-battery-health.sh: show macOS battery health (cycle
+# count, condition, maximum capacity, adapter and charging state).
 #
-# macOS reads `system_profiler SPPowerDataType -json` for the condition and the
+# Reads `system_profiler SPPowerDataType -json` for the condition and the
 # reported maximum capacity, and `ioreg -arn AppleSmartBattery` for the raw
 # controller capacities, lifetime temperatures and the model's rated cycle
 # count (DesignCycleCount9C). The verdict compares against Apple's rating of
 # 80% maximum capacity at that cycle count.
 #
-# Linux reads /sys/class/power_supply only: design vs full energy or charge,
-# cycle count, health and status of the system battery, and AC online state.
-#
-# Invoked by sjust/recipes/shared/20-battery-health.just.
+# Invoked by sjust/recipes/05-macos-battery.just.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../libs/libshell.sh
@@ -21,13 +18,8 @@ source "${SCRIPT_DIR}/../libs/libshell.sh"
 
 RATED_CAPACITY=80
 
-# Fields filled by the platform readers. Empty or unset means "not reported".
+# Fields read from system_profiler and ioreg. Empty or unset means "not reported".
 declare -A battery=()
-
-no_battery() {
-    echo "No battery found: this machine runs on mains power only."
-    exit 0
-}
 
 # Print a line in bold when gum is available.
 print_bold() {
@@ -38,8 +30,8 @@ print_bold() {
     echo "$1"
 }
 
-# macOS: flatten system_profiler and ioreg into key<TAB>value lines.
-read_macos() {
+# Flatten system_profiler and ioreg into key<TAB>value lines.
+read_battery() {
     local key value
 
     while IFS=$'\t' read -r key value; do
@@ -102,60 +94,6 @@ if entries:
 for key, value in fields.items():
     print(f"{key}\t{value}")
 ')
-
-    [[ "${battery[present]:-}" = yes ]] || no_battery
-}
-
-read_sysfs() {
-    local file="$1"
-    [[ -r "${file}" ]] || return 0
-    cat "${file}"
-}
-
-# Linux: the first system battery (type Battery, not a peripheral's
-# scope=Device battery) and any online mains or USB adapter.
-read_linux() {
-    local supply dir="" full design status
-
-    for supply in /sys/class/power_supply/*; do
-        [[ "$(read_sysfs "${supply}/type")" = Battery ]] || continue
-        [[ "$(read_sysfs "${supply}/scope")" = Device ]] && continue
-        dir="${supply}"
-        break
-    done
-    [[ -n "${dir}" ]] || no_battery
-
-    battery[name]="$(basename "${dir}")"
-    battery[cycles]="$(read_sysfs "${dir}/cycle_count")"
-    battery[condition]="$(read_sysfs "${dir}/health")"
-
-    full="$(read_sysfs "${dir}/energy_full")"
-    design="$(read_sysfs "${dir}/energy_full_design")"
-    if [[ -z "${full}" || -z "${design}" ]]; then
-        full="$(read_sysfs "${dir}/charge_full")"
-        design="$(read_sysfs "${dir}/charge_full_design")"
-    fi
-    if [[ -n "${full}" && "${design:-0}" -gt 0 ]]; then
-        battery[capacity]="$(( (full * 100 + design / 2) / design ))"
-    fi
-
-    status="$(read_sysfs "${dir}/status")"
-    battery[status]="${status}"
-    battery[charging]="no"
-    if [[ "${status}" = Charging ]]; then
-        battery[charging]="yes"
-    fi
-
-    battery[adapter_connected]="no"
-    for supply in /sys/class/power_supply/*; do
-        case "$(read_sysfs "${supply}/type")" in
-            Mains | USB) ;;
-            *) continue ;;
-        esac
-        [[ "$(read_sysfs "${supply}/online")" = 1 ]] || continue
-        battery[adapter_connected]="yes"
-        break
-    done
 }
 
 lead_line() {
@@ -176,9 +114,9 @@ lead_line() {
     fi
 
     local verdict="Battery needs attention."
-    case "${condition}" in
-        Normal | Good) verdict="Battery is healthy." ;;
-    esac
+    if [[ "${condition}" = Normal ]]; then
+        verdict="Battery is healthy."
+    fi
     if [[ -z "${summary}" ]]; then
         echo "${verdict} Condition is ${condition}."
         return
@@ -208,21 +146,16 @@ rating_line() {
 }
 
 condition_note() {
-    [[ "$(uname -s)" = Darwin && -n "${battery[condition]:-}" ]] || return 0
+    [[ -n "${battery[condition]:-}" ]] || return 0
     echo "Condition is the signal to act on: macOS changes it from Normal to Service Recommended when the battery needs service."
 }
 
 charging_note() {
     [[ "${battery[adapter_connected]:-}" = yes && "${battery[charging]:-}" = no ]] || return 0
-
-    if [[ "$(uname -s)" = Darwin ]]; then
-        echo "\"Charging: No\" while plugged in is normal: macOS pauses charging when the battery is full or Optimized Battery Charging holds it."
-        return
-    fi
-    echo "\"Charging: No\" while plugged in is normal when the battery is full or a charge limit is set (status: ${battery[status]:-unknown})."
+    echo "\"Charging: No\" while plugged in is normal: macOS pauses charging when the battery is full or Optimized Battery Charging holds it."
 }
 
-# "<mAh> mAh (<percent of design>%)", or nothing when either value is missing.
+# "<mAh> mAh (<percent of design>%)", or nothing when the value is missing.
 mah_of_design() {
     local mah="$1"
     local design="${battery[design_mah]:-0}"
@@ -255,9 +188,6 @@ summary_table() {
 
     {
         printf 'Field\tValue\n'
-        if [[ -n "${battery[name]:-}" ]]; then
-            printf 'Battery\t%s\n' "${battery[name]}"
-        fi
         printf 'Cycle Count\t%s\n' "${battery[cycles]:-not reported}"
         printf 'Condition\t%s\n' "${battery[condition]:-not reported}"
         printf 'Maximum Capacity\t%s\n' "${capacity}"
@@ -266,7 +196,7 @@ summary_table() {
     } | render_table
 }
 
-# Raw controller data (macOS ioreg). Rows whose key is absent are left out.
+# Raw controller data from ioreg. Rows whose key is absent are left out.
 controller_table() {
     [[ -n "${battery[design_mah]:-}" ]] || return 0
 
@@ -297,7 +227,18 @@ controller_table() {
     echo "macOS smooths the reported Maximum Capacity, so the raw controller figures are usually lower."
 }
 
-render() {
+main() {
+    if [[ "$(uname -s)" != Darwin ]]; then
+        echo "macos-battery-health runs on macOS only." >&2
+        exit 1
+    fi
+
+    read_battery
+    if [[ "${battery[present]:-}" != yes ]]; then
+        echo "No battery found: this Mac runs on mains power only."
+        exit 0
+    fi
+
     print_bold "$(lead_line)"
     echo
     summary_table
@@ -311,18 +252,6 @@ render() {
     done
 
     controller_table
-}
-
-main() {
-    case "$(uname -s)" in
-        Darwin) read_macos ;;
-        Linux) read_linux ;;
-        *)
-            echo "Unsupported platform: $(uname -s)." >&2
-            exit 1
-            ;;
-    esac
-    render
 }
 
 main "$@"
