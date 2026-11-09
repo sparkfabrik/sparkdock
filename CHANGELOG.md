@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added `sjust sf-drupalorg` (also `ajust` on Linux) to install, update and remove the Drupal.org CLI (`drupalorg`) and its agent skill, with an opt-in Claude Code MCP server; releases are checksum verified and skipped until 7 days old, and PHP 8.1 or later is required
+- Added `sjust drupal-org-cli` (also `ajust` on Linux) to install, update and remove the Drupal.org CLI (`drupalorg`) and its agent skill, with an opt-in Claude Code MCP server; releases are checksum verified and skipped until 7 days old, and PHP 8.1 or later is required
 - Added the herdr Claude Code and Codex integrations to the herdr skill setup on macOS and Linux, installed when missing and the tool is present; `SPARKDOCK_HERDR_DEFAULT_INTEGRATIONS=0` turns this off
 - Added the Herdr desktop app (`herdr-app` cask) next to the `herdr` TUI, installed only when missing and updated by the app itself afterwards
 - Added a `brew` subsystem to `sparkdock-check-updates` that reports outdated Homebrew formulae and casks, with `--force` to run `brew update` first

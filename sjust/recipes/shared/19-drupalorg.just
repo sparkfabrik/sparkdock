@@ -6,8 +6,8 @@ _drupalorg_cli_sh := clean(source_directory() / "../../..") / "sjust/scripts/dru
 
 # Actions: install (default, also updates), info, uninstall, mcp, mcp-remove.
 # Releases younger than 7 days are skipped; set DRUPALORG_MIN_AGE_DAYS=0 to disable.
-# Examples: sjust sf-drupalorg, sjust sf-drupalorg info
+# Examples: sjust drupal-org-cli, sjust drupal-org-cli info
 # Install, update or remove the Drupal.org CLI (drupalorg) and its agent skill. Requires PHP 8.1+.
 [group('drupal')]
-sf-drupalorg $action="install":
+drupal-org-cli $action="install":
     @bash "{{_drupalorg_cli_sh}}" "${action}"

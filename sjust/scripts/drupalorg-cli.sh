@@ -238,7 +238,7 @@ add_mcp() {
         exit 1
     fi
     if [[ ! -x "${TARGET}" ]]; then
-        log_error "drupalorg is not installed. Run: sjust sf-drupalorg install"
+        log_error "drupalorg is not installed. Run: sjust drupal-org-cli install"
         exit 1
     fi
     if mcp_registered; then
@@ -340,7 +340,7 @@ show_info() {
     if mcp_registered; then
         printf 'MCP server:  %s registered in Claude Code\n' "${MCP_NAME}"
     else
-        printf 'MCP server:  not registered (sjust sf-drupalorg mcp)\n'
+        printf 'MCP server:  not registered (sjust drupal-org-cli mcp)\n'
     fi
 }
 
