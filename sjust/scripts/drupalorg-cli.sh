@@ -4,7 +4,7 @@
 # on macOS (sjust) and Linux (ajust), so it sticks to bash, curl, python3 and
 # PHP, which behave the same on BSD and GNU userlands.
 #
-# Usage: drupalorg-cli.sh [install|info|uninstall|mcp|mcp-remove]
+# Usage: drupalorg-cli.sh [help|install|info|uninstall|mcp|mcp-remove]
 #
 # Releases are taken from GitHub, verified against the sha256 digest GitHub
 # publishes for the release asset, and skipped until they are
@@ -353,13 +353,33 @@ uninstall() {
     fi
 }
 
+usage() {
+    cat <<'USAGE'
+Usage: sjust drupal-org-cli <action>   (ajust on Linux)
+
+Actions:
+  install     Install or update drupalorg and its agent skill
+  info        Show installed and available versions, PHP, skill and MCP state
+  uninstall   Remove drupalorg, its agent skill and the MCP server entry
+  mcp         Register the drupalorg MCP server in Claude Code
+  mcp-remove  Remove the drupalorg MCP server from Claude Code
+
+Releases younger than 7 days are skipped; set DRUPALORG_MIN_AGE_DAYS=0 to disable.
+USAGE
+}
+
 main() {
-    local action="${1:-install}"
+    local action="${1:-help}"
 
     case "${action}" in
+        "" | help | -h | --help)
+            usage
+            return 0
+            ;;
         install | info | uninstall | mcp | mcp-remove) ;;
         *)
-            log_error "Unknown action '${action}'. Use install, info, uninstall, mcp, or mcp-remove."
+            log_error "Unknown action '${action}'."
+            usage >&2
             exit 2
             ;;
     esac
