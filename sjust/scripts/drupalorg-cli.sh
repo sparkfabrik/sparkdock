@@ -304,6 +304,8 @@ install_latest() {
         if [[ ! -d "${SKILL_DIR}" ]]; then
             cp "${TARGET}" "${phar}"
             install_skill "${phar}"
+        elif [[ ! -L "${SKILL_DIR}" && -f "${SKILL_DIR}/SKILL.md" ]]; then
+            link_skill
         fi
         return 0
     fi
