@@ -243,6 +243,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed `sjust macos-battery-health` reporting no battery when the system power data cannot be read; it now prints an error and exits 1, and takes the adapter and charging state from the battery controller when the system report has no charger data
 - Fixed the HTTP proxy showing as up to date after an upgrade that failed during provisioning: `sparkdock-check-updates http-proxy` now exits 4, shown as "Retry", until an upgrade completes
 - Fixed a `sparkdock` run that skipped tags counting as a completed update
 - Fixed Sparkdock Manager and the terminal hub not showing an update that did not complete: the Sparkdock row now shows "Retry" in the menu bar and "update did not complete" in `sparkdock tui`

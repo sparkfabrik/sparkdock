@@ -88,10 +88,17 @@ def run(*cmd):
     except (OSError, subprocess.CalledProcessError):
         return b""
 
+def fail(message):
+    print("error\t" + message)
+    raise SystemExit(0)
+
 profiler = run("/usr/sbin/system_profiler", "SPPowerDataType", "-json")
-sections = {}
-if profiler:
+if not profiler:
+    fail("system_profiler returned no power data.")
+try:
     sections = {s.get("_name"): s for s in json.loads(profiler).get("SPPowerDataType", [])}
+except (ValueError, AttributeError):
+    fail("system_profiler returned power data that could not be read.")
 info = sections.get("spbattery_information")
 if not info:
     raise SystemExit(0)
@@ -116,9 +123,16 @@ fields = {
 }
 
 raw = run("/usr/sbin/ioreg", "-arn", "AppleSmartBattery")
-entries = plistlib.loads(raw) if raw else []
+try:
+    entries = plistlib.loads(raw) if raw else []
+except Exception:
+    entries = []
 if entries:
     smart = entries[0]
+    # The controller knows the power state too: use it when system_profiler has no charger section.
+    if not charger:
+        fields["adapter_connected"] = "yes" if smart.get("ExternalConnected") else "no"
+        fields["charging"] = "yes" if smart.get("IsCharging") else "no"
     data = smart.get("BatteryData", {})
     lifetime = data.get("LifetimeData", {})
     fields["rated_cycles"] = smart.get("DesignCycleCount9C", "")
@@ -274,6 +288,10 @@ main() {
     fi
 
     read_battery
+    if [[ -n "${battery[error]:-}" ]]; then
+        echo "Cannot read the battery state: ${battery[error]}" >&2
+        exit 1
+    fi
     if [[ "${battery[present]:-}" != yes ]]; then
         echo "No battery: this Mac runs on mains power only."
         exit 0
