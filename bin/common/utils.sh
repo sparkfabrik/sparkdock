@@ -82,6 +82,26 @@ bold() {
     fi
 }
 
+# Print a bold colored section label.
+print_label() {
+    local title="$1"
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --bold --foreground 99 "${title}"
+    else
+        printf "${BOLD}%s${NC}\n" "${title}"
+    fi
+}
+
+# Print dimmed text (adapts to terminal color scheme).
+print_faint() {
+    local text="$1"
+    if [[ "${HAS_GUM}" = true ]]; then
+        gum style --faint "${text}"
+    else
+        printf "\033[2m%s\033[0m\n" "${text}"
+    fi
+}
+
 # Display a styled summary box (single content argument)
 print_summary_box() {
     local content="$1"
