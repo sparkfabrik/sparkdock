@@ -400,6 +400,9 @@ set DRUPALORG_MIN_AGE_DAYS=0 to install the newest one."
 main() {
     local action="${1:-help}"
 
+    # Separate the output from the command line that started it.
+    echo
+
     case "${action}" in
         "" | help | -h | --help)
             usage
