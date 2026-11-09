@@ -87,8 +87,13 @@ require_php() {
 # API rate limit; curl covers machines without it.
 fetch_releases() {
     local path="repos/${REPO}/releases?per_page=30"
-    if command -v gh >/dev/null 2>&1 && gh auth status --hostname github.com >/dev/null 2>&1; then
-        gh api "${path}" 2>/dev/null && return 0
+    local body
+    # gh can print the error body on stdout when it fails, so only a
+    # successful response is passed on.
+    if command -v gh >/dev/null 2>&1 && gh auth status --hostname github.com >/dev/null 2>&1 \
+        && body="$(gh api "${path}" 2>/dev/null)"; then
+        printf '%s\n' "${body}"
+        return 0
     fi
     curl -fsSL -H "Accept: application/vnd.github+json" "https://api.github.com/${path}" 2>/dev/null
 }
