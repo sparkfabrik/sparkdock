@@ -158,26 +158,6 @@ resolve_managed_status() {
     echo "up to date"
 }
 
-# Print a bold colored section label.
-print_label() {
-    local title="$1"
-    if [[ "${HAS_GUM}" = true ]]; then
-        gum style --bold --foreground 99 "${title}"
-    else
-        printf "${BOLD}%s${NC}\n" "${title}"
-    fi
-}
-
-# Print dimmed text (adapts to terminal color scheme).
-print_faint() {
-    local text="$1"
-    if [[ "${HAS_GUM}" = true ]]; then
-        gum style --faint "${text}"
-    else
-        printf "\033[2m%s\033[0m\n" "${text}"
-    fi
-}
-
 # Render a tab-delimited table using gum table (with fallback to column).
 # Workaround: gum v0.17.0 has a bug (charmbracelet/gum#833) where --print mode
 # applies bold styling to the first data row (selected-row state leaks).
