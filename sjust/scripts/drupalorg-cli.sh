@@ -18,6 +18,9 @@ source "${SCRIPT_DIR}/../libs/libshell.sh"
 # Tool registry: TOOL_SKILLS_DIR, TOOL_LABEL, TOOLS_NATIVE_DISCOVERY.
 # shellcheck source=../../bin/common/skills-symlink-shim.sh
 source "${SPARKDOCK_ROOT}/bin/common/skills-symlink-shim.sh"
+# bold, print_label, print_faint.
+# shellcheck source=../../bin/common/utils.sh
+source "${SPARKDOCK_ROOT}/bin/common/utils.sh"
 
 readonly REPO="mglaman/drupalorg-cli"
 readonly TARGET="${HOME}/.local/bin/drupalorg"
@@ -25,6 +28,18 @@ readonly SKILL_NAME="drupalorg-cli"
 readonly SKILL_DIR="${HOME}/.agents/skills/${SKILL_NAME}"
 readonly MCP_NAME="drupalorg-cli"
 readonly MIN_AGE_DAYS="${DRUPALORG_MIN_AGE_DAYS:-7}"
+if [[ "$(uname -s)" == "Darwin" ]]; then
+    readonly CMD="sjust drupal-org-cli"
+else
+    readonly CMD="ajust drupal-org-cli"
+fi
+
+# --- Output ---
+
+# Shorten a path under HOME to ~/...
+tilde() {
+    echo "${1/#${HOME}/\~}"
+}
 
 # --- PHP ---
 
@@ -193,7 +208,7 @@ install_skill() {
     rm -rf "${SKILL_DIR}"
     mv "${staging}" "${SKILL_DIR}"
     chmod 0755 "${SKILL_DIR}"
-    log_success "${SKILL_NAME} skill installed: ${SKILL_DIR}"
+    log_success "Agent skill installed: $(tilde "${SKILL_DIR}")"
     link_skill
 }
 
@@ -213,7 +228,7 @@ remove_skill() {
     fi
     if [[ -d "${SKILL_DIR}" ]]; then
         rm -rf "${SKILL_DIR}"
-        log_success "Removed ${SKILL_NAME} skill: ${SKILL_DIR}"
+        log_success "Removed agent skill: $(tilde "${SKILL_DIR}")"
     fi
 }
 
@@ -238,14 +253,14 @@ add_mcp() {
         exit 1
     fi
     if [[ ! -x "${TARGET}" ]]; then
-        log_error "drupalorg is not installed. Run: sjust drupal-org-cli install"
+        log_error "drupalorg is not installed. Run: ${CMD} install"
         exit 1
     fi
     if mcp_registered; then
         log_info "MCP server ${MCP_NAME} is already registered in Claude Code"
         return 0
     fi
-    claude mcp add --scope user "${MCP_NAME}" -- "${TARGET}" mcp:serve
+    claude mcp add --scope user "${MCP_NAME}" -- "${TARGET}" mcp:serve >/dev/null
     log_success "Registered MCP server ${MCP_NAME} in Claude Code (user scope)"
 }
 
@@ -253,7 +268,7 @@ remove_mcp() {
     if ! mcp_registered; then
         return 0
     fi
-    claude mcp remove --scope user "${MCP_NAME}"
+    claude mcp remove --scope user "${MCP_NAME}" >/dev/null
     log_success "Removed MCP server ${MCP_NAME} from Claude Code"
 }
 
@@ -285,7 +300,7 @@ install_latest() {
     local installed
     installed="$(installed_version)"
     if [[ -n "${installed}" ]] && ! version_lt "${installed}" "${tag}"; then
-        log_success "drupalorg ${installed} is already up to date: ${TARGET}"
+        log_success "drupalorg ${installed} is already up to date"
         if [[ ! -d "${SKILL_DIR}" ]]; then
             cp "${TARGET}" "${phar}"
             install_skill "${phar}"
@@ -316,7 +331,14 @@ with open(sys.argv[1], "rb") as fh:
     chmod 0755 "${phar}"
     install_skill "${phar}"
     mv -f "${phar}" "${TARGET}"
-    log_success "drupalorg ${tag} installed: ${TARGET}"
+    log_success "drupalorg ${tag} installed: $(tilde "${TARGET}")"
+
+    echo
+    print_label "Next steps"
+    print_faint "$(printf '  %-30s %s\n' \
+        "drupalorg list" "Show the available commands" \
+        "Restart your AI coding tools" "Load the drupalorg-cli agent skill" \
+        "${CMD} mcp" "Optional: add the MCP server to Claude Code")"
 }
 
 show_info() {
@@ -324,23 +346,30 @@ show_info() {
     release="$(resolve_release)"
     read -r tag digest url newest newest_date <<<"${release}"
 
-    local installed
+    local installed rows
     installed="$(installed_version)"
-    printf 'Installed:   %s\n' "${installed:-no}"
-    printf 'Available:   %s (releases at least %s days old)\n' "${tag}" "${MIN_AGE_DAYS}"
+    rows="Field\tValue"
+    rows+="\nInstalled\t${installed:-not installed}"
+    rows+="\nAvailable\t${tag} (releases at least ${MIN_AGE_DAYS} days old)"
     if [[ "${newest}" != "${tag}" ]]; then
-        printf 'Held back:   %s (published %s)\n' "${newest}" "${newest_date}"
+        rows+="\nHeld back\t${newest} (published ${newest_date})"
     fi
-    printf 'PHP:         %s (%s)\n' "$(php -r 'echo PHP_VERSION;')" "$(command -v php)"
+    rows+="\nPHP\t$(php -r 'echo PHP_VERSION;') ($(command -v php))"
     if [[ -f "${SKILL_DIR}/SKILL.md" ]]; then
-        printf 'Skill:       %s\n' "${SKILL_DIR}"
+        rows+="\nAgent skill\t$(tilde "${SKILL_DIR}")"
     else
-        printf 'Skill:       not installed\n'
+        rows+="\nAgent skill\tnot installed"
     fi
     if mcp_registered; then
-        printf 'MCP server:  %s registered in Claude Code\n' "${MCP_NAME}"
+        rows+="\nMCP server\tregistered in Claude Code"
     else
-        printf 'MCP server:  not registered (sjust drupal-org-cli mcp)\n'
+        rows+="\nMCP server\tnot registered"
+    fi
+
+    print_label "Drupal.org CLI"
+    printf '%b\n' "${rows}" | render_table
+    if [[ -z "${installed}" ]]; then
+        print_faint "Install it with: ${CMD} install"
     fi
 }
 
@@ -349,23 +378,23 @@ uninstall() {
     remove_skill
     if [[ -e "${TARGET}" ]]; then
         rm -f "${TARGET}"
-        log_success "Removed ${TARGET}"
+        log_success "Removed $(tilde "${TARGET}")"
     fi
 }
 
 usage() {
-    cat <<'USAGE'
-Usage: sjust drupal-org-cli <action>   (ajust on Linux)
-
-Actions:
-  install     Install or update drupalorg and its agent skill
-  info        Show installed and available versions, PHP, skill and MCP state
-  uninstall   Remove drupalorg, its agent skill and the MCP server entry
-  mcp         Register the drupalorg MCP server in Claude Code
-  mcp-remove  Remove the drupalorg MCP server from Claude Code
-
-Releases younger than 7 days are skipped; set DRUPALORG_MIN_AGE_DAYS=0 to disable.
-USAGE
+    print_label "Drupal.org CLI"
+    print_faint "Install and manage drupalorg, its agent skill and its Claude Code MCP server."
+    echo
+    printf '%s %s\n\n' "$(bold "Usage:")" "${CMD} <action>"
+    printf '%b\n' "Action\tWhat it does" \
+        "install\tInstall or update drupalorg and its agent skill" \
+        "info\tShow versions, PHP, agent skill and MCP server state" \
+        "uninstall\tRemove drupalorg, its agent skill and the MCP server" \
+        "mcp\tAdd the drupalorg MCP server to Claude Code" \
+        "mcp-remove\tRemove the drupalorg MCP server from Claude Code" | render_table
+    print_faint "Requires PHP 8.1 or later. Releases younger than ${MIN_AGE_DAYS} days are skipped;
+set DRUPALORG_MIN_AGE_DAYS=0 to install the newest one."
 }
 
 main() {
@@ -378,8 +407,7 @@ main() {
             ;;
         install | info | uninstall | mcp | mcp-remove) ;;
         *)
-            log_error "Unknown action '${action}'."
-            usage >&2
+            log_error "Unknown action '${action}'. Run '${CMD}' to list the actions."
             exit 2
             ;;
     esac
