@@ -4,7 +4,7 @@
 # on macOS (sjust) and Linux (ajust), so it sticks to bash, curl, python3 and
 # PHP, which behave the same on BSD and GNU userlands.
 #
-# Usage: drupalorg-cli.sh [help|install|info|uninstall|mcp|mcp-remove]
+# Usage: drupalorg-cli.sh [help|install|status|uninstall|mcp|mcp-remove]
 #
 # Releases are taken from GitHub, verified against the sha256 digest GitHub
 # publishes for the release asset, and skipped until they are
@@ -341,7 +341,7 @@ with open(sys.argv[1], "rb") as fh:
         "${CMD} mcp" "Optional: add the MCP server to Claude Code")"
 }
 
-show_info() {
+show_status() {
     local release tag digest url newest newest_date
     release="$(resolve_release)"
     read -r tag digest url newest newest_date <<<"${release}"
@@ -389,7 +389,7 @@ usage() {
     printf '%s %s\n\n' "$(bold "Usage:")" "${CMD} <action>"
     printf '%b\n' "Action\tWhat it does" \
         "install\tInstall or update drupalorg and its agent skill" \
-        "info\tShow versions, PHP, agent skill and MCP server state" \
+        "status\tShow versions, PHP, agent skill and MCP server state" \
         "uninstall\tRemove drupalorg, its agent skill and the MCP server" \
         "mcp\tAdd the drupalorg MCP server to Claude Code" \
         "mcp-remove\tRemove the drupalorg MCP server from Claude Code" | render_table
@@ -405,7 +405,7 @@ main() {
             usage
             return 0
             ;;
-        install | info | uninstall | mcp | mcp-remove) ;;
+        install | status | uninstall | mcp | mcp-remove) ;;
         *)
             log_error "Unknown action '${action}'. Run '${CMD}' to list the actions."
             exit 2
@@ -432,7 +432,7 @@ main() {
 
     case "${action}" in
         install) install_latest ;;
-        info) show_info ;;
+        status) show_status ;;
         mcp) add_mcp ;;
     esac
 }
