@@ -48,6 +48,11 @@ php_hint() {
         echo "Install PHP with: brew install php"
         return 0
     fi
+    # sf-toolbox installs PHP with every extension drupalorg needs.
+    if command -v sf-toolbox >/dev/null 2>&1; then
+        echo "Install PHP with: sf-toolbox"
+        return 0
+    fi
     if command -v pacman >/dev/null 2>&1; then
         echo "Install PHP with: sudo pacman -S php"
         echo "Then enable the iconv extension: uncomment ';extension=iconv' in /etc/php/php.ini"
@@ -78,10 +83,27 @@ require_php() {
 # Print "<eligible tag> <sha256> <url> <newest tag> <newest date>" for the
 # newest stable release with a drupalorg.phar asset that is at least
 # MIN_AGE_DAYS old. Fields are "-" when no release qualifies.
+# Print the GitHub releases JSON. An authenticated gh avoids the anonymous
+# API rate limit; curl covers machines without it.
+fetch_releases() {
+    local path="repos/${REPO}/releases?per_page=30"
+    local body
+    # gh can print the error body on stdout when it fails, so only a
+    # successful response is passed on.
+    if command -v gh >/dev/null 2>&1 && gh auth status --hostname github.com >/dev/null 2>&1 \
+        && body="$(gh api "${path}" 2>/dev/null)"; then
+        printf '%s\n' "${body}"
+        return 0
+    fi
+    curl -fsSL -H "Accept: application/vnd.github+json" "https://api.github.com/${path}" 2>/dev/null
+}
+
 resolve_release() {
     local releases
-    releases="$(curl -fsSL -H "Accept: application/vnd.github+json" \
-        "https://api.github.com/repos/${REPO}/releases?per_page=30")"
+    if ! releases="$(fetch_releases)" || [[ -z "${releases}" ]]; then
+        log_error "Cannot read the drupalorg releases from GitHub. Check the network, or log in with 'gh auth login' to avoid the API rate limit."
+        exit 1
+    fi
     python3 -I -c '
 import json, sys
 from datetime import datetime, timedelta, timezone

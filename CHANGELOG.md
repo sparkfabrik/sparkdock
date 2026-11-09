@@ -143,6 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed the `drupal-org-cli` hint for a missing PHP on Linux to point to `sf-toolbox`, which installs PHP with the extensions drupalorg needs
 - Changed the removal of a deprecated Homebrew tap to reinstall its formulae and casks from Homebrew core, warning about any that are not available there
 - Changed the `c` shell alias to run Claude Code; OpenCode moves to `oc`
 - Show days and rounded hours in the Claude Code status bar's weekly reset countdown.
@@ -243,6 +244,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed `drupal-org-cli` printing a Python traceback when GitHub refuses the release lookup; it now reads releases through the logged-in `gh` when available and prints a clear error otherwise
 - Fixed `sjust macos-battery-health` reporting no battery when the system power data cannot be read; it now prints an error and exits 1, and takes the adapter and charging state from the battery controller when the system report has no charger data
 - Fixed the HTTP proxy showing as up to date after an upgrade that failed during provisioning: `sparkdock-check-updates http-proxy` now exits 4, shown as "Retry", until an upgrade completes
 - Fixed a `sparkdock` run that skipped tags counting as a completed update
