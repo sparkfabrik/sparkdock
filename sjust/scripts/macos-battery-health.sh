@@ -21,13 +21,56 @@ RATED_CAPACITY=80
 # Fields read from system_profiler and ioreg. Empty or unset means "not reported".
 declare -A battery=()
 
-# Print a line in bold when gum is available.
-print_bold() {
-    if [[ "${HAS_GUM}" = true ]]; then
-        gum style --bold "$1"
+# Print one line in a style: "heading" (bold purple), "faint", or a 256-color
+# foreground number. Plain text when gum is not available.
+styled() {
+    local style="$1" text="$2"
+    if [[ "${HAS_GUM}" != true ]]; then
+        echo "${text}"
         return
     fi
-    echo "$1"
+    case "${style}" in
+        heading) gum style --bold --foreground 99 "${text}" ;;
+        faint) gum style --faint "${text}" ;;
+        *) gum style --foreground "${style}" "${text}" ;;
+    esac
+}
+
+# Render label<TAB>value lines from stdin as an aligned key/value box, with
+# grey labels and no header row. Falls back to column(1) without gum.
+render_box() {
+    local -a labels=() values=()
+    local label value width=0 i body=""
+
+    while IFS=$'\t' read -r label value; do
+        labels+=("${label}")
+        values+=("${value}")
+        if (( ${#label} > width )); then
+            width=${#label}
+        fi
+    done
+
+    if [[ "${HAS_GUM}" != true ]]; then
+        for i in "${!labels[@]}"; do
+            printf '  %-*s  %s\n' "${width}" "${labels[i]}" "${values[i]}"
+        done
+        return
+    fi
+
+    # The labels are styled inside $(...), where gum sees no terminal and drops
+    # color; force it only when this script itself writes to a terminal.
+    local force_color=0
+    if [[ -t 1 ]]; then
+        force_color=1
+    fi
+    for i in "${!labels[@]}"; do
+        if (( i > 0 )); then
+            body+=$'\n'
+        fi
+        body+="$(CLICOLOR_FORCE="${force_color}" gum style --foreground 245 "${labels[i]}")"
+        body+="$(printf '%*s' $(( width - ${#labels[i]} + 2 )) '')${values[i]}"
+    done
+    gum style --border rounded --border-foreground 240 --padding "0 1" "${body}"
 }
 
 # Flatten system_profiler and ioreg into key<TAB>value lines.
@@ -96,135 +139,132 @@ for key, value in fields.items():
 ')
 }
 
-lead_line() {
-    local condition="${battery[condition]:-}"
-    local capacity="${battery[capacity]:-}"
-    local cycles="${battery[cycles]:-}"
-    local summary=""
-
-    if [[ -n "${capacity}" && -n "${cycles}" ]]; then
-        summary="${capacity}% maximum capacity after ${cycles} cycles."
-    elif [[ -n "${capacity}" ]]; then
-        summary="${capacity}% maximum capacity."
-    fi
-
-    if [[ -z "${condition}" ]]; then
-        echo "Battery has ${summary:-no capacity data reported.}"
-        return
-    fi
-
-    local verdict="Battery needs attention."
-    if [[ "${condition}" = Normal ]]; then
-        verdict="Battery is healthy."
-    fi
-    if [[ -z "${summary}" ]]; then
-        echo "${verdict} Condition is ${condition}."
-        return
-    fi
-    echo "${verdict} Condition is ${condition}, with ${summary}"
-}
-
-# Compare against Apple's rating for this model only; no other thresholds.
-rating_line() {
-    local capacity="${battery[capacity]:-}"
-    local cycles="${battery[cycles]:-}"
-    local rated="${battery[rated_cycles]:-}"
-
-    [[ -n "${capacity}" && -n "${cycles}" && -n "${rated}" ]] || return 0
-
-    local rating="Apple's rating of ${RATED_CAPACITY}% maximum capacity at ${rated} cycles for this model"
-    local prefix="${capacity}% at ${cycles} cycles"
-    if (( cycles < rated && capacity >= RATED_CAPACITY )); then
-        echo "${prefix} is within ${rating}."
-    elif (( cycles < rated )); then
-        echo "${prefix} is below ${rating}."
-    elif (( capacity >= RATED_CAPACITY )); then
-        echo "${prefix} exceeds ${rating}."
-    else
-        echo "${prefix} is past ${rating}."
-    fi
-}
-
-condition_note() {
-    [[ -n "${battery[condition]:-}" ]] || return 0
-    echo "Condition is the signal to act on: macOS changes it from Normal to Service Recommended when the battery needs service."
-}
-
-charging_note() {
-    [[ "${battery[adapter_connected]:-}" = yes && "${battery[charging]:-}" = no ]] || return 0
-    echo "\"Charging: No\" while plugged in is normal: macOS pauses charging when the battery is full or Optimized Battery Charging holds it."
-}
-
-# "<mAh> mAh (<percent of design>%)", or nothing when the value is missing.
-mah_of_design() {
+# Percentage of design capacity for a mAh value, or nothing when unknown.
+percent_of_design() {
     local mah="$1"
     local design="${battery[design_mah]:-0}"
+    if [[ -z "${mah}" ]] || (( design <= 0 )); then
+        return 0
+    fi
+    echo "$(( (mah * 100 + design / 2) / design ))"
+}
+
+# "<mAh> mAh (<n>% of design)", or nothing when the value is missing.
+mah_of_design() {
+    local mah="$1" percent
     [[ -n "${mah}" ]] || return 0
-    if (( design > 0 )); then
-        echo "${mah} mAh ($(( (mah * 100 + design / 2) / design ))% of design)"
+    percent="$(percent_of_design "${mah}")"
+    if [[ -n "${percent}" ]]; then
+        echo "${mah} mAh (${percent}% of design)"
         return
     fi
     echo "${mah} mAh"
 }
 
-summary_table() {
-    local adapter="not connected"
-    if [[ "${battery[adapter_connected]:-}" = yes ]]; then
-        adapter="connected"
-        if [[ -n "${battery[adapter_watts]:-}" ]]; then
-            adapter="${battery[adapter_watts]}W, connected"
-        fi
-    fi
+# One colored status line: green when healthy, yellow when capacity is below
+# the rating, red when macOS reports any condition other than Normal.
+status_line() {
+    local condition="${battery[condition]:-}"
+    local capacity="${battery[capacity]:-}"
 
-    local charging="No"
-    if [[ "${battery[charging]:-}" = yes ]]; then
-        charging="Yes"
+    if [[ -z "${condition}" ]]; then
+        styled 214 "● Condition not reported"
+        return
     fi
-
-    local capacity="not reported"
-    if [[ -n "${battery[capacity]:-}" ]]; then
-        capacity="${battery[capacity]}%"
+    if [[ "${condition}" != Normal ]]; then
+        styled 196 "● ${condition}: have the battery checked"
+        return
     fi
-
-    {
-        printf 'Field\tValue\n'
-        printf 'Cycle Count\t%s\n' "${battery[cycles]:-not reported}"
-        printf 'Condition\t%s\n' "${battery[condition]:-not reported}"
-        printf 'Maximum Capacity\t%s\n' "${capacity}"
-        printf 'Adapter\t%s\n' "${adapter}"
-        printf 'Charging\t%s\n' "${charging}"
-    } | render_table
+    if [[ -n "${capacity}" ]] && (( capacity < RATED_CAPACITY )); then
+        styled 214 "● Condition Normal, capacity below the ${RATED_CAPACITY}% rating"
+        return
+    fi
+    styled 42 "● Healthy: condition Normal"
 }
 
-# Raw controller data from ioreg. Rows whose key is absent are left out.
-controller_table() {
-    [[ -n "${battery[design_mah]:-}" ]] || return 0
+summary_rows() {
+    local capacity="${battery[capacity]:-}"
+    local cycles="${battery[cycles]:-}"
+    local rated="${battery[rated_cycles]:-}"
 
-    local row label value
-    local -a rows=(
-        "Design Capacity|${battery[design_mah]} mAh"
-        "Raw Max Capacity|$(mah_of_design "${battery[raw_max_mah]:-}")"
-        "Nominal Charge Capacity|$(mah_of_design "${battery[nominal_mah]:-}")"
-        "Reported Maximum Capacity|${battery[capacity]:+${battery[capacity]}%}"
-        "Average Temperature|${battery[temp_avg]:-}"
-        "Maximum Temperature|${battery[temp_max]:-}"
-        "Daily Max Charge|${battery[daily_max_soc]:+${battery[daily_max_soc]}%}"
-    )
+    if [[ -n "${capacity}" && -n "${rated}" ]]; then
+        printf 'Maximum capacity\t%s%% (Apple rates %s%% at %s cycles)\n' "${capacity}" "${RATED_CAPACITY}" "${rated}"
+    elif [[ -n "${capacity}" ]]; then
+        printf 'Maximum capacity\t%s%%\n' "${capacity}"
+    fi
 
-    echo
-    print_bold "Battery controller data"
-    echo
-    {
-        printf 'Field\tValue\n'
-        for row in "${rows[@]}"; do
-            label="${row%%|*}"
-            value="${row#*|}"
-            [[ -n "${value}" ]] || continue
-            printf '%s\t%s\n' "${label}" "${value}"
-        done
-    } | render_table
-    echo
-    echo "macOS smooths the reported Maximum Capacity, so the raw controller figures are usually lower."
+    if [[ -n "${cycles}" && -n "${rated}" ]]; then
+        printf 'Cycle count\t%s of %s\n' "${cycles}" "${rated}"
+    elif [[ -n "${cycles}" ]]; then
+        printf 'Cycle count\t%s\n' "${cycles}"
+    fi
+
+    if [[ "${battery[adapter_connected]:-}" != yes ]]; then
+        printf 'Power\tOn battery\n'
+        return
+    fi
+    local adapter="Adapter connected"
+    if [[ -n "${battery[adapter_watts]:-}" ]]; then
+        adapter="${battery[adapter_watts]}W adapter"
+    fi
+    local state="not charging"
+    if [[ "${battery[charging]:-}" = yes ]]; then
+        state="charging"
+    fi
+    printf 'Power\t%s, %s\n' "${adapter}" "${state}"
+}
+
+controller_rows() {
+    local avg="${battery[temp_avg]:-}" max="${battery[temp_max]:-}" temperature=""
+
+    if [[ -n "${battery[design_mah]:-}" ]]; then
+        printf 'Design capacity\t%s mAh\n' "${battery[design_mah]}"
+    fi
+    if [[ -n "${battery[raw_max_mah]:-}" ]]; then
+        printf 'Raw max capacity\t%s\n' "$(mah_of_design "${battery[raw_max_mah]}")"
+    fi
+    if [[ -n "${battery[nominal_mah]:-}" ]]; then
+        printf 'Nominal capacity\t%s\n' "$(mah_of_design "${battery[nominal_mah]}")"
+    fi
+
+    if [[ -n "${avg}" && -n "${max}" ]]; then
+        temperature="${avg} average, ${max} max"
+    elif [[ -n "${avg}" ]]; then
+        temperature="${avg} average"
+    elif [[ -n "${max}" ]]; then
+        temperature="${max} max"
+    fi
+    if [[ -n "${temperature}" ]]; then
+        printf 'Temperature\t%s\n' "${temperature}"
+    fi
+
+    if [[ -n "${battery[daily_max_soc]:-}" ]]; then
+        printf 'Daily max charge\t%s%%\n' "${battery[daily_max_soc]}"
+    fi
+}
+
+# Short notes, each printed only when its state applies.
+notes() {
+    local capacity="${battery[capacity]:-}"
+    local raw line
+    local -a lines=()
+    raw="$(percent_of_design "${battery[raw_max_mah]:-}")"
+
+    if [[ -n "${raw}" && -n "${capacity}" ]] && (( raw < capacity )); then
+        lines+=("Raw figures are lower than the reported ${capacity}% because macOS smooths it.")
+    fi
+    if [[ "${battery[adapter_connected]:-}" = yes && "${battery[charging]:-}" = no ]]; then
+        lines+=("Not charging while plugged in is normal when the battery is full or charging is optimized.")
+    fi
+
+    (( ${#lines[@]} > 0 )) || return 0
+    # Without gum there is no box border to separate the notes from the rows.
+    if [[ "${HAS_GUM}" != true ]]; then
+        echo
+    fi
+    for line in "${lines[@]}"; do
+        styled faint "${line}"
+    done
 }
 
 main() {
@@ -235,23 +275,24 @@ main() {
 
     read_battery
     if [[ "${battery[present]:-}" != yes ]]; then
-        echo "No battery found: this Mac runs on mains power only."
+        echo "No battery: this Mac runs on mains power only."
         exit 0
     fi
 
-    print_bold "$(lead_line)"
+    styled heading "Battery health"
+    status_line
     echo
-    summary_table
-    echo
+    summary_rows | render_box
 
-    local line
-    for line in "$(rating_line)" "$(condition_note)" "$(charging_note)"; do
-        if [[ -n "${line}" ]]; then
-            echo "${line}"
-        fi
-    done
+    local controller
+    controller="$(controller_rows)"
+    if [[ -n "${controller}" ]]; then
+        echo
+        styled heading "Controller"
+        printf '%s\n' "${controller}" | render_box
+    fi
 
-    controller_table
+    notes
 }
 
 main "$@"
