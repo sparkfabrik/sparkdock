@@ -72,7 +72,7 @@ extension_hint() {
         return 0
     fi
     if command -v sf-toolbox >/dev/null 2>&1; then
-        echo "Enable the missing PHP extensions with: TAGS=php sf-toolbox"
+        echo "Enable the missing PHP extensions with: sf-toolbox"
         return 0
     fi
     if command -v pacman >/dev/null 2>&1; then
