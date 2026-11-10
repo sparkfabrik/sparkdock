@@ -1556,6 +1556,7 @@
               "${HOME}/.local/share/herdr-core/current/Contents/MacOS/herdr-core" \
               "${HOME}/.local/share/herdr-core/Herdr Core.app/Contents/MacOS/herdr-core"; do
               if [ -x "${candidate}" ] && "${candidate}" --version 2>/dev/null | grep -q '^hc '; then
+                printf '%s\n' "${candidate}"
                 exit 0
               fi
             done
@@ -1667,7 +1668,47 @@
               register: herdr_core_version
               changed_when: false
               failed_when: herdr_core_version.rc != 0 or not herdr_core_version.stdout.startswith('hc ')
+          rescue:
+            - name: Report the failed herdr-core install
+              fail:
+                msg: >-
+                  Installing herdr-core failed at "{{ ansible_failed_task.name }}":
+                  {{ ansible_failed_result.msg | default('see the error above') | regex_replace('\.$', '') }}.
+                  Rerun the herdr tag after fixing it.
+          always:
+            - name: Remove the herdr-core release download
+              file:
+                path: "{{ herdr_core_tmp.path }}"
+                state: absent
+              when: herdr_core_tmp.path is defined
 
+        # Runs on every run, also when herdr-core was already installed, so a
+        # working herdr-core without `hc` still gets the command.
+        # hc links only to a herdr-core that was checked to work: the one just
+        # installed in ~/.local/bin, or else the one the check above accepted,
+        # such as the copy the app keeps under ~/.local/share/herdr-core. An
+        # existing herdr-core is linked rather than installing a second one.
+        - name: Pick the herdr-core that hc links to
+          vars:
+            herdr_core_found: "{{ herdr_core_installed.stdout | default('') | trim }}"
+          set_fact:
+            herdr_core_link_src: >-
+              {{ 'herdr-core'
+              if (herdr_core_installed.rc | default(0)) != 0
+              or herdr_core_found == ansible_facts['env']['HOME'] ~ '/.local/bin/herdr-core'
+              else herdr_core_found
+              if (herdr_core_found | basename) == 'herdr-core'
+              else '' }}
+          when: herdr_app_bundle.stat.exists
+
+        - name: Link the hc command to herdr-core
+          when:
+            - herdr_app_bundle.stat.exists
+            - herdr_core_link_src | default('') | length > 0
+          become: false
+          vars:
+            herdr_core_bin_dir: "{{ ansible_facts['env']['HOME'] }}/.local/bin"
+          block:
             # Some window managers ship their own `hc`, so the link is added only
             # when no `hc` exists yet, as the upstream installer does.
             - name: Check whether an hc command already exists
@@ -1697,9 +1738,22 @@
                   and not herdr_hc_link_target.stat.exists
                   and (herdr_hc_link.stat.lnk_target | default('') | basename) == 'herdr-core' }}
 
+            - name: Check the hc folder
+              stat:
+                path: "{{ herdr_core_bin_dir }}"
+              register: herdr_hc_bin_dir_stat
+
+            # An existing directory keeps its mode, as with `mkdir -p`.
+            - name: Create the hc folder
+              file:
+                path: "{{ herdr_core_bin_dir }}"
+                state: directory
+                mode: "0755"
+              when: not herdr_hc_bin_dir_stat.stat.exists
+
             - name: Link hc to herdr-core
               file:
-                src: herdr-core
+                src: "{{ herdr_core_link_src }}"
                 dest: "{{ herdr_core_bin_dir }}/hc"
                 state: link
                 force: "{{ herdr_hc_dangling_herdr | bool }}"
@@ -1732,19 +1786,6 @@
               changed_when: false
               failed_when: herdr_hc_version.rc != 0 or not herdr_hc_version.stdout.startswith('hc ')
               when: herdr_hc_linked is changed
-          rescue:
-            - name: Report the failed herdr-core install
-              fail:
-                msg: >-
-                  Installing herdr-core failed at "{{ ansible_failed_task.name }}":
-                  {{ ansible_failed_result.msg | default('see the error above') | regex_replace('\.$', '') }}.
-                  Rerun the herdr tag after fixing it.
-          always:
-            - name: Remove the herdr-core release download
-              file:
-                path: "{{ herdr_core_tmp.path }}"
-                state: absent
-              when: herdr_core_tmp.path is defined
 
         # The Herdr app sends anonymous usage data unless its settings say
         # otherwise. Every run sets "telemetry" to false, also when a user turned
