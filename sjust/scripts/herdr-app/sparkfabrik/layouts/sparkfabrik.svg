@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 320 200">
+  <rect width="320" height="200" fill="#06172b"/>
+  <!-- sidebar -->
+  <rect width="86" height="200" fill="#0a1f37"/>
+  <rect x="86" width="1" height="200" fill="#1d3550"/>
+  <rect x="10" y="12" width="34" height="5" rx="2" fill="#eef2f6"/>
+  <g fill="#9aaabb">
+    <rect x="10" y="30" width="20" height="3" rx="1.5"/>
+    <rect x="18" y="40" width="50" height="3" rx="1.5"/>
+    <rect x="18" y="58" width="44" height="3" rx="1.5"/>
+    <rect x="18" y="67" width="52" height="3" rx="1.5"/>
+    <rect x="10" y="86" width="20" height="3" rx="1.5"/>
+    <rect x="18" y="96" width="46" height="3" rx="1.5"/>
+    <rect x="18" y="114" width="40" height="3" rx="1.5"/>
+  </g>
+  <rect x="6" y="46" width="74" height="10" rx="3" fill="#0d2744"/>
+  <rect x="18" y="49.5" width="40" height="3" rx="1.5" fill="#eef2f6"/>
+  <!-- LED seeds: working, needs you, done -->
+  <g fill="#8cc8f2"><circle cx="72" cy="49" r="0.9"/><circle cx="74.5" cy="49" r="0.9"/><circle cx="77" cy="49" r="0.9"/><circle cx="72" cy="51.5" r="0.9"/></g>
+  <g fill="#ff8a8a"><circle cx="72" cy="96" r="0.9"/><circle cx="77" cy="96" r="0.9"/><circle cx="74.5" cy="98.5" r="0.9"/><circle cx="72" cy="101" r="0.9"/><circle cx="77" cy="101" r="0.9"/></g>
+  <g fill="#7fdde3"><circle cx="72" cy="114" r="0.9"/><circle cx="77" cy="114" r="0.9"/><circle cx="74.5" cy="116.5" r="0.9"/><circle cx="72" cy="119" r="0.9"/><circle cx="77" cy="119" r="0.9"/></g>
+  <!-- tab bar -->
+  <rect x="87" width="233" height="22" fill="#0a1f37"/>
+  <rect x="87" y="22" width="233" height="1" fill="#1d3550"/>
+  <rect x="98" y="9" width="42" height="4" rx="2" fill="#eef2f6"/>
+  <rect x="96" y="20" width="46" height="2" fill="#f36931"/>
+  <rect x="152" y="9" width="26" height="4" rx="2" fill="#5d7186"/>
+  <!-- terminal panes -->
+  <rect x="95" y="30" width="108" height="154" rx="4" fill="#031527" stroke="#1d3550"/>
+  <rect x="209" y="30" width="103" height="154" rx="4" fill="#031527" stroke="#1d3550"/>
+  <g fill="#c9d3de">
+    <rect x="102" y="40" width="70" height="3" rx="1.5"/>
+    <rect x="102" y="50" width="86" height="3" rx="1.5"/>
+    <rect x="216" y="40" width="60" height="3" rx="1.5"/>
+  </g>
+  <rect x="102" y="60" width="50" height="3" rx="1.5" fill="#7fdde3"/>
+  <rect x="102" y="70" width="62" height="3" rx="1.5" fill="#ff8a8a"/>
+  <rect x="216" y="50" width="78" height="3" rx="1.5" fill="#8cc8f2"/>
+  <rect x="216" y="60" width="44" height="3" rx="1.5" fill="#f7c56b"/>
+  <!-- status bar -->
+  <rect x="87" y="190" width="233" height="10" fill="#0a1f37"/>
+</svg>

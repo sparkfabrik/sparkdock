@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Added `"telemetry": false` to the Herdr app settings during provisioning, enforced on every run
 - Added a one-time herdr-core (`hc`) install during provisioning when the Herdr app is installed and `hc` is missing, from the latest release with its sha256 and Herdr signature checked, without running the upstream install script
+- Added the SparkFabrik layout for the Herdr desktop app, with light and dark themes and the design system's LED status marks, installed by provisioning and by `sjust herdr-layout-install` (also `ajust` on Linux) and selected once on each machine, after which people can switch back in Herdr's Settings
 - Added `sjust drupal-org-cli` (also `ajust` on Linux) to install, update and remove the Drupal.org CLI (`drupalorg`) and its agent skill, with an opt-in Claude Code MCP server; releases are checksum verified and skipped until 7 days old, and PHP 8.1 or later is required
 - Added `sjust macos-battery-health` to show battery cycle count, condition, maximum capacity, adapter and charging state, with a verdict against Apple's rating of 80% capacity at the model's rated cycle count, raw controller capacities and lifetime temperatures
 - Added the herdr Claude Code and Codex integrations to the herdr skill setup on macOS and Linux, installed when missing and the tool is present; `SPARKDOCK_HERDR_DEFAULT_INTEGRATIONS=0` turns this off
@@ -249,6 +250,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fixed Herdr app telemetry provisioning to warn about non-object settings and fail when it cannot write the enforced value
 - Kept Herdr app settings permissions, avoided repeat herdr-core installs from the app bundle, reported failed installs, and removed links to an absent skill router
+- Fixed `drupal-org-cli` suggesting a PHP install when PHP is present: a PHP that does not start now reports its error with a `pacman -Syu` hint on Arch, and missing extensions point to `sf-toolbox`
 - Fixed `drupal-org-cli` printing a Python traceback when GitHub refuses the release lookup; it now reads releases through the logged-in `gh` when available and prints a clear error otherwise
 - Fixed `sjust macos-battery-health` reporting no battery when the system power data cannot be read; it now prints an error and exits 1, and takes the adapter and charging state from the battery controller when the system report has no charger data
 - Fixed the HTTP proxy showing as up to date after an upgrade that failed during provisioning: `sparkdock-check-updates http-proxy` now exits 4, shown as "Retry", until an upgrade completes
