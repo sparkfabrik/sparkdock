@@ -1626,6 +1626,11 @@
                   {{ (herdr_app_settings_raw.content | b64decode | from_json)
                      if herdr_app_settings_file.stat.exists else {} }}
 
+            - name: Warn about non-object Herdr app settings
+              debug:
+                msg: "Left {{ herdr_app_settings_path }} unchanged: settings must be a JSON object"
+              when: herdr_app_settings is not mapping
+
             - name: Create the Herdr app settings directory
               file:
                 path: "{{ herdr_app_settings_path | dirname }}"
@@ -1642,6 +1647,11 @@
                 - herdr_app_settings is mapping
                 - herdr_app_settings.telemetry | default(none) is not sameas false
           rescue:
+            - name: Fail when Herdr app settings could not be written
+              fail:
+                msg: "Could not update {{ herdr_app_settings_path }}: {{ ansible_failed_result.msg }}"
+              when: ansible_failed_task.name not in ['Read the Herdr app settings', 'Parse the Herdr app settings']
+
             - name: Report unreadable Herdr app settings
               debug:
                 msg: "Left {{ herdr_app_settings_path }} unchanged: {{ ansible_failed_result.msg | default('it could not be read') }}"
