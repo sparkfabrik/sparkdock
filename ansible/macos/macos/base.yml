@@ -1550,7 +1550,9 @@
         - name: Check whether herdr-core (hc) is installed
           shell: |
             for candidate in "$(command -v hc)" "$(command -v herdr-core)" \
-              "${HOME}/.local/bin/hc" "${HOME}/.local/bin/herdr-core"; do
+              "${HOME}/.local/bin/hc" "${HOME}/.local/bin/herdr-core" \
+              "${HOME}/.local/share/herdr-core/current/Contents/MacOS/herdr-core" \
+              "${HOME}/.local/share/herdr-core/Herdr Core.app/Contents/MacOS/herdr-core"; do
               if [ -x "${candidate}" ] && "${candidate}" --version 2>/dev/null | grep -q '^hc '; then
                 exit 0
               fi
@@ -1589,8 +1591,8 @@
               changed_when: true
           rescue:
             - name: Report the failed herdr-core install
-              debug:
-                msg: "Installing herdr-core failed; the herdr skill setup prints how to finish it."
+              fail:
+                msg: "Installing herdr-core failed; rerun the herdr tag after fixing the installer error."
           always:
             - name: Remove the herdr-core installer
               file:
@@ -1607,10 +1609,12 @@
               - python3
               - -c
               - |
-                import json, os, sys, tempfile
+                import json, os, stat, sys, tempfile
                 path = os.path.expanduser("~/.config/herdr-app/settings.json")
                 settings = {}
+                mode = 0o600
                 if os.path.exists(path):
+                    mode = stat.S_IMODE(os.stat(path).st_mode)
                     try:
                         with open(path) as handle:
                             settings = json.load(handle)
@@ -1630,7 +1634,7 @@
                 with os.fdopen(fd, "w") as handle:
                     json.dump(settings, handle, indent=2)
                     handle.write("\n")
-                os.chmod(tmp, 0o644)
+                os.chmod(tmp, mode)
                 os.replace(tmp, path)
                 print("changed")
           register: herdr_app_telemetry

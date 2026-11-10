@@ -222,8 +222,8 @@ STUB
     assert_file "${skill_dir}/notes.md" "user file in the skill directory"
     assert_no_file "${skill_dir}/SKILL.md" "router with no runtime installed"
     assert_no_file "${skill_dir}/references" "generated manuals with no runtime installed"
-    if [[ ! -L "${HOME}/.claude/skills/herdr" ]]; then
-        log_error "Claude Code herdr skill link removed although the skill directory was kept"
+    if [[ -L "${HOME}/.claude/skills/herdr" ]]; then
+        log_error "Claude Code herdr skill link left behind after its router was removed"
         exit 1
     fi
     rm -f "${skill_dir}/notes.md"

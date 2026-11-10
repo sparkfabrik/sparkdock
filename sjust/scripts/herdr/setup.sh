@@ -382,6 +382,7 @@ remove_installed_skill() {
     fi
 
     if [[ -e "${SKILL_DIR}" ]]; then
+        unlink_skill
         log_warn "Removed the generated herdr skill files; kept ${SKILL_DIR} because it holds other files"
         return 0
     fi
