@@ -224,12 +224,25 @@ STUB
     rm -f "${skill_dir}/notes.md"
 
     log_info "Checking that the skill is removed when no Herdr runtime is left..."
+    printf '#!/usr/bin/env bash\nprintf "# herdr-app\\n"\n' > "${fake_bin}/herdr-app"
+    chmod +x "${fake_bin}/herdr-app"
+    PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install > /dev/null 2>&1
+    assert_file "${skill_dir}/SKILL.md" "router reinstalled before the removal check"
+    rm -f "${fake_bin}/herdr-app"
     PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install > /dev/null
     assert_no_file "${skill_dir}" "herdr skill with no runtime installed"
     if [[ -L "${HOME}/.claude/skills/herdr" ]]; then
         log_error "Claude Code herdr skill link left behind with no runtime installed"
         exit 1
     fi
+
+    log_info "Checking that a custom herdr skill survives a run with no Herdr runtime..."
+    mkdir -p "${skill_dir}/references"
+    printf -- '---\nname: herdr\ndescription: my own\n---\n# custom\n' > "${skill_dir}/SKILL.md"
+    echo "custom manual" > "${skill_dir}/references/hc.md"
+    PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install > /dev/null 2>&1
+    assert_equals "# custom" "$(tail -n 1 "${skill_dir}/SKILL.md")" "custom SKILL.md"
+    assert_file "${skill_dir}/references/hc.md" "custom reference"
 
     log_success "herdr setup verification passed"
 }

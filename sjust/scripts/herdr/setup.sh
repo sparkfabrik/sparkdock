@@ -351,11 +351,24 @@ unlink_skill() {
 
 # Remove only the files install writes, for a run that finds no Herdr runtime.
 # Unlike uninstall, which the user asks for, this runs during provisioning, so
-# it must never delete files the user added to the skill directory. The
-# directory and its per-tool links go only when nothing else is left in it.
+# it must never delete files the user wrote. The installed SKILL.md is always an
+# exact copy of the router, so a match proves this installer owns the directory;
+# anything else (a custom skill, an edited router, a router from an older
+# release) is left alone. The directory and its per-tool links go only when
+# nothing else is left in it.
 remove_installed_skill() {
     if [[ -L "${SKILL_DIR}" ]]; then
         log_warn "herdr skill is managed elsewhere (${SKILL_DIR} -> $(readlink "${SKILL_DIR}")), leaving it in place"
+        return 0
+    fi
+
+    if [[ ! -e "${SKILL_DIR}" ]]; then
+        unlink_skill
+        return 0
+    fi
+
+    if [[ ! -f "${SKILL_FILE}" ]] || ! cmp -s "${ROUTER_SOURCE}" "${SKILL_FILE}"; then
+        log_warn "${SKILL_DIR} was not written by this installer (or was edited), leaving it in place"
         return 0
     fi
 
