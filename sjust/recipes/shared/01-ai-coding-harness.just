@@ -111,3 +111,15 @@ sf-herdr-skill-install:
 [group('ai-coding-harness')]
 sf-herdr-skill-uninstall:
     @{{sparkdock_path}}/sjust/scripts/herdr/setup.sh uninstall
+
+# Also selects the layout once per machine (SPARKDOCK_HERDR_LAYOUT_SELECT=0 turns
+# that off); later runs keep the person's choice. Restart Herdr after installing.
+# Install/update the SparkFabrik layout for the Herdr desktop app.
+[group('ai-coding-harness')]
+herdr-layout-install:
+    @{{sparkdock_path}}/sjust/scripts/herdr-app/setup.sh install
+
+# Remove the SparkFabrik layout from the Herdr desktop app.
+[group('ai-coding-harness')]
+herdr-layout-uninstall:
+    @{{sparkdock_path}}/sjust/scripts/herdr-app/setup.sh uninstall
