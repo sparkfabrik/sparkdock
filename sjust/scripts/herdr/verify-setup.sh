@@ -210,8 +210,20 @@ STUB
     assert_no_file "${skill_dir}/references/herdr-tui.md" "TUI manual from an unclosed front matter"
     rm -f "${fake_bin}/herdr"
 
-    log_info "Checking that the skill is removed when no Herdr runtime is left..."
+    log_info "Checking that user files survive a run with no Herdr runtime..."
     rm -f "${fake_bin}/hc" "${fake_bin}/herdr-app"
+    echo "user notes" > "${skill_dir}/notes.md"
+    PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install > /dev/null
+    assert_file "${skill_dir}/notes.md" "user file in the skill directory"
+    assert_no_file "${skill_dir}/SKILL.md" "router with no runtime installed"
+    assert_no_file "${skill_dir}/references" "generated manuals with no runtime installed"
+    if [[ ! -L "${HOME}/.claude/skills/herdr" ]]; then
+        log_error "Claude Code herdr skill link removed although the skill directory was kept"
+        exit 1
+    fi
+    rm -f "${skill_dir}/notes.md"
+
+    log_info "Checking that the skill is removed when no Herdr runtime is left..."
     PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install > /dev/null
     assert_no_file "${skill_dir}" "herdr skill with no runtime installed"
     if [[ -L "${HOME}/.claude/skills/herdr" ]]; then

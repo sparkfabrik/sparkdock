@@ -338,7 +338,7 @@ update_integrations() {
 
 # --- Uninstall ---
 
-uninstall() {
+unlink_skill() {
     local tool_id
     for tool_id in "${!TOOL_SKILLS_DIR[@]}"; do
         local link="${TOOL_SKILLS_DIR[${tool_id}]}/${SKILL_NAME}"
@@ -347,6 +347,38 @@ uninstall() {
             log_success "${TOOL_LABEL[${tool_id}]}: removed ${SKILL_NAME} symlink"
         fi
     done
+}
+
+# Remove only the files install writes, for a run that finds no Herdr runtime.
+# Unlike uninstall, which the user asks for, this runs during provisioning, so
+# it must never delete files the user added to the skill directory. The
+# directory and its per-tool links go only when nothing else is left in it.
+remove_installed_skill() {
+    if [[ -L "${SKILL_DIR}" ]]; then
+        log_warn "herdr skill is managed elsewhere (${SKILL_DIR} -> $(readlink "${SKILL_DIR}")), leaving it in place"
+        return 0
+    fi
+
+    if [[ -d "${SKILL_DIR}" ]]; then
+        rm -f "${SKILL_FILE}" \
+            "${REFERENCES_DIR}/herdr-tui.md" \
+            "${REFERENCES_DIR}/hc.md" \
+            "${REFERENCES_DIR}/herdr-app.md"
+        rmdir "${REFERENCES_DIR}" 2> /dev/null || true
+        rmdir "${SKILL_DIR}" 2> /dev/null || true
+    fi
+
+    if [[ -e "${SKILL_DIR}" ]]; then
+        log_warn "Removed the generated herdr skill files; kept ${SKILL_DIR} because it holds other files"
+        return 0
+    fi
+
+    unlink_skill
+    log_success "Removed herdr skill: ${SKILL_DIR}"
+}
+
+uninstall() {
+    unlink_skill
 
     if [[ -L "${SKILL_DIR}" ]]; then
         log_warn "herdr skill is managed elsewhere (${SKILL_DIR} -> $(readlink "${SKILL_DIR}")), leaving it in place"
@@ -371,11 +403,10 @@ main() {
             hc_bin="$(find_hc)"
             herdr_app_bin="$(find_herdr_app)"
             # With no Herdr runtime left, a skill from an earlier run would route
-            # agents to stale manuals, so remove it. uninstall leaves a skill
-            # managed elsewhere (a symlinked directory) in place.
+            # agents to stale manuals, so remove the files install wrote.
             if [[ -z "${herdr_bin}" && -z "${hc_bin}" && -z "${herdr_app_bin}" ]]; then
                 log_warn "None of herdr, hc or herdr-app is installed, removing any herdr skill left by an earlier run"
-                uninstall
+                remove_installed_skill
                 return 0
             fi
             # A symlinked skill directory means the skill is managed elsewhere (a
