@@ -184,21 +184,21 @@ write_skill() {
     local hc_bin="$2"
     local herdr_app_bin="$3"
 
-    if [[ -n "${herdr_bin}" ]]; then
-        write_reference "${herdr_bin}" herdr-tui yes
-    else
+    # A manual that cannot be generated (an older binary without --skill) is
+    # dropped with a warning: the router reports that runtime's manual as
+    # missing, and the other runtimes keep theirs.
+    if [[ -z "${herdr_bin}" ]] || ! write_reference "${herdr_bin}" herdr-tui yes; then
+        [[ -n "${herdr_bin}" ]] && log_warn "Skipping the Herdr TUI manual"
         remove_reference herdr-tui
     fi
 
-    if [[ -n "${hc_bin}" ]]; then
-        write_reference "${hc_bin}" hc no
-    else
+    if [[ -z "${hc_bin}" ]] || ! write_reference "${hc_bin}" hc no; then
+        [[ -n "${hc_bin}" ]] && log_warn "Skipping the herdr-core manual"
         remove_reference hc
     fi
 
-    if [[ -n "${herdr_app_bin}" ]]; then
-        write_reference "${herdr_app_bin}" herdr-app no
-    else
+    if [[ -z "${herdr_app_bin}" ]] || ! write_reference "${herdr_app_bin}" herdr-app no; then
+        [[ -n "${herdr_app_bin}" ]] && log_warn "Skipping the Herdr app manual"
         remove_reference herdr-app
     fi
 

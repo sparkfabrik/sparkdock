@@ -12,17 +12,17 @@ Two Herdr runtimes exist, and they do not share agents. The Herdr TUI runs panes
 Run this before any other Herdr command. It confirms the variable against the owning server, so a stale or inherited value does not pass:
 
 ```bash
-if [ -n "${HC_TERMINAL_ID:-}" ] && hc get "$HC_TERMINAL_ID" --json >/dev/null 2>&1; then
-  echo hc
-elif [ "${HERDR_ENV:-}" = 1 ] && [ -n "${HERDR_PANE_ID:-}" ] && [ -S "${HERDR_SOCKET_PATH:-}" ] \
+if [ "${HERDR_ENV:-}" = 1 ] && [ -n "${HERDR_PANE_ID:-}" ] && [ -S "${HERDR_SOCKET_PATH:-}" ] \
   && herdr pane get "$HERDR_PANE_ID" >/dev/null 2>&1; then
   echo herdr-tui
+elif [ -n "${HC_TERMINAL_ID:-}" ] && hc get "$HC_TERMINAL_ID" --json >/dev/null 2>&1; then
+  echo hc
 else
   echo none
 fi
 ```
 
-`hc` is checked first because `HC_TERMINAL_ID` is also your caller identity: terminals and agents you start from it become your children.
+The Herdr TUI is checked first because it is the innermost runtime: a TUI started inside an hc terminal passes `HC_TERMINAL_ID` on to its panes, and that terminal is still alive. In an hc terminal, `HC_TERMINAL_ID` is also your caller identity: terminals and agents you start from it become your children.
 
 ## Load the manual for that runtime
 

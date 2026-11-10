@@ -205,14 +205,15 @@ STUB
     fi
     assert_file "${skill_dir}/references/herdr-app.md" "herdr-app manual"
 
-    log_info "Checking that a TUI manual with an unclosed front matter is rejected..."
+    log_info "Checking that a TUI manual with an unclosed front matter is dropped, not fatal..."
     printf '#!/usr/bin/env bash\nprintf -- "---\\nname: herdr\\n# herdr\\n"\n' > "${fake_bin}/herdr"
     chmod +x "${fake_bin}/herdr"
-    if PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install > /dev/null 2>&1; then
-        log_error "setup accepted a herdr manual with an unclosed front matter"
+    if ! PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install > /dev/null 2>&1; then
+        log_error "setup failed on an unusable herdr manual instead of skipping it"
         exit 1
     fi
     assert_no_file "${skill_dir}/references/herdr-tui.md" "TUI manual from an unclosed front matter"
+    assert_file "${skill_dir}/SKILL.md" "router written when the TUI manual is unusable"
     rm -f "${fake_bin}/herdr"
 
     log_info "Checking that user files survive a run with no Herdr runtime..."

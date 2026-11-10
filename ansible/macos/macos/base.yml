@@ -1597,7 +1597,7 @@
             - name: Check that the release has a herdr-core build for this Mac
               assert:
                 that:
-                  - herdr_core_release.url | default('') | length > 0
+                  - herdr_core_release.url | default('') is match('https://releases\\.herdr\\.dev/')
                   - herdr_core_release.sha256 | default('') | length > 0
                 fail_msg: "The latest herdr-core release has no {{ herdr_core_target }} build."
                 quiet: true
@@ -1841,7 +1841,9 @@
             - name: Set telemetry to false in the Herdr app settings
               copy:
                 dest: "{{ herdr_app_settings_path }}"
-                content: "{{ herdr_app_settings | combine({'telemetry': false}) | to_nice_json(sort_keys=false) }}\n"
+                content: "{{ herdr_app_settings | combine({'telemetry': false}) | to_nice_json(sort_keys=false, ensure_ascii=false) }}\n"
+                # A settings.json symlinked from a dotfiles repo stays a link.
+                follow: true
                 mode: "{{ omit if herdr_app_settings_file.stat.exists else '0644' }}"
               when:
                 - herdr_app_settings is mapping
