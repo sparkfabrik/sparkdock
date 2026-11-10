@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `"telemetry": false` to the Herdr app settings during provisioning when the key is absent, so a user who turns telemetry back on keeps that choice
 - Added a one-time herdr-core (`hc`) install during provisioning when the Herdr app is installed and `hc` is missing, using the upstream installer
 - Added `sjust drupal-org-cli` (also `ajust` on Linux) to install, update and remove the Drupal.org CLI (`drupalorg`) and its agent skill, with an opt-in Claude Code MCP server; releases are checksum verified and skipped until 7 days old, and PHP 8.1 or later is required
 - Added `sjust macos-battery-health` to show battery cycle count, condition, maximum capacity, adapter and charging state, with a verdict against Apple's rating of 80% capacity at the model's rated cycle count, raw controller capacities and lifetime temperatures
