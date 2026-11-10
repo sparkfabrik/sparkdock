@@ -1612,7 +1612,7 @@
                 import json, os, stat, sys, tempfile
                 path = os.path.expanduser("~/.config/herdr-app/settings.json")
                 settings = {}
-                mode = 0o600
+                mode = 0o644
                 if os.path.exists(path):
                     mode = stat.S_IMODE(os.stat(path).st_mode)
                     try:
