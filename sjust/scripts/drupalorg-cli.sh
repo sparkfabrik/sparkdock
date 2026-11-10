@@ -65,10 +65,50 @@ php_hint() {
     echo "Install PHP 8.1 or later with your package manager."
 }
 
+# Hint for a PHP that is installed but lacks extensions drupalorg needs.
+extension_hint() {
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        echo "Reinstall PHP with: brew reinstall php"
+        return 0
+    fi
+    if command -v sf-toolbox >/dev/null 2>&1; then
+        echo "Enable the missing PHP extensions with: TAGS=php sf-toolbox"
+        return 0
+    fi
+    if command -v pacman >/dev/null 2>&1; then
+        echo "Enable the iconv extension: uncomment ';extension=iconv' in /etc/php/php.ini"
+        return 0
+    fi
+    if command -v apt-get >/dev/null 2>&1; then
+        echo "Install the extensions with: sudo apt install php-xml php-curl php-mbstring"
+        return 0
+    fi
+    echo "Enable the PHP extensions listed above."
+}
+
+# Hint for a PHP binary that does not start, usually after a partial upgrade.
+broken_php_hint() {
+    if [[ "$(uname -s)" == "Darwin" ]]; then
+        echo "Reinstall PHP with: brew reinstall php"
+        return 0
+    fi
+    if command -v pacman >/dev/null 2>&1; then
+        echo "Update the whole system with: sudo pacman -Syu"
+        return 0
+    fi
+    echo "Reinstall PHP with your package manager."
+}
+
 require_php() {
     if ! command -v php >/dev/null 2>&1; then
         log_error "PHP 8.1 or later is required and was not found on PATH."
         php_hint >&2
+        exit 1
+    fi
+    local php_version
+    if ! php_version="$(php -r 'echo PHP_VERSION;' 2>/dev/null)" || [[ -z "${php_version}" ]]; then
+        log_error "PHP is installed but does not start: $(php -v 2>&1 | head -n 1)"
+        broken_php_hint >&2
         exit 1
     fi
     if ! php -r 'exit(PHP_VERSION_ID >= 80100 ? 0 : 1);' 2>/dev/null; then
@@ -347,7 +387,7 @@ with open(sys.argv[1], "rb") as fh:
     if ! php "${phar}" --version >/dev/null 2>&1; then
         php "${phar}" --version >&2 || true
         log_error "Your PHP cannot run drupalorg ${tag}; nothing installed."
-        php_hint >&2
+        extension_hint >&2
         exit 1
     fi
 

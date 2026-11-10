@@ -244,6 +244,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed `drupal-org-cli` suggesting a PHP install when PHP is present: a PHP that does not start now reports its error with a `pacman -Syu` hint on Arch, and missing extensions point to `TAGS=php sf-toolbox`
 - Fixed `drupal-org-cli` printing a Python traceback when GitHub refuses the release lookup; it now reads releases through the logged-in `gh` when available and prints a clear error otherwise
 - Fixed `sjust macos-battery-health` reporting no battery when the system power data cannot be read; it now prints an error and exits 1, and takes the adapter and charging state from the battery controller when the system report has no charger data
 - Fixed the HTTP proxy showing as up to date after an upgrade that failed during provisioning: `sparkdock-check-updates http-proxy` now exits 4, shown as "Retry", until an upgrade completes
