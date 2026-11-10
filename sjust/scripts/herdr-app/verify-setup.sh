@@ -45,6 +45,35 @@ shared_layout() {
     python3 -I -c 'import json, sys; print(json.load(open(sys.argv[1])).get("layout", ""))' "$1/shared.json"
 }
 
+# A stand-in for an open herdr-app window: it serves one request on the home's
+# control socket, saves it to request.json and answers ok. Sets FAKE_WINDOW_PID.
+FAKE_WINDOW_PID=""
+fake_window() {
+    local home="$1"
+    local reply="${2:-ok}"
+    rm -f "${home}/herdr-app.sock" "${home}/request.json"
+    python3 -I - "${home}/herdr-app.sock" "${home}/request.json" "${reply}" <<'PY' &
+import socket, sys
+
+server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+server.bind(sys.argv[1])
+server.listen(1)
+server.settimeout(30)
+conn, _ = server.accept()
+with conn:
+    request = conn.makefile().readline()
+    open(sys.argv[2], "w").write(request)
+    if sys.argv[3] == "ok":
+        conn.sendall(b'{"ok":true}\n')
+PY
+    FAKE_WINDOW_PID=$!
+    local waited=0
+    while [[ ! -S "${home}/herdr-app.sock" ]] && (( waited < 50 )); do
+        sleep 0.1
+        waited=$((waited + 1))
+    done
+}
+
 check_pack() {
     log_info "Checking the pack..."
 
@@ -100,6 +129,24 @@ PY
         fail "the pack contains files herdr-app generates (gpui-kit.d.ts, jsconfig.json)"
     fi
 
+    # The mods load assets only from the pack (or the app's own frame/), so an
+    # upstream rename in Herdr's mods cannot break them silently.
+    local ref
+    # shellcheck disable=SC2016 # '${' and backticks are JavaScript template text, not shell.
+    while IFS= read -r ref; do
+        case "${ref}" in
+            mods/sparkfabrik-*) ;;
+            frame/*) continue ;;
+            *) fail "a mod loads an asset outside the pack: ${ref}" ;;
+        esac
+        if [[ "${ref}" != *'${'* ]] && [[ ! -e "${PACK_DIR}/${ref}" ]]; then
+            fail "a mod loads a missing asset: ${ref}"
+        fi
+        if [[ "${ref}" == *'${'* ]] && [[ ! -d "${PACK_DIR}/$(dirname "${ref}")" ]]; then
+            fail "a mod loads assets from a missing folder: ${ref}"
+        fi
+    done < <(grep -hoE '["`](mods|frame)/[^"`]+["`]' "${PACK_DIR}"/mods/*/main.js | tr -d '"`' | sort -u)
+
     # Every bundled font has its license next to it.
     local fonts
     for fonts in "${PACK_DIR}"/mods/*/fonts; do
@@ -132,6 +179,15 @@ main() {
     export PATH="${clean_path}"
     local setup="${SCRIPT_DIR}/setup.sh"
     local output
+    local pinned
+    pinned="$(tr -d '[:space:]' < "${PACK_DIR}/HERDR_APP_VERSION")"
+    # A stand-in herdr-app that reports a release: fake_app <version>.
+    local fake_bin="${HOME}/fake-bin"
+    mkdir -p "${fake_bin}"
+    fake_app() {
+        printf '#!/usr/bin/env bash\necho "herdr-app %s"\n' "$1" > "${fake_bin}/herdr-app"
+        chmod +x "${fake_bin}/herdr-app"
+    }
 
     check_pack
 
@@ -141,13 +197,35 @@ main() {
     [[ ! -e "${app_home}" ]] || fail "install created the herdr-app home"
 
     log_info "Creating the home of an app that is installed but was never opened..."
+    # Herdr's Linux installer layout, found without PATH.
     local never_opened="${HOME}/never-opened"
     mkdir -p "${HOME}/.local/share/herdr-app"
+    printf '#!/usr/bin/env bash\necho "herdr-app %s"\n' "${pinned}" > "${HOME}/.local/share/herdr-app/herdr-app"
+    chmod +x "${HOME}/.local/share/herdr-app/herdr-app"
     output="$(HERDR_APP_HOME="${never_opened}" "${setup}" install 2>&1)"
     assert_contains "${output}" "Created the herdr-app home" "home created for an installed app"
     [[ -f "${never_opened}/layouts/sparkfabrik.json" ]] || fail "layout not installed in the new home"
     [[ "$(shared_layout "${never_opened}")" == "sparkfabrik" ]] || fail "layout not selected in the new home"
+
+    log_info "Installing without selecting when the herdr-app version cannot be read..."
+    rm -f "${HOME}/.local/share/herdr-app/herdr-app"
+    local unknown="${HOME}/unknown-version"
+    output="$(HERDR_APP_HOME="${unknown}" "${setup}" install 2>&1)"
+    assert_contains "${output}" "Could not read the herdr-app version" "unknown version"
+    [[ -f "${unknown}/layouts/sparkfabrik.json" ]] || fail "layout not installed with an unknown version"
+    [[ ! -e "${unknown}/shared.json" ]] || fail "layout selected with an unknown version"
     rm -rf "${HOME}/.local/share/herdr-app"
+
+    log_info "Skipping a herdr-app older than the release the mods need..."
+    fake_app 0.0.1
+    export PATH="${fake_bin}:${clean_path}"
+    local old_app="${HOME}/old-app"
+    mkdir -p "${old_app}"
+    output="$(HERDR_APP_HOME="${old_app}" "${setup}" install 2>&1)"
+    assert_contains "${output}" "is older than ${pinned}" "older herdr-app"
+    [[ ! -e "${old_app}/layouts/sparkfabrik.json" ]] || fail "layout installed on an older herdr-app"
+    [[ ! -e "${old_app}/shared.json" ]] || fail "layout selected on an older herdr-app"
+    fake_app "${pinned}"
 
     log_info "Installing into a herdr-app home..."
     mkdir -p "${app_home}/mods/agents" "${app_home}/mods/my-mod" "${app_home}/layouts"
@@ -168,6 +246,18 @@ main() {
     touch "${app_home}/mods/sparkfabrik-agents/gpui-kit.d.ts" "${app_home}/mods/sparkfabrik-agents/jsconfig.json"
     output="$("${setup}" install 2>&1)"
     assert_contains "${output}" "already up to date" "second install"
+
+    log_info "Ignoring hidden files and keeping extra files in a mod folder..."
+    touch "${app_home}/mods/sparkfabrik-agents/.DS_Store"
+    output="$("${setup}" install 2>&1)"
+    assert_contains "${output}" "already up to date" "hidden file in a mod folder"
+    echo "my notes" > "${app_home}/mods/sparkfabrik-agents/notes.txt"
+    echo "// edited" >> "${app_home}/mods/sparkfabrik-agents/main.js"
+    output="$("${setup}" install 2>&1)"
+    assert_contains "${output}" "had files the pack does not ship" "extra file in a mod folder"
+    ls "${app_home}"/mods/sparkfabrik-agents.sparkdock-*/notes.txt > /dev/null 2>&1 || fail "extra file not kept aside"
+    [[ ! -e "${app_home}/mods/sparkfabrik-agents/notes.txt" ]] || fail "extra file left in the reinstalled mod"
+    rm -rf "${app_home}"/mods/sparkfabrik-agents.sparkdock-*
 
     log_info "Restoring files changed by hand, keeping the person's layout choice..."
     echo '{"layout":"main"}' > "${app_home}/shared.json"
@@ -198,15 +288,36 @@ main() {
     assert_contains "${output}" "managed elsewhere" "install over a symlink"
     [[ -L "${app_home}/mods/sparkfabrik-pane" ]] || fail "install replaced a symlinked mod"
 
-    log_info "Warning when herdr-app is not the release the mods come from..."
-    local fake_bin="${HOME}/fake-bin"
-    mkdir -p "${fake_bin}"
-    printf '#!/usr/bin/env bash\necho "herdr-app 99.0.0"\n' > "${fake_bin}/herdr-app"
-    chmod +x "${fake_bin}/herdr-app"
-    output="$(PATH="${fake_bin}:${PATH}" "${setup}" install 2>&1)"
+    log_info "Not writing through a symlinked folder..."
+    local linked="${HOME}/linked-home"
+    mkdir -p "${linked}" "${HOME}/shared-mods"
+    ln -s "${HOME}/shared-mods" "${linked}/mods"
+    output="$(HERDR_APP_HOME="${linked}" "${setup}" install 2>&1)"
+    assert_contains "${output}" "mods/sparkfabrik-agents is managed elsewhere" "install through a symlinked folder"
+    [[ ! -e "${HOME}/shared-mods/sparkfabrik-agents" ]] || fail "install wrote through a symlinked folder"
+    [[ -f "${linked}/layouts/sparkfabrik.json" ]] || fail "install skipped items outside the symlinked folder"
+
+    log_info "Keeping a symlinked shared.json and its mode..."
+    local kept="${HOME}/kept-home"
+    mkdir -p "${kept}" "${HOME}/dotfiles"
+    echo '{"layout":"main"}' > "${HOME}/dotfiles/shared.json"
+    chmod 0640 "${HOME}/dotfiles/shared.json"
+    ln -s "${HOME}/dotfiles/shared.json" "${kept}/shared.json"
+    HERDR_APP_HOME="${kept}" "${setup}" install > /dev/null 2>&1
+    [[ -L "${kept}/shared.json" ]] || fail "selection replaced a symlinked shared.json"
+    [[ "$(shared_layout "${kept}")" == "sparkfabrik" ]] || fail "selection not written through the symlink"
+    [[ "$(python3 -I -c 'import os, stat, sys; print(oct(stat.S_IMODE(os.stat(sys.argv[1]).st_mode)))' "${HOME}/dotfiles/shared.json")" == "0o640" ]] || fail "selection changed the mode of shared.json"
+
+    log_info "Warning when herdr-app is newer than the release the mods come from..."
+    fake_app 99.0.0
+    output="$("${setup}" install 2>&1)"
+    assert_not_contains "${output}" "this machine runs" "no version warning when nothing was installed"
+    echo '{}' > "${app_home}/layouts/sparkfabrik.json"
+    output="$("${setup}" install 2>&1)"
     assert_contains "${output}" "this machine runs 99.0.0" "version warning"
-    printf '#!/usr/bin/env bash\necho "herdr-app %s"\n' "$(tr -d '[:space:]' < "${PACK_DIR}/HERDR_APP_VERSION")" > "${fake_bin}/herdr-app"
-    output="$(PATH="${fake_bin}:${PATH}" "${setup}" install 2>&1)"
+    fake_app "${pinned}"
+    echo '{}' > "${app_home}/layouts/sparkfabrik.json"
+    output="$("${setup}" install 2>&1)"
     assert_not_contains "${output}" "this machine runs" "no version warning on the pinned release"
 
     log_info "Not selecting the layout with SPARKDOCK_HERDR_LAYOUT_SELECT=0..."
@@ -221,35 +332,46 @@ main() {
     # A short path: Unix socket paths are limited to about 100 bytes.
     WINDOW_HOME="$(mktemp -d /tmp/sdh.XXXXXX)"
     local window_home="${WINDOW_HOME}"
-    python3 -I - "${window_home}/herdr-app.sock" "${window_home}/request.json" <<'PY' &
-import socket, sys
-
-server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-server.bind(sys.argv[1])
-server.listen(1)
-server.settimeout(30)
-conn, _ = server.accept()
-with conn:
-    request = conn.makefile().readline()
-    open(sys.argv[2], "w").write(request)
-    conn.sendall(b'{"ok":true}\n')
-PY
-    local server_pid=$!
-    local waited=0
-    while [[ ! -S "${window_home}/herdr-app.sock" ]] && (( waited < 50 )); do
-        sleep 0.1
-        waited=$((waited + 1))
-    done
+    fake_window "${window_home}"
     output="$(HERDR_APP_HOME="${window_home}" "${setup}" install 2>&1)"
-    wait "${server_pid}" || true
+    wait "${FAKE_WINDOW_PID}" || true
     assert_contains "${output}" "in the open Herdr window" "select over the control socket"
     assert_contains "$(cat "${window_home}/request.json")" '"do": "layout.switch"' "control socket command"
     assert_contains "$(cat "${window_home}/request.json")" '"name": "sparkfabrik"' "control socket layout name"
     [[ ! -e "${window_home}/shared.json" ]] || fail "wrote shared.json while a window was open"
     [[ -e "${window_home}/${MARKER}" ]] || fail "window selection not recorded"
 
-    log_info "Uninstalling removes only the pack..."
+    log_info "Not writing shared.json when an open window fails to answer..."
+    local mute="${WINDOW_HOME}-mute"
+    mkdir -p "${mute}"
+    fake_window "${mute}" silent
+    output="$(HERDR_APP_HOME="${mute}" "${setup}" install 2>&1)"
+    wait "${FAKE_WINDOW_PID}" || true
+    assert_contains "${output}" "Could not select the SparkFabrik layout" "window that does not answer"
+    [[ ! -e "${mute}/shared.json" ]] || fail "wrote shared.json behind an open window"
+    [[ ! -e "${mute}/${MARKER}" ]] || fail "recorded a selection that failed"
+    rm -rf "${mute}"
+
+    log_info "Uninstalling switches an open window back to Herdr's layout..."
+    echo '{"layout":"sparkfabrik"}' > "${window_home}/shared.json"
+    fake_window "${window_home}"
+    output="$(HERDR_APP_HOME="${window_home}" "${setup}" uninstall 2>&1)"
+    wait "${FAKE_WINDOW_PID}" || true
+    assert_contains "${output}" "Switched the open Herdr window back" "reset over the control socket"
+    assert_contains "$(cat "${window_home}/request.json")" '"name": "main"' "reset layout name"
+
+    log_info "Uninstalling keeps a layout the person chose..."
+    echo '{"layout":"main"}' > "${quiet}/shared.json"
+    output="$(HERDR_APP_HOME="${quiet}" "${setup}" uninstall 2>&1)"
+    assert_not_contains "${output}" "its own layout" "uninstall with Herdr's layout chosen"
+    [[ "$(shared_layout "${quiet}")" == "main" ]] || fail "uninstall changed the person's layout"
+
+    log_info "Uninstalling removes only the pack and its layout choice..."
+    echo '{"layout":"sparkfabrik","sidebar.width":268}' > "${app_home}/shared.json"
     output="$("${setup}" uninstall 2>&1)"
+    assert_contains "${output}" "Herdr shows its own layout on the next start" "reset in shared.json"
+    [[ -z "$(shared_layout "${app_home}")" ]] || fail "uninstall left the SparkFabrik layout selected"
+    grep -q '"sidebar.width": *268' "${app_home}/shared.json" || fail "uninstall lost other shared.json keys"
     assert_contains "${output}" "Removed layouts/sparkfabrik.json" "uninstall"
     [[ ! -e "${app_home}/layouts/sparkfabrik.json" ]] || fail "layout left behind"
     [[ ! -e "${app_home}/themes/sparkfabrik.json" ]] || fail "theme left behind"
@@ -259,6 +381,15 @@ PY
     [[ -d "${app_home}/mods/my-mod" ]] || fail "uninstall removed a personal mod"
     [[ -f "${app_home}/layouts/main.json" ]] || fail "uninstall removed Herdr's own layout"
     [[ ! -e "${app_home}/${MARKER}" ]] || fail "uninstall kept the selection marker"
+
+    log_info "Keeping provisioning away after an uninstall, until an explicit install..."
+    output="$("${setup}" provision 2>&1)"
+    assert_contains "${output}" "it was removed with herdr-layout-uninstall" "provision after uninstall"
+    [[ ! -e "${app_home}/layouts/sparkfabrik.json" ]] || fail "provisioning added the layout back"
+    output="$("${setup}" install 2>&1)"
+    assert_contains "${output}" "SparkFabrik layout installed" "explicit install after uninstall"
+    output="$("${setup}" provision 2>&1)"
+    assert_contains "${output}" "already up to date" "provision after an explicit install"
 
     log_info "Honoring HERDR_APP_HOME..."
     local other="${HOME}/other-home"

@@ -10,9 +10,13 @@ set -euo pipefail
 # current, so a person who switches back to Herdr's own layout keeps that
 # choice. Both provisioners call this script (sparkdock on macOS, sf-toolbox on
 # Linux), so it sticks to bash plus tools that behave the same on BSD and GNU
-# userlands.
+# userlands, and python3 for JSON and the app's control socket.
 #
-# Usage: setup.sh [install|uninstall]
+# Usage: setup.sh install|provision|uninstall
+#   install    add or update the layout (what `sjust herdr-layout-install` runs);
+#              it also undoes an earlier uninstall
+#   provision  the same for provisioning runs, except after an uninstall
+#   uninstall  remove the layout and keep provisioning from adding it back
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=../../libs/libshell.sh
@@ -20,11 +24,17 @@ source "${SCRIPT_DIR}/../../libs/libshell.sh"
 
 PACK_DIR="${SCRIPT_DIR}/sparkfabrik"
 LAYOUT_NAME="sparkfabrik"
+# The layout Herdr ships and shows by default.
+HERDR_DEFAULT_LAYOUT="main"
 # Written in the app home once the layout has been selected, so the selection
 # happens once per home, existing installs included, and never again after.
 SELECTED_MARKER=".sparkdock-layout-selected"
+# Written by uninstall, so provisioning does not add the layout back. An
+# explicit install removes it.
+REMOVED_MARKER=".sparkdock-layout-removed"
 # The herdr-app release the sparkfabrik-* mods were copied from (they are forks
-# of Herdr's own mods, see README.md next to this script).
+# of Herdr's own mods, see README.md next to this script). Older releases lack
+# APIs the mods use, so the layout needs this release or a later one.
 FORKED_FROM_FILE="${PACK_DIR}/HERDR_APP_VERSION"
 # Files herdr-app writes into every mod folder for editors. They are not part of
 # the pack, so they neither count as a change nor get shipped.
@@ -42,21 +52,58 @@ app_home() {
     echo "${XDG_CONFIG_HOME:-${HOME}/.config}/herdr-app"
 }
 
-# True when herdr-app is installed, whether or not it has been opened yet: the
-# macOS cask (Herdr.app), Herdr's Linux installer (~/.local/share/herdr-app),
-# a distribution package, or any herdr-app on PATH.
-app_installed() {
+# The herdr-app executable, whether or not it is on PATH: the macOS cask's
+# bundle, Herdr's Linux installer, a distribution package. Prints nothing when
+# none is found.
+app_executable() {
     local path
+    if command -v herdr-app &> /dev/null; then
+        command -v herdr-app
+        return 0
+    fi
     for path in \
-        "/Applications/Herdr.app" \
-        "${HOME}/Applications/Herdr.app" \
-        "${XDG_DATA_HOME:-${HOME}/.local/share}/herdr-app" \
+        "/Applications/Herdr.app/Contents/MacOS/Herdr" \
+        "${HOME}/Applications/Herdr.app/Contents/MacOS/Herdr" \
+        "${XDG_DATA_HOME:-${HOME}/.local/share}/herdr-app/herdr-app" \
         "/usr/bin/herdr-app"; do
-        if [[ -e "${path}" ]]; then
+        if [[ -x "${path}" ]]; then
+            echo "${path}"
             return 0
         fi
     done
-    command -v herdr-app &> /dev/null
+}
+
+# True when herdr-app is installed, whether or not it has been opened yet.
+app_installed() {
+    [[ -n "$(app_executable)" ]] \
+        || [[ -d "/Applications/Herdr.app" ]] \
+        || [[ -d "${HOME}/Applications/Herdr.app" ]] \
+        || [[ -d "${XDG_DATA_HOME:-${HOME}/.local/share}/herdr-app" ]]
+}
+
+# The installed herdr-app release ("0.1.15"), or nothing when it cannot be read.
+app_version() {
+    local executable
+    executable="$(app_executable)"
+    if [[ -z "${executable}" ]]; then
+        return 0
+    fi
+    "${executable}" --version 2> /dev/null | awk '{ print $2 }' || true
+}
+
+forked_version() {
+    tr -d '[:space:]' < "${FORKED_FROM_FILE}"
+}
+
+# Compare two dotted releases. Prints older, same or newer for $1 against $2.
+compare_versions() {
+    python3 -I -c '
+import sys
+def parts(v):
+    return [int(p) for p in v.split(".") if p.isdigit()]
+a, b = parts(sys.argv[1]), parts(sys.argv[2])
+print("older" if a < b else "newer" if a > b else "same")
+' "$1" "$2"
 }
 
 # Every path the pack installs, relative to the app home: the layout and theme
@@ -75,17 +122,35 @@ pack_items() {
     done
 }
 
-# True when the installed mod directory matches the pack, ignoring the files
-# herdr-app generates in it.
-same_mod_dir() {
+# Print the first symlink on the way from the app home to an item (the item
+# itself or a folder above it), or nothing. A symlink means the content is
+# managed elsewhere (a checkout, a dotfiles repo), so the script must not write
+# through it.
+symlink_on_path() {
+    local home="$1"
+    local item="$2"
+    local path="${home}/${item}"
+    while [[ "${path}" != "${home}" ]]; do
+        if [[ -L "${path}" ]]; then
+            echo "${path}"
+            return 0
+        fi
+        path="$(dirname "${path}")"
+    done
+}
+
+# The differences between a pack mod and its installed copy, ignoring hidden
+# files (.DS_Store, editor state) and the files herdr-app generates. One line
+# per difference, as `diff -rq` prints them.
+mod_dir_differences() {
     local src="$1"
     local dest="$2"
-    local excludes=()
+    local excludes=(-x '.*')
     local name
     for name in "${GENERATED_FILES[@]}"; do
         excludes+=(-x "${name}")
     done
-    diff -rq "${excludes[@]}" "${src}" "${dest}" > /dev/null 2>&1
+    diff -rq "${excludes[@]}" "${src}" "${dest}" 2>&1 || true
 }
 
 # How many pack items the last install wrote.
@@ -98,19 +163,29 @@ install_item() {
     local home="$2"
     local src="${PACK_DIR}/${item}"
     local dest="${home}/${item}"
-
-    # A symlink means the item is managed elsewhere (a checkout, a dotfiles
-    # repo). Writing through it would overwrite content this script does not own.
-    if [[ -L "${dest}" ]]; then
-        log_warn "${item} is managed elsewhere (${dest} -> $(readlink "${dest}")), skipping"
+    local link
+    link="$(symlink_on_path "${home}" "${item}")"
+    if [[ -n "${link}" ]]; then
+        log_warn "${item} is managed elsewhere (${link} -> $(readlink "${link}")), skipping"
         return 0
     fi
 
     mkdir -p "$(dirname "${dest}")"
 
     if [[ -d "${src}" ]]; then
-        if [[ -d "${dest}" ]] && same_mod_dir "${src}" "${dest}"; then
-            return 0
+        local differences=""
+        if [[ -d "${dest}" ]]; then
+            differences="$(mod_dir_differences "${src}" "${dest}")"
+            if [[ -z "${differences}" ]]; then
+                return 0
+            fi
+        fi
+        # Files the pack does not have are someone's work: keep them aside.
+        if [[ "${differences}" == *"Only in ${dest}"* ]]; then
+            local aside
+            aside="${dest}.sparkdock-$(date +%Y%m%d%H%M%S)"
+            mv "${dest}" "${aside}"
+            log_warn "${item} had files the pack does not ship; moved it to ${aside}"
         fi
         rm -rf "${dest}"
         cp -R "${src}" "${dest}"
@@ -131,79 +206,96 @@ install_item() {
     log_success "Installed ${item}"
 }
 
-# Warn when the installed herdr-app is not the release the mods were copied
-# from: Herdr's own mods may have changed since, and the forks need a look.
-check_forked_version() {
-    local forked installed
-    if [[ ! -f "${FORKED_FROM_FILE}" ]] || ! command -v herdr-app &> /dev/null; then
-        return 0
-    fi
-    forked="$(tr -d '[:space:]' < "${FORKED_FROM_FILE}")"
-    installed="$(herdr-app --version 2> /dev/null | awk '{ print $2 }')" || true
-    if [[ -z "${installed}" ]] || [[ "${installed}" == "${forked}" ]]; then
-        return 0
-    fi
-    log_warn "The SparkFabrik mods come from herdr-app ${forked}, this machine runs ${installed}."
-    log_warn "If a Herdr panel looks or behaves wrong, report it to the sparkdock maintainers."
-}
-
-# Make the SparkFabrik layout the one Herdr shows, once per app home: the marker
-# file records it, so a person who switches back to Herdr's own layout keeps
-# that choice on later runs. SPARKDOCK_HERDR_LAYOUT_SELECT=0 turns it off.
+# Switch the layout herdr-app shows. A running window owns its state, so it
+# gets the switch over its control socket (herdr-app.sock in the home, one JSON
+# line each way: the protocol of `herdr-app do`), which works even where the
+# herdr-app CLI is not on PATH; the window saves the choice itself. Only when
+# no window answers the connection does the choice go where herdr-app keeps it:
+# key "layout" of shared.json, written through any symlink with its mode kept.
 #
-# A running window owns its state, so it gets the switch over its control
-# socket (herdr-app.sock in the home, one JSON line each way: the protocol of
-# `herdr-app do`), which works even where the herdr-app CLI is not on PATH. The
-# window saves the choice itself; the new mods load on its next start. With no
-# window, the choice goes where herdr-app keeps it: key "layout" of shared.json.
-select_layout() {
+# Usage: switch_layout <home> select|reset. "select" shows the SparkFabrik
+# layout; "reset" goes back to Herdr's own, and only when SparkFabrik is the one
+# recorded. Prints window, file, none or failed.
+switch_layout() {
     local home="$1"
-    if [[ "${SPARKDOCK_HERDR_LAYOUT_SELECT:-1}" == "0" ]] || [[ -e "${home}/${SELECTED_MARKER}" ]]; then
-        return 0
-    fi
+    local mode="$2"
     if ! command -v python3 &> /dev/null; then
-        log_warn "python3 not found; pick the SparkFabrik layout in Herdr's Settings"
+        echo "failed"
         return 0
     fi
+    python3 -I - "${home}" "${mode}" "${LAYOUT_NAME}" "${HERDR_DEFAULT_LAYOUT}" <<'PY' || echo "failed"
+import json, os, socket, stat, sys, tempfile
 
-    local outcome
-    outcome="$(python3 -I - "${home}" "${LAYOUT_NAME}" <<'PY'
-import json, os, socket, sys, tempfile
-
-home, name = sys.argv[1], sys.argv[2]
-
-try:
-    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
-        conn.settimeout(10)
-        conn.connect(os.path.join(home, "herdr-app.sock"))
-        request = {"do": "layout.switch", "args": {"name": name}}
-        conn.sendall((json.dumps(request) + "\n").encode())
-        reply = conn.makefile().readline()
-    print("window" if json.loads(reply or "{}").get("ok") else "window-failed")
-    sys.exit(0)
-except (OSError, ValueError):
-    pass
-
+home, mode, ours, default = sys.argv[1:5]
 path = os.path.join(home, "shared.json")
-data = {}
+
 try:
+    data = {}
     if os.path.exists(path):
         with open(path) as f:
             data = json.load(f)
     if not isinstance(data, dict):
         raise ValueError
-    data["layout"] = name
-    fd, tmp = tempfile.mkstemp(dir=home, prefix=".sparkdock.")
+except (OSError, ValueError):
+    print("failed")
+    sys.exit(0)
+
+if mode == "reset" and data.get("layout") != ours:
+    print("none")
+    sys.exit(0)
+
+target = ours if mode == "select" else default
+conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+conn.settimeout(10)
+try:
+    conn.connect(os.path.join(home, "herdr-app.sock"))
+except OSError:
+    conn.close()
+    conn = None
+
+if conn is not None:
+    # A window answered: it owns the choice. Any error from here on is a
+    # failure, never a reason to write a file the window would overwrite.
+    try:
+        with conn:
+            request = {"do": "layout.switch", "args": {"name": target}}
+            conn.sendall((json.dumps(request) + "\n").encode())
+            reply = conn.makefile().readline()
+        print("window" if json.loads(reply or "{}").get("ok") else "failed")
+    except (OSError, ValueError):
+        print("failed")
+    sys.exit(0)
+
+if mode == "select":
+    data["layout"] = ours
+else:
+    # Without the key Herdr shows its own layout.
+    data.pop("layout", None)
+try:
+    real = os.path.realpath(path)
+    mode_bits = stat.S_IMODE(os.stat(real).st_mode) if os.path.exists(real) else 0o644
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(real), prefix=".sparkdock.")
     with os.fdopen(fd, "w") as f:
         json.dump(data, f, separators=(",", ":"))
-    os.replace(tmp, path)
+    os.chmod(tmp, mode_bits)
+    os.replace(tmp, real)
     print("file")
-except (OSError, ValueError):
-    print("file-failed")
+except OSError:
+    print("failed")
 PY
-)" || outcome="failed"
+}
 
-    case "${outcome}" in
+# Make the SparkFabrik layout the one Herdr shows, once per app home: the marker
+# file records it, so a person who switches back to Herdr's own layout keeps
+# that choice on later runs. SPARKDOCK_HERDR_LAYOUT_SELECT=0 turns it off. The
+# window takes the switch at once; the new mods load on its next start.
+select_layout() {
+    local home="$1"
+    if [[ "${SPARKDOCK_HERDR_LAYOUT_SELECT:-1}" == "0" ]] || [[ -e "${home}/${SELECTED_MARKER}" ]]; then
+        return 0
+    fi
+
+    case "$(switch_layout "${home}" select)" in
         window) log_success "Selected the SparkFabrik layout in the open Herdr window" ;;
         file) log_success "Selected the SparkFabrik layout for the next Herdr start" ;;
         *)
@@ -218,8 +310,14 @@ PY
 # --- Install ---
 
 install() {
+    local reason="$1"
     local home
     home="$(app_home)"
+
+    if [[ "${reason}" == "provision" ]] && [[ -e "${home}/${REMOVED_MARKER}" ]]; then
+        log_info "SparkFabrik layout skipped: it was removed with herdr-layout-uninstall"
+        return 0
+    fi
 
     # herdr-app creates its home on first launch, but provisioning installs the
     # app without opening it. Create the home for an installed app, so its first
@@ -233,21 +331,43 @@ install() {
         log_info "Created the herdr-app home ${home} for its first start"
     fi
 
+    # The mods use APIs of the release they were copied from: an older Herdr
+    # would load the layout without some of its panels.
+    local installed forked comparison=""
+    installed="$(app_version)"
+    forked="$(forked_version)"
+    if [[ -n "${installed}" ]]; then
+        comparison="$(compare_versions "${installed}" "${forked}")"
+    fi
+    if [[ "${comparison}" == "older" ]]; then
+        log_warn "herdr-app ${installed} is older than ${forked}, which the SparkFabrik layout needs; update Herdr and a later run adds the layout"
+        return 0
+    fi
+
+    rm -f "${home}/${REMOVED_MARKER}"
+
     local item
     INSTALL_CHANGED=0
     while IFS= read -r item; do
         install_item "${item}" "${home}"
     done < <(pack_items)
 
-    check_forked_version
-
-    select_layout "${home}"
+    if [[ -n "${comparison}" ]]; then
+        select_layout "${home}"
+    else
+        log_warn "Could not read the herdr-app version, so the SparkFabrik layout was not selected; pick it in Herdr's Settings (Herdr ${forked} or later)"
+    fi
 
     if (( INSTALL_CHANGED == 0 )); then
         log_info "SparkFabrik layout already up to date in ${home}"
         return 0
     fi
     log_success "SparkFabrik layout installed in ${home}"
+    # Only when files changed, so routine provisioning runs stay quiet.
+    if [[ "${comparison}" == "newer" ]]; then
+        log_warn "The SparkFabrik mods come from herdr-app ${forked}, this machine runs ${installed}."
+        log_warn "If a Herdr panel looks or behaves wrong, report it to the sparkdock maintainers."
+    fi
     log_info "Restart Herdr to load it. The SparkFabrik layout is in Settings, where Appearance chooses light or dark."
 }
 
@@ -261,11 +381,20 @@ uninstall() {
         return 0
     fi
 
-    local item dest
+    # Back to Herdr's own layout first, when SparkFabrik is the one shown.
+    case "$(switch_layout "${home}" reset)" in
+        window) log_success "Switched the open Herdr window back to its own layout" ;;
+        file) log_success "Herdr shows its own layout on the next start" ;;
+        none) ;;
+        *) log_warn "Could not switch Herdr back to its own layout; pick it in Herdr's Settings" ;;
+    esac
+
+    local item dest link
     while IFS= read -r item; do
         dest="${home}/${item}"
-        if [[ -L "${dest}" ]]; then
-            log_warn "${item} is managed elsewhere (${dest} -> $(readlink "${dest}")), leaving it in place"
+        link="$(symlink_on_path "${home}" "${item}")"
+        if [[ -n "${link}" ]]; then
+            log_warn "${item} is managed elsewhere (${link} -> $(readlink "${link}")), leaving it in place"
             continue
         fi
         if [[ -e "${dest}" ]]; then
@@ -274,11 +403,12 @@ uninstall() {
         fi
     done < <(pack_items)
 
-    # A later install selects the layout again.
+    # Provisioning keeps away until an explicit install; that install selects
+    # the layout again.
     rm -f "${home}/${SELECTED_MARKER}"
+    touch "${home}/${REMOVED_MARKER}"
 
-    # herdr-app falls back to its own layout when the selected one is gone.
-    log_info "SparkFabrik layout removed. Herdr switches back to its own layout on the next start."
+    log_info "SparkFabrik layout removed from ${home}. Provisioning will not add it back; run herdr-layout-install to restore it."
 }
 
 # --- Main ---
@@ -287,14 +417,14 @@ main() {
     local action="${1:-install}"
 
     case "${action}" in
-        install)
-            install
+        install | provision)
+            install "${action}"
             ;;
         uninstall)
             uninstall
             ;;
         *)
-            log_error "Unknown action: ${action}. Use install or uninstall."
+            log_error "Unknown action: ${action}. Use install, provision or uninstall."
             exit 1
             ;;
     esac
