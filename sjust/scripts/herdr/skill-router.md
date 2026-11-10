@@ -14,7 +14,8 @@ Run this before any other Herdr command. It confirms the variable against the ow
 ```bash
 if [ -n "${HC_TERMINAL_ID:-}" ] && hc get "$HC_TERMINAL_ID" --json >/dev/null 2>&1; then
   echo hc
-elif [ "${HERDR_ENV:-}" = 1 ] && [ -n "${HERDR_PANE_ID:-}" ] && [ -S "${HERDR_SOCKET_PATH:-}" ]; then
+elif [ "${HERDR_ENV:-}" = 1 ] && [ -n "${HERDR_PANE_ID:-}" ] && [ -S "${HERDR_SOCKET_PATH:-}" ] \
+  && herdr pane get "$HERDR_PANE_ID" >/dev/null 2>&1; then
   echo herdr-tui
 else
   echo none

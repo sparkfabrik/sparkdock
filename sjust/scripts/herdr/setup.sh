@@ -128,7 +128,14 @@ write_reference() {
             log_error "${binary} --skill produced no usable skill file"
             return 1
         fi
-        awk 'NR == 1 { inside = 1; next } inside && /^---$/ { inside = 0; next } !inside' "${raw}" > "${tmpfile}"
+        # awk exits 1 when the front matter is never closed; an unclosed block
+        # would otherwise strip the whole manual.
+        if ! awk 'NR == 1 { inside = 1; next } inside && /^---$/ { inside = 0; next } !inside { print } END { exit inside }' "${raw}" > "${tmpfile}" \
+            || ! grep -q '[^[:space:]]' "${tmpfile}"; then
+            rm -f "${raw}" "${tmpfile}"
+            log_error "${binary} --skill produced a skill file without a closed front matter or a body"
+            return 1
+        fi
     else
         if [[ ! -s "${raw}" ]] || [[ "$(head -n 1 "${raw}")" != "#"* ]]; then
             rm -f "${raw}" "${tmpfile}"
@@ -363,8 +370,12 @@ main() {
             herdr_bin="$(command -v herdr 2> /dev/null || true)"
             hc_bin="$(find_hc)"
             herdr_app_bin="$(find_herdr_app)"
+            # With no Herdr runtime left, a skill from an earlier run would route
+            # agents to stale manuals, so remove it. uninstall leaves a skill
+            # managed elsewhere (a symlinked directory) in place.
             if [[ -z "${herdr_bin}" && -z "${hc_bin}" && -z "${herdr_app_bin}" ]]; then
-                log_warn "None of herdr, hc or herdr-app is installed, skipping herdr skill setup"
+                log_warn "None of herdr, hc or herdr-app is installed, removing any herdr skill left by an earlier run"
+                uninstall
                 return 0
             fi
             # A symlinked skill directory means the skill is managed elsewhere (a

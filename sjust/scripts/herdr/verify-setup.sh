@@ -200,6 +200,25 @@ STUB
     fi
     assert_file "${skill_dir}/references/herdr-app.md" "herdr-app manual"
 
+    log_info "Checking that a TUI manual with an unclosed front matter is rejected..."
+    printf '#!/usr/bin/env bash\nprintf -- "---\\nname: herdr\\n# herdr\\n"\n' > "${fake_bin}/herdr"
+    chmod +x "${fake_bin}/herdr"
+    if PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install > /dev/null 2>&1; then
+        log_error "setup accepted a herdr manual with an unclosed front matter"
+        exit 1
+    fi
+    assert_no_file "${skill_dir}/references/herdr-tui.md" "TUI manual from an unclosed front matter"
+    rm -f "${fake_bin}/herdr"
+
+    log_info "Checking that the skill is removed when no Herdr runtime is left..."
+    rm -f "${fake_bin}/hc" "${fake_bin}/herdr-app"
+    PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install > /dev/null
+    assert_no_file "${skill_dir}" "herdr skill with no runtime installed"
+    if [[ -L "${HOME}/.claude/skills/herdr" ]]; then
+        log_error "Claude Code herdr skill link left behind with no runtime installed"
+        exit 1
+    fi
+
     log_success "herdr setup verification passed"
 }
 

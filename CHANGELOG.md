@@ -143,7 +143,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Changed the herdr agent skill into a router that detects the Herdr TUI or herdr-core (`hc`) and loads the matching manual, generated from `herdr --skill`, `hc --skill` and `herdr-app --skill` for each installed runtime, with a warning to rerun `sf-herdr-skill-install` when the Herdr app is installed without herdr-core
+- Changed the herdr agent skill into a router that detects the Herdr TUI or herdr-core (`hc`) and loads the matching manual, generated from `herdr --skill`, `hc --skill` and `herdr-app --skill` for each installed runtime, with a warning to rerun `sf-herdr-skill-install` when the Herdr app is installed without herdr-core; the skill is removed when no Herdr runtime is installed
 - Changed the `drupal-org-cli` hint for a missing PHP on Linux to point to `sf-toolbox`, which installs PHP with the extensions drupalorg needs
 - Changed the removal of a deprecated Homebrew tap to reinstall its formulae and casks from Homebrew core, warning about any that are not available there
 - Changed the `c` shell alias to run Claude Code; OpenCode moves to `oc`
