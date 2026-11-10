@@ -48,11 +48,15 @@ GENERATED_FILES=(gpui-kit.d.ts jsconfig.json)
 # herdr-app's home, resolved the way the app does on every OS: $HERDR_APP_HOME,
 # else $XDG_CONFIG_HOME/herdr-app, else ~/.config/herdr-app.
 app_home() {
+    local home="${XDG_CONFIG_HOME:-${HOME}/.config}/herdr-app"
     if [[ -n "${HERDR_APP_HOME:-}" ]]; then
-        echo "${HERDR_APP_HOME}"
-        return 0
+        home="${HERDR_APP_HOME}"
     fi
-    echo "${XDG_CONFIG_HOME:-${HOME}/.config}/herdr-app"
+    # A trailing slash would never match the parent paths symlink_on_path walks.
+    while [[ "${home}" == */ && "${home}" != "/" ]]; do
+        home="${home%/}"
+    done
+    echo "${home}"
 }
 
 # The herdr-app executable, whether or not it is on PATH: the macOS cask's
@@ -91,6 +95,13 @@ app_version() {
     if [[ -z "${executable}" ]]; then
         return 0
     fi
+    # The bundle binary is the GUI app, which may open a window instead of
+    # printing a version: read the bundle's Info.plist instead.
+    if [[ "${executable}" == *.app/Contents/MacOS/* ]]; then
+        /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" \
+            "${executable%/MacOS/*}/Info.plist" 2> /dev/null || true
+        return 0
+    fi
     "${executable}" --version 2> /dev/null | awk '{ print $2 }' || true
 }
 
@@ -104,13 +115,27 @@ min_version() {
 
 # Compare two dotted releases. Prints older, same or newer for $1 against $2.
 compare_versions() {
-    python3 -I -c '
-import sys
-def parts(v):
-    return [int(p) for p in v.split(".") if p.isdigit()]
-a, b = parts(sys.argv[1]), parts(sys.argv[2])
-print("older" if a < b else "newer" if a > b else "same")
-' "$1" "$2"
+    local -a a b
+    local i x y
+    IFS=. read -r -a a <<< "$1"
+    IFS=. read -r -a b <<< "$2"
+    # Leading digits of each part: a suffix such as -1 or -beta does not
+    # truncate the version.
+    for (( i = 0; i < ${#a[@]} || i < ${#b[@]}; i++ )); do
+        x=0
+        y=0
+        [[ "${a[i]:-}" =~ ^([0-9]+) ]] && x=$((10#${BASH_REMATCH[1]}))
+        [[ "${b[i]:-}" =~ ^([0-9]+) ]] && y=$((10#${BASH_REMATCH[1]}))
+        if (( x < y )); then
+            echo older
+            return 0
+        fi
+        if (( x > y )); then
+            echo newer
+            return 0
+        fi
+    done
+    echo same
 }
 
 # Every path the pack installs, relative to the app home: the layout and theme
@@ -137,7 +162,7 @@ symlink_on_path() {
     local home="$1"
     local item="$2"
     local path="${home}/${item}"
-    while [[ "${path}" != "${home}" ]]; do
+    while [[ "${path}" != "${home}" && "${path}" != "/" && "${path}" != "." ]]; do
         if [[ -L "${path}" ]]; then
             echo "${path}"
             return 0
@@ -157,7 +182,8 @@ mod_dir_differences() {
     for name in "${GENERATED_FILES[@]}"; do
         excludes+=(-x "${name}")
     done
-    diff -rq "${excludes[@]}" "${src}" "${dest}" 2>&1 || true
+    # The C locale keeps diff's "Only in" wording, which install_item matches.
+    LC_ALL=C diff -rq "${excludes[@]}" "${src}" "${dest}" 2>&1 || true
 }
 
 # How many pack items the last install wrote.
@@ -189,8 +215,10 @@ install_item() {
         fi
         # Files the pack does not have are someone's work: keep them aside.
         if [[ "${differences}" == *"Only in ${dest}"* ]]; then
+            # Outside mods/, where Herdr would load the backup as another mod.
             local aside
-            aside="${dest}.sparkdock-$(date +%Y%m%d%H%M%S)"
+            aside="${home}/.sparkdock-backup/${item}.$(date +%Y%m%d%H%M%S).$$"
+            mkdir -p "$(dirname "${aside}")"
             mv "${dest}" "${aside}"
             log_warn "${item} had files the pack does not ship; moved it to ${aside}"
         fi

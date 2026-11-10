@@ -235,7 +235,24 @@ main() {
     assert_contains "${output}" "SparkFabrik layout installed" "install on the minimum release"
     assert_not_contains "${output}" "this machine runs" "drift warning on an older release"
     [[ "$(shared_layout "${min_app}")" == "sparkfabrik" ]] || fail "layout not selected on the minimum release"
+
+    log_info "Reading versions with a package revision or a pre-release suffix..."
+    local suffix suffixed_app
+    for suffix in "${minimum}-1" "${pinned}-beta"; do
+        fake_app "${suffix}"
+        suffixed_app="${HOME}/suffixed-app-${suffix}"
+        mkdir -p "${suffixed_app}"
+        output="$(HERDR_APP_HOME="${suffixed_app}" "${setup}" install 2>&1)"
+        assert_not_contains "${output}" "is older than" "version ${suffix}"
+        assert_contains "${output}" "SparkFabrik layout installed" "install on version ${suffix}"
+    done
     fake_app "${pinned}"
+
+    log_info "Accepting a home path with a trailing slash..."
+    local slashed="${HOME}/slashed-app"
+    mkdir -p "${slashed}"
+    output="$(HERDR_APP_HOME="${slashed}/" SPARKDOCK_HERDR_LAYOUT_SELECT=0 "${setup}" install 2>&1)"
+    assert_contains "${output}" "SparkFabrik layout installed" "home with a trailing slash"
 
     log_info "Installing into a herdr-app home..."
     mkdir -p "${app_home}/mods/agents" "${app_home}/mods/my-mod" "${app_home}/layouts"
@@ -265,9 +282,10 @@ main() {
     echo "// edited" >> "${app_home}/mods/sparkfabrik-agents/main.js"
     output="$("${setup}" install 2>&1)"
     assert_contains "${output}" "had files the pack does not ship" "extra file in a mod folder"
-    ls "${app_home}"/mods/sparkfabrik-agents.sparkdock-*/notes.txt > /dev/null 2>&1 || fail "extra file not kept aside"
+    ls "${app_home}"/.sparkdock-backup/mods/sparkfabrik-agents.*/notes.txt > /dev/null 2>&1 || fail "extra file not kept aside"
     [[ ! -e "${app_home}/mods/sparkfabrik-agents/notes.txt" ]] || fail "extra file left in the reinstalled mod"
-    rm -rf "${app_home}"/mods/sparkfabrik-agents.sparkdock-*
+    ! ls -d "${app_home}"/mods/sparkfabrik-agents.* > /dev/null 2>&1 || fail "backup left in mods/, where Herdr loads it"
+    rm -rf "${app_home}/.sparkdock-backup"
 
     log_info "Restoring files changed by hand, keeping the person's layout choice..."
     echo '{"layout":"main"}' > "${app_home}/shared.json"
