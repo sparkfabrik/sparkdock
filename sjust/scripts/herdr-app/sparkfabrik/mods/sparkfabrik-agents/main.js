@@ -478,7 +478,7 @@ export default class Agents extends View {
                 .text_color(t.dim)
                 .hover((s) => s.text_color(t.foreground))
                 .on_click(toggleSidebar)
-                .child(ledIcon("next", u(16))),
+                .child(ledIcon("next", u(21))),
             ),
         ),
       );
