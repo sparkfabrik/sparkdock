@@ -1542,6 +1542,19 @@
           changed_when: true
           become: false
 
+    # Adds the SparkFabrik layout to the Herdr desktop app when the app is
+    # installed (the script skips cleanly otherwise). It never selects the
+    # layout: the person picks it in Herdr's Settings.
+    - name: Install the SparkFabrik layout for the Herdr desktop app
+      tags:
+        - herdr-layout
+      block:
+        - name: Run herdr-app layout setup script
+          command: "{{ dev_env_dir }}/sjust/scripts/herdr-app/setup.sh install"
+          register: herdr_layout_setup
+          changed_when: "'SparkFabrik layout installed' in (herdr_layout_setup.stdout + herdr_layout_setup.stderr)"
+          become: false
+
     - name: Enable the Claude platform and writing skill guard
       tags:
         - claude-gh-gate

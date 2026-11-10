@@ -1,0 +1,31 @@
+name: Test herdr-app Layout Setup
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test-herdr-app-setup:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        # Both provisioners run the script: sparkdock on macOS (BSD tools),
+        # sf-toolbox on Linux (GNU tools).
+        os: [ubuntu-latest, macos-26]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Install Homebrew bash on macOS
+        if: runner.os == 'macOS'
+        run: |
+          # macOS ships /bin/bash 3.2; provisioned machines use Homebrew's bash 5.
+          brew install bash
+
+      - name: Verify the SparkFabrik herdr-app layout setup
+        run: |
+          bash sjust/scripts/herdr-app/verify-setup.sh
