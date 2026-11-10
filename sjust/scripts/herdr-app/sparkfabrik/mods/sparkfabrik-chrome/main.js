@@ -51,14 +51,15 @@ export default class WorkspaceChrome extends View {
     const collapsed = narrow();
     if (props()?.footer) {
       // app-rail__link: 44px tall, 12px sides, radius 8, LED icon and 18px text in the second ink.
+      // On the collapsed rail the two stack as 20px icon buttons, so both fit the footer's 44.
       const link = (id, name, label, action) => h_flex().id(id).flex_1().min_w(0).h(u(44)).px(u(12)).gap(u(8)).items_center().rounded(u(8))
-        .when(collapsed, el => el.relative().flex_none().w(32).px(0).justify_center().tooltip(label))
+        .when(collapsed, el => el.relative().flex_none().w(32).h(20).px(0).justify_center().rounded(u(6)).tooltip(label))
         .text_color(t.muted).hover(s => s.bg(t.hover).text_color(t.foreground)).cursor_pointer()
-        .on_click(action).child(icon(name, u(21)))
+        .on_click(action).child(icon(name, collapsed ? u(16) : u(21)))
         .when(!collapsed, el => el.child(div().truncate().child(label)));
       const ready = div().size(6).rounded_full().bg(t.accent);
       return h_flex().size_full().bg(t.chrome).border_t(1).border_color(t.border).px(u(12)).gap(u(4)).items_center().text_size(u(18))
-        .when(collapsed, el => el.flex_col().px(0).justify_center())
+        .when(collapsed, el => el.flex_col().px(0).gap(2).justify_center())
         .child(link("settings", "settings", "Settings", () => run("app.settings"))
           .when(Boolean(updates().app.ready), el => el.child(collapsed ? ready.absolute().top(5).right(6) : ready)))
         .child(link("machine", "add", "Add machine", () => run("mod.open", { name: "machine-add" })));

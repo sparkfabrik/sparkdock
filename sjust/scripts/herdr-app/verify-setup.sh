@@ -115,8 +115,21 @@ main() {
     temp_home=$(mktemp -d "${TMPDIR:-/tmp}/sparkdock-herdr-app-verify.XXXXXX")
     export HOME="${temp_home}"
     export XDG_CONFIG_HOME="${HOME}/.config"
-    unset HERDR_APP_HOME
+    unset HERDR_APP_HOME XDG_DATA_HOME
     local app_home="${XDG_CONFIG_HOME}/herdr-app"
+
+    # A herdr-app on this machine's PATH would count as an installed app; the
+    # tests decide that themselves.
+    local dir clean_path=""
+    local -a path_dirs
+    IFS=: read -ra path_dirs <<< "${PATH}"
+    for dir in "${path_dirs[@]}"; do
+        if [[ -x "${dir}/herdr-app" ]]; then
+            continue
+        fi
+        clean_path="${clean_path:+${clean_path}:}${dir}"
+    done
+    export PATH="${clean_path}"
     local setup="${SCRIPT_DIR}/setup.sh"
     local output
 
@@ -124,8 +137,17 @@ main() {
 
     log_info "Skipping cleanly when herdr-app is not installed..."
     output="$("${setup}" install 2>&1)"
-    assert_contains "${output}" "herdr-app home not found" "install without herdr-app"
+    assert_contains "${output}" "herdr-app is not installed" "install without herdr-app"
     [[ ! -e "${app_home}" ]] || fail "install created the herdr-app home"
+
+    log_info "Creating the home of an app that is installed but was never opened..."
+    local never_opened="${HOME}/never-opened"
+    mkdir -p "${HOME}/.local/share/herdr-app"
+    output="$(HERDR_APP_HOME="${never_opened}" "${setup}" install 2>&1)"
+    assert_contains "${output}" "Created the herdr-app home" "home created for an installed app"
+    [[ -f "${never_opened}/layouts/sparkfabrik.json" ]] || fail "layout not installed in the new home"
+    [[ "$(shared_layout "${never_opened}")" == "sparkfabrik" ]] || fail "layout not selected in the new home"
+    rm -rf "${HOME}/.local/share/herdr-app"
 
     log_info "Installing into a herdr-app home..."
     mkdir -p "${app_home}/mods/agents" "${app_home}/mods/my-mod" "${app_home}/layouts"

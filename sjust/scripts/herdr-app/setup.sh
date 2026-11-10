@@ -42,6 +42,23 @@ app_home() {
     echo "${XDG_CONFIG_HOME:-${HOME}/.config}/herdr-app"
 }
 
+# True when herdr-app is installed, whether or not it has been opened yet: the
+# macOS cask (Herdr.app), Herdr's Linux installer (~/.local/share/herdr-app),
+# a distribution package, or any herdr-app on PATH.
+app_installed() {
+    local path
+    for path in \
+        "/Applications/Herdr.app" \
+        "${HOME}/Applications/Herdr.app" \
+        "${XDG_DATA_HOME:-${HOME}/.local/share}/herdr-app" \
+        "/usr/bin/herdr-app"; do
+        if [[ -e "${path}" ]]; then
+            return 0
+        fi
+    done
+    command -v herdr-app &> /dev/null
+}
+
 # Every path the pack installs, relative to the app home: the layout and theme
 # files, and one directory per mod.
 pack_items() {
@@ -204,11 +221,16 @@ install() {
     local home
     home="$(app_home)"
 
-    # herdr-app creates its home on first launch. Without it the app is not
-    # installed (or never opened), which is fine: there is nothing to style.
+    # herdr-app creates its home on first launch, but provisioning installs the
+    # app without opening it. Create the home for an installed app, so its first
+    # start already shows the layout; skip only when the app is not there.
     if [[ ! -d "${home}" ]]; then
-        log_warn "herdr-app home not found (${home}), skipping the SparkFabrik layout"
-        return 0
+        if ! app_installed; then
+            log_warn "herdr-app is not installed (no ${home}), skipping the SparkFabrik layout"
+            return 0
+        fi
+        mkdir -p "${home}"
+        log_info "Created the herdr-app home ${home} for its first start"
     fi
 
     local item
