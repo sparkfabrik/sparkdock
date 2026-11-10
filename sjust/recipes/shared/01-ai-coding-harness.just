@@ -100,8 +100,9 @@ sf-caveman-install:
 sf-caveman-uninstall:
     @{{sparkdock_path}}/sjust/scripts/caveman/setup.sh uninstall
 
-# The skill is generated from the installed binary (`herdr --skill`), so re-running
-# after a herdr upgrade refreshes it.
+# The skill's manuals are generated from the installed binaries (`herdr --skill`,
+# `hc --skill`, `herdr-app --skill`), so re-running after a Herdr upgrade, or after
+# the Herdr app installs herdr-core, refreshes them.
 # Install/update the herdr agent skill for the AI coding tools.
 [group('ai-coding-harness')]
 sf-herdr-skill-install:

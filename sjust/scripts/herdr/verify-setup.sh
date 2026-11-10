@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Verify the herdr skill setup against a stubbed `herdr` binary, so the
-# integration refresh logic runs in CI without herdr, OpenCode, or a herdr
+# Verify the herdr skill setup against stubbed `herdr`, `hc` and `herdr-app`
+# binaries, so the router, the generated manuals and the integration refresh
+# logic run in CI without herdr, herdr-core, OpenCode, or a herdr
 # server. Everything is written under a temporary HOME.
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -18,6 +19,40 @@ assert_equals() {
         log_error "${what}: expected '${expected}', got '${actual}'"
         exit 1
     fi
+}
+
+assert_file() {
+    local path="$1"
+    local what="$2"
+
+    if [[ ! -f "${path}" ]]; then
+        log_error "${what}: ${path} is missing"
+        exit 1
+    fi
+}
+
+assert_no_file() {
+    local path="$1"
+    local what="$2"
+
+    if [[ -e "${path}" ]]; then
+        log_error "${what}: ${path} should not exist"
+        exit 1
+    fi
+}
+
+# PATH without any directory holding a real herdr, hc, herdr-core or herdr-app,
+# so the stubs below are the only Herdr binaries the setup can find.
+path_without_herdr() {
+    local dir clean=""
+    local IFS=":"
+    for dir in ${PATH}; do
+        if [[ -x "${dir}/herdr" || -x "${dir}/hc" || -x "${dir}/herdr-core" || -x "${dir}/herdr-app" ]]; then
+            continue
+        fi
+        clean="${clean:+${clean}:}${dir}"
+    done
+    echo "${clean}"
 }
 
 main() {
@@ -84,16 +119,86 @@ esac
 STUB
     chmod +x "${fake_bin}/herdr"
 
-    PATH="${fake_bin}:${PATH}" "${SCRIPT_DIR}/setup.sh" install > /dev/null
+    cat > "${fake_bin}/hc" <<'STUB'
+#!/usr/bin/env bash
+case "${1:-}" in
+    --version) echo "hc 0.1.19" ;;
+    --skill) printf '# hc manual (herdr-core)\n' ;;
+    *) echo "unexpected hc call: $*" >&2; exit 1 ;;
+esac
+STUB
+    chmod +x "${fake_bin}/hc"
 
-    if [[ ! -f "${HOME}/.agents/skills/herdr/SKILL.md" ]]; then
-        log_error "herdr skill was not installed"
+    cat > "${fake_bin}/herdr-app" <<'STUB'
+#!/usr/bin/env bash
+case "${1:-}" in
+    --skill) printf "# herdr-app: drive the person's window\n" ;;
+    *) echo "unexpected herdr-app call: $*" >&2; exit 1 ;;
+esac
+STUB
+    chmod +x "${fake_bin}/herdr-app"
+
+    local clean_path skill_dir
+    clean_path="$(path_without_herdr)"
+    skill_dir="${HOME}/.agents/skills/herdr"
+
+    local output
+    output="$(PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install 2>&1)"
+
+    log_info "Checking the router and the three manuals..."
+    if [[ "${output}" == *"sf-herdr-skill-install"* ]]; then
+        log_error "missing herdr-core warning printed although hc is installed"
         exit 1
     fi
+    assert_file "${skill_dir}/SKILL.md" "router"
+    if ! cmp -s "${SCRIPT_DIR}/skill-router.md" "${skill_dir}/SKILL.md"; then
+        log_error "router: SKILL.md does not match skill-router.md"
+        exit 1
+    fi
+    assert_file "${skill_dir}/references/herdr-tui.md" "herdr TUI manual"
+    assert_equals "# herdr" "$(head -n 1 "${skill_dir}/references/herdr-tui.md")" "herdr TUI manual without front matter"
+    assert_file "${skill_dir}/references/hc.md" "herdr-core manual"
+    assert_equals "# hc manual (herdr-core)" "$(head -n 1 "${skill_dir}/references/hc.md")" "herdr-core manual"
+    assert_file "${skill_dir}/references/herdr-app.md" "herdr-app manual"
 
     local installed
     installed="$(tr '\n' ' ' < "${install_log}")"
     assert_equals "claude opencode letta codex " "${installed}" "refreshed and installed integrations"
+
+    log_info "Checking that manuals of removed runtimes are dropped..."
+    rm -f "${fake_bin}/hc" "${fake_bin}/herdr-app"
+    PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install > /dev/null
+    assert_file "${skill_dir}/references/herdr-tui.md" "herdr TUI manual after rerun"
+    assert_no_file "${skill_dir}/references/hc.md" "stale herdr-core manual"
+    assert_no_file "${skill_dir}/references/herdr-app.md" "stale herdr-app manual"
+
+    log_info "Checking an hc-only machine (no herdr TUI)..."
+    rm -f "${fake_bin}/herdr" "${install_log}"
+    cat > "${fake_bin}/hc" <<'STUB'
+#!/usr/bin/env bash
+case "${1:-}" in
+    --version) echo "hc 0.1.19" ;;
+    --skill) printf '# hc manual (herdr-core)\n' ;;
+    *) echo "unexpected hc call: $*" >&2; exit 1 ;;
+esac
+STUB
+    chmod +x "${fake_bin}/hc"
+    PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install > /dev/null
+    assert_file "${skill_dir}/references/hc.md" "herdr-core manual on an hc-only machine"
+    assert_no_file "${skill_dir}/references/herdr-tui.md" "stale herdr TUI manual"
+    assert_no_file "${install_log}" "integrations touched without the herdr TUI"
+
+    log_info "Checking that an unrelated hc is ignored and herdr-core is reported missing..."
+    printf '#!/usr/bin/env bash\necho "unrelated-tool 1.0"\n' > "${fake_bin}/hc"
+    printf '#!/usr/bin/env bash\nprintf "# herdr-app\\n"\n' > "${fake_bin}/herdr-app"
+    chmod +x "${fake_bin}/hc" "${fake_bin}/herdr-app"
+    output="$(PATH="${fake_bin}:${clean_path}" "${SCRIPT_DIR}/setup.sh" install 2>&1)"
+    assert_no_file "${skill_dir}/references/hc.md" "manual from an unrelated hc"
+    if [[ "${output}" != *"sf-herdr-skill-install"* ]]; then
+        log_error "no herdr-core warning although the Herdr app is installed without hc"
+        exit 1
+    fi
+    assert_file "${skill_dir}/references/herdr-app.md" "herdr-app manual"
 
     log_success "herdr setup verification passed"
 }

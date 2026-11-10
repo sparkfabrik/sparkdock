@@ -3,11 +3,15 @@ set -euo pipefail
 
 # Install the herdr agent skill for the AI coding tools.
 #
-# herdr ships its own skill: `herdr --skill` prints the SKILL.md on stdout, so
-# the skill is generated from the installed binary instead of being synced from
-# the upstream harness repo. Both provisioners call this script (sparkdock on
-# macOS, sf-toolbox on Linux), so it sticks to bash plus tools that behave the
-# same on BSD and GNU userlands.
+# Two Herdr runtimes exist: the Herdr TUI (`herdr`) and herdr-core (`hc`),
+# which runs the terminals of the Herdr desktop app (`herdr-app`). Each binary
+# ships its own manual (`<binary> --skill`), so the skill is generated from the
+# installed binaries instead of being synced from the upstream harness repo.
+# SKILL.md is a static router (skill-router.md next to this script) that
+# detects the runtime the agent runs in and loads the matching manual from
+# references/. Both provisioners call this script (sparkdock on macOS,
+# sf-toolbox on Linux), so it sticks to bash plus tools that behave the same on
+# BSD and GNU userlands.
 #
 # Usage: setup.sh [install|uninstall]
 
@@ -22,8 +26,49 @@ source "${SPARKDOCK_ROOT}/bin/common/skills-symlink-shim.sh"
 SKILL_NAME="herdr"
 SKILL_DIR="${HOME}/.agents/skills/${SKILL_NAME}"
 SKILL_FILE="${SKILL_DIR}/SKILL.md"
+REFERENCES_DIR="${SKILL_DIR}/references"
+ROUTER_SOURCE="${SCRIPT_DIR}/skill-router.md"
 
 # --- Helpers ---
+
+# Print the path of a usable herdr-core CLI, or nothing. The Herdr app installs
+# it as `herdr-core` (with an `hc` name next to it) in ~/.local/bin by default,
+# and the app looks in its own data directory too. Provisioning runs can have a
+# PATH without ~/.local/bin, so those locations are checked explicitly. The
+# `--version` check rejects an unrelated `hc` on PATH: herdr-core answers
+# `hc <version>`.
+find_hc() {
+    local candidate
+    for candidate in \
+        "$(command -v hc 2> /dev/null || true)" \
+        "$(command -v herdr-core 2> /dev/null || true)" \
+        "${HOME}/.local/bin/hc" \
+        "${HOME}/.local/bin/herdr-core" \
+        "${HOME}/.local/share/herdr-core/current/Contents/MacOS/herdr-core" \
+        "${HOME}/.local/share/herdr-core/Herdr Core.app/Contents/MacOS/herdr-core"; do
+        if [[ -n "${candidate}" && -x "${candidate}" ]] \
+            && [[ "$("${candidate}" --version 2> /dev/null || true)" == "hc "* ]]; then
+            echo "${candidate}"
+            return 0
+        fi
+    done
+    return 0
+}
+
+# Print the path of the Herdr desktop app CLI, or nothing. The macOS cask links
+# it into the Homebrew bin directory; sf-toolbox puts it in ~/.local/bin.
+find_herdr_app() {
+    local candidate
+    for candidate in \
+        "$(command -v herdr-app 2> /dev/null || true)" \
+        "${HOME}/.local/bin/herdr-app"; do
+        if [[ -n "${candidate}" && -x "${candidate}" ]]; then
+            echo "${candidate}"
+            return 0
+        fi
+    done
+    return 0
+}
 
 is_native_discovery() {
     local tool_id="$1"
@@ -38,35 +83,120 @@ is_native_discovery() {
 
 # --- Install ---
 
-write_skill() {
-    local tmpfile
-    tmpfile="$(mktemp "${TMPDIR:-/tmp}/herdr-skill.XXXXXX")"
+# Move a generated file into place unless the destination already matches it.
+install_file() {
+    local tmpfile="$1"
+    local dest="$2"
 
-    if ! herdr --skill > "${tmpfile}"; then
+    mkdir -p "$(dirname "${dest}")"
+
+    if [[ -f "${dest}" ]] && cmp -s "${tmpfile}" "${dest}"; then
         rm -f "${tmpfile}"
-        log_error "herdr --skill failed"
-        return 1
-    fi
-
-    # An empty or truncated file would break tool discovery without any visible
-    # error, so require the YAML front matter herdr always emits.
-    if [[ ! -s "${tmpfile}" ]] || [[ "$(head -n 1 "${tmpfile}")" != "---" ]]; then
-        rm -f "${tmpfile}"
-        log_error "herdr --skill produced no usable skill file"
-        return 1
-    fi
-
-    mkdir -p "${SKILL_DIR}"
-
-    if [[ -f "${SKILL_FILE}" ]] && cmp -s "${tmpfile}" "${SKILL_FILE}"; then
-        rm -f "${tmpfile}"
-        log_info "herdr skill already up to date: ${SKILL_FILE}"
+        log_info "herdr skill file already up to date: ${dest}"
         return 0
     fi
 
-    mv "${tmpfile}" "${SKILL_FILE}"
-    chmod 0644 "${SKILL_FILE}"
-    log_success "herdr skill installed: ${SKILL_FILE}"
+    mv "${tmpfile}" "${dest}"
+    chmod 0644 "${dest}"
+    log_success "herdr skill file installed: ${dest}"
+}
+
+# Write `<binary> --skill` to a reference file under references/.
+# The TUI manual is a full skill with YAML front matter: it is required, so a
+# truncated file is caught, then stripped, so the reference does not look like a
+# second `herdr` skill. The herdr-core and herdr-app manuals are plain Markdown
+# and must start with a heading. An empty or truncated file would leave the
+# router pointing at nothing without any visible error.
+write_reference() {
+    local binary="$1"
+    local name="$2"
+    local has_frontmatter="$3"
+    local dest="${REFERENCES_DIR}/${name}.md"
+    local raw tmpfile
+    raw="$(mktemp "${TMPDIR:-/tmp}/herdr-skill.XXXXXX")"
+    tmpfile="$(mktemp "${TMPDIR:-/tmp}/herdr-skill.XXXXXX")"
+
+    if ! "${binary}" --skill > "${raw}"; then
+        rm -f "${raw}" "${tmpfile}"
+        log_error "${binary} --skill failed"
+        return 1
+    fi
+
+    if [[ "${has_frontmatter}" == "yes" ]]; then
+        if [[ ! -s "${raw}" ]] || [[ "$(head -n 1 "${raw}")" != "---" ]]; then
+            rm -f "${raw}" "${tmpfile}"
+            log_error "${binary} --skill produced no usable skill file"
+            return 1
+        fi
+        awk 'NR == 1 { inside = 1; next } inside && /^---$/ { inside = 0; next } !inside' "${raw}" > "${tmpfile}"
+    else
+        if [[ ! -s "${raw}" ]] || [[ "$(head -n 1 "${raw}")" != "#"* ]]; then
+            rm -f "${raw}" "${tmpfile}"
+            log_error "${binary} --skill produced no usable manual"
+            return 1
+        fi
+        cp "${raw}" "${tmpfile}"
+    fi
+    rm -f "${raw}"
+
+    install_file "${tmpfile}" "${dest}"
+}
+
+# Remove the reference of a runtime that is no longer installed, so the router
+# reports it as missing instead of serving a stale manual.
+remove_reference() {
+    local name="$1"
+    local dest="${REFERENCES_DIR}/${name}.md"
+
+    if [[ -f "${dest}" ]]; then
+        rm -f "${dest}"
+        log_info "Removed herdr skill reference for a runtime that is not installed: ${dest}"
+    fi
+}
+
+# The Herdr app installs herdr-core only the first time it is opened, so a
+# provisioning run before that cannot write the hc manual.
+warn_missing_hc() {
+    local runner="sjust"
+    if ! command -v sjust &> /dev/null && command -v ajust &> /dev/null; then
+        runner="ajust"
+    fi
+    log_warn "The Herdr app is installed but herdr-core (hc) is not, so the hc manual was not written."
+    log_warn "Open the Herdr app once to install herdr-core, then run: ${runner} sf-herdr-skill-install"
+}
+
+write_router() {
+    local tmpfile
+    tmpfile="$(mktemp "${TMPDIR:-/tmp}/herdr-skill.XXXXXX")"
+    cp "${ROUTER_SOURCE}" "${tmpfile}"
+    install_file "${tmpfile}" "${SKILL_FILE}"
+}
+
+write_skill() {
+    local herdr_bin="$1"
+    local hc_bin="$2"
+    local herdr_app_bin="$3"
+
+    if [[ -n "${herdr_bin}" ]]; then
+        write_reference "${herdr_bin}" herdr-tui yes
+    else
+        remove_reference herdr-tui
+    fi
+
+    if [[ -n "${hc_bin}" ]]; then
+        write_reference "${hc_bin}" hc no
+    else
+        remove_reference hc
+    fi
+
+    if [[ -n "${herdr_app_bin}" ]]; then
+        write_reference "${herdr_app_bin}" herdr-app no
+    else
+        remove_reference herdr-app
+    fi
+
+    # The router goes last, so it never points at references still being written.
+    write_router
 }
 
 link_skill() {
@@ -229,8 +359,12 @@ main() {
 
     case "${action}" in
         install)
-            if ! command -v herdr &> /dev/null; then
-                log_warn "herdr is not installed, skipping herdr skill setup"
+            local herdr_bin hc_bin herdr_app_bin
+            herdr_bin="$(command -v herdr 2> /dev/null || true)"
+            hc_bin="$(find_hc)"
+            herdr_app_bin="$(find_herdr_app)"
+            if [[ -z "${herdr_bin}" && -z "${hc_bin}" && -z "${herdr_app_bin}" ]]; then
+                log_warn "None of herdr, hc or herdr-app is installed, skipping herdr skill setup"
                 return 0
             fi
             # A symlinked skill directory means the skill is managed elsewhere (a
@@ -241,9 +375,15 @@ main() {
                 log_warn "herdr skill is managed elsewhere (${SKILL_DIR} -> $(readlink "${SKILL_DIR}")), skipping"
                 return 0
             fi
-            write_skill
+            write_skill "${herdr_bin}" "${hc_bin}" "${herdr_app_bin}"
+            if [[ -n "${herdr_app_bin}" && -z "${hc_bin}" ]]; then
+                warn_missing_hc
+            fi
             link_skill
-            update_integrations
+            # The integrations belong to the Herdr TUI.
+            if [[ -n "${herdr_bin}" ]]; then
+                update_integrations
+            fi
             log_success "herdr skill setup complete. Restart your AI coding tools to pick it up."
             ;;
         uninstall)
