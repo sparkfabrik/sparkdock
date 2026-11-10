@@ -66,6 +66,7 @@ php_hint() {
 }
 
 # Hint for a PHP that is installed but lacks extensions drupalorg needs.
+# Arguments: the missing extension names, as reported by the phar.
 extension_hint() {
     if [[ "$(uname -s)" == "Darwin" ]]; then
         echo "Reinstall PHP with: brew reinstall php"
@@ -75,15 +76,28 @@ extension_hint() {
         echo "Enable the missing PHP extensions with: sf-toolbox"
         return 0
     fi
+    if (( $# == 0 )); then
+        echo "Enable the PHP extensions listed above."
+        return 0
+    fi
+    local ext
     if command -v pacman >/dev/null 2>&1; then
-        echo "Enable the iconv extension: uncomment ';extension=iconv' in /etc/php/php.ini"
+        for ext in "$@"; do
+            echo "Enable the ${ext} extension: uncomment ';extension=${ext}' in /etc/php/php.ini"
+        done
         return 0
     fi
     if command -v apt-get >/dev/null 2>&1; then
-        echo "Install the extensions with: sudo apt install php-xml php-curl php-mbstring"
+        local packages=()
+        for ext in "$@"; do
+            # Debian ships dom in php-xml; the other extensions have their own package.
+            [[ "${ext}" == dom ]] && ext=xml
+            packages+=("php-${ext}")
+        done
+        echo "Install the extensions with: sudo apt install ${packages[*]}"
         return 0
     fi
-    echo "Enable the PHP extensions listed above."
+    echo "Enable the PHP extensions: $*"
 }
 
 # Hint for a PHP binary that does not start, usually after a partial upgrade.
@@ -384,10 +398,14 @@ with open(sys.argv[1], "rb") as fh:
     fi
 
     # The phar's requirement checker reports missing PHP extensions here.
-    if ! php "${phar}" --version >/dev/null 2>&1; then
-        php "${phar}" --version >&2 || true
+    local check_output
+    if ! check_output="$(php "${phar}" --version 2>&1)"; then
+        echo "${check_output}" >&2
         log_error "Your PHP cannot run drupalorg ${tag}; nothing installed."
-        extension_hint >&2
+        # The checker names each missing extension as: requires the extension "<name>".
+        local missing_extensions=()
+        mapfile -t missing_extensions < <(sed -n 's/.*requires the extension "\([a-z0-9_]*\)".*/\1/p' <<<"${check_output}" | sort -u)
+        extension_hint "${missing_extensions[@]}" >&2
         exit 1
     fi
 
