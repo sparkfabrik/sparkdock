@@ -419,7 +419,7 @@ The upstream repo provides `config/catalog.json` with short human-friendly descr
 - `ai-harness-sync` — no-sudo tasks (RTK + caveman + gh gate + skills sync)
 - `claude-gh-gate`: register only the Claude Code platform and writing skill gate hooks
 - `claude-output-style` — set the default Claude Code output style
-- `herdr` — install only the herdr agent skill
+- `herdr` — install only the herdr agent skill, and herdr-core (`hc`) when the Herdr app is installed without it
 - `codex` — move an npm-installed Codex out of the way of the `codex` cask
 - `ai-harness-provision` — sudo tasks (directory creation + chmod)
 - `skills` — backward-compat alias

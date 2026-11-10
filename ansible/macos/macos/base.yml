@@ -1537,6 +1537,67 @@
         - ai-harness
         - ai-harness-sync
       block:
+        # The Herdr app installs herdr-core (hc) only on its first launch, so a
+        # fresh machine has no hc and the skill gets no hc manual. Install it once
+        # with the upstream installer, which checks the sha256 and the macOS
+        # signature. Updates are left to the app and `hc update`.
+        - name: Check whether the Herdr app is installed
+          stat:
+            path: /Applications/Herdr.app
+          register: herdr_app_bundle
+          become: false
+
+        - name: Check whether herdr-core (hc) is installed
+          shell: |
+            for candidate in "$(command -v hc)" "$(command -v herdr-core)" \
+              "${HOME}/.local/bin/hc" "${HOME}/.local/bin/herdr-core"; do
+              if [ -x "${candidate}" ] && "${candidate}" --version 2>/dev/null | grep -q '^hc '; then
+                exit 0
+              fi
+            done
+            exit 1
+          register: herdr_core_installed
+          changed_when: false
+          failed_when: false
+          when: herdr_app_bundle.stat.exists
+          become: false
+
+        - name: Install herdr-core (hc) for the Herdr app
+          when:
+            - herdr_app_bundle.stat.exists
+            - herdr_core_installed.rc != 0
+          become: false
+          block:
+            - name: Create a temporary file for the herdr-core installer
+              tempfile:
+                state: file
+                suffix: .herdr-core-install.sh
+              register: herdr_core_installer
+
+            - name: Download the herdr-core installer
+              get_url:
+                url: https://releases.herdr.dev/core/install.sh
+                dest: "{{ herdr_core_installer.path }}"
+                mode: "0600"
+                force: true
+
+            - name: Run the herdr-core installer
+              command:
+                argv:
+                  - sh
+                  - "{{ herdr_core_installer.path }}"
+              changed_when: true
+          rescue:
+            - name: Report the failed herdr-core install
+              debug:
+                msg: "Installing herdr-core failed; the herdr skill setup prints how to finish it."
+          always:
+            - name: Remove the herdr-core installer
+              file:
+                path: "{{ herdr_core_installer.path }}"
+                state: absent
+              when: herdr_core_installer.path is defined
+
         - name: Run herdr skill setup script
           command: "{{ dev_env_dir }}/sjust/scripts/herdr/setup.sh"
           changed_when: true
