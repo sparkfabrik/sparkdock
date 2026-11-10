@@ -179,8 +179,9 @@ main() {
     export PATH="${clean_path}"
     local setup="${SCRIPT_DIR}/setup.sh"
     local output
-    local pinned
+    local pinned minimum
     pinned="$(tr -d '[:space:]' < "${PACK_DIR}/HERDR_APP_VERSION")"
+    minimum="$(tr -d '[:space:]' < "${PACK_DIR}/HERDR_APP_MIN_VERSION")"
     # A stand-in herdr-app that reports a release: fake_app <version>.
     local fake_bin="${HOME}/fake-bin"
     mkdir -p "${fake_bin}"
@@ -216,15 +217,24 @@ main() {
     [[ ! -e "${unknown}/shared.json" ]] || fail "layout selected with an unknown version"
     rm -rf "${HOME}/.local/share/herdr-app"
 
-    log_info "Skipping a herdr-app older than the release the mods need..."
+    log_info "Skipping a herdr-app older than the minimum release..."
     fake_app 0.0.1
     export PATH="${fake_bin}:${clean_path}"
     local old_app="${HOME}/old-app"
     mkdir -p "${old_app}"
     output="$(HERDR_APP_HOME="${old_app}" "${setup}" install 2>&1)"
-    assert_contains "${output}" "is older than ${pinned}" "older herdr-app"
+    assert_contains "${output}" "is older than ${minimum}" "older herdr-app"
     [[ ! -e "${old_app}/layouts/sparkfabrik.json" ]] || fail "layout installed on an older herdr-app"
     [[ ! -e "${old_app}/shared.json" ]] || fail "layout selected on an older herdr-app"
+
+    log_info "Installing and selecting on the minimum release, without a drift warning..."
+    fake_app "${minimum}"
+    local min_app="${HOME}/min-app"
+    mkdir -p "${min_app}"
+    output="$(HERDR_APP_HOME="${min_app}" "${setup}" install 2>&1)"
+    assert_contains "${output}" "SparkFabrik layout installed" "install on the minimum release"
+    assert_not_contains "${output}" "this machine runs" "drift warning on an older release"
+    [[ "$(shared_layout "${min_app}")" == "sparkfabrik" ]] || fail "layout not selected on the minimum release"
     fake_app "${pinned}"
 
     log_info "Installing into a herdr-app home..."

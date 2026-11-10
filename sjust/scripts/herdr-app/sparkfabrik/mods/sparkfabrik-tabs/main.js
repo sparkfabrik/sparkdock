@@ -2,9 +2,14 @@
 // ink), the program icon and the LED seed of its state, bordered small buttons with LED icons.
 // Sizes are logical (Herdr multiplies them by the zoom), from the kit at 1x scaled to Herdr's text.
 import { View, div, svg, image } from "gpui-kit";
-import { h_flex, v_flex, ScrollHandle } from "gpui-base";
+// A namespace import, so a Herdr without ScrollHandle (before 0.1.15) still loads this mod.
+import * as base from "gpui-base";
 import { spaces, panes, run, openOverlay, theme, window, shared, layout, settings } from "herdr";
 
+const { h_flex, v_flex } = base;
+// Herdr 0.1.15 lets mods keep the active tab in view; older releases simply do
+// not scroll it into view, and every other part of the tab bar works the same.
+const ScrollHandle = base.ScrollHandle;
 const u = (px) => (11.8 * px) / 15;
 const fieldBorder = (t) => t.field_border ?? t.dim + "99";
 // An app kit icon: the lit dots over the unlit 7x7 grid at 13%, both in the text colour.
@@ -37,8 +42,13 @@ function find(node, id) {
 export default class Tabs extends View {
   init() {
     this.pressed = null;
-    this.scroll = ScrollHandle.new();
+    this.scroll = ScrollHandle ? ScrollHandle.new() : null;
     this.panels = JSON.parse(localStorage.getItem("panels") ?? "{}");
+  }
+
+  // Scroll a tab into view, where Herdr supports it.
+  reveal(index) {
+    if (this.scroll) this.scroll.scroll_to_item(index);
   }
 
   // The side panel is remembered per space: switching shows that space's choice
@@ -78,7 +88,7 @@ export default class Tabs extends View {
     if (selected !== this.selected || active !== this.selectedIndex) {
       this.selected = selected;
       this.selectedIndex = active;
-      if (active >= 0) this.scroll.scroll_to_item(active);
+      if (active >= 0) this.reveal(active);
     }
     const stop = (_e, cx) => cx.stop_propagation();
     const button = (id, label, action) => div().id(id).h(u(36)).px(u(14)).flex_none().flex().items_center().justify_center()
@@ -89,7 +99,7 @@ export default class Tabs extends View {
       const name = /^tb\d+$/.test(c.name) ? program?.name ?? "Terminal" : c.name;
       return h_flex().id(`tab-${c.id}`).h_full().px(u(14)).gap(u(10)).items_center().flex_none().text_size(u(18))
         // A rename or status dot on this or an earlier tab can push the active one out.
-        .when(i <= active, el => el.on_size_change((_size, cx) => { this.scroll.scroll_to_item(active); cx.notify(); }))
+        .when(Boolean(this.scroll) && i <= active, el => el.on_size_change((_size, cx) => { this.reveal(active); cx.notify(); }))
         .border_b(c.active ? 2 : 0).border_color(t.foreground).text_color(c.active ? t.foreground : t.muted)
         .when(c.active, el => el.font_semibold()).when(!c.active, el => el.font_medium())
         .hover(s => s.text_color(t.foreground))
@@ -126,8 +136,9 @@ export default class Tabs extends View {
     return h_flex().size_full().min_w(0).px(u(16)).pl(lightsPadding).gap(u(8)).items_center().bg(t.chrome).border_b(1).border_color(t.border)
       .on_mouse_up("left", () => { this.pressed = null; })
       .on_scroll_wheel(e => { if (Math.abs(e.delta.y) >= 1) run(e.delta.y > 0 ? "tab.prev" : "tab.next"); })
-      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(3).overflow_x_scrollbar().track_scroll(this.scroll).gap(u(4))
-        .on_size_change((_size, cx) => { if (active >= 0) { this.scroll.scroll_to_item(active); cx.notify(); } })
+      .child(h_flex().id("tab-scroll").flex_1().min_w(0).h_full().items_center().gap(3).overflow_x_scrollbar().gap(u(4))
+        .when(Boolean(this.scroll), el => el.track_scroll(this.scroll)
+          .on_size_change((_size, cx) => { if (active >= 0) { this.reveal(active); cx.notify(); } }))
         .children(shown.map(item)))
       .child(button("tab-new", icon("add", u(21)), () => openOverlay({ mod: "new-menu", kind: "popup", width: 250, height: 512 })))
       .when(enabled.includes("files"), el => el.child(panelButton("files", "Files")))

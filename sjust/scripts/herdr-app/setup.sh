@@ -33,9 +33,12 @@ SELECTED_MARKER=".sparkdock-layout-selected"
 # explicit install removes it.
 REMOVED_MARKER=".sparkdock-layout-removed"
 # The herdr-app release the sparkfabrik-* mods were copied from (they are forks
-# of Herdr's own mods, see README.md next to this script). Older releases lack
-# APIs the mods use, so the layout needs this release or a later one.
+# of Herdr's own mods, see README.md next to this script): a newer app gets a
+# warning when files are installed, so drift gets noticed.
 FORKED_FROM_FILE="${PACK_DIR}/HERDR_APP_VERSION"
+# The oldest herdr-app release every mod was checked on with `herdr-app check`.
+# Older releases lack APIs the mods use, so the layout skips them.
+MIN_VERSION_FILE="${PACK_DIR}/HERDR_APP_MIN_VERSION"
 # Files herdr-app writes into every mod folder for editors. They are not part of
 # the pack, so they neither count as a change nor get shipped.
 GENERATED_FILES=(gpui-kit.d.ts jsconfig.json)
@@ -93,6 +96,10 @@ app_version() {
 
 forked_version() {
     tr -d '[:space:]' < "${FORKED_FROM_FILE}"
+}
+
+min_version() {
+    tr -d '[:space:]' < "${MIN_VERSION_FILE}"
 }
 
 # Compare two dotted releases. Prints older, same or newer for $1 against $2.
@@ -331,16 +338,18 @@ install() {
         log_info "Created the herdr-app home ${home} for its first start"
     fi
 
-    # The mods use APIs of the release they were copied from: an older Herdr
-    # would load the layout without some of its panels.
-    local installed forked comparison=""
+    # The mods use APIs a Herdr older than the minimum lacks: it would load the
+    # layout without some of its panels.
+    local installed forked minimum against_min="" against_forked=""
     installed="$(app_version)"
     forked="$(forked_version)"
+    minimum="$(min_version)"
     if [[ -n "${installed}" ]]; then
-        comparison="$(compare_versions "${installed}" "${forked}")"
+        against_min="$(compare_versions "${installed}" "${minimum}")"
+        against_forked="$(compare_versions "${installed}" "${forked}")"
     fi
-    if [[ "${comparison}" == "older" ]]; then
-        log_warn "herdr-app ${installed} is older than ${forked}, which the SparkFabrik layout needs; update Herdr and a later run adds the layout"
+    if [[ "${against_min}" == "older" ]]; then
+        log_warn "herdr-app ${installed} is older than ${minimum}, which the SparkFabrik layout needs; update Herdr and a later run adds the layout"
         return 0
     fi
 
@@ -352,10 +361,10 @@ install() {
         install_item "${item}" "${home}"
     done < <(pack_items)
 
-    if [[ -n "${comparison}" ]]; then
+    if [[ -n "${against_min}" ]]; then
         select_layout "${home}"
     else
-        log_warn "Could not read the herdr-app version, so the SparkFabrik layout was not selected; pick it in Herdr's Settings (Herdr ${forked} or later)"
+        log_warn "Could not read the herdr-app version, so the SparkFabrik layout was not selected; pick it in Herdr's Settings (Herdr ${minimum} or later)"
     fi
 
     if (( INSTALL_CHANGED == 0 )); then
@@ -364,7 +373,7 @@ install() {
     fi
     log_success "SparkFabrik layout installed in ${home}"
     # Only when files changed, so routine provisioning runs stay quiet.
-    if [[ "${comparison}" == "newer" ]]; then
+    if [[ "${against_forked}" == "newer" ]]; then
         log_warn "The SparkFabrik mods come from herdr-app ${forked}, this machine runs ${installed}."
         log_warn "If a Herdr panel looks or behaves wrong, report it to the sparkdock maintainers."
     fi

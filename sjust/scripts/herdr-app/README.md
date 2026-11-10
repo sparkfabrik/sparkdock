@@ -4,7 +4,7 @@ The Herdr desktop app (`herdr-app`) in the SparkFabrik design system. `setup.sh 
 
 When the app is installed (the macOS cask, Herdr's Linux installer or a package) but was never opened, the install creates its home first, so the first start already shows the layout. The install also selects the layout once per app home, existing installs included: over the app's control socket (`herdr-app.sock` in its home) when a window is open, else in the app's `shared.json`, so it shows on the next start. A `.sparkdock-layout-selected` file in the home records it, so later runs only keep the files current and a person who switches back to Herdr's own layout keeps that choice; uninstalling removes the file. `SPARKDOCK_HERDR_LAYOUT_SELECT=0` turns the selection off when you run the recipe; provisioning does not read the shell environment, and neither does it read `HERDR_APP_HOME` or `XDG_CONFIG_HOME`.
 
-The mods use APIs of the release in `HERDR_APP_VERSION`, so the layout needs that release or a later one. The script reads the version from the app itself (the macOS bundle, Herdr's Linux installer, a package, or `herdr-app` on PATH). It skips an older app with a message, and installs without selecting when the version cannot be read.
+The layout needs the herdr-app release in `HERDR_APP_MIN_VERSION` (0.1.13) or a later one: every mod passes `herdr-app check` from that release on. The tabs mod keeps the active tab scrolled into view only from 0.1.15, where Herdr gives mods a `ScrollHandle`; on older releases the rest of the tab bar works the same, and an app that updates gets the scrolling on its next start. The script reads the version from the app itself (the macOS bundle, Herdr's Linux installer, a package, or `herdr-app` on PATH). It skips an older app with a message, and installs without selecting when the version cannot be read.
 
 Provisioning runs `setup.sh provision`, `sjust herdr-layout-install` runs `setup.sh install`. They differ only after `sjust herdr-layout-uninstall`: uninstall switches Herdr back to its own layout when SparkFabrik is the one shown, removes the files and writes `.sparkdock-layout-removed`, so provisioning stays away until someone runs the install recipe again. Herdr's Appearance setting (System, Light, Dark) picks one of the two themes. When the layout is removed while selected, Herdr falls back to its own layout on the next start.
 
@@ -16,7 +16,7 @@ Provisioning runs `setup.sh provision`, `sjust herdr-layout-install` runs `setup
 | `themes/sparkfabrik.json`          | Dark theme: navy interface and terminal.                                                                                                                                                      |
 | `themes/sparkfabrik-light.json`    | Light theme: paper interface, light terminal.                                                                                                                                                 |
 | `mods/sparkfabrik-*`               | Forks of Herdr's own mods, restyled with the app kit (see below).                                                                                                                             |
-| `HERDR_APP_VERSION`                | The herdr-app release the mods were forked from.                                                                                                                                              |
+| `HERDR_APP_VERSION`                | The herdr-app release the mods were forked from; a newer app gets a drift warning when files are installed.                                                                                   |
 
 The colours come from the tokens of the SparkFabrik design system. The fonts (Barlow, Barlow Condensed, Azeret Mono) are OFL licensed, with each license next to its files.
 
@@ -35,11 +35,12 @@ Each fork keeps the behaviour of the original and changes only how it looks. Siz
 
 ## After a herdr-app upgrade
 
-`setup.sh` warns when the installed herdr-app is not the release in `HERDR_APP_VERSION`. Then:
+`setup.sh` warns, when it installs files, that the installed herdr-app is newer than the release in `HERDR_APP_VERSION`. Then:
 
 1. Compare each original mod with the release it was forked from, in the [herdr-app repository](https://github.com/herdrdev/herdr-app) under `defaults/mods/`.
 2. Port the upstream changes into the matching `sparkfabrik-*` fork, keeping the SparkFabrik styling.
-3. Check each fork with `herdr-app check <mod folder>`, test it as described below, and update `HERDR_APP_VERSION`.
+3. Check each fork with `herdr-app check <mod folder>` on a copy installed in a test home (never on this folder: the check writes editor files into it), test it as described below, and update `HERDR_APP_VERSION`.
+4. When a fork starts using an API newer than `HERDR_APP_MIN_VERSION`, use it only where it exists (see how the tabs mod reads `ScrollHandle`) or raise the minimum. To check an older release, download it from `https://releases.herdr.dev/app/<version>/manifest.json`, verify its sha256, and run its `check` in a container: herdr-app 0.1.13's `check` stops the local herdr-core and every terminal session.
 
 ## Testing
 
