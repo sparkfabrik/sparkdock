@@ -138,6 +138,11 @@ esac
 STUB
     chmod +x "${fake_bin}/herdr-app"
 
+    # On a provisioned Mac, Homebrew's bin holds both herdr and bash 5, so the
+    # filtered PATH below would fall back to macOS bash 3.2. Keep the running
+    # bash reachable through the stub directory.
+    ln -sf "${BASH}" "${fake_bin}/bash"
+
     local clean_path skill_dir
     clean_path="$(path_without_herdr)"
     skill_dir="${HOME}/.agents/skills/herdr"
