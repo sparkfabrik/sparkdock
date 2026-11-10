@@ -5,11 +5,12 @@ set -euo pipefail
 #
 # The layout ships as files herdr-app reads from its home: a layout, a light and
 # a dark theme (the person's Appearance setting picks one), and the mods the
-# layout draws with, named sparkfabrik-*. Installing only adds them: the layout
-# shows up in Settings next to Herdr's own, and nothing is switched on, so the
-# choice stays with the person. Both provisioners call this script (sparkdock on
-# macOS, sf-toolbox on Linux), so it sticks to bash plus tools that behave the
-# same on BSD and GNU userlands.
+# layout draws with, named sparkfabrik-*. It also selects the layout, once per
+# app home and existing installs included; later runs only keep the files
+# current, so a person who switches back to Herdr's own layout keeps that
+# choice. Both provisioners call this script (sparkdock on macOS, sf-toolbox on
+# Linux), so it sticks to bash plus tools that behave the same on BSD and GNU
+# userlands.
 #
 # Usage: setup.sh [install|uninstall]
 
@@ -18,6 +19,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/../../libs/libshell.sh"
 
 PACK_DIR="${SCRIPT_DIR}/sparkfabrik"
+LAYOUT_NAME="sparkfabrik"
+# Written in the app home once the layout has been selected, so the selection
+# happens once per home, existing installs included, and never again after.
+SELECTED_MARKER=".sparkdock-layout-selected"
 # The herdr-app release the sparkfabrik-* mods were copied from (they are forks
 # of Herdr's own mods, see README.md next to this script).
 FORKED_FROM_FILE="${PACK_DIR}/HERDR_APP_VERSION"
@@ -125,6 +130,74 @@ check_forked_version() {
     log_warn "If a Herdr panel looks or behaves wrong, report it to the sparkdock maintainers."
 }
 
+# Make the SparkFabrik layout the one Herdr shows, once per app home: the marker
+# file records it, so a person who switches back to Herdr's own layout keeps
+# that choice on later runs. SPARKDOCK_HERDR_LAYOUT_SELECT=0 turns it off.
+#
+# A running window owns its state, so it gets the switch over its control
+# socket (herdr-app.sock in the home, one JSON line each way: the protocol of
+# `herdr-app do`), which works even where the herdr-app CLI is not on PATH. The
+# window saves the choice itself; the new mods load on its next start. With no
+# window, the choice goes where herdr-app keeps it: key "layout" of shared.json.
+select_layout() {
+    local home="$1"
+    if [[ "${SPARKDOCK_HERDR_LAYOUT_SELECT:-1}" == "0" ]] || [[ -e "${home}/${SELECTED_MARKER}" ]]; then
+        return 0
+    fi
+    if ! command -v python3 &> /dev/null; then
+        log_warn "python3 not found; pick the SparkFabrik layout in Herdr's Settings"
+        return 0
+    fi
+
+    local outcome
+    outcome="$(python3 -I - "${home}" "${LAYOUT_NAME}" <<'PY'
+import json, os, socket, sys, tempfile
+
+home, name = sys.argv[1], sys.argv[2]
+
+try:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as conn:
+        conn.settimeout(10)
+        conn.connect(os.path.join(home, "herdr-app.sock"))
+        request = {"do": "layout.switch", "args": {"name": name}}
+        conn.sendall((json.dumps(request) + "\n").encode())
+        reply = conn.makefile().readline()
+    print("window" if json.loads(reply or "{}").get("ok") else "window-failed")
+    sys.exit(0)
+except (OSError, ValueError):
+    pass
+
+path = os.path.join(home, "shared.json")
+data = {}
+try:
+    if os.path.exists(path):
+        with open(path) as f:
+            data = json.load(f)
+    if not isinstance(data, dict):
+        raise ValueError
+    data["layout"] = name
+    fd, tmp = tempfile.mkstemp(dir=home, prefix=".sparkdock.")
+    with os.fdopen(fd, "w") as f:
+        json.dump(data, f, separators=(",", ":"))
+    os.replace(tmp, path)
+    print("file")
+except (OSError, ValueError):
+    print("file-failed")
+PY
+)" || outcome="failed"
+
+    case "${outcome}" in
+        window) log_success "Selected the SparkFabrik layout in the open Herdr window" ;;
+        file) log_success "Selected the SparkFabrik layout for the next Herdr start" ;;
+        *)
+            # No marker: the next run tries again.
+            log_warn "Could not select the SparkFabrik layout; pick it in Herdr's Settings"
+            return 0
+            ;;
+    esac
+    touch "${home}/${SELECTED_MARKER}"
+}
+
 # --- Install ---
 
 install() {
@@ -146,12 +219,14 @@ install() {
 
     check_forked_version
 
+    select_layout "${home}"
+
     if (( INSTALL_CHANGED == 0 )); then
         log_info "SparkFabrik layout already up to date in ${home}"
         return 0
     fi
     log_success "SparkFabrik layout installed in ${home}"
-    log_info "Restart Herdr, then pick the SparkFabrik layout in Settings. Appearance chooses light or dark."
+    log_info "Restart Herdr to load it. The SparkFabrik layout is in Settings, where Appearance chooses light or dark."
 }
 
 # --- Uninstall ---
@@ -176,6 +251,9 @@ uninstall() {
             log_success "Removed ${item}"
         fi
     done < <(pack_items)
+
+    # A later install selects the layout again.
+    rm -f "${home}/${SELECTED_MARKER}"
 
     # herdr-app falls back to its own layout when the selected one is gone.
     log_info "SparkFabrik layout removed. Herdr switches back to its own layout on the next start."

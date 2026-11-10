@@ -1,8 +1,8 @@
 # SparkFabrik layout for herdr-app
 
-The Herdr desktop app (`herdr-app`) in the SparkFabrik design system. `setup.sh install` copies the pack in `sparkfabrik/` into the app's home; `setup.sh uninstall` removes it. On macOS provisioning runs the install (`herdr-layout` tag); anyone can run it with `sjust sf-herdr-layout-install`.
+The Herdr desktop app (`herdr-app`) in the SparkFabrik design system. `setup.sh install` copies the pack in `sparkfabrik/` into the app's home; `setup.sh uninstall` removes it. On macOS provisioning runs the install (`herdr-layout` tag); anyone can run it with `sjust herdr-layout-install`.
 
-Installing only adds files. The person selects the layout in Herdr's Settings, and Herdr's Appearance setting (System, Light, Dark) picks one of the two themes. When the layout is removed while selected, Herdr falls back to its own layout on the next start.
+The install also selects the layout once per app home, existing installs included: over the app's control socket (`herdr-app.sock` in its home) when a window is open, else in the app's `shared.json`, so it shows on the next start. A `.sparkdock-layout-selected` file in the home records it, so later runs only keep the files current and a person who switches back to Herdr's own layout keeps that choice; uninstalling removes the file. `SPARKDOCK_HERDR_LAYOUT_SELECT=0` turns the selection off. Herdr's Appearance setting (System, Light, Dark) picks one of the two themes. When the layout is removed while selected, Herdr falls back to its own layout on the next start.
 
 ## What the pack contains
 

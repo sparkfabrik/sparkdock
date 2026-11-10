@@ -112,14 +112,14 @@ sf-herdr-skill-install:
 sf-herdr-skill-uninstall:
     @{{sparkdock_path}}/sjust/scripts/herdr/setup.sh uninstall
 
-# Only adds the layout, its light and dark themes and its mods: pick it in Herdr's
-# Settings, where Appearance chooses light or dark. Restart Herdr after installing.
+# Also selects the layout once per machine (SPARKDOCK_HERDR_LAYOUT_SELECT=0 turns
+# that off); later runs keep the person's choice. Restart Herdr after installing.
 # Install/update the SparkFabrik layout for the Herdr desktop app.
 [group('ai-coding-harness')]
-sf-herdr-layout-install:
+herdr-layout-install:
     @{{sparkdock_path}}/sjust/scripts/herdr-app/setup.sh install
 
 # Remove the SparkFabrik layout from the Herdr desktop app.
 [group('ai-coding-harness')]
-sf-herdr-layout-uninstall:
+herdr-layout-uninstall:
     @{{sparkdock_path}}/sjust/scripts/herdr-app/setup.sh uninstall

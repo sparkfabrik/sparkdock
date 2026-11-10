@@ -1543,8 +1543,9 @@
           become: false
 
     # Adds the SparkFabrik layout to the Herdr desktop app when the app is
-    # installed (the script skips cleanly otherwise). It never selects the
-    # layout: the person picks it in Herdr's Settings.
+    # installed (the script skips cleanly otherwise) and selects it once per
+    # machine, existing installs included, so a person who switches back keeps
+    # that choice.
     - name: Install the SparkFabrik layout for the Herdr desktop app
       tags:
         - herdr-layout
