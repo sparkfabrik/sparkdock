@@ -1537,6 +1537,318 @@
         - ai-harness
         - ai-harness-sync
       block:
+        # The Herdr app installs herdr-core (hc) only on its first launch, so a
+        # fresh machine has no hc and the skill gets no hc manual. Install it once
+        # from the latest release, the same way the upstream installer does, but
+        # without running its script: check the sha256, check the Herdr signature,
+        # then let the signed herdr-core install its own bundle. Updates are left
+        # to the app and `hc update`.
+        - name: Check whether the Herdr app is installed
+          stat:
+            path: /Applications/Herdr.app
+          register: herdr_app_bundle
+          become: false
+
+        - name: Check whether herdr-core (hc) is installed
+          shell: |
+            for candidate in "$(command -v hc)" "$(command -v herdr-core)" \
+              "${HOME}/.local/bin/hc" "${HOME}/.local/bin/herdr-core" \
+              "${HOME}/.local/share/herdr-core/current/Contents/MacOS/herdr-core" \
+              "${HOME}/.local/share/herdr-core/Herdr Core.app/Contents/MacOS/herdr-core"; do
+              if [ -x "${candidate}" ] && "${candidate}" --version 2>/dev/null | grep -q '^hc '; then
+                printf '%s\n' "${candidate}"
+                exit 0
+              fi
+            done
+            exit 1
+          register: herdr_core_installed
+          changed_when: false
+          failed_when: false
+          when: herdr_app_bundle.stat.exists
+          become: false
+
+        - name: Install herdr-core (hc) for the Herdr app
+          when:
+            - herdr_app_bundle.stat.exists
+            - herdr_core_installed.rc != 0
+          become: false
+          vars:
+            herdr_core_bin_dir: "{{ ansible_facts['env']['HOME'] }}/.local/bin"
+            # Sparkdock supports Apple Silicon only. A fixed target also avoids
+            # picking the Intel build when Ansible runs under Rosetta.
+            herdr_core_target: macos-aarch64
+            herdr_core_bundled: "{{ herdr_core_tmp.path }}/Herdr Core.app/Contents/MacOS/herdr-core"
+            # Same requirement as the upstream installer: a Herdr Core bundle
+            # signed with Herdr's Developer ID team.
+            herdr_core_signature: >-
+              =identifier "dev.herdr.core" and anchor apple generic
+              and certificate leaf[subject.OU] = "2W9652Q7QR"
+          block:
+            - name: Read the latest herdr-core release
+              uri:
+                url: https://releases.herdr.dev/core/latest.json
+                return_content: true
+              register: herdr_core_manifest
+
+            - name: Select the herdr-core build for this Mac
+              set_fact:
+                herdr_core_release: "{{ herdr_core_manifest.json.targets[herdr_core_target] | default({}) }}"
+
+            - name: Check that the release has a herdr-core build for this Mac
+              assert:
+                that:
+                  - herdr_core_release.url | default('') is match('https://releases\\.herdr\\.dev/')
+                  - herdr_core_release.sha256 | default('') | length > 0
+                fail_msg: "The latest herdr-core release has no {{ herdr_core_target }} build."
+                quiet: true
+
+            - name: Create a temporary directory for the herdr-core release
+              tempfile:
+                state: directory
+                suffix: .herdr-core
+              register: herdr_core_tmp
+
+            - name: Download the herdr-core release
+              get_url:
+                url: "{{ herdr_core_release.url }}"
+                dest: "{{ herdr_core_tmp.path }}/herdr-core.tar.gz"
+                checksum: "sha256:{{ herdr_core_release.sha256 }}"
+                mode: "0600"
+
+            # Ansible's unarchive needs GNU tar for .tar.gz files; macOS ships
+            # bsdtar.
+            - name: Unpack the herdr-core release
+              command:
+                argv:
+                  - /usr/bin/tar
+                  - -xzf
+                  - "{{ herdr_core_tmp.path }}/herdr-core.tar.gz"
+                  - -C
+                  - "{{ herdr_core_tmp.path }}"
+              changed_when: false
+
+            - name: Check the Herdr signature of the herdr-core bundle
+              command:
+                argv:
+                  - /usr/bin/codesign
+                  - --verify
+                  - --strict
+                  - -R
+                  - "{{ herdr_core_signature }}"
+                  - "{{ herdr_core_tmp.path }}/Herdr Core.app"
+              changed_when: false
+
+            - name: Check whether the herdr-core bin directory exists
+              stat:
+                path: "{{ herdr_core_bin_dir }}"
+              register: herdr_core_bin_dir_stat
+
+            # An existing directory keeps its mode, as with `mkdir -p`.
+            - name: Create the herdr-core bin directory
+              file:
+                path: "{{ herdr_core_bin_dir }}"
+                state: directory
+                mode: "0755"
+              when: not herdr_core_bin_dir_stat.stat.exists
+
+            - name: Install the herdr-core bundle
+              command:
+                argv:
+                  - "{{ herdr_core_bundled }}"
+                  - --hc-install-bundle
+                  - "{{ herdr_core_bundled }}"
+                  - "{{ herdr_core_bin_dir }}/herdr-core"
+              changed_when: true
+
+            - name: Check the installed herdr-core
+              command:
+                argv:
+                  - "{{ herdr_core_bin_dir }}/herdr-core"
+                  - --version
+              register: herdr_core_version
+              changed_when: false
+              failed_when: herdr_core_version.rc != 0 or not herdr_core_version.stdout.startswith('hc ')
+          rescue:
+            - name: Report the failed herdr-core install
+              fail:
+                msg: >-
+                  Installing herdr-core failed at "{{ ansible_failed_task.name }}":
+                  {{ ansible_failed_result.msg | default('see the error above') | regex_replace('\.$', '') }}.
+                  Rerun the herdr tag after fixing it.
+          always:
+            - name: Remove the herdr-core release download
+              file:
+                path: "{{ herdr_core_tmp.path }}"
+                state: absent
+              when: herdr_core_tmp.path is defined
+
+        # Runs on every run, also when herdr-core was already installed, so a
+        # working herdr-core without `hc` still gets the command.
+        # hc links only to a herdr-core that was checked to work: the one just
+        # installed in ~/.local/bin, or else the one the check above accepted,
+        # such as the copy the app keeps under ~/.local/share/herdr-core. An
+        # existing herdr-core is linked rather than installing a second one.
+        - name: Pick the herdr-core that hc links to
+          vars:
+            herdr_core_found: "{{ herdr_core_installed.stdout | default('') | trim }}"
+          set_fact:
+            herdr_core_link_src: >-
+              {{ 'herdr-core'
+              if (herdr_core_installed.rc | default(0)) != 0
+              or herdr_core_found == ansible_facts['env']['HOME'] ~ '/.local/bin/herdr-core'
+              else herdr_core_found
+              if (herdr_core_found | basename) == 'herdr-core'
+              else '' }}
+          when: herdr_app_bundle.stat.exists
+
+        - name: Link the hc command to herdr-core
+          when:
+            - herdr_app_bundle.stat.exists
+            - herdr_core_link_src | default('') | length > 0
+          become: false
+          vars:
+            herdr_core_bin_dir: "{{ ansible_facts['env']['HOME'] }}/.local/bin"
+          block:
+            # Some window managers ship their own `hc`, so the link is added only
+            # when no `hc` exists yet, as the upstream installer does.
+            - name: Check whether an hc command already exists
+              shell: command -v hc
+              register: herdr_hc_command
+              changed_when: false
+              failed_when: false
+
+            - name: Check whether an hc file already exists
+              stat:
+                path: "{{ herdr_core_bin_dir }}/hc"
+                follow: false
+              register: herdr_hc_link
+
+            - name: Check whether the hc file points to something
+              stat:
+                path: "{{ herdr_core_bin_dir }}/hc"
+                follow: true
+              register: herdr_hc_link_target
+
+            # Only a dangling link to an earlier herdr-core is repaired. A dangling
+            # link to anything else may belong to another tool, so it is kept.
+            - name: Check whether hc is a dangling link to herdr-core
+              set_fact:
+                herdr_hc_dangling_herdr: >-
+                  {{ herdr_hc_link.stat.exists and herdr_hc_link.stat.islnk
+                  and not herdr_hc_link_target.stat.exists
+                  and (herdr_hc_link.stat.lnk_target | default('') | basename) == 'herdr-core' }}
+
+            - name: Check the hc folder
+              stat:
+                path: "{{ herdr_core_bin_dir }}"
+              register: herdr_hc_bin_dir_stat
+
+            # An existing directory keeps its mode, as with `mkdir -p`.
+            - name: Create the hc folder
+              file:
+                path: "{{ herdr_core_bin_dir }}"
+                state: directory
+                mode: "0755"
+              when: not herdr_hc_bin_dir_stat.stat.exists
+
+            - name: Link hc to herdr-core
+              file:
+                src: "{{ herdr_core_link_src }}"
+                dest: "{{ herdr_core_bin_dir }}/hc"
+                state: link
+                force: "{{ herdr_hc_dangling_herdr | bool }}"
+              register: herdr_hc_linked
+              when:
+                - herdr_hc_command.rc != 0
+                - not herdr_hc_link.stat.exists or herdr_hc_dangling_herdr | bool
+
+            # The file itself is checked, not PATH, because the PATH Ansible
+            # runs with may not include ~/.local/bin.
+            - name: Warn about an hc file that is not a working command
+              debug:
+                msg: >-
+                  {{ herdr_core_bin_dir }}/hc exists but is not a working command
+                  (a dangling link or a file that is not executable) and was left
+                  untouched, so hc is not available. Remove it and rerun the herdr
+                  tag to link hc to herdr-core.
+              when:
+                - herdr_hc_command.rc != 0
+                - herdr_hc_link.stat.exists
+                - not herdr_hc_dangling_herdr | bool
+                - not (herdr_hc_link_target.stat.exists and herdr_hc_link_target.stat.executable)
+
+            - name: Check the hc link
+              command:
+                argv:
+                  - "{{ herdr_core_bin_dir }}/hc"
+                  - --version
+              register: herdr_hc_version
+              changed_when: false
+              failed_when: herdr_hc_version.rc != 0 or not herdr_hc_version.stdout.startswith('hc ')
+              when: herdr_hc_linked is changed
+
+        # The Herdr app sends anonymous usage data unless its settings say
+        # otherwise. Every run sets "telemetry" to false, also when a user turned
+        # it back on.
+        - name: Turn off Herdr app telemetry
+          when: herdr_app_bundle.stat.exists
+          become: false
+          vars:
+            herdr_app_settings_path: "{{ ansible_facts['env']['HOME'] }}/.config/herdr-app/settings.json"
+          block:
+            - name: Check the Herdr app settings file
+              stat:
+                path: "{{ herdr_app_settings_path }}"
+              register: herdr_app_settings_file
+
+            - name: Read the Herdr app settings
+              when: herdr_app_settings_file.stat.exists
+              block:
+                - name: Read the existing settings
+                  slurp:
+                    path: "{{ herdr_app_settings_path }}"
+                  register: herdr_app_settings_raw
+
+                - name: Parse the existing settings
+                  set_fact:
+                    herdr_app_settings: "{{ herdr_app_settings_raw.content | b64decode | from_json }}"
+              rescue:
+                - name: Warn about unreadable Herdr app settings
+                  debug:
+                    msg: "Left {{ herdr_app_settings_path }} unchanged: {{ ansible_failed_result.msg | default('it could not be read') }}"
+
+                - name: Skip invalid Herdr app settings
+                  set_fact:
+                    herdr_app_settings: null
+
+            - name: Use empty Herdr app settings for a new file
+              set_fact:
+                herdr_app_settings: {}
+              when: not herdr_app_settings_file.stat.exists
+
+            - name: Warn about non-object Herdr app settings
+              debug:
+                msg: "Left {{ herdr_app_settings_path }} unchanged: settings are not a JSON object"
+              when: herdr_app_settings is not none and herdr_app_settings is not mapping
+
+            - name: Create the Herdr app settings directory
+              file:
+                path: "{{ herdr_app_settings_path | dirname }}"
+                state: directory
+                mode: "0755"
+              when: not herdr_app_settings_file.stat.exists
+
+            - name: Set telemetry to false in the Herdr app settings
+              copy:
+                dest: "{{ herdr_app_settings_path }}"
+                content: "{{ herdr_app_settings | combine({'telemetry': false}) | to_nice_json(sort_keys=false, ensure_ascii=false) }}\n"
+                # A settings.json symlinked from a dotfiles repo stays a link.
+                follow: true
+                mode: "{{ omit if herdr_app_settings_file.stat.exists else '0644' }}"
+              when:
+                - herdr_app_settings is mapping
+                - herdr_app_settings.telemetry | default(none) is not sameas false
+
         - name: Run herdr skill setup script
           command: "{{ dev_env_dir }}/sjust/scripts/herdr/setup.sh"
           changed_when: true
