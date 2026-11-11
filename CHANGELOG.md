@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added opt-in resume of Claude Code and Codex sessions in Herdr app terminals after a reboot, with `sjust herdr-agent-resume-enable`, `-disable` and `-info` (also `ajust` on Linux)
 - Added `"telemetry": false` to the Herdr app settings during provisioning, enforced on every run
 - Added a one-time herdr-core (`hc`) install during provisioning when the Herdr app is installed and `hc` is missing, from the latest release with its sha256 and Herdr signature checked, without running the upstream install script
 - Added the SparkFabrik layout for the Herdr desktop app, with light and dark themes and the design system's LED status marks, installed by provisioning and by `sjust herdr-layout-install` (also `ajust` on Linux) and selected once on each machine, after which people can switch back in Herdr's Settings
