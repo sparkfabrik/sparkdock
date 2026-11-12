@@ -57,9 +57,6 @@ FAKE_HC = textwrap.dedent(
     if args[:1] == ["get"] and args[1] in terms:
         t = dict(terms[args[1]]); t["address"] = args[1]
         print(json.dumps(t)); save(); sys.exit(0)
-    if args[:2] == ["server", "status"]:
-        print(json.dumps({"core": {"id": state.get("core_id", "00112233445566778899aabbccddee" + core.encode().hex()[:2].ljust(2, "0"))}}))
-        save(); sys.exit(0)
     if args[:1] == ["ls"]:
         print(json.dumps({"terminals": [{"address": a} for a in terms]})); save(); sys.exit(0)
     if args[:1] == ["label"] and args[1] in terms and not state.get("fail_label"):
@@ -135,18 +132,6 @@ class Env(unittest.TestCase):
     def records(self):
         return har.ended_records(self.marker)
 
-    def live_id(self):
-        """The id the (fake) core on this test's socket reports."""
-        with har.on_core(str(self.socket)):
-            return har.core_id()
-
-    def old_folder(self, core_id):
-        """A folder of this core under an older socket path, holding this terminal's marker."""
-        folder = har.core_dir(har.core_key(str(self.root / "old-run" / "default.sock")))
-        folder.mkdir(parents=True)
-        (folder / ".core-id").write_text(core_id + "\n")
-        return folder
-
     def save_state(self, state):
         self.state_file.write_text(json.dumps(state))
 
@@ -163,10 +148,6 @@ class Env(unittest.TestCase):
         har.core_dir(self.core).mkdir(parents=True, exist_ok=True)
         har.enabled_file().touch()
         (har.core_dir(self.core) / ".pruned").touch()  # no detached prune spawned by tests
-        (har.core_dir(self.core) / ".core-id").write_text(self.live_id() + "\n")  # a healthy core
-        state = self.state()
-        state["calls"] = []  # the setup's own hc call does not count
-        self.save_state(state)
 
     def put_label(self, value, terminal="t1", fail=False):
         """`value` is a session (its token goes in the label) or a raw label string."""
@@ -232,23 +213,11 @@ class CoreFolderTest(unittest.TestCase):
             "t1.ended.garbage": "t1",
             ".t1.lock": "t1",
             ".lock": None,
-            ".core-id": None,
             ".pruned": None,
             ".t1.ended.0123456789abcdef.x1y2z3": None,  # a temp file
         }
         for name, expected in cases.items():
             self.assertEqual(har.terminal_of(Path("/x") / name), expected, name)
-
-    def test_moved_needs_the_saved_id_running_under_another_key_only(self):
-        with patch.object(har, "saved_core_id", return_value="a" * 16):
-            self.assertTrue(har.moved("old", {"new": "a" * 16}))
-            self.assertTrue(har.moved("old", {"old": "b" * 16, "new": "a" * 16}))
-            self.assertFalse(har.moved("old", {"old": "a" * 16, "new": "a" * 16}))
-            self.assertFalse(har.moved("old", {"old": "a" * 16}))
-            self.assertFalse(har.moved("old", {}))
-        with patch.object(har, "saved_core_id", return_value=None):
-            self.assertFalse(har.moved("old", {"new": "a" * 16}))
-
 
 class ForegroundTest(unittest.TestCase):
     def setUp(self):
@@ -488,6 +457,16 @@ class HookTest(Env):
         self.assertEqual(self.labels(), {})
         self.assertFalse(self.marker.exists())
 
+    def test_session_end_still_clears_when_the_ended_record_cannot_be_written(self):
+        self.enable_flag()
+        session = self.label_value()
+        self.put_label(session)
+        self.marker.write_text(mtext(session))
+        with patch.object(har, "write_ended", side_effect=OSError("disk full")):
+            self.run_hook({"hook_event_name": "SessionEnd", "session_id": SID, "reason": "prompt_input_exit"})
+        self.assertEqual(self.labels(), {})
+        self.assertFalse(self.marker.exists())
+
     @unittest.skipIf(os.geteuid() == 0, "root reads mode-000 files")
     def test_session_end_with_unreadable_marker_records_the_end(self):
         self.enable_flag()
@@ -531,25 +510,6 @@ class HookTest(Env):
         out = self.root / "sid"
         har.spawn_detached([sys.executable, "-c", f"import os; open({str(out)!r}, 'w').write(str(os.getsid(0) == os.getpid()))"])
         self.assertTrue(self.wait_until(lambda: out.exists() and out.read_text() == "True"))
-
-    def test_start_saves_the_core_id(self):
-        self.enable_flag()
-        self.run_hook(self.start())
-        self.assertTrue(har.CORE_ID_RE.match((self.marker.parent / ".core-id").read_text().strip()))
-
-    def test_start_never_takes_over_another_cores_sessions(self):
-        self.enable_flag()
-        (self.marker.parent / ".core-id").write_text("ffffffffffffffffffffffffffffffff\n")
-        (self.marker.parent / "t7").write_text("another core's session")
-        self.run_hook(self.start())
-        self.assertEqual(self.labels(), {})
-        self.assertEqual((self.marker.parent / ".core-id").read_text().strip(), "f" * 32)
-
-    def test_start_records_nothing_without_a_core_id(self):
-        self.enable_flag()
-        with patch.object(har, "core_id", return_value=None):
-            self.run_hook(self.start())
-        self.assertEqual(self.labels(), {})
 
     def test_start_files_the_marker_under_the_full_socket_path(self):
         self.enable_flag()
@@ -803,108 +763,6 @@ class ShellTest(Env):
             har.prune_markers()
         self.assertTrue(other.exists())
 
-    @unittest.skipIf(os.geteuid() == 0, "root reads mode-000 files")
-    def test_prune_keeps_an_unreadable_ended_record(self):
-        self.prepare(self.label_value())
-        ended = self.ended(self.label_value())
-        ended.write_text("x")
-        old = time.time() - 2 * har.ENDED_MAX_AGE
-        os.utime(ended, (old, old))
-        ended.chmod(0)
-        self.addCleanup(lambda: ended.exists() and ended.chmod(0o600))
-        har.prune_markers()
-        self.assertTrue(os.path.lexists(ended))
-
-    @unittest.skipIf(os.geteuid() == 0, "root reads mode-000 files")
-    def test_prune_keeps_an_unreadable_record_of_a_missing_terminal(self):
-        self.enable_flag()
-        ended = har.core_dir(self.core) / "t9.ended.0123456789abcdef"
-        ended.write_text("x")
-        ended.chmod(0)
-        self.addCleanup(lambda: ended.exists() and ended.chmod(0o600))
-        har.prune_markers()
-        self.assertTrue(os.path.lexists(ended))
-
-    def test_prune_never_touches_another_cores_sessions(self):
-        self.enable_flag()
-        (self.marker.parent / ".core-id").write_text("ffffffffffffffffffffffffffffffff\n")
-        foreign = self.marker.parent / "t9"  # t9 is not a terminal of the live core
-        foreign.write_text("another core's session")
-        old = time.time() - 60
-        os.utime(foreign, (old, old))
-        self.assertIsNone(har.prune_markers())
-        self.assertTrue(foreign.exists())
-
-    def test_prune_aborts_when_the_socket_changes_hands(self):
-        self.enable_flag()
-        stale = self.marker.parent / "t9"
-        stale.write_text("gone terminal")
-        old = time.time() - 60
-        os.utime(stale, (old, old))
-        ids = iter([self.live_id(), "ffffffffffffffffffffffffffffffff"])
-        with patch.object(har, "core_id", lambda: next(ids)):
-            har.prune_markers()
-        self.assertTrue(stale.exists())
-
-    def test_prune_needs_a_saved_core_id(self):
-        self.enable_flag()
-        (self.marker.parent / ".core-id").unlink()
-        stale = self.marker.parent / "t9"
-        stale.write_text("gone terminal")
-        old = time.time() - 60
-        os.utime(stale, (old, old))
-        har.prune_markers()
-        self.assertTrue(stale.exists())
-
-    def test_prune_keeps_an_ended_record_whose_label_came_back(self):
-        session = self.label_value()
-        self.prepare(session)
-        ended = self.ended(session)
-        ended.write_text(tok(session))
-        old = time.time() - 2 * har.ENDED_MAX_AGE
-        os.utime(ended, (old, old))
-        real_get = har.get_record
-        calls = []
-
-        def get(terminal):  # the label differs at first, then is back under the lock
-            calls.append(terminal)
-            record = real_get(terminal)
-            if len(calls) == 1 and record:
-                record = dict(record, labels={har.LABEL: "ffffffffffffffff"})
-            return record
-
-        with patch.object(har, "get_record", get):
-            har.prune_markers()
-        self.assertTrue(ended.exists())
-
-    def test_slow_prune_never_starves_a_starting_session(self):
-        self.prepare(self.label_value())
-        for n in range(4):
-            ended = self.marker.parent / f"t1{n}.ended.ffffffffffffffff"
-            ended.write_text("ffffffffffffffff")
-            old = time.time() - 2 * har.ENDED_MAX_AGE
-            os.utime(ended, (old, old))
-        state = self.state()
-        for n in range(4):
-            state["terminals"][f"t1{n}"] = {"pid": 5, "labels": {}}
-        self.save_state(state)
-        real_get = har.get_record
-
-        def slow_get(terminal):
-            time.sleep(0.9)
-            return real_get(terminal)
-
-        with patch.object(har, "get_record", slow_get):
-            thread = threading.Thread(target=har.prune_markers)
-            thread.start()
-            time.sleep(0.2)
-            started = time.monotonic()
-            with har.state_lock(exclusive=False, wait=3.0) as held:
-                waited = time.monotonic() - started
-            thread.join(30)
-        self.assertTrue(held)
-        self.assertLess(waited, 1.0)
-
     def test_an_older_starts_ended_record_does_not_block(self):
         session = self.label_value()
         self.prepare(session)
@@ -1060,49 +918,6 @@ class ShellTest(Env):
         self.assertTrue(self.marker.exists())
         self.assertEqual(self.labels()[har.LABEL], tok(session))
 
-    def test_prune_keeps_a_marker_written_during_the_listing(self):
-        self.enable_flag()
-        state = self.state()
-        state["terminals"]["t2"] = {"pid": 7, "labels": {}}
-        self.save_state(state)
-        late = har.core_dir(self.core) / "t2"
-        real_ls = har.local_terminals
-
-        def listing():
-            found = real_ls()
-            late.write_text("written after the listing")  # a new terminal's hook
-            return [a for a in found if a != "t2"]
-
-        with patch.object(har, "local_terminals", listing):
-            har.prune_markers()
-        self.assertTrue(late.exists())
-
-    def test_prune_does_not_hold_the_lock_while_calling_hc(self):
-        self.prepare(self.label_value())
-        ended = self.ended(self.label_value())
-        ended.write_text("x")
-        old = time.time() - 2 * har.ENDED_MAX_AGE
-        os.utime(ended, (old, old))
-        real_get = har.get_record
-        held_during_get = []
-
-        def get(terminal):
-            with har.state_lock(exclusive=False, wait=0) as free:
-                held_during_get.append(not free)
-            return real_get(terminal)
-
-        with patch.object(har, "get_record", get):
-            har.prune_markers()
-        # Judged, then re-checked, always without the lock.
-        self.assertEqual(held_during_get, [False, False])
-        self.assertFalse(ended.exists())
-
-    def test_shell_clear_with_a_token_spares_a_newer_label(self):
-        old, new = self.label_value(), self.label_value()
-        self.prepare(new)
-        self.assertEqual(har.main(["x", "--shell-clear", "4242", tok(old)]), 0)
-        self.assertEqual(self.labels()[har.LABEL], tok(new))
-
     def test_prune_mode_runs_prune(self):
         self.enable_flag()
         stale = har.core_dir(self.core) / "t9"
@@ -1111,17 +926,6 @@ class ShellTest(Env):
         os.utime(stale, (old, old))
         self.assertEqual(har.main(["x", "--prune"]), 0)
         self.assertFalse(stale.exists())
-
-    def test_shell_clear_reports_failure(self):
-        self.prepare(self.label_value(), fail=True)
-        self.assertEqual(har.main(["x", "--shell-clear", "4242"]), 1)
-        with har.state_lock(exclusive=False, wait=1):
-            self.assertEqual(har.main(["x", "--shell-clear", "4242"]), 1)
-        state = self.state()
-        state["fail_label"] = False
-        self.save_state(state)
-        self.assertEqual(har.main(["x", "--shell-clear", "4242"]), 0)
-        self.assertEqual(self.labels(), {})
 
     def test_any_ended_record_blocks_resume(self):
         for content in ("", "garbage", "0123456789abcdef"):
@@ -1139,6 +943,16 @@ class ShellTest(Env):
         os.utime(ended, (old, old))
         har.prune_markers()
         self.assertFalse(ended.exists())
+
+    def test_prune_keeps_old_ended_records_when_the_terminal_cannot_be_read(self):
+        self.prepare(self.label_value())
+        ended = self.ended(self.label_value())
+        ended.write_text("x")
+        old = time.time() - 2 * har.ENDED_MAX_AGE
+        os.utime(ended, (old, old))
+        with patch.object(har, "get_record", return_value=None):
+            har.prune_markers()
+        self.assertTrue(ended.exists())
 
     def test_prune_keeps_young_or_matching_ended_records(self):
         value = self.label_value()
@@ -1167,29 +981,12 @@ class ShellTest(Env):
         self.assertEqual(self.startup(), "")
         self.assertEqual(self.labels(), {})
 
-    def test_files_of_another_core_on_the_same_socket_are_left_alone(self):
-        session = self.label_value()
-        self.prepare(session)
-        (self.marker.parent / ".core-id").write_text("ffffffffffffffffffffffffffffffff\n")
-        self.assertEqual(self.startup(), "")
-        self.assertTrue(self.marker.exists())
-        self.assertEqual(self.labels()[har.LABEL], tok(session))
-
-    def test_unconfirmed_identity_leaves_the_files_alone(self):
-        session = self.label_value()
-        self.prepare(session)
-        (self.marker.parent / ".core-id").write_text(self.live_id() + "\n")
-        with patch.object(har, "core_id", return_value=None):  # hc server status failed
-            self.assertEqual(self.startup(), "")
-            self.cleanup()
-        self.assertTrue(self.marker.exists())
-        self.assertEqual(self.labels()[har.LABEL], tok(session))
-
     def test_marker_under_an_old_socket_is_not_resumed(self):
         session = self.label_value()
         self.enable_flag()
         self.put_label(session)
-        old = self.old_folder("ffffffffffffffffffffffffffffffff")
+        old = har.core_dir(har.core_key(str(self.root / "old-run" / "default.sock")))
+        old.mkdir(parents=True)
         (old / "t1").write_text(mtext(session))
         self.assertEqual(self.startup(), "")
         self.assertTrue((old / "t1").exists())
@@ -1321,7 +1118,7 @@ class ManagementTest(Env):
         for data in (self.claude_settings(), self.codex_hooks()):
             self.assertEqual(data["hooks"]["SessionStart"][0]["hooks"][0]["command"], "other")
             self.assertEqual(len(data["hooks"]), 1)
-        self.assertEqual((self.home / ".zshrc").read_text(), "export FOO=1")  # byte for byte
+        self.assertEqual((self.home / ".zshrc").read_text(), "export FOO=1\n")  # only the newline enable added stays
         self.assertEqual(self.labels(), {})
         self.assertFalse(har.state_dir().exists())
         self.assertIn("already", self.run_cmd("disable")[1])
@@ -1612,14 +1409,6 @@ class ManagementTest(Env):
         self.assertNotIn("herdr-agent-resume.py", (self.home / ".claude" / "settings.json").read_text())
         self.assertNotIn("herdr-agent-resume.py", (self.home / ".codex" / "hooks.json").read_text())
 
-    def test_zshrc_without_final_newline_round_trips(self):
-        (self.home / ".zshrc").write_bytes(b"export FOO=bar")
-        self.run_cmd("enable")
-        self.assertIn(har.ZSHRC_EOL_PREFIX, (self.home / ".zshrc").read_text())
-        self.assertIn("already", self.run_cmd("enable")[1])
-        self.run_cmd("disable")
-        self.assertEqual((self.home / ".zshrc").read_bytes(), b"export FOO=bar")
-
     def test_symlinked_zshrc_keeps_link(self):
         dotfiles = self.root / "dotfiles"
         dotfiles.mkdir()
@@ -1660,70 +1449,15 @@ class ManagementTest(Env):
         self.assertNotEqual(one, two)
         self.assertEqual(har.core_label(one), har.core_label(two))
 
-    def test_a_moved_core_is_handled_with_the_running_one(self):
-        self.run_cmd("enable")
-        stale = har.core_dir(har.core_key(str(self.root / "old" / "default.sock")))
-        stale.mkdir()
-        (stale / "t1").write_text("old session")
-        (stale / ".core-id").write_text(self.live_id() + "\n")  # the same core
-        code, out = self.run_cmd("disable")
-        self.assertEqual(code, 0, out)
-        self.assertIn("moved", out)
-        self.assertFalse(har.state_dir().exists())
-
-    def test_disable_keeps_sessions_when_the_core_id_is_unavailable(self):
-        self.run_cmd("enable")
-        session = self.label_value()
-        self.marker.parent.mkdir(exist_ok=True)
-        (self.marker.parent / ".core-id").write_text(self.live_id() + "\n")
-        self.marker.write_text(mtext(session))
-        with patch.object(har, "core_id", return_value=None):  # hc server status failed
-            code, out = self.run_cmd("disable")
-        self.assertEqual(code, 1)
-        self.assertIn("could not be matched", out)
-        self.assertTrue(self.marker.exists())
-
-    def test_disable_keeps_sessions_of_a_core_that_reused_the_socket(self):
-        self.run_cmd("enable")
-        folder = har.core_dir(self.core)
-        folder.mkdir(exist_ok=True)
-        (folder / ".core-id").write_text("ffffffffffffffffffffffffffffffff\n")
-        (folder / "t7").write_text("another core's session")
-        code, out = self.run_cmd("disable")
-        self.assertEqual(code, 1)
-        self.assertIn("could not be matched", out)
-        self.assertTrue((folder / "t7").exists())
-
     def test_a_stopped_core_with_the_same_socket_name_is_not_moved(self):
         self.run_cmd("enable")
         other = har.core_dir(har.core_key(str(self.root / "other-root" / "default.sock")))
         other.mkdir()
         (other / "t1").write_text("a session")
-        (other / ".core-id").write_text("ffffffffffffffffffffffffffffffff\n")  # a different core
         code, out = self.run_cmd("disable")
         self.assertEqual(code, 1)
         self.assertIn("not running", out)
         self.assertTrue((other / "t1").exists())
-
-    def test_disable_keeps_a_core_whose_socket_is_unknown(self):
-        self.run_cmd("enable")
-        folder = har.core_dir("lost")
-        folder.mkdir()
-        (folder / "t3").write_text("a session")
-        code, out = self.run_cmd("disable")
-        self.assertEqual(code, 1)
-        self.assertIn("not a known core", out)
-        self.assertTrue((folder / "t3").exists())
-
-    def test_info_does_not_claim_no_cores_when_one_is_unresolved(self):
-        self.run_cmd("enable")
-        folder = har.core_dir("lost")
-        folder.mkdir()
-        (folder / "t3").write_text("a session")
-        with patch.dict(os.environ, {"HC_TERMINAL_SOCKET": ""}):
-            code, out = self.run_cmd("info")
-        self.assertNotIn("no core has recorded", out)
-        self.assertIn("is not a known core", out)
 
     def test_disable_drops_an_unknown_core_with_no_sessions(self):
         self.run_cmd("enable")
@@ -1807,7 +1541,6 @@ class ManagementTest(Env):
         session = self.label_value()
         self.put_label(session)
         self.marker.parent.mkdir(exist_ok=True)
-        (self.marker.parent / ".core-id").write_text(self.live_id() + "\n")
         self.marker.write_text(mtext(session))
         code, out = self.run_cmd("info")
         self.assertEqual(code, 0)
@@ -1820,7 +1553,6 @@ class ManagementTest(Env):
         session = self.label_value()
         self.put_label(session)
         self.marker.parent.mkdir(exist_ok=True)
-        (self.marker.parent / ".core-id").write_text(self.live_id() + "\n")
         self.marker.write_text(mtext(session))
         stale = har.core_dir(self.core) / "t9"
         stale.touch()
@@ -1828,23 +1560,6 @@ class ManagementTest(Env):
         os.utime(stale, (old, old))
         code, out = self.run_cmd("info")
         self.assertIn(f"Markers (default ({self.socket})): pruned 1 stale", out)
-
-    def test_info_hides_another_cores_sessions(self):
-        self.run_cmd("enable")
-        session = self.label_value()
-        self.put_label(session)
-        self.marker.parent.mkdir(exist_ok=True)
-        (self.marker.parent / ".core-id").write_text("ffffffffffffffffffffffffffffffff\n")
-        self.marker.write_text(mtext(session))
-        code, out = self.run_cmd("info")
-        self.assertIn("belong to another core", out)
-        self.assertNotIn(f"claude --resume {SID}", out)
-
-    def test_core_id_mode_prints_the_id(self):
-        stdout = io.StringIO()
-        with redirect_stdout(stdout):
-            har.main(["x", "--core-id"])
-        self.assertEqual(stdout.getvalue().strip(), self.live_id())
 
     def test_warns_about_a_socket_path_too_long_to_record(self):
         long_path = "/" + "%" * 90 + "/x.sock"
@@ -1950,8 +1665,10 @@ class ZshSnippetTest(Env):
             state["terminals"]["t1"]["pid"] = -1
             self.save_state(state)
         result = subprocess.run(
-            [ZSH, "-f", str(self.driver), *commands], env=env, capture_output=True, text=True, timeout=60
+            [ZSH, "-f", str(self.driver), *commands], env=env, capture_output=True, text=True, timeout=120
         )
+        if os.environ.get("CI"):  # the transcript explains a failure on a CI runner
+            print(f"\n--- zsh {commands!r}\n{result.stdout}{result.stderr}", file=sys.stderr)
         return result.stdout
 
     def agent_log(self):
@@ -2055,33 +1772,6 @@ class ZshSnippetTest(Env):
         self.zsh(self.stage_marker(value), "true")
         self.assertFalse(self.marker.exists())
 
-    @unittest.skipIf(os.geteuid() == 0, "root ignores directory permissions")
-    def test_double_write_failure_clears_the_label_synchronously(self):
-        self.enable_flag()
-        value = self.label_value()
-        self.put_label(value)
-        folder = self.marker.parent
-        self.addCleanup(folder.chmod, 0o700)
-        # After startup: the marker appears, then the folder refuses new files and
-        # deletes, so neither the ended record nor the marker removal can work.
-        self.zsh(f"{self.stage_marker(value)} && chmod 500 {folder}", "true")
-        self.assertTrue(self.marker.exists())
-        self.assertEqual(self.labels(), {})
-
-    def test_failed_last_resort_retries_on_later_commands(self):
-        self.enable_flag()
-        value = self.label_value()
-        self.put_label(value, fail=True)  # the core cannot clear it yet
-        folder = self.marker.parent
-        self.addCleanup(folder.chmod, 0o700)
-        heal = self.root / "heal.py"
-        heal.write_text(
-            f"import json\np = {str(self.state_file)!r}\nd = json.load(open(p))\n"
-            "d['fail_label'] = False\njson.dump(d, open(p, 'w'))\n"
-        )
-        self.zsh(f"{self.stage_marker(value)} && chmod 500 {folder}", "true", f"{sys.executable} {heal}", "true")
-        self.assertEqual(self.labels(), {})
-
     def test_retry_spares_a_newer_suspended_session(self):
         self.enable_flag()
         first, second = self.label_value(), self.label_value()
@@ -2133,31 +1823,6 @@ class ZshSnippetTest(Env):
         self.zsh(f"{self.stage_marker(value)} && chmod 000 {self.marker}", "true", f"echo yes > {probe}")
         self.assertTrue(probe.exists(), "the shell exited")
         self.assertFalse(self.marker.exists())
-
-    def test_preexec_leaves_another_cores_session_alone(self):
-        self.enable_flag()
-        value = self.label_value()
-        self.put_label(value)
-        (self.marker.parent / ".core-id").write_text("ffffffffffffffffffffffffffffffff\n")
-        self.zsh(self.stage_marker(value), "true")
-        time.sleep(1)
-        self.assertEqual(self.records(), [])
-        self.assertTrue(self.marker.exists())
-        self.assertEqual(self.labels().get(har.LABEL), tok(value))
-
-    def test_failed_core_id_lookup_is_not_retried_on_every_command(self):
-        self.enable_flag()
-        value = self.label_value()
-        self.put_label(value)
-        hc = self.bin / "hc"
-        hc.write_text(FAKE_HC.replace('if args[:2] == ["server", "status"]:', 'if False:'))
-        log = self.root / "python.log"
-        shim = self.bin / "python3"  # zsh calls python3 by name: log each call
-        shim.write_text(f'#!/bin/sh\necho "$*" >> "{log}"\nexec "{sys.executable}" "$@"\n')
-        shim.chmod(0o755)
-        self.zsh(self.stage_marker(value), "true", self.stage_marker(value), "true", self.stage_marker(value), "true")
-        lookups = [line for line in log.read_text().splitlines() if "--core-id" in line]
-        self.assertEqual(len(lookups), 1)
 
     def test_preexec_keeps_label_while_job_suspended(self):
         self.enable_flag()

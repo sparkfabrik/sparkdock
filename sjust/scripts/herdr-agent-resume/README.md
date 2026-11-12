@@ -16,7 +16,7 @@ After enabling, start new agent sessions and open new tabs. In Codex, open `/hoo
 - **Resumes** it when herdr-core recovers the terminal after a reboot or a lost holder: the new shell changes to the session's folder and runs `claude --resume <id>` or `codex resume <id>` once, with a `herdr-agent-resume: resuming ...` line.
 - **Forgets** it when you quit Claude Code (`/exit`, Ctrl+C twice), or when you run your next command in that shell after the agent ended for any other reason. While that shell has background or suspended jobs, this waits until they are gone (a suspended agent is still alive).
 
-Agents outside herdr-core, in the legacy herdr TUI, under tmux, or started by another agent are never recorded. `claude -p` and `codex exec` are not recorded either. Ordinary prompts and new tabs make no `hc` call.
+Agents outside herdr-core, in the legacy herdr TUI, under tmux, in a nested interactive shell, or started by another agent are never recorded. `claude -p` and `codex exec` are not recorded either. Ordinary prompts and new tabs make no `hc` call.
 
 ## Requirements
 
@@ -28,7 +28,7 @@ Agents outside herdr-core, in the legacy herdr TUI, under tmux, or started by an
 
 - **Codex** reports every exit the same way, so quitting Codex does not clear the session. It is cleared when you run the next command in that tab. If you quit Codex and reboot before typing anything there, it comes back.
 - If herdr-core is unreachable exactly when you quit Claude Code, the same applies. So does a shell with background or suspended jobs: the session is cleared on the first command after the jobs are gone, and a reboot before that can bring it back.
-- If the disk refuses writes and, at the same moment, herdr-core is unreachable or another terminal holds this feature's lock, a closed session may not be recorded. The shell keeps retrying before each command; a reboot before one succeeds can bring that session back.
+- If the disk refuses writes when a session ends, its end may not be recorded, and a reboot can bring it back.
 - A power loss within a few milliseconds of the command that follows an agent's end can lose the record of that end (zsh cannot force it to disk; the background cleanup does so right after), and the session can come back.
 - Resume uses the session id only. Launch flags such as `--model` are not replayed.
 - A resumed Claude Code session with a long conversation can miss the Herdr app's status handshake and stay out of the Agents panel ([herdrdev/herdr-app#537](https://github.com/herdrdev/herdr-app/issues/537)). The session itself resumes.
@@ -36,7 +36,7 @@ Agents outside herdr-core, in the legacy herdr TUI, under tmux, or started by an
 - The `sf.agent-resume` label belongs to this feature. Changing it by hand (`hc label`) is not supported.
 - A herdr-core socket path full of `%` characters can be too long to use as a folder name; such a core records nothing. `info` warns about it when run from a terminal of that core.
 - Sessions are tied to the herdr-core socket path, which is fixed in a default setup. If it changes, sessions recorded under the old path are not resumed.
-- If a different herdr-core later uses the same socket path while the first one's sessions are still recorded, the second core records no new sessions until those are gone; `disable` reports them and keeps them.
+- Claude Code installed through npm runs as `node`, so it is not recorded. The native installer and the Homebrew cask are supported.
 
 ## Files it changes
 

@@ -21,8 +21,7 @@ _sf_har_init() {
   typeset -g _sf_har_marker=$_sf_har_dir/markers/$core/${HC_TERMINAL_ID//\//_}
   # _sf_har_top: is this the terminal's own shell (parent is the herdr-core
   # holder), not one nested in a running agent? Checked once, lazily.
-  typeset -g _sf_har_cmd= _sf_har_msg= _sf_har_top= _sf_har_must_clear= _sf_har_live_id=
-  typeset -gi _sf_har_live_retry=0
+  typeset -g _sf_har_cmd= _sf_har_msg= _sf_har_top=
   zmodload zsh/parameter 2>/dev/null  # $jobstates, read before each command
   autoload -Uz add-zsh-hook
   add-zsh-hook preexec _sf_har_preexec
@@ -51,54 +50,20 @@ _sf_har_top_level() {
 # runs in the background, so a slow core never delays the shell.
 _sf_har_preexec() {
   emulate -L zsh
-  [[ -e $_sf_har_dir/enabled ]] || return 0
-  [[ -n $_sf_har_must_clear || -e $_sf_har_marker ]] || return 0
+  [[ -e $_sf_har_dir/enabled && -e $_sf_har_marker ]] || return 0
   (( ${+jobstates} && ${#jobstates} == 0 )) || return 0
   _sf_har_top_level || return 0
-  if [[ -n $_sf_har_must_clear ]]; then
-    # A closed session could not be recorded locally: retry clearing its label.
-    _sf_har_clear ${_sf_har_must_clear:#any}
-  fi
-  [[ -e $_sf_har_marker ]] || return 0
-  # Touch nothing that another core wrote (it used this socket path before):
-  # compare the folder's saved core id with this core's, asked once per shell.
-  # When the live id cannot be read, go on: ending the session fails closed.
-  # A failed lookup is retried at most once a minute, so a hung core cannot
-  # slow every command. Unknown id: this shell's own session must still end,
-  # because a closed session never resuming outranks another core's state.
-  local saved=
-  [[ -r ${_sf_har_marker:h}/.core-id ]] && read -r saved 2>/dev/null <${_sf_har_marker:h}/.core-id
-  if [[ -n $saved ]]; then
-    if [[ -z $_sf_har_live_id ]] && (( SECONDS >= _sf_har_live_retry )); then
-      _sf_har_live_id=$(python3 $_sf_har_py --core-id </dev/null 2>/dev/null)
-      [[ -n $_sf_har_live_id ]] || _sf_har_live_retry=$(( SECONDS + 60 ))
-    fi
-    [[ -n $_sf_har_live_id && $_sf_har_live_id != $saved ]] && return 0
-  fi
   local token=
   read -r token 2>/dev/null <$_sf_har_marker
   [[ $token =~ '^[0-9a-f]{16}$' ]] || token=
   if [[ -z $token ]] || ! print -r -- "$token" 2>/dev/null >|$_sf_har_marker.ended.$token; then
-    # No ended record (unreadable marker, full or read-only filesystem). Fail
-    # closed: without a marker a recovery resumes nothing, and deleting works on
-    # a full disk. Last resort, when even that fails: clear the label now.
+    # No ended record (unreadable marker, full or read-only filesystem): without
+    # a marker a recovery resumes nothing, and deleting works on a full disk.
     command rm -f -- $_sf_har_marker 2>/dev/null
-    [[ -e $_sf_har_marker ]] && _sf_har_clear $token
     return 0
   fi
   python3 $_sf_har_py --shell-cleanup $$ $token </dev/null >/dev/null 2>&1 &!
   return 0
-}
-
-# Clear the label synchronously (only the given token's, when one is known); on
-# failure remember it and retry before later commands, under the same guards.
-_sf_har_clear() {
-  emulate -L zsh
-  if python3 $_sf_har_py --shell-clear $$ $1 </dev/null >/dev/null 2>&1; then
-    _sf_har_must_clear=
-  else
-    _sf_har_must_clear=${1:-any}
-  fi
 }
 
 # First prompt of a recovered terminal: show the message and run the resume once.
@@ -146,5 +111,5 @@ _sf_har_startup() {
 if _sf_har_init "${(%):-%x}"; then
   unfunction _sf_har_init _sf_har_startup
 else
-  unfunction _sf_har_init _sf_har_startup _sf_har_top_level _sf_har_preexec _sf_har_clear _sf_har_line_init
+  unfunction _sf_har_init _sf_har_startup _sf_har_top_level _sf_har_preexec _sf_har_line_init
 fi

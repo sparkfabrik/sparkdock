@@ -10,10 +10,7 @@ Modes:
   --shell-cleanup <pid> <token>
                           started in the background by the zsh snippet before a command;
                           clears the label of an agent that ended.
-  --shell-clear <pid> [token]
-                          last resort when zsh cannot write its local records; clears now.
   --prune                 deletes garbage markers; started detached by the hook once a day.
-  --core-id               prints the current core's id (zsh asks once per shell).
   enable | disable | info management, run by the sjust recipes.
 """
 
@@ -21,7 +18,6 @@ import base64
 import contextlib
 import binascii
 import glob
-import hashlib
 import json
 import os
 import re
@@ -39,10 +35,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 LABEL = "sf.agent-resume"
 OWNER = "herdr-agent-resume.py"  # substring that identifies our hook entries
 ZSHRC_TAG = "# sparkdock herdr-agent-resume"
-# Same line, when enable had to end the previous last line with a newline:
-# disable then removes that newline again, restoring the file byte for byte.
-ZSHRC_EOL_PREFIX = ZSHRC_TAG + " (added a final newline to a file hashing "
-ZSHRC_EOL_RE = re.compile(re.escape(ZSHRC_EOL_PREFIX) + r"([0-9a-f]{16})\)$")
 SCRIPT_PATH = Path(__file__).resolve()
 SNIPPET_PATH = SCRIPT_PATH.with_name("herdr-agent-resume.zsh")
 AGENTS = ("claude", "codex")
@@ -259,77 +251,17 @@ def marker_path(env=None):
 
 
 def known_cores():
-    """({core key: socket}, [unresolved keys]) for every core folder plus the
-    current terminal's core. A folder whose name is not a socket key is
-    unresolved: its labels cannot be reached from here."""
-    cores, unresolved = {}, []
+    """{core key: socket} for every core folder plus the current terminal's core."""
+    cores = {}
     if markers_dir().is_dir():
         for folder in sorted(markers_dir().iterdir()):
-            if not folder.is_dir():
-                continue
-            path = core_socket(folder.name)
+            path = core_socket(folder.name) if folder.is_dir() else None
             if path:
                 cores[folder.name] = path
-            else:
-                unresolved.append(folder.name)
     own = core_key(os.environ.get("HC_TERMINAL_SOCKET"))
     if own:
         cores[own] = core_socket(own)
-    return cores, unresolved
-
-
-CORE_ID_RE = re.compile(r"^[0-9a-f]{16,64}$")
-
-
-def core_id():
-    """The current core's id from `hc server status`: stable across restarts and
-    socket moves (herdr-core keeps it in its state), unlike the socket path."""
-    status = hc("server", "status", "--json")
-    core = status.get("core") if isinstance(status, dict) else None
-    value = core.get("id") if isinstance(core, dict) else None
-    return value if isinstance(value, str) and CORE_ID_RE.match(value) else None
-
-
-def saved_core_id(key):
-    value = first_line(read_marker(core_dir(key) / ".core-id"))
-    return value if value and CORE_ID_RE.match(value) else None
-
-
-def remember_core_id(key, value):
-    """Atomic write of the folder's core id (part of a successful start)."""
-    if saved_core_id(key) != value:
-        atomic_write(core_dir(key) / ".core-id", value + "\n")
-
-
-def running_core_ids(cores):
-    """{key: core id} for the cores that answer now."""
-    ids = {}
-    for key, path in cores.items():
-        with on_core(path):
-            value = core_id()
-        if value:
-            ids[key] = value
-    return ids
-
-
-def holds_sessions(key):
-    folder = core_dir(key)
-    return folder.is_dir() and any(not p.name.startswith(".") for p in folder.iterdir())
-
-
-def confirmed(key, live_id):
-    """The core answering on this folder's socket is the one that wrote it: its
-    id is known and equals the saved one. Without that positive match, a folder
-    that holds sessions is never read for a resume nor changed."""
-    return bool(live_id) and saved_core_id(key) == live_id
-
-
-def moved(key, running):
-    """A folder of a core that now answers on another socket: its saved core id
-    belongs to a running core under a different key. Same socket name alone
-    proves nothing: separate cores can share it."""
-    value = saved_core_id(key)
-    return bool(value) and value in running.values() and running.get(key) != value
+    return cores
 
 
 UNREADABLE = object()  # a file that exists but cannot be read
@@ -717,28 +649,12 @@ def run_hook(agent):
         if raw is not UNREADABLE and not ours:
             return 0
         # First, durably and without any lock: the ended record blocks a resume
-        # even if the cleanup below cannot run now.
+        # even if the cleanup below cannot run now. When the disk refuses it,
+        # the cleanup alone still ends the session.
         try:
             write_ended(marker, token)
         except OSError:
-            # No durable ended record (the disk refuses writes). Under the
-            # exclusive lock, serialized with any new start: delete this
-            # generation's marker (without one, recovery resumes nothing) and
-            # clear the label while it still holds this generation. When the
-            # lock stays busy too, this double failure is a documented limit.
-            with writer_lock(marker, wait=3.0) as held:
-                if not held:
-                    return 0
-                if first_line(read_marker(marker)) == token:
-                    try:
-                        marker.unlink()
-                        sync_dir(marker.parent)
-                    except OSError:
-                        pass
-                current = get_record(terminal)
-                if current is not None and labels_of(current).get(LABEL) == token:
-                    clear_label(terminal)
-            return 0
+            pass
         # Then the cleanup, under the exclusive lock (a new start, also exclusive,
         # cannot interleave). Busy: the next command's cleanup finishes it.
         with writer_lock(marker, wait=3.0) as held:
@@ -763,15 +679,6 @@ def run_hook(agent):
     with writer_lock(marker, wait=3.0) as held:
         # Disable removes the flag under the exclusive state lock: re-check it here.
         if not (held and enabled_file().exists()):
-            return 0
-        cid = core_id()
-        key = marker.parent.name
-        # Sessions here that this core cannot be shown to own: leave them alone.
-        if not cid or (holds_sessions(key) and not confirmed(key, cid)):
-            return 0
-        try:
-            remember_core_id(key, cid)  # writer_lock created the folder
-        except OSError:
             return 0
         if not set_label(terminal, session["gen"]):
             return 0
@@ -802,8 +709,6 @@ def shell_startup(shell_pid):
     record = get_record(terminal)
     if record is None or record.get("pid") != shell_pid:
         return 0
-    if not confirmed(marker.parent.name, core_id()):
-        return 0  # not shown to be this core's files: leave them alone
     token = labels_of(record).get(LABEL)
     session = parse_marker(read_marker(marker))
     # The label's own generation ended (its record exists, whatever it holds).
@@ -852,8 +757,6 @@ def shell_cleanup(shell_pid, expected):
     # A shell nested inside a running agent must not clear that agent's label.
     if record is None or record.get("pid") != shell_pid:
         return 0
-    if not confirmed(marker.parent.name, core_id()):
-        return 0  # retried on the next command
     with writer_lock(marker, wait=5.0) as held:
         # Still busy (another cleanup, a hook writing, or disable): the next
         # command retries; the synced ended record already blocks a resume.
@@ -871,109 +774,48 @@ def shell_cleanup(shell_pid, expected):
     return 0
 
 
-def shell_clear(shell_pid, token=None):
-    """Last resort, run synchronously by zsh when it could neither write the ended
-    record nor remove the marker: clear the label now. zsh calls it only from the
-    top-level shell with no jobs, so no agent runs in this terminal. With a token,
-    only that start's label is cleared; a newer label means nothing is left to do.
-    Exit 0 when nothing is left to clear, 1 otherwise: zsh retries later."""
-    if not enabled_file().exists() or not in_herdr_core():
-        return 0
-    terminal = os.environ["HC_TERMINAL_ID"]
-    # Shared state lock only: this runs when the disk refuses writes, so no
-    # terminal lock file can be created; no agent runs in this shell meanwhile.
-    with state_lock(exclusive=False, wait=2.0) as held:
-        record = get_record(terminal) if held else None
-        if record is None or record.get("pid") != shell_pid:
-            return 1
-        current = labels_of(record).get(LABEL)
-        if current is None or (token is not None and current != token):
-            return 0
-        return 0 if clear_label(terminal) else 1
-
-
 def terminal_of(path):
     """The terminal a core folder file belongs to: its marker `<t>`, its ended
     records `<t>.ended.<token>` and its writer lock `.<t>.lock`. None for the
-    folder's own dot files (`.core-id`, `.pruned`, temp files)."""
+    folder's own dot files (`.pruned`, temp files)."""
     name = path.name
     if name.startswith("."):
         return name[1:-5] if name.endswith(".lock") and name != ".lock" else None
     return name.split(".ended.", 1)[0]
 
 
+def moved_on(terminal, token):
+    """The terminal answers and its label no longer holds `token` (kept otherwise:
+    a cleanup may still need that ended record)."""
+    record = get_record(terminal)
+    return record is not None and labels_of(record).get(LABEL) != token
+
+
 def prune_markers():
-    """Delete this core's markers and ended records that are garbage.
-
-    Every hc call runs without the lock, so a hook starting a session never
-    waits on hc. Two passes judge the files, the second confirming the same core
-    (its id still answers and equals the folder's saved id) and a fresh listing.
-    The short exclusive lock covers only local checks: files unchanged since
-    (a hook writes its marker under the lock; a rewrite gets a new mtime).
-    """
+    """Delete this core's records of terminals that are gone, and ended records
+    older than a day whose terminal holds another token. One pass under the
+    exclusive state lock: it runs once a day, so a hook rarely waits on it."""
     core = core_name()
-    if not core:
+    folder = core_dir(core) if core else None
+    if folder is None or not folder.is_dir():
         return None
-    folder = core_dir(core)
-    started = time.time()
-    live = core_id()
-    if not live or (holds_sessions(core) and not confirmed(core, live)):
-        return None  # sessions of a core not shown to be this one: never prune them
-    addresses = local_terminals()
-    if addresses is None or not folder.is_dir():
-        return None
-    keep = {marker_name(a) for a in addresses}
-
-    def outdated(path, base):
-        """An old ended record whose terminal moved on to another token (kept
-        while the terminal still holds that token: a cleanup may need it)."""
-        record = get_record(base)
-        return record is not None and labels_of(record).get(LABEL) != ended_token(path)
-
-    doomed = {}  # path -> (mtime, content) seen when it was judged garbage
-    for path in folder.iterdir():  # literal names: a core name may hold glob characters
-        base = terminal_of(path)
-        if base is None or not path.is_file():
-            continue
-        try:
-            mtime = path.stat().st_mtime
-        except OSError:
-            continue
-        content = read_marker(path)
-        if path.name.startswith("."):
-            # A terminal's writer lock: garbage once its terminal is gone. Under
-            # the exclusive state lock below, no writer can hold it.
-            if base not in keep:
-                doomed[path] = (mtime, content)
-        elif content is UNREADABLE:
-            continue  # cannot judge it: keep it
-        elif base not in keep:
-            doomed[path] = (mtime, content)
-        elif ".ended." in path.name and started - mtime >= ENDED_MAX_AGE and outdated(path, base):
-            doomed[path] = (mtime, content)
-    if doomed:
-        # Second pass, still without the lock: the socket may have changed hands
-        # since the listing, so bind every decision to the same core again and
-        # confirm each file is still garbage against a fresh listing.
-        if core_id() != live or saved_core_id(core) != live:
-            return None
-        fresh = local_terminals()
-        if fresh is None:
-            return None
-        still = {marker_name(a) for a in fresh}
-        for path in list(doomed):
-            base = terminal_of(path)
-            # Its terminal is back, unless this is an ended record it moved on from.
-            if base in still and not (".ended." in path.name and outdated(path, base)):
-                del doomed[path]
     removed = 0
-    # The lock covers only local checks, so a hook waiting for it waits briefly.
     with state_lock(exclusive=True, wait=2.0) as held:
-        if not held or (doomed and saved_core_id(core) != live):
+        addresses = local_terminals() if held else None
+        if addresses is None:
             return None
-        for path, (mtime, content) in doomed.items():
+        live = {marker_name(a) for a in addresses}
+        for path in folder.iterdir():  # literal names: a core name may hold glob characters
+            base = terminal_of(path)
+            if base is None:
+                continue
             try:
-                if path.stat().st_mtime == mtime and read_marker(path) == content and mtime < started:
+                garbage = base not in live or (
+                    ".ended." in path.name
+                    and time.time() - path.stat().st_mtime >= ENDED_MAX_AGE
+                    and moved_on(base, ended_token(path))
+                )
+                if garbage:
                     path.unlink()
                     removed += 1
             except OSError:
@@ -1128,9 +970,9 @@ def update_hooks(path, hooks, agent, enable, cs):
     return f"{agent}: hooks {action} {path}" + (f" (backup {backup})" if backup else "")
 
 
-def zshrc_line(tag=ZSHRC_TAG):
+def zshrc_line():
     snippet = shlex.quote(str(SNIPPET_PATH))
-    return f"[[ -r {snippet} ]] && source {snippet}  {tag}"
+    return f"[[ -r {snippet} ]] && source {snippet}  {ZSHRC_TAG}"
 
 
 def zshrc_path():
@@ -1158,12 +1000,10 @@ def zshrc_lines():
 def owned_line(line):
     """True only for our generated line, with any path to the snippet (stale ones too)."""
     text = line.rstrip("\r\n")
-    eol = ZSHRC_EOL_RE.search(text)
-    tag = eol.group(0) if eol else ZSHRC_TAG
-    if not text.endswith("  " + tag):
+    if not text.endswith("  " + ZSHRC_TAG):
         return False
     try:
-        tokens = shlex.split(text[: -len(tag)])
+        tokens = shlex.split(text[: -len(ZSHRC_TAG)])
     except ValueError:
         return False
     return (
@@ -1175,37 +1015,13 @@ def owned_line(line):
     )
 
 
-def eol_tag(content):
-    """The tag recording the whole file enable ended with a newline, by hash:
-    disable takes the newline back only when nothing above was edited since."""
-    return f"{ZSHRC_EOL_PREFIX}{hashlib.sha256(content.encode()).hexdigest()[:16]})"
-
-
-def without_our_lines(lines):
-    """The file without our lines. A newline enable added is taken back only when
-    the file above is unchanged since (same content, by hash)."""
-    kept = []
-    for index, line in enumerate(lines):
-        if not owned_line(line):
-            kept.append(line)
-            continue
-        eol = ZSHRC_EOL_RE.search(line.rstrip("\r\n"))
-        # Only when nothing above was edited: the same whole file, byte for byte.
-        if eol and index == len(lines) - 1 and kept and kept[-1].endswith("\n"):
-            if eol_tag("".join(kept)[:-1]) == eol.group(0):
-                kept[-1] = kept[-1][:-1]
-    return kept
-
-
 def update_zshrc(enable):
     path, lines = zshrc_lines()
-    kept = without_our_lines(lines)
+    kept = [line for line in lines if not owned_line(line)]
     if enable:
-        tag = ZSHRC_TAG
         if kept and not kept[-1].endswith("\n"):
-            tag = eol_tag("".join(kept))
-            kept[-1] += "\n"
-        kept.append(zshrc_line(tag) + "\n")
+            kept[-1] += "\n"  # the file's last line needs its end before ours
+        kept.append(zshrc_line() + "\n")
     if kept == lines:
         return f"zsh: {path} already {'set' if enable else 'clean'}"
     write_preserving_link(path, "".join(kept))
@@ -1312,7 +1128,7 @@ def cmd_enable():
             print("Not done: another herdr-agent-resume process holds the lock. Run enable again.")
             return 1
         enable_locked(cs)
-    for path in known_cores()[0].values():
+    for path in known_cores().values():
         with on_core(path):
             prune_markers()
     for warning in warnings():
@@ -1385,23 +1201,8 @@ def disable_locked():
         except (OSError, ValueError, TypeError) as error:
             problems.append(f"{name}: {error}")
     kept = {}  # cores whose labels are not all gone: their folder stays for a retry
-    cores, unresolved = known_cores()
-    running = running_core_ids(cores)
-    for core in unresolved:
-        if holds_sessions(core):
-            problems.append(f"{core_dir(core)}: not a known core, labels not checked")
-            kept[core] = None
-    for core, path in cores.items():
+    for core, path in known_cores().items():
         name = f"core {core_label(core)} ({path})"
-        if moved(core, running):
-            print(f"{name}: moved, its labels are handled with the running core")
-            continue
-        if holds_sessions(core) and not confirmed(core, running.get(core)):
-            problems.append(
-                f"{name}: its sessions could not be matched to the core answering on this "
-                "socket (core id unknown or different); they are kept and not checked"
-            )
-            kept[core] = path
         with on_core(path):
             result = labelled_terminals()
             if result is None:
@@ -1464,17 +1265,11 @@ def cmd_info():
     except (OSError, ValueError) as error:
         print(f"zsh line: unreadable ({zshrc_path()}: {error})")
     print(f"hc: {shutil.which('hc') or 'not found'}")
-    cores, unresolved = known_cores()
-    if not cores and not unresolved:
+    cores = known_cores()
+    if not cores:
         print("Labels: no core has recorded a session yet")
-    for core in unresolved:
-        print(f"Labels: {core_dir(core)} is not a known core")
-    running = running_core_ids(cores)
     for core, path in cores.items():
         name = f"{core_label(core)} ({path})"
-        if moved(core, running):
-            print(f"Labels ({name}): moved, see the running core")
-            continue
         with on_core(path):
             result = labelled_terminals()
             if result is None:
@@ -1482,12 +1277,9 @@ def cmd_info():
                 continue
             found, unreadable = result
             print(f"Labels ({name}): {len(found)}")
-            own = not holds_sessions(core) or confirmed(core, running.get(core))
-            if not own:
-                print("  sessions here belong to another core that used this socket; not shown")
             for address, token in sorted(found.items()):
                 file = marker_name(address)
-                session = parse_marker(read_marker(core_dir(core) / file)) if file and own else None
+                session = parse_marker(read_marker(core_dir(core) / file)) if file else None
                 matches = session is not None and session["gen"] == token
                 print(f"  {address}: {resume_command(session) if matches else 'no matching marker'}")
             if unreadable:
@@ -1517,11 +1309,6 @@ def main(argv):
             return run_hook(argv[2] if len(argv) > 2 else "")
         if mode == "--shell-startup":
             return shell_startup(int(argv[2]))
-        if mode == "--shell-clear":
-            return shell_clear(int(argv[2]), argv[3] if len(argv) > 3 and valid_token(argv[3]) else None)
-        if mode == "--core-id":
-            print(core_id() or "")
-            return 0
         if mode == "--prune":
             if enabled_file().exists():
                 prune_markers()
@@ -1539,7 +1326,7 @@ def main(argv):
             return 1
     print(
         "Usage: herdr-agent-resume.py {enable|disable|info|--hook AGENT|"
-        "--shell-startup PID|--shell-cleanup PID TOKEN|--shell-clear PID [TOKEN]|--prune|--core-id}",
+        "--shell-startup PID|--shell-cleanup PID TOKEN|--prune}",
         file=sys.stderr,
     )
     return 2
