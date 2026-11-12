@@ -1599,11 +1599,21 @@ ZPTY_DRIVER = r"""
 zmodload zsh/zpty
 zpty -b sh "$HAR_SPAWN"
 out=
-for i in {1..80}; do
+# Read until the shell has printed nothing for half a second (at most 20 s): a
+# resume started from the first prompt finishes before anything is typed.
+settle() {
+  local quiet=0 i
+  for i in {1..200}; do
+    if zpty -r -t sh chunk 2>/dev/null; then out+=$chunk; quiet=0; else (( ++quiet >= 5 )) && break; fi
+    sleep 0.1
+  done
+}
+for i in {1..200}; do
   zpty -r -t sh chunk 2>/dev/null && out+=$chunk
   [[ $out == *READY* ]] && break
   sleep 0.1
 done
+settle
 for cmd in "$@"; do
   zpty -w sh "$cmd"
   # Wait for the next prompt (up to 20 s), so a slow machine never cuts a command short.
@@ -1614,6 +1624,7 @@ for cmd in "$@"; do
     sleep 0.1
   done
   out+=$new
+  settle
 done
 zpty -w sh 'exit'
 sleep 1
@@ -1631,6 +1642,9 @@ class ZshSnippetTest(Env):
         super().setUp()
         self.zdot = self.root / "zdot"
         self.zdot.mkdir()
+        # Skip the machine's global zsh files: a distribution's compinit can stop at
+        # an "insecure directories" question and swallow the first typed command.
+        (self.zdot / ".zshenv").write_text("unsetopt GLOBAL_RCS\n")
         self.log = self.root / "agent.log"
         for agent in ("claude", "codex"):
             fake = self.bin / agent
