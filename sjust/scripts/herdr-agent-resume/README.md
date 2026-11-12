@@ -49,7 +49,7 @@ Enable and disable back up each file before changing it, and touch only their ow
 
 Disable also removes the label from every terminal of every herdr-core that recorded a session, and deletes the state folder. Nothing in this feature ever starts herdr-core: a core that is not running is reported, not started. Running agents and open shells stop acting as soon as the flag is gone.
 
-If disable cannot finish (a malformed settings file, or a herdr-core not running so its labels cannot be removed), it still turns the feature off, keeps only what a retry needs, lists what is left, and exits with an error. Fix the cause or start the Herdr app, then run `sjust herdr-agent-resume-disable` again.
+If disable cannot finish (a malformed settings file, or a herdr-core not running so its labels cannot be removed), it still removes the `enabled` flag, keeps only what a retry needs, lists what is left, and exits with an error. The feature is off once the flag is gone; if the flag itself cannot be removed, disable says so and the feature may still act until a retry succeeds. Fix the cause or start the Herdr app, then run `sjust herdr-agent-resume-disable` again.
 
 ## Tests
 
