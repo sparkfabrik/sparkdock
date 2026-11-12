@@ -23,6 +23,7 @@ _sf_har_init() {
   # holder), not one nested in a running agent? Checked once, lazily.
   typeset -g _sf_har_cmd= _sf_har_msg= _sf_har_top= _sf_har_must_clear= _sf_har_live_id=
   typeset -gi _sf_har_live_retry=0
+  zmodload zsh/parameter 2>/dev/null  # $jobstates, read before each command
   autoload -Uz add-zsh-hook
   add-zsh-hook preexec _sf_har_preexec
   _sf_har_startup
@@ -52,9 +53,7 @@ _sf_har_preexec() {
   emulate -L zsh
   [[ -e $_sf_har_dir/enabled ]] || return 0
   [[ -n $_sf_har_must_clear || -e $_sf_har_marker ]] || return 0
-  (( ${+jobstates} )) || zmodload zsh/parameter 2>/dev/null
-  (( ${+jobstates} )) || return 0
-  (( ${#jobstates} == 0 )) || return 0
+  (( ${+jobstates} && ${#jobstates} == 0 )) || return 0
   _sf_har_top_level || return 0
   if [[ -n $_sf_har_must_clear ]]; then
     # A closed session could not be recorded locally: retry clearing its label.

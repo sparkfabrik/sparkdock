@@ -21,6 +21,7 @@ import base64
 import contextlib
 import binascii
 import glob
+import hashlib
 import json
 import os
 import re
@@ -42,14 +43,6 @@ ZSHRC_TAG = "# sparkdock herdr-agent-resume"
 # disable then removes that newline again, restoring the file byte for byte.
 ZSHRC_EOL_PREFIX = ZSHRC_TAG + " (added a final newline to a file hashing "
 ZSHRC_EOL_RE = re.compile(re.escape(ZSHRC_EOL_PREFIX) + r"([0-9a-f]{16})\)$")
-
-
-def eol_tag(content):
-    """The tag recording the whole file enable ended with a newline, by hash:
-    disable takes the newline back only when nothing above was edited since."""
-    import hashlib
-
-    return f"{ZSHRC_EOL_PREFIX}{hashlib.sha256(content.encode()).hexdigest()[:16]})"
 SCRIPT_PATH = Path(__file__).resolve()
 SNIPPET_PATH = SCRIPT_PATH.with_name("herdr-agent-resume.zsh")
 AGENTS = ("claude", "codex")
@@ -79,6 +72,55 @@ MANAGED_CLAUDE_SETTINGS = (
 
 
 # ---------------------------------------------------------------- state paths
+#
+# Every file below is written whole and atomically: a temp file next to it, then
+# a rename, so a reader never sees half a file.
+
+
+def atomic_write(path, text, sync=False, mode=None):
+    """Write `text` to `path` through a temp file and a rename. `sync` makes the
+    rename survive a power loss (raises OSError when it may not); `mode` sets
+    the permissions (mkstemp creates 0600)."""
+    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=f".{path.name}.")
+    try:
+        with os.fdopen(fd, "w", newline="") as f:
+            f.write(text)
+            if sync:
+                f.flush()
+                os.fsync(f.fileno())
+        if mode is not None:
+            os.chmod(tmp, mode)
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+    if sync:
+        sync_dir(path.parent)
+
+
+def sync_dir(folder):
+    """Make a rename in `folder` survive a power loss. Raises OSError on failure:
+    a caller relying on the record must know it may not be durable."""
+    fd = os.open(folder, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def flock_until(fd, mode, deadline):
+    """Take `flock(fd, mode)`, retrying until `deadline`. True when held."""
+    import fcntl
+
+    while True:
+        try:
+            fcntl.flock(fd, mode | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            if time.monotonic() >= deadline:
+                return False
+            time.sleep(0.05)
 
 
 def state_dir():
@@ -103,18 +145,8 @@ def state_lock(exclusive, wait):
         yield False
         return
     try:
-        mode = (fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH) | fcntl.LOCK_NB
-        deadline = time.monotonic() + wait
-        while True:
-            try:
-                fcntl.flock(fd, mode)
-                break
-            except OSError:
-                if time.monotonic() >= deadline:
-                    yield False
-                    return
-                time.sleep(0.05)
-        yield True
+        mode = fcntl.LOCK_EX if exclusive else fcntl.LOCK_SH
+        yield flock_until(fd, mode, time.monotonic() + wait)
     finally:
         os.close(fd)
 
@@ -134,24 +166,22 @@ def writer_lock(marker, wait):
             yield False
             return
         try:
-            marker.parent.mkdir(parents=True, exist_ok=True)
+            make_private_dir(marker.parent)
             fd = os.open(marker.parent / f".{marker.name}.lock", os.O_RDWR | os.O_CREAT, 0o600)
         except OSError:
             yield False
             return
         try:
-            while True:
-                try:
-                    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
-                    break
-                except OSError:
-                    if time.monotonic() >= deadline:
-                        yield False
-                        return
-                    time.sleep(0.05)
-            yield True
+            yield flock_until(fd, fcntl.LOCK_EX, deadline)
         finally:
             os.close(fd)
+
+
+def make_private_dir(folder):
+    """Create a core folder readable by its owner alone (zsh writes ended records
+    with the person's umask; the folder keeps them private)."""
+    folder.mkdir(parents=True, exist_ok=True)
+    os.chmod(folder, 0o700)
 
 
 def enabled_file():
@@ -171,8 +201,14 @@ def current_socket():
     return CORE["socket"] or os.environ.get("HC_TERMINAL_SOCKET") or None
 
 
-def use_core(path):
+@contextlib.contextmanager
+def on_core(path):
+    """Point hc calls at the core on `path` for the duration of the block."""
     CORE["socket"] = path
+    try:
+        yield
+    finally:
+        CORE["socket"] = None
 
 
 def core_key(path):
@@ -209,19 +245,17 @@ def core_dir(core):
     return markers_dir() / core
 
 
-def marker_name(core, terminal):
-    """The marker's file name inside core_dir(core), or None for unsafe names."""
+def marker_name(terminal):
+    """A terminal's marker file name inside its core folder, or None for unsafe names."""
     terminal = terminal.replace("/", "_")
-    if not core or not NAME_RE.match(terminal):
-        return None
-    return terminal
+    return terminal if NAME_RE.match(terminal) else None
 
 
 def marker_path(env=None):
     env = os.environ if env is None else env
     core = core_name(env)
-    name = marker_name(core, env.get("HC_TERMINAL_ID", ""))
-    return core_dir(core) / name if name else None
+    name = marker_name(env.get("HC_TERMINAL_ID", ""))
+    return core_dir(core) / name if core and name else None
 
 
 def known_cores():
@@ -263,29 +297,18 @@ def saved_core_id(key):
 
 def remember_core_id(key, value):
     """Atomic write of the folder's core id (part of a successful start)."""
-    target = core_dir(key) / ".core-id"
-    if saved_core_id(key) == value:
-        return
-    fd, tmp = tempfile.mkstemp(dir=str(target.parent), prefix=".core-id.")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(value + "\n")
-        os.replace(tmp, target)
-    except BaseException:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-        raise
+    if saved_core_id(key) != value:
+        atomic_write(core_dir(key) / ".core-id", value + "\n")
 
 
 def running_core_ids(cores):
-    """{core id: key} for the cores that answer now."""
+    """{key: core id} for the cores that answer now."""
     ids = {}
     for key, path in cores.items():
-        use_core(path)
-        value = core_id()
+        with on_core(path):
+            value = core_id()
         if value:
-            ids[value] = key
-    use_core(None)
+            ids[key] = value
     return ids
 
 
@@ -306,23 +329,7 @@ def moved(key, running):
     belongs to a running core under a different key. Same socket name alone
     proves nothing: separate cores can share it."""
     value = saved_core_id(key)
-    return bool(value) and running.get(value, key) != key
-
-
-def write_marker(path, text):
-    """Atomic write of a marker (see marker_text)."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    for folder in (state_dir(), markers_dir(), path.parent):
-        os.chmod(folder, 0o700)
-    fd, tmp = tempfile.mkstemp(dir=str(path.parent), prefix=".marker.")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(text)
-        os.replace(tmp, path)
-    except BaseException:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-        raise
+    return bool(value) and value in running.values() and running.get(key) != value
 
 
 UNREADABLE = object()  # a file that exists but cannot be read
@@ -344,29 +351,7 @@ def first_line(text):
 
 def write_ended(marker, token):
     """Atomic, synced write of the ended record of one generation."""
-    target = ended_path(marker, token)
-    fd, tmp = tempfile.mkstemp(dir=str(marker.parent), prefix=".ended.")
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(token + "\n")
-            f.flush()
-            os.fsync(f.fileno())
-        os.replace(tmp, target)
-    except BaseException:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-        raise
-    sync_dir(marker.parent)
-
-
-def sync_dir(folder):
-    """Make a rename in `folder` survive a power loss. Raises OSError on failure:
-    a caller relying on the record must know it may not be durable."""
-    fd = os.open(folder, os.O_RDONLY)
-    try:
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+    atomic_write(ended_path(marker, token), token + "\n", sync=True)
 
 
 def ended_path(marker, token):
@@ -546,10 +531,11 @@ def in_herdr_core(env=None):
 
 
 def process_table():
-    """{pid: (ppid, pgid, tpgid, argv)} from ps; works with BSD and procps."""
+    """{pid: (ppid, pgid, tpgid)} from ps; works with BSD and procps. Command
+    lines come from process_argv: ps joins arguments with spaces."""
     try:
         out = subprocess.run(
-            ["ps", "-A", "-o", "pid=,ppid=,pgid=,tpgid=,args="],
+            ["ps", "-A", "-o", "pid=,ppid=,pgid=,tpgid="],
             capture_output=True,
             text=True,
             timeout=HC_TIMEOUT,
@@ -558,14 +544,11 @@ def process_table():
         return {}
     table = {}
     for line in out.splitlines():
-        parts = line.split(None, 4)
-        if len(parts) < 4:
-            continue
         try:
-            pid, ppid, pgid, tpgid = (int(p) for p in parts[:4])
+            pid, ppid, pgid, tpgid = (int(p) for p in line.split())
         except ValueError:
             continue
-        table[pid] = (ppid, pgid, tpgid, parts[4].split() if len(parts) > 4 else [])
+        table[pid] = (ppid, pgid, tpgid)
     return table
 
 
@@ -605,8 +588,10 @@ def darwin_argv(pid):
         return None
 
 
-def is_agent(argv, agent):
-    return bool(argv) and os.path.basename(argv[0]) == agent
+def agent_of(argv):
+    """"claude" or "codex" when argv runs one of them, else None."""
+    name = os.path.basename(argv[0]) if argv else None
+    return name if name in AGENTS else None
 
 
 def one_shot(argv, agent):
@@ -639,8 +624,9 @@ def foreground_agent(table, start, record_pid, agent, argv_of=process_argv):
     process right below the terminal, or the terminal itself when it is the agent,
     must be the tty's foreground process group (rules out tmux and background jobs).
 
-    Returns None when the process table could not be read at all: callers decide
-    which way is safe (a start records nothing; an exit still ends the session).
+    Returns None when the process table or an argv in the chain could not be
+    read: callers decide which way is safe (a start records nothing; an exit
+    still ends the session).
     """
     if not table or start not in table:
         return None
@@ -658,28 +644,33 @@ def foreground_agent(table, start, record_pid, agent, argv_of=process_argv):
         return False
     # Exact argv for every process in the chain: ps joins arguments with spaces,
     # so an executable under a path with spaces would be misread from its words.
-    exact = {p: argv_of(p) for p in chain}
-    if any(value is None for value in exact.values()):
+    argv = {p: argv_of(p) for p in chain}
+    if any(value is None for value in argv.values()):
         return None  # cannot identify every process reliably: fail closed
-    argv = exact
-    agents = [p for p in chain if any(is_agent(argv[p], name) for name in AGENTS)]
-    if not agents:
+    agents = [p for p in chain if agent_of(argv[p])]
+    if len(agents) != 1 or agent_of(argv[agents[0]]) != agent:
         return False
     nearest = agents[0]
-    if len(agents) > 1 or not is_agent(argv[nearest], agent):
-        return False
     if one_shot(argv[nearest], agent):
         return False
     top = record_pid if nearest == record_pid else chain[-2]
-    _, pgid, tpgid, _ = table[top]
+    _, pgid, tpgid = table[top]
     return tpgid > 0 and pgid == tpgid
 
 
 # ----------------------------------------------------------------------- hook
 
 
+def active_marker():
+    """This terminal's marker path while the feature is on inside herdr-core, else None."""
+    if not enabled_file().exists() or not in_herdr_core():
+        return None
+    return marker_path()
+
+
 def run_hook(agent):
-    if agent not in AGENTS or not enabled_file().exists() or not in_herdr_core():
+    marker = active_marker()
+    if agent not in AGENTS or marker is None:
         return 0
     try:
         payload = json.loads(sys.stdin.read(1 << 20) or "{}")
@@ -688,9 +679,8 @@ def run_hook(agent):
     if not isinstance(payload, dict):
         return 0
     terminal = os.environ["HC_TERMINAL_ID"]
-    marker = marker_path()
     event = payload.get("hook_event_name")
-    if marker is None or event not in ("SessionStart", "SessionEnd"):
+    if event not in ("SessionStart", "SessionEnd"):
         return 0
     record = get_record(terminal)
     if record is None or not isinstance(record.get("pid"), int):
@@ -771,15 +761,13 @@ def run_hook(agent):
         if not cid or (holds_sessions(key) and not confirmed(key, cid)):
             return 0
         try:
-            marker.parent.mkdir(parents=True, exist_ok=True)
-            os.chmod(marker.parent, 0o700)
-            remember_core_id(key, cid)
+            remember_core_id(key, cid)  # writer_lock created the folder
         except OSError:
             return 0
         if not set_label(terminal, session["gen"]):
             return 0
         try:
-            write_marker(marker, marker_text(session))
+            atomic_write(marker, marker_text(session))
         except OSError:
             clear_label(terminal)  # never leave a label without its marker
             return 0
@@ -796,9 +784,7 @@ def run_hook(agent):
 
 def shell_startup(shell_pid):
     """Print the resume plan for a recovered terminal, one tab-separated line."""
-    if not enabled_file().exists() or not in_herdr_core():
-        return 0
-    marker = marker_path()
+    marker = active_marker()
     if marker is None:
         return 0
     if not os.path.lexists(marker) and not ended_records(marker):
@@ -841,17 +827,13 @@ def shell_cleanup(shell_pid, expected):
     label is cleared only while it still holds that token, and the marker and the
     ended record are deleted only while they still hold it: a new session survives.
     """
-    if not enabled_file().exists() or not in_herdr_core():
-        return 0
-    marker = marker_path()
-    if marker is None:
-        return 0
-    if not valid_token(expected):
+    marker = active_marker()
+    if marker is None or not valid_token(expected):
         return 0
     ended = ended_path(marker, expected)
-    terminal = os.environ["HC_TERMINAL_ID"]
     if not os.path.lexists(ended):
         return 0
+    terminal = os.environ["HC_TERMINAL_ID"]
     try:
         sync_dir(marker.parent)  # first, lock or not: zsh wrote it without syncing
     except OSError:
@@ -901,6 +883,16 @@ def shell_clear(shell_pid, token=None):
         return 0 if clear_label(terminal) else 1
 
 
+def terminal_of(path):
+    """The terminal a core folder file belongs to: its marker `<t>`, its ended
+    records `<t>.ended.<token>` and its writer lock `.<t>.lock`. None for the
+    folder's own dot files (`.core-id`, `.pruned`, temp files)."""
+    name = path.name
+    if name.startswith("."):
+        return name[1:-5] if name.endswith(".lock") and name != ".lock" else None
+    return name.split(".ended.", 1)[0]
+
+
 def prune_markers():
     """Delete this core's markers and ended records that are garbage.
 
@@ -911,7 +903,7 @@ def prune_markers():
     (a hook writes its marker under the lock; a rewrite gets a new mtime).
     """
     core = core_name()
-    if marker_name(core, "x") is None:
+    if not core:
         return None
     folder = core_dir(core)
     started = time.time()
@@ -921,38 +913,35 @@ def prune_markers():
     addresses = local_terminals()
     if addresses is None or not folder.is_dir():
         return None
-    keep = {marker_name(core, a) for a in addresses}
+    keep = {marker_name(a) for a in addresses}
+
+    def outdated(path, base):
+        """An old ended record whose terminal moved on to another token (kept
+        while the terminal still holds that token: a cleanup may need it)."""
+        record = get_record(base)
+        return record is not None and labels_of(record).get(LABEL) != ended_token(path)
+
     doomed = {}  # path -> (mtime, content) seen when it was judged garbage
     for path in folder.iterdir():  # literal names: a core name may hold glob characters
-        if not path.is_file():
+        base = terminal_of(path)
+        if base is None or not path.is_file():
             continue
-        if path.name.startswith(".") and path.name.endswith(".lock") and path.name != ".lock":
-            # A terminal's writer lock: garbage once its terminal is gone. Under
-            # the exclusive state lock below, no writer can hold it.
-            if path.name[1:-5] not in keep:
-                try:
-                    doomed[path] = (path.stat().st_mtime, read_marker(path))
-                except OSError:
-                    pass
-            continue
-        if path.name.startswith("."):
-            continue
-        is_ended = ".ended." in path.name
-        base = path.name.split(".ended.", 1)[0] if is_ended else path.name
         try:
             mtime = path.stat().st_mtime
         except OSError:
             continue
         content = read_marker(path)
-        if content is UNREADABLE:
-            continue  # cannot judge it: keep it
-        if base not in keep:
-            doomed[path] = (mtime, content)
-        elif is_ended and started - mtime >= ENDED_MAX_AGE:
-            # Kept while its terminal still holds that token: a cleanup may need it.
-            record = get_record(base)
-            if record is not None and labels_of(record).get(LABEL) != ended_token(path):
+        if path.name.startswith("."):
+            # A terminal's writer lock: garbage once its terminal is gone. Under
+            # the exclusive state lock below, no writer can hold it.
+            if base not in keep:
                 doomed[path] = (mtime, content)
+        elif content is UNREADABLE:
+            continue  # cannot judge it: keep it
+        elif base not in keep:
+            doomed[path] = (mtime, content)
+        elif ".ended." in path.name and started - mtime >= ENDED_MAX_AGE and outdated(path, base):
+            doomed[path] = (mtime, content)
     if doomed:
         # Second pass, still without the lock: the socket may have changed hands
         # since the listing, so bind every decision to the same core again and
@@ -962,17 +951,12 @@ def prune_markers():
         fresh = local_terminals()
         if fresh is None:
             return None
-        still = {marker_name(core, a) for a in fresh}
+        still = {marker_name(a) for a in fresh}
         for path in list(doomed):
-            is_ended = ".ended." in path.name
-            if path.name.startswith(".") and path.name.endswith(".lock"):
-                base = path.name[1:-5]
-            else:
-                base = path.name.split(".ended.", 1)[0] if is_ended else path.name
-            if base in still:
-                record = get_record(base) if is_ended else None
-                if record is None or labels_of(record).get(LABEL) == ended_token(path):
-                    del doomed[path]  # its terminal is back, or still holds that token
+            base = terminal_of(path)
+            # Its terminal is back, unless this is an ended record it moved on from.
+            if base in still and not (".ended." in path.name and outdated(path, base)):
+                del doomed[path]
     removed = 0
     # The lock covers only local checks, so a hook waiting for it waits briefly.
     with state_lock(exclusive=True, wait=2.0) as held:
@@ -1061,6 +1045,14 @@ def load_json(path):
     return data
 
 
+def hook_files(cs):
+    """(agent, hook file, {event: matcher}) for each agent."""
+    return (
+        ("claude", cs.settings_path(), CLAUDE_HOOKS),
+        ("codex", codex_hooks_path(), CODEX_HOOKS),
+    )
+
+
 def expected_hook(agent):
     return {"type": "command", "command": hook_command(agent), "timeout": HOOK_TIMEOUT}
 
@@ -1145,16 +1137,7 @@ def write_preserving_link(path, text):
 
         claude_settings.backup(target)
     target.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp = tempfile.mkstemp(dir=str(target.parent), prefix=".zshrc.")
-    try:
-        with os.fdopen(fd, "w", newline="") as f:
-            f.write(text)
-        os.chmod(tmp, mode)
-        os.replace(tmp, target)
-    except BaseException:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-        raise
+    atomic_write(target, text, mode=mode)
 
 
 def zshrc_lines():
@@ -1167,8 +1150,8 @@ def owned_line(line):
     """True only for our generated line, with any path to the snippet (stale ones too)."""
     text = line.rstrip("\r\n")
     eol = ZSHRC_EOL_RE.search(text)
-    tag = eol.group(0) if eol else (ZSHRC_TAG if text.endswith("  " + ZSHRC_TAG) else None)
-    if tag is None or not text.endswith("  " + tag):
+    tag = eol.group(0) if eol else ZSHRC_TAG
+    if not text.endswith("  " + tag):
         return False
     try:
         tokens = shlex.split(text[: -len(tag)])
@@ -1183,9 +1166,10 @@ def owned_line(line):
     )
 
 
-def zshrc_has_line():
-    _, lines = zshrc_lines()
-    return any(owned_line(line) for line in lines)
+def eol_tag(content):
+    """The tag recording the whole file enable ended with a newline, by hash:
+    disable takes the newline back only when nothing above was edited since."""
+    return f"{ZSHRC_EOL_PREFIX}{hashlib.sha256(content.encode()).hexdigest()[:16]})"
 
 
 def without_our_lines(lines):
@@ -1266,10 +1250,7 @@ def labelled_terminals():
 def preflight(cs):
     """Read every file enable touches before writing any of them."""
     problems = []
-    for name, path, hooks in (
-        ("claude", cs.settings_path(), CLAUDE_HOOKS),
-        ("codex", codex_hooks_path(), CODEX_HOOKS),
-    ):
+    for name, path, hooks in hook_files(cs):
         try:
             cs.validate_hooks(load_json(path), hooks)
         except (OSError, ValueError, TypeError) as error:
@@ -1322,10 +1303,9 @@ def cmd_enable():
             print("Not done: another herdr-agent-resume process holds the lock. Run enable again.")
             return 1
         enable_locked(cs)
-    for core, path in known_cores()[0].items():
-        use_core(path)
-        prune_markers()
-    use_core(None)
+    for path in known_cores()[0].values():
+        with on_core(path):
+            prune_markers()
     for warning in warnings():
         print(f"Warning: {warning}")
     print("Enabled. Start new agent sessions and open a new terminal tab to use it.")
@@ -1335,19 +1315,16 @@ def cmd_enable():
 
 def enable_locked(cs):
     # Snapshot every file first: a failed write rolls back the ones already done.
-    files = [cs.settings_path(), codex_hooks_path(), Path(os.path.realpath(zshrc_path()))]
-    snapshot = {path: path.read_bytes() if path.exists() else None for path in files}
+    steps = [
+        (path, lambda a=agent, p=path, h=hooks: update_hooks(p, h, a, True, cs))
+        for agent, path, hooks in hook_files(cs)
+    ]
+    steps.append((Path(os.path.realpath(zshrc_path())), lambda: update_zshrc(True)))
+    snapshot = {path: path.read_bytes() if path.exists() else None for path, _ in steps}
     written = {}
     state_existed = state_dir().exists()
     try:
-        for path, step in zip(
-            files,
-            (
-                lambda: update_hooks(cs.settings_path(), CLAUDE_HOOKS, "claude", True, cs),
-                lambda: update_hooks(codex_hooks_path(), CODEX_HOOKS, "codex", True, cs),
-                lambda: update_zshrc(True),
-            ),
-        ):
+        for path, step in steps:
             message = step()
             written[path] = path.read_bytes() if path.exists() else None  # before any output
             print(message)
@@ -1388,11 +1365,11 @@ def disable_locked():
         enabled_file().unlink(missing_ok=True)
     except OSError as error:
         problems.append(f"{enabled_file()}: {error}")
-    steps = (
-        (f"claude: {cs.settings_path()}", lambda: update_hooks(cs.settings_path(), CLAUDE_HOOKS, "claude", False, cs)),
-        (f"codex: {codex_hooks_path()}", lambda: update_hooks(codex_hooks_path(), CODEX_HOOKS, "codex", False, cs)),
-        (f"zsh: {zshrc_path()}", lambda: update_zshrc(False)),
-    )
+    steps = [
+        (f"{agent}: {path}", lambda a=agent, p=path, h=hooks: update_hooks(p, h, a, False, cs))
+        for agent, path, hooks in hook_files(cs)
+    ]
+    steps.append((f"zsh: {zshrc_path()}", lambda: update_zshrc(False)))
     for name, step in steps:  # each step runs even when an earlier one fails
         try:
             print(step())
@@ -1402,31 +1379,28 @@ def disable_locked():
     cores, unresolved = known_cores()
     running = running_core_ids(cores)
     for core in unresolved:
-        folder = core_dir(core)
-        sessions = [p for p in folder.iterdir() if not p.name.startswith(".")] if folder.is_dir() else []
-        if sessions:
-            problems.append(f"{folder}: not a known core, labels not checked")
+        if holds_sessions(core):
+            problems.append(f"{core_dir(core)}: not a known core, labels not checked")
             kept[core] = None
     for core, path in cores.items():
         name = f"core {core_label(core)} ({path})"
         if moved(core, running):
             print(f"{name}: moved, its labels are handled with the running core")
             continue
-        live = next((i for i, k in running.items() if k == core), None)
-        if holds_sessions(core) and not confirmed(core, live):
+        if holds_sessions(core) and not confirmed(core, running.get(core)):
             problems.append(
                 f"{name}: its sessions could not be matched to the core answering on this "
                 "socket (core id unknown or different); they are kept and not checked"
             )
             kept[core] = path
-        use_core(path)
-        result = labelled_terminals()
-        if result is None:
-            problems.append(f"{name}: not running, {LABEL} labels not checked")
-            kept[core] = path
-            continue
-        found, unreadable = result
-        failed = [t for t in found if not clear_label(t)]
+        with on_core(path):
+            result = labelled_terminals()
+            if result is None:
+                problems.append(f"{name}: not running, {LABEL} labels not checked")
+                kept[core] = path
+                continue
+            found, unreadable = result
+            failed = [t for t in found if not clear_label(t)]
         print(f"labels, {name}: removed {len(found) - len(failed)}")
         if failed:
             problems.append(f"{name}: labels not removed on {', '.join(failed)}")
@@ -1434,7 +1408,6 @@ def disable_locked():
             problems.append(f"{name}: terminals not readable, labels not checked: {', '.join(unreadable)}")
         if failed or unreadable:
             kept[core] = path
-    use_core(None)
     if kept:
         for child in list(state_dir().iterdir()) if state_dir().is_dir() else []:
             if child != markers_dir():
@@ -1443,7 +1416,7 @@ def disable_locked():
             if child.name not in kept:
                 shutil.rmtree(child, ignore_errors=True)
         for core in kept:  # the folder name is the core's socket: a retry finds it again
-            core_dir(core).mkdir(parents=True, exist_ok=True)
+            make_private_dir(core_dir(core))
         print(f"state: kept {', '.join(sorted(core_label(k) for k in kept))} in {markers_dir()} for a retry")
     else:
         shutil.rmtree(state_dir(), ignore_errors=True)
@@ -1469,18 +1442,16 @@ def cmd_info():
 
     print(f"Script: {SCRIPT_PATH}")
     print(f"Enabled flag: {'on' if enabled_file().exists() else 'off'} ({enabled_file()})")
-    for name, path, hooks in (
-        ("Claude Code", cs.settings_path(), CLAUDE_HOOKS),
-        ("Codex", codex_hooks_path(), CODEX_HOOKS),
-    ):
+    for agent, path, hooks in hook_files(cs):
         try:
-            state = hook_state(load_json(path), hooks, "claude" if name == "Claude Code" else "codex")
+            state = hook_state(load_json(path), hooks, agent)
         except (OSError, ValueError, TypeError) as error:
             state = f"unreadable ({error})"
-        print(f"{name} hooks: {state} ({path})")
+        print(f"{'Claude Code' if agent == 'claude' else 'Codex'} hooks: {state} ({path})")
     print("Codex hooks need trust: open /hooks in Codex.")
     try:
-        print(f"zsh line: {'present' if zshrc_has_line() else 'absent'} ({zshrc_path()})")
+        present = any(owned_line(line) for line in zshrc_lines()[1])
+        print(f"zsh line: {'present' if present else 'absent'} ({zshrc_path()})")
     except (OSError, ValueError) as error:
         print(f"zsh line: unreadable ({zshrc_path()}: {error})")
     print(f"hc: {shutil.which('hc') or 'not found'}")
@@ -1495,28 +1466,26 @@ def cmd_info():
         if moved(core, running):
             print(f"Labels ({name}): moved, see the running core")
             continue
-        use_core(path)
-        result = labelled_terminals()
-        if result is None:
-            print(f"Labels ({name}): core not running")
-            continue
-        found, unreadable = result
-        print(f"Labels ({name}): {len(found)}")
-        own = not holds_sessions(core) or confirmed(core, core_id())
-        if not own:
-            print("  sessions here belong to another core that used this socket; not shown")
-        for address, token in sorted(found.items()):
-            file = marker_name(core, address)
-            session = parse_marker(read_marker(core_dir(core) / file)) if file and own else None
-            matches = session is not None and session["gen"] == token
-            print(f"  {address}: {resume_command(session) if matches else 'no matching marker'}")
-        if unreadable:
-            print(f"  not readable: {', '.join(unreadable)}")
-        if enabled_file().exists():
-            removed = prune_markers()
-            if removed:
-                print(f"Markers ({name}): pruned {removed} stale")
-    use_core(None)
+        with on_core(path):
+            result = labelled_terminals()
+            if result is None:
+                print(f"Labels ({name}): core not running")
+                continue
+            found, unreadable = result
+            print(f"Labels ({name}): {len(found)}")
+            own = not holds_sessions(core) or confirmed(core, running.get(core))
+            if not own:
+                print("  sessions here belong to another core that used this socket; not shown")
+            for address, token in sorted(found.items()):
+                file = marker_name(address)
+                session = parse_marker(read_marker(core_dir(core) / file)) if file and own else None
+                matches = session is not None and session["gen"] == token
+                print(f"  {address}: {resume_command(session) if matches else 'no matching marker'}")
+            if unreadable:
+                print(f"  not readable: {', '.join(unreadable)}")
+            removed = prune_markers() if enabled_file().exists() else None
+        if removed:
+            print(f"Markers ({name}): pruned {removed} stale")
     markers = (
         sorted(
             str(p.relative_to(markers_dir()))
@@ -1561,7 +1530,7 @@ def main(argv):
             return 1
     print(
         "Usage: herdr-agent-resume.py {enable|disable|info|--hook AGENT|"
-        "--shell-startup PID|--shell-cleanup PID TOKEN|--shell-clear PID [TOKEN]|--prune}",
+        "--shell-startup PID|--shell-cleanup PID TOKEN|--shell-clear PID [TOKEN]|--prune|--core-id}",
         file=sys.stderr,
     )
     return 2

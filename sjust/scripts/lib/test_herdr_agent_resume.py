@@ -137,11 +137,8 @@ class Env(unittest.TestCase):
 
     def live_id(self):
         """The id the (fake) core on this test's socket reports."""
-        har.use_core(str(self.socket))
-        try:
+        with har.on_core(str(self.socket)):
             return har.core_id()
-        finally:
-            har.use_core(None)
 
     def old_folder(self, core_id):
         """A folder of this core under an older socket path, holding this terminal's marker."""
@@ -227,6 +224,32 @@ class LabelTest(unittest.TestCase):
         self.assertNotIn("tmp", session["gen"])
 
 
+class CoreFolderTest(unittest.TestCase):
+    def test_terminal_of_maps_each_file_to_its_terminal(self):
+        cases = {
+            "t1": "t1",
+            "t1.ended.0123456789abcdef": "t1",
+            "t1.ended.garbage": "t1",
+            ".t1.lock": "t1",
+            ".lock": None,
+            ".core-id": None,
+            ".pruned": None,
+            ".t1.ended.0123456789abcdef.x1y2z3": None,  # a temp file
+        }
+        for name, expected in cases.items():
+            self.assertEqual(har.terminal_of(Path("/x") / name), expected, name)
+
+    def test_moved_needs_the_saved_id_running_under_another_key_only(self):
+        with patch.object(har, "saved_core_id", return_value="a" * 16):
+            self.assertTrue(har.moved("old", {"new": "a" * 16}))
+            self.assertTrue(har.moved("old", {"old": "b" * 16, "new": "a" * 16}))
+            self.assertFalse(har.moved("old", {"old": "a" * 16, "new": "a" * 16}))
+            self.assertFalse(har.moved("old", {"old": "a" * 16}))
+            self.assertFalse(har.moved("old", {}))
+        with patch.object(har, "saved_core_id", return_value=None):
+            self.assertFalse(har.moved("old", {"new": "a" * 16}))
+
+
 class ForegroundTest(unittest.TestCase):
     def setUp(self):
         # Fake pids have no real argv: by default each table entry is exact.
@@ -234,7 +257,8 @@ class ForegroundTest(unittest.TestCase):
         self.tables = []
 
         def walk(table, start, record_pid, agent, argv_of=None):
-            return real(table, start, record_pid, agent, argv_of=argv_of or (lambda pid: table[pid][3]))
+            ps = {pid: row[:3] for pid, row in table.items()}  # what process_table returns
+            return real(ps, start, record_pid, agent, argv_of=argv_of or (lambda pid: table[pid][3]))
 
         patcher = patch.object(har, "foreground_agent", walk)
         patcher.start()
@@ -546,10 +570,25 @@ class HookTest(Env):
         )
         self.assertEqual(self.labels()[har.LABEL], tok(value))
 
+    def test_a_start_keeps_the_core_folder_private(self):
+        self.enable_flag()
+        har.core_dir(self.core).chmod(0o755)
+        self.run_hook(self.start())
+        self.assertTrue(self.marker.exists())
+        self.assertEqual(oct(har.core_dir(self.core).stat().st_mode & 0o777), "0o700")
+
     def test_failed_marker_write_removes_the_label(self):
         self.enable_flag()
-        with patch.object(har, "write_marker", side_effect=OSError("read-only")):
+        real = har.atomic_write
+
+        def refuse_marker(path, *args, **kwargs):
+            if path == self.marker:
+                raise OSError("read-only")
+            return real(path, *args, **kwargs)
+
+        with patch.object(har, "atomic_write", side_effect=refuse_marker):
             self.run_hook(self.start())
+        self.assertIn(har.LABEL, " ".join(map(str, self.calls())))  # the label was set first
         self.assertEqual(self.labels(), {})
 
     def test_session_end_removes_the_ended_record(self):
@@ -1501,11 +1540,8 @@ class ManagementTest(Env):
         har.core_dir(self.core).mkdir(parents=True, exist_ok=True)
         stamp = har.core_dir(self.core) / ".pruned"
         stamp.unlink(missing_ok=True)
-        har.use_core(str(self.socket))
-        try:
+        with har.on_core(str(self.socket)):
             har.prune_markers()
-        finally:
-            har.use_core(None)
         self.assertTrue(stamp.exists())
 
     def test_crlf_zshrc_round_trips(self):
