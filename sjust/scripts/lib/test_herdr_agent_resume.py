@@ -58,7 +58,8 @@ FAKE_HC = textwrap.dedent(
         t = dict(terms[args[1]]); t["address"] = args[1]
         print(json.dumps(t)); save(); sys.exit(0)
     if args[:1] == ["ls"]:
-        print(json.dumps({"terminals": [{"address": a} for a in terms]})); save(); sys.exit(0)
+        shown = [a for a in terms if "--all" in args or not terms[a].get("finished")]
+        print(json.dumps({"terminals": [{"address": a} for a in shown]})); save(); sys.exit(0)
     if args[:1] == ["label"] and args[1] in terms and not state.get("fail_label"):
         for kv in args[2:]:
             k, v = kv.split("=", 1)
@@ -1133,6 +1134,15 @@ class ManagementTest(Env):
         self.assertEqual((self.home / ".claude" / "settings.json").read_text(), claude_before)
         self.assertNotIn(har.ZSHRC_TAG, (self.home / ".zshrc").read_text())
         self.assertFalse(har.state_dir().exists())
+
+    def test_disable_clears_the_label_of_a_finished_terminal(self):
+        self.run_cmd("enable")
+        state = self.state()
+        state["terminals"]["t2"] = {"pid": 1, "finished": True, "labels": {har.LABEL: "x"}}
+        self.save_state(state)
+        code, out = self.run_cmd("disable")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(self.state()["terminals"]["t2"]["labels"], {})
 
     def test_disable_reports_unreadable_terminal_and_kept_state(self):
         self.run_cmd("enable")

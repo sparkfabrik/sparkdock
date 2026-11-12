@@ -444,7 +444,8 @@ def clear_label(terminal):
 
 
 def local_terminals():
-    listing = hc("ls", "--json")
+    # --all: a finished terminal (its program exited) still exists and keeps its labels.
+    listing = hc("ls", "--all", "--json")
     if not isinstance(listing, dict) or not isinstance(listing.get("terminals"), list):
         return None
     return [
