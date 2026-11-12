@@ -392,15 +392,21 @@ class RealProcessTreeTest(unittest.TestCase):
             f"s = importlib.util.spec_from_file_location('h', {str(SCRIPT)!r})\n"
             "m = importlib.util.module_from_spec(s); s.loader.exec_module(m)\n"
             "rec = int(os.environ['REC'])\n"
-            "print('RESULT', m.foreground_agent(m.process_table(), os.getpid(), rec, 'claude'))\n"
+            "t = m.process_table()\n"
+            "print('RESULT', m.foreground_agent(t, os.getpid(), rec, 'claude'))\n"
+            "p = os.getpid()\n"
+            "while p in t and p > 1:\n"
+            "    print('CHAIN', p, t[p], m.process_argv(p))\n"
+            "    p = t[p][0]\n"
         )
-        agent = Path(tmp.name) / "agent.py"
-        # Pin the interpreter: with argv0 "claude", sys.executable would resolve to a real claude.
-        agent.write_text(f"import subprocess\nsubprocess.run([{sys.executable!r}, {str(probe)!r}])\n")
         pid, fd = pty.fork()
         if pid == 0:
             os.environ["REC"] = str(os.getpid())
-            run = f"exec -a claude {shlex.quote(sys.executable)} {shlex.quote(str(agent))}"
+            # The agent is a bash named "claude" that runs the probe as a child, as a
+            # real agent runs its hooks. Not python under that name: the macOS
+            # framework python re-executes itself and loses the name.
+            probe_cmd = f"{shlex.quote(sys.executable)} {shlex.quote(str(probe))}; true"
+            run = f"exec -a claude bash -c {shlex.quote(probe_cmd)}"
             os.execvp("bash", ["bash", "-c", command.format(run=run)])
         out = b""
         deadline = time.time() + 20
@@ -415,14 +421,18 @@ class RealProcessTreeTest(unittest.TestCase):
         os.waitpid(pid, 0)
         return out.decode(errors="replace")
 
+    def assertResult(self, expected, command):
+        out = self.run_in_pty(command)
+        self.assertIn(f"RESULT {expected}", out, out)  # the CHAIN lines explain a failure
+
     def test_shell_runs_agent(self):
-        self.assertIn("RESULT True", self.run_in_pty("({run}); true"))
+        self.assertResult(True, "({run}); true")
 
     def test_agent_is_terminal_program(self):
-        self.assertIn("RESULT True", self.run_in_pty("{run}"))
+        self.assertResult(True, "{run}")
 
     def test_background_agent(self):
-        self.assertIn("RESULT False", self.run_in_pty("set -m; ({run}) & wait"))
+        self.assertResult(False, "set -m; ({run}) & wait")
 
 
 class HookTest(Env):
@@ -1881,11 +1891,17 @@ for i in {1..80}; do
 done
 for cmd in "$@"; do
   zpty -w sh "$cmd"
-  sleep 1
-  while zpty -r -t sh chunk 2>/dev/null; do out+=$chunk; done
+  # Wait for the next prompt (up to 20 s), so a slow machine never cuts a command short.
+  new=
+  for i in {1..200}; do
+    zpty -r -t sh chunk 2>/dev/null && new+=$chunk
+    [[ $new == *READY* ]] && break
+    sleep 0.1
+  done
+  out+=$new
 done
 zpty -w sh 'exit'
-sleep 0.3
+sleep 1
 while zpty -r -t sh chunk 2>/dev/null; do out+=$chunk; done
 zpty -d sh
 print -r -- "$out"
@@ -1912,7 +1928,9 @@ class ZshSnippetTest(Env):
         self.driver.write_text(ZPTY_DRIVER)
         # The terminal's shell runs under the herdr-core holder: a copy of sh under
         # that name stays as the interactive zsh's parent.
-        shutil.copy2("/bin/sh", self.bin / "herdr-core")
+        # copyfile, not copy2: macOS refuses to copy the flags of the system sh.
+        shutil.copyfile("/bin/sh", self.bin / "herdr-core")
+        (self.bin / "herdr-core").chmod(0o755)
 
     def zsh(self, *commands, pid_follows_shell=True, under_holder=True, login=False):
         shell = "zsh -il" if login else "zsh -i"  # herdr-core starts `zsh -l` on macOS

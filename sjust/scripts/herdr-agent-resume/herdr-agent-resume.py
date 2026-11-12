@@ -571,6 +571,15 @@ def darwin_argv(pid):
 
     try:
         libc = ctypes.CDLL(ctypes.util.find_library("c"), use_errno=True)
+        # Exact C types: on arm64 an untyped int is not a valid size_t.
+        libc.sysctl.argtypes = [
+            ctypes.POINTER(ctypes.c_int),
+            ctypes.c_uint,
+            ctypes.c_void_p,
+            ctypes.POINTER(ctypes.c_size_t),
+            ctypes.c_void_p,
+            ctypes.c_size_t,
+        ]
         mib = (ctypes.c_int * 3)(1, 49, pid)  # CTL_KERN, KERN_PROCARGS2
         size = ctypes.c_size_t(0)
         if libc.sysctl(mib, 3, None, ctypes.byref(size), None, 0) != 0:
