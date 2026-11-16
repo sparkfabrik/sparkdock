@@ -28,6 +28,7 @@ class CodexGuardTest(unittest.TestCase):
         self.env = dict(
             os.environ,
             CODEX_HOME=str(self.config),
+            HOME=str(self.root / "home"),
             XDG_CACHE_HOME=str(self.root / "cache"),
         )
         for var in ("SPARKDOCK_GH_GATE", "SPARKDOCK_WRITING_GUARD"):
@@ -98,6 +99,18 @@ class CodexGuardTest(unittest.TestCase):
         r = self.run_hook(self.payload())
         self.assertEqual(r.returncode, 0)
         self.assertIn("full read not confirmed", r.stdout)
+
+    def test_skills_in_agents_folders_are_found(self):
+        moved = self.skills["sf-writing-style"]
+        for root in (self.root / "home", self.root):
+            with self.subTest(root=root):
+                path = root / ".agents/skills/sf-writing-style/SKILL.md"
+                path.parent.mkdir(parents=True, exist_ok=True)
+                moved.rename(path)
+                r = self.run_hook(self.payload() | {"session_id": str(root)})
+                self.assertEqual(r.returncode, 2)
+                self.assertIn(str(path), r.stderr)
+                moved = path
 
     def test_compaction_requires_new_read(self):
         self.run_hook(self.payload())

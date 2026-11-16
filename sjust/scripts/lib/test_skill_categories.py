@@ -157,12 +157,12 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
         # Tool columns are ordered alphabetically: claude, codex, copilot, opencode.
         self.assertRegex(
             output,
-            r"custom-skill\s+-\s+~/.agents/skills/custom-skill\s+-\s+-\s+-\s+ok",
+            r"custom-skill\s+-\s+~/.agents/skills/custom-skill\s+-\s+ok\s+-\s+ok",
         )
         self.assertRegex(
             output,
             r"linked-skill\s+-\s+~/.agents/skills/linked-skill"
-            r"\s+->\s+~/.external/linked-skill\s+ok\s+-\s+-\s+ok",
+            r"\s+->\s+~/.external/linked-skill\s+ok\s+ok\s+-\s+ok",
         )
 
     def add_system_skill(self, name: str) -> None:
@@ -295,16 +295,18 @@ class SkillCategoryIntegrationTest(unittest.TestCase):
         )
         return ANSI_ESCAPE.sub("", status.stdout + status.stderr).replace("│", " ")
 
-    def test_codex_is_wired_up_without_a_pre_existing_home(self) -> None:
-        self.assertFalse((self.home / ".codex").exists())
+    def test_codex_reads_skills_natively_and_old_links_are_removed(self) -> None:
+        skills = self.home / ".codex" / "skills"
+        skills.mkdir(parents=True)
+        old = skills / "core"
+        old.symlink_to(self.home / ".agents" / "skills" / "core")
+        mine = skills / "mine"
+        mine.symlink_to(self.home)
 
         self.run_sync()
 
-        link = self.home / ".codex" / "skills" / "core"
-        self.assertTrue(link.is_symlink())
-        self.assertEqual(
-            str(self.home / ".agents" / "skills" / "core"), os.readlink(link)
-        )
+        self.assertFalse(old.is_symlink())
+        self.assertTrue(mine.is_symlink())
         self.assertRegex(self.run_status(), r"core\s+managed\s+up to date\s+.*\s+ok")
         self.assertIn("CODEX", self.run_status())
 
