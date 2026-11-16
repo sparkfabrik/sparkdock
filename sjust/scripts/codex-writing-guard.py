@@ -33,7 +33,7 @@ def skill_path(name, cwd):
     except ImportError:
         # Cannot safely check disabled skills on older Python installations.
         return None
-    # Match Sparkdock's per-tool links. Do not use an unlinked managed skill.
+    # Codex reads disabled entries from the user and project config layers.
     roots = [config_dir(), *(p / ".codex" for p in (cwd, *cwd.parents))]
     for root in roots:
         config = root / "config.toml"
@@ -46,8 +46,15 @@ def skill_path(name, cwd):
                         disabled_path = disabled_path.parent
                     if disabled_path.name == name:
                         return None
-    for root in roots:
-        path = root / "skills" / name / "SKILL.md"
+    # Codex skill roots: the deprecated $CODEX_HOME/skills, ~/.agents/skills,
+    # and project .codex/skills and .agents/skills folders up the tree.
+    skill_roots = [
+        config_dir() / "skills",
+        Path.home() / ".agents" / "skills",
+        *(p / d / "skills" for p in (cwd, *cwd.parents) for d in (".codex", ".agents")),
+    ]
+    for root in skill_roots:
+        path = root / name / "SKILL.md"
         if path.is_file():
             content = path.read_text()
             if content.strip() and not any(
