@@ -13,6 +13,14 @@ import time
 from pathlib import Path
 
 SKILLS = {"gh", "glab", "sf-writing-style"}
+# sf-writing-style references a publishing call must have read, by name. Paths are
+# relative to the skill directory.
+REFERENCES = {
+    "pr-mr-descriptions": "references/pr-mr-descriptions.md",
+    "platforms": "references/platforms.md",
+}
+# API fields that carry text a person reads.
+PROSE_FIELDS = {"body", "description", "note", "title", "message", "comment", "content"}
 MATCHER = "Bash|mcp__.*"
 REMINDER = (
     "Writing guard: this call was not blocked and its text was not evaluated. Apply "
@@ -98,13 +106,24 @@ def _writes_prose(args):
             return False
         if method in {"GET", "HEAD"}:
             return False
-        return bool(method) or any(
-            a in {"-f", "-F", "--field", "--raw-field", "--input"}
-            or a.startswith(
-                ("--method=", "--field=", "--raw-field=", "--input=", "-f", "-F", "-X")
-            )
-            for a in args[1:]
-        )
+        # Only a body, description, note, title or message is prose: starting a
+        # pipeline or setting a label sends none. --input and GraphQL queries can
+        # carry any field, so they count.
+        values = []
+        for i, a in enumerate(args[1:], start=1):
+            if a in {"-f", "-F", "--field", "--raw-field"} and i + 1 < len(args):
+                values.append(args[i + 1])
+            elif a.startswith(("--field=", "--raw-field=")):
+                values.append(a.split("=", 1)[1])
+            elif a.startswith(("-f", "-F")) and len(a) > 2:
+                values.append(a[2:])
+            elif a == "--input" or a.startswith("--input="):
+                return True
+        for value in values:
+            key = value.split("=", 1)[0].lower()
+            if key == "query" or key.split("[", 1)[0] in PROSE_FIELDS:
+                return True
+        return False
     return (
         len(args) > 1
         and args[0] in {"issue", "pr", "mr", "release", "discussion", "gist", "snippet"}
@@ -189,13 +208,54 @@ def requirements(payload):
     return required
 
 
+def _describes_change(args):
+    """True for a command that writes a PR or MR description."""
+    args = list(args)
+    while args and args[0].startswith("-"):
+        flag = args.pop(0)
+        if flag in {"-R", "--repo", "--hostname", "--host"} and args:
+            args.pop(0)
+    if (
+        len(args) > 1
+        and args[0] in {"pr", "mr"}
+        and args[1] in {"create", "edit", "update"}
+    ):
+        return True
+    if args and args[0] == "api":
+        path = next((a for a in args[1:] if not a.startswith("-") and "/" in a), "")
+        return bool(
+            re.search(r"(^|/)(pulls|merge_requests)(/|$)", path)
+        ) and _writes_prose(args)
+    return False
+
+
+def reference_requirements(payload):
+    """Names from REFERENCES the call needs: platforms for any rendered write,
+    pr-mr-descriptions for a PR or MR description."""
+    required = requirements(payload)
+    if "sf-writing-style" not in required:
+        return set()
+    references = {"platforms"}
+    tool = payload.get("tool_name", "")
+    args = payload.get("tool_input", {})
+    if tool == "Bash" and isinstance(args.get("command"), str):
+        for words in _commands(args["command"]):
+            if Path(words[0]).name in {"gh", "glab"} and _describes_change(words[1:]):
+                references.add("pr-mr-descriptions")
+    elif isinstance(tool, str) and tool.startswith("mcp__"):
+        operation = tool.split("__", 2)[-1].lower()
+        if re.search(r"(create|update)_(pull_request|merge_request)$", operation):
+            references.add("pr-mr-descriptions")
+    return references
+
+
 def lifecycle(payload, state):
     if payload.get("hook_event_name") == "UserPromptSubmit":
         state["reviewed"] = []
         return True
     if payload.get("hook_event_name") == "SessionStart":
         if payload.get("source") in {"startup", "clear", "compact"}:
-            for key in ("loaded", "requested", "failed", "reviewed"):
+            for key in ("loaded", "requested", "failed", "reviewed", "read"):
                 state[key] = []
         return True
     return False
@@ -273,6 +333,7 @@ def run_hook(process, engine):
             ):
                 return 0
             state.setdefault("reviewed", [])
+            state.setdefault("read", [])
             result, notices, context = process(payload, state)
             if payload.get("hook_event_name") == "PreToolUse" and requirements(payload):
                 state["last_check"] = {

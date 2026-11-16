@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added reference checks to the Claude writing guard: a publishing call is denied until the session has read the `sf-writing-style` `platforms.md` reference, and a PR or MR description also needs `pr-mr-descriptions.md`
 - Added opt-in resume of Claude Code and Codex sessions in Herdr app terminals after a reboot, with `sjust herdr-agent-resume-enable`, `-disable` and `-info` (also `ajust` on Linux)
 - Added `"telemetry": false` to the Herdr app settings during provisioning, enforced on every run
 - Added a one-time herdr-core (`hc`) install during provisioning when the Herdr app is installed and `hc` is missing, from the latest release with its sha256 and Herdr signature checked, without running the upstream install script
@@ -249,6 +250,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the writing guard treating every `gh api` and `glab api` call with a field as prose, such as starting a pipeline; only body, description, note, title, message, comment, content, GraphQL and `--input` calls count
 - Fixed Herdr app telemetry provisioning to warn about non-object settings and fail when it cannot write the enforced value
 - Kept Herdr app settings permissions, avoided repeat herdr-core installs from the app bundle, reported failed installs, and removed links to an absent skill router
 - Fixed `drupal-org-cli` suggesting a PHP install when PHP is present: a PHP that does not start now reports its error with a `pacman -Syu` hint on Arch, and missing extensions point to `sf-toolbox`

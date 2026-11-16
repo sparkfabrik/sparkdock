@@ -40,6 +40,10 @@ class GateHookTest(unittest.TestCase):
             path.write_text(
                 f"---\nname: {name}\ndescription: Test skill\n---\nTest guidance.\n"
             )
+        for relative in gate.guard.REFERENCES.values():
+            reference = self.skill_path("sf-writing-style").parent / relative
+            reference.parent.mkdir(parents=True, exist_ok=True)
+            reference.write_text("Test reference.\n")
         self.env = dict(os.environ)
         self.env.update(
             CLAUDE_CONFIG_DIR=str(self.config),
@@ -90,11 +94,33 @@ class GateHookTest(unittest.TestCase):
             "tool_response": {"success": True},
         }
 
-    def load(self, *names, session="s1"):
+    def read(self, *names, session="s1"):
+        for name in names or tuple(gate.guard.REFERENCES):
+            path = (
+                self.skill_path("sf-writing-style").parent / gate.guard.REFERENCES[name]
+            )
+            self.assertEqual(
+                self.run_hook(
+                    {
+                        "hook_event_name": "PostToolUse",
+                        "tool_name": "Read",
+                        "tool_input": {"file_path": str(path)},
+                        "session_id": session,
+                        "cwd": str(self.project),
+                    }
+                ).returncode,
+                0,
+            )
+
+    def load(self, *names, session="s1", references=True):
         for name in names:
             self.assertEqual(
                 self.run_hook(self.skill(name, session=session)).returncode, 0
             )
+
+        # Most tests are about skills: reading the references keeps them out of the way.
+        if references and "sf-writing-style" in names:
+            self.read(session=session)
 
     def test_platform_and_writing_requirements(self):
         for cli in ("gh", "glab"):
@@ -365,9 +391,9 @@ class GateHookTest(unittest.TestCase):
                 "gh pr review 1",
                 "gh release edit v1",
                 "gh api repos/o/r/issues -f title=test",
-                "glab api projects/1/issues --method POST",
+                "glab api projects/1/issues --method POST -f description=test",
                 "gh api graphql -f query='mutation { test }'",
-                "gh api x --method=PATCH",
+                "gh api x --method=PATCH -f body=test",
             )
         ):
             session = str(index)
@@ -455,6 +481,57 @@ class GateHookTest(unittest.TestCase):
             patch("sys.stdout", io.StringIO()),
         ):
             self.assertEqual(gate.run_hook(), 0)
+
+    def test_publishing_requires_the_references(self):
+        self.load("gh", "sf-writing-style", references=False)
+        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("pr-mr-descriptions.md", r.stderr)
+        self.assertIn("platforms.md", r.stderr)
+        # Blocks again while a reference is still unread, with only that path.
+        self.read("platforms")
+        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("pr-mr-descriptions.md", r.stderr)
+        self.assertNotIn("platforms.md", r.stderr)
+        self.read("pr-mr-descriptions")
+        self.assertEqual(
+            self.run_hook(self.bash("gh pr create --body 'Add a filter.'")).returncode,
+            0,
+        )
+
+    def test_issue_and_comment_need_only_platforms(self):
+        self.load("glab", "sf-writing-style", references=False)
+        self.read("platforms")
+        for command in ("glab issue create --title Example", "glab mr note 1 -m Done"):
+            with self.subTest(command=command):
+                self.assertEqual(self.run_hook(self.bash(command)).returncode, 0)
+
+    def test_compaction_forgets_the_references(self):
+        self.load("gh", "sf-writing-style")
+        self.read()
+        self.run_hook(
+            {
+                "hook_event_name": "SessionStart",
+                "source": "compact",
+                "session_id": "s1",
+                "cwd": str(self.project),
+            }
+        )
+        self.load("gh", "sf-writing-style", references=False)
+        r = self.run_hook(self.bash("gh pr create"))
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("pr-mr-descriptions.md", r.stderr)
+
+    def test_api_calls_without_prose_pass(self):
+        self.load("gh", "glab")
+        for command in (
+            "glab api -X POST projects/1/pipeline -f ref=main",
+            "gh api -X POST repos/o/r/issues/1/labels -f labels[]=bug",
+            "gh api repos/o/r/pulls/1",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual(self.run_hook(self.bash(command)).returncode, 0)
 
 
 class InstallerTest(unittest.TestCase):
