@@ -33,9 +33,10 @@ _SPARKDOCK_SKILLS_SHIM_LOADED=1
 declare -A TOOL_SKILLS_DIR=(
     [copilot]="${HOME}/.copilot/skills"
     [claude]="${HOME}/.claude/skills"
-    # Codex CLI ships its own bundled skills in ~/.codex/skills/.system/. The
-    # loops below glob "${tool_skills_dir}"/* which never matches dotfiles, so
-    # .system is left alone.
+    # Codex CLI reads ~/.agents/skills natively; ~/.codex/skills is its
+    # deprecated location, kept here only to remove the links sparkdock made
+    # there. The loops glob "${tool_skills_dir}"/*, which never matches
+    # dotfiles, so Codex's bundled .system skills are left alone.
     [codex]="${HOME}/.codex/skills"
     [opencode]="${HOME}/.config/opencode/skills"
 )
@@ -48,7 +49,7 @@ declare -A TOOL_LABEL=(
 )
 
 # Tools that discover ~/.agents/skills/ natively (no symlinks needed).
-TOOLS_NATIVE_DISCOVERY=(opencode)
+TOOLS_NATIVE_DISCOVERY=(opencode codex)
 
 # ============================================================================
 # Used by sparkdock-agents-sync
@@ -106,10 +107,19 @@ ensure_tool_symlinks() {
     local tool_label="${TOOL_LABEL[${tool_id}]}"
     local tool_skills_dir="${TOOL_SKILLS_DIR[${tool_id}]}"
 
-    # Skip tools that discover ~/.agents/skills/ natively.
-    local native
+    # Skip tools that discover ~/.agents/skills/ natively. A link into
+    # ~/.agents/skills/ left in such a tool's directory lists the skill twice,
+    # so remove it.
+    local native entry
     for native in "${TOOLS_NATIVE_DISCOVERY[@]}"; do
         if [[ "${tool_id}" == "${native}" ]]; then
+            for entry in "${tool_skills_dir}"/*; do
+                [[ -L "${entry}" ]] || continue
+                [[ "$(readlink "${entry}")" == "${SKILLS_TARGET_DIR}/"* ]] || continue
+                rm -f "${entry}"
+                TOOL_CLEANED[${tool_id}]=$((TOOL_CLEANED[${tool_id}] + 1))
+                log_info "${tool_label}: removed duplicate link ${entry##*/} (reads ~/.agents/skills natively)"
+            done
             return
         fi
     done

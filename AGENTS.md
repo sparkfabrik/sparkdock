@@ -377,11 +377,11 @@ Sparkdock syncs AI coding resources from the upstream `sf-agents-harness` reposi
 Two independent registries drive the harness, each an associative array mapping a coding tool to its install directory. Adding support for a new tool requires only 2 lines (one in each array).
 
 - **Agent profiles** (`AGENT_TOOL_INSTALL_DIR` / `AGENT_TOOL_FILENAME` in `bin/sparkdock-agents-sync`): `claude`, `copilot`, `opencode`. Profiles are written as real files, with a per-tool filename pattern (`%s.agent.md` for Copilot, `%s.md` for the others).
-- **Skill symlinks** (`TOOL_SKILLS_DIR` / `TOOL_LABEL` in `bin/common/skills-symlink-shim.sh`): `claude`, `copilot`, `codex`, `opencode`. Skills are installed once to `~/.agents/skills/<name>/` and symlinked per tool. `opencode` is listed in `TOOLS_NATIVE_DISCOVERY` and reads `~/.agents/skills/` directly, so it gets no symlinks.
+- **Skill symlinks** (`TOOL_SKILLS_DIR` / `TOOL_LABEL` in `bin/common/skills-symlink-shim.sh`): `claude`, `copilot`, `codex`, `opencode`. Skills are installed once to `~/.agents/skills/<name>/` and symlinked per tool. `opencode` and `codex` are listed in `TOOLS_NATIVE_DISCOVERY` and read `~/.agents/skills/` directly, so they get no symlinks; a sync removes any link into `~/.agents/skills/` left in their skills directory.
 
 Every tool in the registry is wired up on every machine, with no per-machine gate: each tool's skills directory is created on demand and gets a column in `sf-harness-status`. Provisioning installs the tools themselves, sparkdock on macOS and sf-toolbox on Linux.
 
-Codex CLI is in the skills registry only (`~/.codex/skills`). It stays out of the agent-profile registry because Codex custom agents are TOML files in `~/.codex/agents/` with a `name` / `description` / `developer_instructions` schema, which the upstream harness does not ship yet. Codex's own bundled skills live in `~/.codex/skills/.system/` and are never touched, because the shim's globs skip dotfiles.
+Codex CLI is in the skills registry only. It reads `~/.agents/skills` natively; `~/.codex/skills` is its deprecated location, where sparkdock only removes the links it created earlier. It stays out of the agent-profile registry because Codex custom agents are TOML files in `~/.codex/agents/` with a `name` / `description` / `developer_instructions` schema, which the upstream harness does not ship yet. Codex's own bundled skills in `~/.codex/skills/.system/` are never touched, because the shim's globs skip dotfiles.
 
 ### Manifest
 
