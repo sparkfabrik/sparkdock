@@ -21,7 +21,7 @@ jobs:
           python-version: "3.15"
 
       - name: Install Just command runner
-        uses: extractions/setup-just@v2
+        uses: extractions/setup-just@v4
 
       - name: Run Python unit tests
         run: just test-python
