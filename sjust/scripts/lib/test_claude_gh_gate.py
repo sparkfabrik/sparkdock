@@ -94,7 +94,7 @@ class GateHookTest(unittest.TestCase):
             "tool_response": {"success": True},
         }
 
-    def read(self, *names, session="s1"):
+    def read(self, *names, session="s1", limit=None):
         for name in names or tuple(gate.guard.REFERENCES):
             path = (
                 self.skill_path("sf-writing-style").parent / gate.guard.REFERENCES[name]
@@ -104,7 +104,8 @@ class GateHookTest(unittest.TestCase):
                     {
                         "hook_event_name": "PostToolUse",
                         "tool_name": "Read",
-                        "tool_input": {"file_path": str(path)},
+                        "tool_input": {"file_path": str(path)}
+                        | ({"limit": limit} if limit else {}),
                         "session_id": session,
                         "cwd": str(self.project),
                     }
@@ -487,6 +488,10 @@ class GateHookTest(unittest.TestCase):
         r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
         self.assertEqual(r.returncode, 2)
         self.assertIn("pr-mr-descriptions.md", r.stderr)
+        self.assertIn("platforms.md", r.stderr)
+        # A partial read does not count.
+        self.read("platforms", limit=1)
+        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
         self.assertIn("platforms.md", r.stderr)
         # Blocks again while a reference is still unread, with only that path.
         self.read("platforms")

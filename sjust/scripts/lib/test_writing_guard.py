@@ -432,6 +432,19 @@ class ClassificationTest(unittest.TestCase):
                 {"platforms"},
             ),
             "echo glab is great <<EOF\nx\nEOF": (set(), set()),
+            "env gh pr create --body-file - <<'EOF'\nBody\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            "rtk proxy gh pr create --body-file - <<'EOF'\nBody\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            "cat <<'EOF' | gh pr create --body-file -\nBody\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            "cat > notes.md <<'EOF'\ngh pr create --body example\nEOF": (set(), set()),
         }
         with patch.object(guard.shutil, "which", return_value="/usr/bin/cli"):
             for command, (needed, references) in cases.items():

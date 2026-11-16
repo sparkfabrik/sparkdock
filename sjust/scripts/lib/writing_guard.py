@@ -141,10 +141,17 @@ def _writes_prose(args):
 
 
 # A gh or glab call where a command starts: line start, after ;, &, |, ( or $(,
-# after optional VAR=value assignments.
+# after optional VAR=value assignments and the wrappers _commands unwraps.
 _CLI_CALL = re.compile(
-    r"(?:^|[;&|(`\n]|\$\()[ \t]*(?:[A-Za-z_]\w*=[^\s;&|]*[ \t]+)*"
+    r"(?:^|[;&|(`\n]|\$\()[ \t]*"
+    r"(?:(?:[A-Za-z_]\w*=[^\s;&|]*|env|command|--|rtk(?:[ \t]+proxy)?|rtk-run)[ \t]+['\"]?)*"
     r"((?:[\w./-]*/)?(?:gh|glab))((?:[ \t]+[^\s;&|()<>`]+){0,12})"
+)
+
+# The body of a heredoc with a quoted delimiter is literal data: nothing in it
+# runs. Keep the rest of the opening line, which can hold the real command.
+_QUOTED_HEREDOC = re.compile(
+    r"<<-?[ \t]*(['\"])(\w+)\1([^\n]*)\n.*?^[ \t]*\2[ \t]*$", re.S | re.M
 )
 
 
@@ -160,7 +167,7 @@ def _command_words(command):
     if "<<" not in command:
         # Other syntax the parser rejects still fails open, as before.
         return words or []
-    flat = command.replace("\\\n", " ")
+    flat = _QUOTED_HEREDOC.sub(r"<<'\2'\3", command).replace("\\\n", " ")
     found = []
     for match in _CLI_CALL.finditer(flat):
         rest = [w.strip("'\"") for w in match.group(2).split()]

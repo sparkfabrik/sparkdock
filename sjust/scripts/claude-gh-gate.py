@@ -75,9 +75,18 @@ def _reference_path(name, cwd):
     return None
 
 
-def _record_read(tool_input, state):
+def _read_whole_file(tool_input, response):
+    """True when the Read returned the file from its first line to its last."""
+    file = response.get("file") if isinstance(response, dict) else None
+    keys = ("startLine", "numLines", "totalLines")
+    if isinstance(file, dict) and all(isinstance(file.get(k), int) for k in keys):
+        return file["startLine"] <= 1 and file["numLines"] >= file["totalLines"]
+    return tool_input.get("offset") in (None, 0, 1) and tool_input.get("limit") is None
+
+
+def _record_read(tool_input, response, state):
     path = tool_input.get("file_path")
-    if not isinstance(path, str):
+    if not isinstance(path, str) or not _read_whole_file(tool_input, response):
         return
     for name, relative in guard.REFERENCES.items():
         if path.endswith("sf-writing-style/" + relative) and name not in state["read"]:
@@ -93,7 +102,7 @@ def _process(payload, state):
         return 0, [], []
     if payload.get("tool_name") == "Read":
         if event == "PostToolUse":
-            _record_read(tool_input, state)
+            _record_read(tool_input, payload.get("tool_response"), state)
         return 0, [], []
     if payload.get("tool_name") == "Skill":
         name = tool_input.get("skill") or tool_input.get("name")

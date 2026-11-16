@@ -251,7 +251,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fixed the Codex writing guard rejecting reads of skills and references longer than Codex's output limit, which made Codex read the same file again: it now accepts a file read in parts and asks only for the missing lines
-- Fixed the writing guard skipping `gh` and `glab` commands that pass their text through a heredoc, such as `--description "$(cat <<EOF ...)"`
+- Fixed the writing guard skipping `gh` and `glab` commands that pass their text through a heredoc, such as `--description "$(cat <<EOF ...)"`, including calls behind `env` or `rtk proxy`, without treating a `gh` line inside a quoted heredoc as a command
 - Fixed the writing guard treating every `gh api` and `glab api` call with a field as prose, such as starting a pipeline; only body, description, note, title, message, comment, content, GraphQL and `--input` calls count
 - Fixed Codex listing every SparkFabrik skill twice: sparkdock no longer links skills into `~/.codex/skills`, removes the links it made there, and the Codex writing guard finds skills in `~/.agents/skills`, where Codex reads them
 - Fixed Herdr app telemetry provisioning to warn about non-object settings and fail when it cannot write the enforced value
