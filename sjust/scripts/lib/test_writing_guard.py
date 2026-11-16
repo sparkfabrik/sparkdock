@@ -367,6 +367,42 @@ class InstallerSafetyTest(unittest.TestCase):
 
 
 class ClassificationTest(unittest.TestCase):
+    def test_heredoc_descriptions_are_classified(self):
+        cases = {
+            "gh pr create --title t --body \"$(cat <<'EOF'\nBody\nEOF\n)\"": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            'GL_USERNAME=$(glab api user | jq -r .username)\nglab mr create --draft \\\n  --description "$(cat <<EOF\nBody\nEOF\n)"': (
+                {"glab", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            'cd x && glab issue note 4 -m "$(cat <<EOF\nhi\nEOF\n)"': (
+                {"glab", "sf-writing-style"},
+                {"platforms"},
+            ),
+            "echo glab is great <<EOF\nx\nEOF": (set(), set()),
+        }
+        with patch.object(guard.shutil, "which", return_value="/usr/bin/cli"):
+            for command, (needed, references) in cases.items():
+                with self.subTest(command=command):
+                    payload = {"tool_name": "Bash", "tool_input": {"command": command}}
+                    self.assertEqual(guard.requirements(payload), needed)
+                    self.assertEqual(guard.reference_requirements(payload), references)
+
+    def test_api_calls_without_prose_fields_are_not_prose(self):
+        for args in (
+            ["api", "-X", "POST", "projects/1/pipeline", "-f", "ref=main"],
+            ["api", "repos/o/r/issues/1/labels", "-f", "labels[]=bug"],
+        ):
+            with self.subTest(args=args):
+                self.assertFalse(guard._writes_prose(args))
+        self.assertTrue(
+            guard._writes_prose(
+                ["api", "projects/1/merge_requests/2", "-f", "description=x"]
+            )
+        )
+
     def test_close_comments_require_writing_style(self):
         for noun in ("pr", "issue"):
             for flag in ("--comment text", "-c text", "--comment=text"):

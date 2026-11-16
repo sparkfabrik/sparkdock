@@ -140,6 +140,34 @@ def _writes_prose(args):
     )
 
 
+# A gh or glab call where a command starts: line start, after ;, &, |, ( or $(,
+# after optional VAR=value assignments.
+_CLI_CALL = re.compile(
+    r"(?:^|[;&|(`\n]|\$\()[ \t]*(?:[A-Za-z_]\w*=[^\s;&|]*[ \t]+)*"
+    r"((?:[\w./-]*/)?(?:gh|glab))((?:[ \t]+[^\s;&|()<>`]+){0,12})"
+)
+
+
+def _command_words(command):
+    """Shell commands as word lists. A heredoc or syntax the parser does not
+    handle, such as `--body "$(cat <<EOF ...)"`, is exactly how agents send a
+    description, so fall back to finding each gh or glab call in the raw text
+    instead of skipping the command."""
+    try:
+        words = list(_commands(command))
+    except ValueError:
+        words = None
+    if "<<" not in command:
+        # Other syntax the parser rejects still fails open, as before.
+        return words or []
+    flat = command.replace("\\\n", " ")
+    found = []
+    for match in _CLI_CALL.finditer(flat):
+        rest = [w.strip("'\"") for w in match.group(2).split()]
+        found.append([match.group(1), *rest])
+    return (words or []) + found
+
+
 def requirements(payload):
     required = set()
     tool = payload.get("tool_name", "")
@@ -148,7 +176,7 @@ def requirements(payload):
         command = args.get("command")
         if not isinstance(command, str):
             return required
-        for words in _commands(command):
+        for words in _command_words(command):
             cli = Path(words[0]).name
             if cli in {"gh", "glab"} and shutil.which(words[0]) is not None:
                 required.add(cli)
@@ -239,7 +267,7 @@ def reference_requirements(payload):
     tool = payload.get("tool_name", "")
     args = payload.get("tool_input", {})
     if tool == "Bash" and isinstance(args.get("command"), str):
-        for words in _commands(args["command"]):
+        for words in _command_words(args["command"]):
             if Path(words[0]).name in {"gh", "glab"} and _describes_change(words[1:]):
                 references.add("pr-mr-descriptions")
     elif isinstance(tool, str) and tool.startswith("mcp__"):

@@ -250,6 +250,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the writing guard skipping `gh` and `glab` commands that pass their text through a heredoc, such as `--description "$(cat <<EOF ...)"`
 - Fixed the writing guard treating every `gh api` and `glab api` call with a field as prose, such as starting a pipeline; only body, description, note, title, message, comment, content, GraphQL and `--input` calls count
 - Fixed Herdr app telemetry provisioning to warn about non-object settings and fail when it cannot write the enforced value
 - Kept Herdr app settings permissions, avoided repeat herdr-core installs from the app bundle, reported failed installs, and removed links to an absent skill router
