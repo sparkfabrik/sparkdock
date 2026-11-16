@@ -19,7 +19,7 @@ codex = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(codex)
 
 
-class CodexGuardTest(unittest.TestCase):
+class CodexFixture(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.addCleanup(self.tmp.cleanup)
@@ -73,6 +73,8 @@ class CodexGuardTest(unittest.TestCase):
             }
         )
 
+
+class CodexGuardTest(CodexFixture):
     def test_slack_requires_read_and_retries_without_reload(self):
         first = self.run_hook(self.payload())
         self.assertEqual(first.returncode, 2)
@@ -198,6 +200,84 @@ class CodexGuardTest(unittest.TestCase):
         path.write_text(json.dumps(data))
         self.assertNotIn("already enabled", enable())
         self.assertIn("already enabled", enable())
+
+
+class CodexReferenceTest(CodexFixture):
+    def setUp(self):
+        super().setUp()
+        self.refs = {}
+        for name, relative in guard.REFERENCES.items():
+            path = self.skills["sf-writing-style"].parent / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(f"Full {name} reference.\nSecond line.\n")
+            self.refs[name] = path
+        bin_dir = self.root / "bin"
+        bin_dir.mkdir()
+        for cli in ("gh", "glab"):
+            stub = bin_dir / cli
+            stub.write_text("#!/bin/sh\nexit 0\n")
+            stub.chmod(0o755)
+        self.env["PATH"] = str(bin_dir) + os.pathsep + self.env["PATH"]
+
+    def cat(self, name, body=None):
+        path = self.refs[name]
+        return self.run_hook(
+            self.payload()
+            | {
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": f"cat {path}"},
+                "tool_response": {
+                    "output": path.read_text() if body is None else body,
+                    "exit_code": 0,
+                },
+            }
+        )
+
+    def test_publishing_waits_for_full_reference_reads(self):
+        self.run_hook(self.payload())
+        self.read()
+        r = self.run_hook(self.payload())
+        self.assertEqual(r.returncode, 2)
+        self.assertIn(str(self.refs["platforms"]), r.stderr)
+        self.cat("platforms", body="Full platforms")
+        r = self.run_hook(self.payload())
+        self.assertEqual(r.returncode, 2, "a partial read must not count")
+        self.cat("platforms")
+        self.assertEqual(self.run_hook(self.payload()).returncode, 0)
+
+    def test_pr_description_needs_the_pr_reference(self):
+        self.run_hook(self.payload())
+        self.read()
+        self.cat("platforms")
+        pr = self.payload("Bash") | {
+            "tool_input": {"command": "gh pr create --body 'Add a filter.'"}
+        }
+        for skill in ("gh",):
+            p = self.skills[skill]
+            self.run_hook(
+                self.payload()
+                | {
+                    "hook_event_name": "PostToolUse",
+                    "tool_name": "Bash",
+                    "tool_input": {"command": f"cat {p}"},
+                    "tool_response": {"output": p.read_text()},
+                }
+            )
+        r = self.run_hook(pr)
+        self.assertEqual(r.returncode, 2)
+        self.assertIn(str(self.refs["pr-mr-descriptions"]), r.stderr)
+        self.cat("pr-mr-descriptions")
+        self.assertEqual(self.run_hook(pr).returncode, 0)
+
+    def test_unconfirmed_reference_stops_blocking_after_two_requests(self):
+        self.run_hook(self.payload())
+        self.read()
+        for _ in range(2):
+            self.assertEqual(self.run_hook(self.payload()).returncode, 2)
+        r = self.run_hook(self.payload())
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("full read not confirmed", r.stdout)
 
 
 class InstallerSafetyTest(unittest.TestCase):

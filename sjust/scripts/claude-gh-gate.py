@@ -136,7 +136,8 @@ def _process(payload, state):
             "Load these skills with the Skill tool: "
             + ", ".join(needed)
             + ". Read and apply any task-specific references required by those skills "
-            "to the prepared text, then retry this command."
+            "to the prepared text, then retry this command. Read the references with the "
+            "Read tool: a shell command such as cat does not count."
         )
         return 2, notices, []
     # The skill text alone does not carry its references: a description written
@@ -162,7 +163,8 @@ def _process(payload, state):
         missing.append(str(path))
     if missing:
         notices.append(
-            "Read these sf-writing-style references with the Read tool before publishing: "
+            "Read these sf-writing-style references with the Read tool (cat in a shell does "
+            "not count) before publishing: "
             + ", ".join(missing)
             + ". Apply them to the prepared text, then retry this command."
         )

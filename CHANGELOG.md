@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Added reference checks to the Claude writing guard: a publishing call is denied until the session has read the `sf-writing-style` `platforms.md` reference, and a PR or MR description also needs `pr-mr-descriptions.md`
+- Added reference checks to the Claude and Codex writing guards: a publishing call is denied until the session has read the `sf-writing-style` `platforms.md` reference, and a PR or MR description also needs `pr-mr-descriptions.md`
 - Added opt-in resume of Claude Code and Codex sessions in Herdr app terminals after a reboot, with `sjust herdr-agent-resume-enable`, `-disable` and `-info` (also `ajust` on Linux)
 - Added `"telemetry": false` to the Herdr app settings during provisioning, enforced on every run
 - Added a one-time herdr-core (`hc`) install during provisioning when the Herdr app is installed and `hc` is missing, from the latest release with its sha256 and Herdr signature checked, without running the upstream install script

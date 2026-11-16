@@ -255,7 +255,14 @@ def lifecycle(payload, state):
         return True
     if payload.get("hook_event_name") == "SessionStart":
         if payload.get("source") in {"startup", "clear", "compact"}:
-            for key in ("loaded", "requested", "failed", "reviewed", "read"):
+            for key in (
+                "loaded",
+                "requested",
+                "failed",
+                "reviewed",
+                "read",
+                "ref_requests",
+            ):
                 state[key] = []
         return True
     return False
@@ -334,6 +341,7 @@ def run_hook(process, engine):
                 return 0
             state.setdefault("reviewed", [])
             state.setdefault("read", [])
+            state.setdefault("ref_requests", [])
             result, notices, context = process(payload, state)
             if payload.get("hook_event_name") == "PreToolUse" and requirements(payload):
                 state["last_check"] = {

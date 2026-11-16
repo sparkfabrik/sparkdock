@@ -57,6 +57,14 @@ def skill_path(name, cwd):
     return None
 
 
+def reference_path(name, cwd):
+    skill = skill_path("sf-writing-style", cwd)
+    if skill is None:
+        return None
+    path = skill.parent / guard.REFERENCES[name]
+    return path if path.is_file() else None
+
+
 def response_text(value):
     if isinstance(value, str):
         yield value
@@ -87,15 +95,24 @@ def process(payload, state):
         # Record only complete skill bodies actually returned to the model.
         # A successful exit or a command mentioning SKILL.md alone proves nothing.
         command = args.get("command", "")
-        if not isinstance(command, str) or "SKILL.md" not in command:
+        if not isinstance(command, str):
             return 0, [], []
         output = list(response_text(payload.get("tool_response")))
-        for name in sorted(guard.SKILLS):
-            path = skill_path(name, cwd)
-            if path and name not in state["loaded"]:
+        if "SKILL.md" in command:
+            for name in sorted(guard.SKILLS):
+                path = skill_path(name, cwd)
+                if path and name not in state["loaded"]:
+                    body = path.read_text().strip()
+                    if any(body in text for text in output):
+                        state["loaded"].append(name)
+        # The same rule for the sf-writing-style references: the whole file must
+        # come back to the model, so a head or grep of it does not count.
+        for name in sorted(guard.REFERENCES):
+            path = reference_path(name, cwd)
+            if path and name not in state["read"] and path.name in command:
                 body = path.read_text().strip()
                 if any(body in text for text in output):
-                    state["loaded"].append(name)
+                    state["read"].append(name)
         return 0, [], []
     if payload.get("hook_event_name") != "PreToolUse":
         return 0, [], []
@@ -120,6 +137,33 @@ def process(payload, state):
             + ", ".join(str(path) for _, path in needed)
             + ". Read and apply any task-specific references required by those skills "
             "to the prepared text, then retry."
+        )
+        return 2, notices, []
+    # Codex reads through the shell, where long output can be cut: ask twice for
+    # a reference, then let the call through with a notice instead of looping.
+    wanted = (
+        guard.reference_requirements(payload)
+        if "sf-writing-style" in state["loaded"]
+        else set()
+    )
+    missing = []
+    for name in sorted(wanted - set(state["read"])):
+        path = reference_path(name, cwd)
+        if path is None or state["ref_requests"].count(name) >= 2:
+            if name not in state["warned"]:
+                state["warned"].append(name)
+                notices.append(
+                    f"Writing guard: skipping the {name} reference; unavailable or full read not confirmed."
+                )
+            continue
+        state["ref_requests"].append(name)
+        missing.append(str(path))
+    if missing:
+        notices.append(
+            "Read these sf-writing-style references completely with the shell tool "
+            "(allow enough output for the full text) before publishing: "
+            + ", ".join(missing)
+            + ". Apply them to the prepared text, then retry."
         )
         return 2, notices, []
     return 0, notices, guard.reminder(required, state)
