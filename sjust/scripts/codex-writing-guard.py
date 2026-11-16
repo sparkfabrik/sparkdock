@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Codex adapter for the shared platform and writing skill guard."""
 
+import hashlib
 import json
 import os
 import re
@@ -65,6 +66,63 @@ def reference_path(name, cwd):
     return path if path.is_file() else None
 
 
+# Codex shows the model about 10,000 tokens of each command's output and cuts
+# the middle of anything longer, and hooks receive the same cut text. Larger
+# files are read in ranges that each fit well inside that limit.
+CHUNK_BYTES = 24_000
+
+
+def needed_lines(path):
+    lines = path.read_text().splitlines()
+    key = f"{path}:{hashlib.sha256(path.read_bytes()).hexdigest()[:16]}"
+    return lines, key, [i for i, line in enumerate(lines) if line.strip()]
+
+
+def record_read(path, command, output, state):
+    """Record the lines of path this command returned; True once all have come back."""
+    # SKILL.md alone does not say which skill was read.
+    marker = f"{path.parent.name}/{path.name}" if path.name == "SKILL.md" else path.name
+    if marker not in command:
+        return False
+    lines, key, needed = needed_lines(path)
+    shown = {line.rstrip() for text in output for line in text.splitlines()}
+    seen = set(state["seen"].get(key, []))
+    seen.update(i for i in needed if lines[i].rstrip() in shown)
+    state["seen"][key] = sorted(seen)
+    return seen.issuperset(needed)
+
+
+def read_commands(path, state):
+    """Return sed commands for the lines of path that have not come back yet."""
+    lines, key, needed = needed_lines(path)
+    seen = set(state["seen"].get(key, []))
+    ranges, start, end, size = [], None, None, 0
+    for i in (i for i in needed if i not in seen):
+        extra = (
+            sum(len(line.encode()) + 1 for line in lines[end + 1 : i + 1])
+            if start is not None
+            else 0
+        )
+        if start is not None and size + extra <= CHUNK_BYTES:
+            end, size = i, size + extra
+            continue
+        if start is not None:
+            ranges.append((start, end))
+        start, end, size = i, i, len(lines[i].encode()) + 1
+    if start is not None:
+        ranges.append((start, end))
+    return [f"sed -n '{a + 1},{b + 1}p' {shlex.quote(str(path))}" for a, b in ranges]
+
+
+def read_notice(paths, state, then):
+    commands = [c for path in paths for c in read_commands(path, state)]
+    return (
+        "Codex shows about 10,000 tokens of each command's output, so read these "
+        "files in parts. Run each command once, on its own, and do not read the "
+        "same lines again: " + "; ".join(commands) + ". " + then
+    )
+
+
 def response_text(value):
     if isinstance(value, str):
         yield value
@@ -98,20 +156,17 @@ def process(payload, state):
         if not isinstance(command, str):
             return 0, [], []
         output = list(response_text(payload.get("tool_response")))
-        if "SKILL.md" in command:
-            for name in sorted(guard.SKILLS):
-                path = skill_path(name, cwd)
-                if path and name not in state["loaded"]:
-                    body = path.read_text().strip()
-                    if any(body in text for text in output):
-                        state["loaded"].append(name)
-        # The same rule for the sf-writing-style references: the whole file must
-        # come back to the model, so a head or grep of it does not count.
+        # Every non-empty line must come back, across one or more commands, so a
+        # head, a grep or a cut output does not count.
+        for name in sorted(guard.SKILLS):
+            path = skill_path(name, cwd)
+            if path and name not in state["loaded"]:
+                if record_read(path, command, output, state):
+                    state["loaded"].append(name)
         for name in sorted(guard.REFERENCES):
             path = reference_path(name, cwd)
-            if path and name not in state["read"] and path.name in command:
-                body = path.read_text().strip()
-                if any(body in text for text in output):
+            if path and name not in state["read"]:
+                if record_read(path, command, output, state):
                     state["read"].append(name)
         return 0, [], []
     if payload.get("hook_event_name") != "PreToolUse":
@@ -133,10 +188,15 @@ def process(payload, state):
         if "sf-writing-style" in required:
             state["reviewed"] = ["sf-writing-style"]
         notices.append(
-            "Read these skill files completely with the shell tool (allow enough output for the full text): "
+            "Read these skill files: "
             + ", ".join(str(path) for _, path in needed)
-            + ". Read and apply any task-specific references required by those skills "
-            "to the prepared text, then retry."
+            + ". "
+            + read_notice(
+                [path for _, path in needed],
+                state,
+                "Read and apply any task-specific references required by those "
+                "skills to the prepared text, then retry.",
+            )
         )
         return 2, notices, []
     # Codex reads through the shell, where long output can be cut: ask twice for
@@ -157,13 +217,15 @@ def process(payload, state):
                 )
             continue
         state["ref_requests"].append(name)
-        missing.append(str(path))
+        missing.append(path)
     if missing:
         notices.append(
-            "Read these sf-writing-style references completely with the shell tool "
-            "(allow enough output for the full text) before publishing: "
-            + ", ".join(missing)
-            + ". Apply them to the prepared text, then retry."
+            "Read these sf-writing-style references before publishing: "
+            + ", ".join(str(path) for path in missing)
+            + ". "
+            + read_notice(
+                missing, state, "Apply them to the prepared text, then retry."
+            )
         )
         return 2, notices, []
     return 0, notices, guard.reminder(required, state)

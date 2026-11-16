@@ -58,6 +58,10 @@ class CodexFixture(unittest.TestCase):
             check=False,
         )
 
+    def state(self):
+        path = next((self.root / "cache/sparkdock/codex-skill-gate").glob("*.json"))
+        return json.loads(path.read_text())
+
     def read(self, body=None):
         p = self.skills["sf-writing-style"]
         return self.run_hook(
@@ -100,6 +104,39 @@ class CodexGuardTest(CodexFixture):
         r = self.run_hook(self.payload())
         self.assertEqual(r.returncode, 0)
         self.assertIn("full read not confirmed", r.stdout)
+
+    def test_cut_output_asks_only_for_the_missing_lines(self):
+        p = self.skills["sf-writing-style"]
+        lines = [f"Rule {i}: " + "x" * 60 for i in range(1500)]
+        p.write_text("\n".join(lines) + "\n")
+        self.run_hook(self.payload())
+        self.read("\n".join(lines[:400] + ["[... output cut ...]"] + lines[1100:]))
+        self.assertNotIn("sf-writing-style", self.state()["loaded"])
+        notice = codex.read_notice([p], self.state(), "")
+        ranges = [c.split("'")[1] for c in notice.split("sed -n ")[1:]]
+        self.assertEqual(ranges[0].split(",")[0], "401")
+        self.assertEqual(ranges[-1].split(",")[1], "1100p")
+        for r in ranges:
+            a, b = (int(n) for n in r.rstrip("p").split(","))
+            self.assertLessEqual(len("\n".join(lines[a - 1 : b])), codex.CHUNK_BYTES)
+            self.read("\n".join(lines[a - 1 : b]))
+        self.assertIn("sf-writing-style", self.state()["loaded"])
+
+    def test_one_skill_read_does_not_count_for_another(self):
+        self.run_hook(self.payload())
+        glab = self.skills["glab"]
+        self.run_hook(
+            self.payload()
+            | {
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": f"cat {glab}"},
+                "tool_response": {
+                    "output": self.skills["sf-writing-style"].read_text()
+                },
+            }
+        )
+        self.assertNotIn("sf-writing-style", self.state()["loaded"])
 
     def test_compaction_requires_new_read(self):
         self.run_hook(self.payload())
