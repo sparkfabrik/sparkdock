@@ -59,8 +59,12 @@ def backup(path=None) -> str:
 
 
 def atomic_write(data: dict, path=None) -> None:
-    """Write data to settings.json atomically (temp file + os.replace)."""
-    path = Path(path) if path else settings_path()
+    """Write data to settings.json atomically (temp file + os.replace).
+
+    Writes through a symlink, so a settings.json managed by a dotfile manager
+    stays a link to its real file.
+    """
+    path = Path(os.path.realpath(path if path else settings_path()))
     path.parent.mkdir(parents=True, exist_ok=True)
     fd, tmp = tempfile.mkstemp(
         dir=str(path.parent), prefix=".settings.", suffix=".json"

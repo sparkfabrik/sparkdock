@@ -40,19 +40,27 @@ def _reads_tracked():
         matchers = cs.registered_matchers(
             cs.load(), "PostToolUse", Path(SCRIPT_PATH).name
         )
+        if not matchers:
+            return True
+        for matcher in matchers:
+            if matcher in (None, "", "*"):
+                return True
+            if not isinstance(matcher, str):
+                continue
+            try:
+                if re.fullmatch(matcher, "Read"):
+                    return True
+            except re.error:
+                continue
+        return False
     except Exception:
         return False
-    if not matchers:
-        return True
-    for matcher in matchers:
-        if matcher in (None, "", "*"):
-            return True
-        try:
-            if re.fullmatch(matcher, "Read"):
-                return True
-        except re.error:
-            continue
-    return False
+
+
+STALE_HINT = (
+    "Run `sjust claude-gh-gate-enable` (`ajust` on Linux), then start a new "
+    "Claude Code session."
+)
 
 
 def _settings_lib():
@@ -129,6 +137,7 @@ def _process(payload, state):
         return 0, [], []
     if payload.get("tool_name") == "Read":
         if event == "PostToolUse":
+            state["read_events"] = True
             _record_read(tool_input, payload.get("tool_response"), state)
         return 0, [], []
     if payload.get("tool_name") == "Skill":
@@ -191,8 +200,7 @@ def _process(payload, state):
         if "stale-registration" not in state["warned"]:
             notices.append(
                 "Writing guard: skipping the reference check; this hook does not "
-                "receive Read results. Run `sjust claude-gh-gate-enable` (`ajust` on "
-                "Linux) to update its registration."
+                "receive Read results. " + STALE_HINT
             )
             state["warned"].append("stale-registration")
         wanted = set()
@@ -205,6 +213,19 @@ def _process(payload, state):
                 )
                 state["warned"].append(name)
             continue
+        # A registration this hook cannot see (project, local or managed
+        # settings) or a repair Claude has not reloaded never sends Read results:
+        # ask once, then let the call through. Ask at most twice in any case.
+        asked = state["ref_requests"].count(name)
+        if asked >= 2 or (asked and not state["read_events"]):
+            if f"reference:{name}" not in state["warned"]:
+                notices.append(
+                    f"Writing guard: skipping the {name} reference; its read was not "
+                    "confirmed. If the hook registration is stale, " + STALE_HINT
+                )
+                state["warned"].append(f"reference:{name}")
+            continue
+        state["ref_requests"].append(name)
         missing.append(str(path))
     if missing:
         notices.append(

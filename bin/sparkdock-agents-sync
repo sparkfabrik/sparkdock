@@ -666,7 +666,7 @@ repair_writing_guard() {
     local output
     if output="$(python3 "${gate_script}" repair 2>&1)"; then
         if [[ -n "${output}" ]]; then
-            log_info "Writing guard: updated its Claude Code hook registration."
+            log_info "Writing guard: updated its Claude Code hook registration. Start a new Claude Code session to use it."
         fi
     else
         log_warn "Writing guard: could not update its hook registration: ${output}"
@@ -1245,6 +1245,9 @@ main() {
 
     log_info "Syncing SparkFabrik agent resources..."
 
+    # Local only, so it also runs when the network or the upstream repo is down.
+    repair_writing_guard
+
     # Clone or update the repo
     sync_repo
 
@@ -1290,8 +1293,6 @@ main() {
     for tool_id in $(printf '%s\n' "${!TOOL_SKILLS_DIR[@]}" | sort); do
         ensure_tool_symlinks "${tool_id}" "${managed_names}"
     done
-
-    repair_writing_guard
 
     print_summary
 }
