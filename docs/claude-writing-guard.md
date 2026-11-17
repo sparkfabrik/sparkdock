@@ -62,7 +62,7 @@ Claude discovery checks personal and ancestor project `.claude/skills` locations
 
 Unavailable, empty, unreadable, broken-link and manual-only skills are skipped. Each skill gets at most one load request per context. If the load is not confirmed, the next attempt proceeds with a notice. Invalid input, corrupt state and inaccessible storage also fail open. A busy state lock is retried for up to one second before failing open. This is a workflow aid, not a security boundary.
 
-Installation preserves unrelated hooks and backs up existing JSON files. Re-running enable repairs partial registrations. The shared installer reports a change when either registration changes. Malformed Codex settings and malformed Claude hook objects are not overwritten.
+Installation preserves unrelated hooks and backs up existing JSON files. Re-running enable repairs partial registrations. `sf-harness-sync` runs `claude-gh-gate.py repair`, which updates a registration made by an older sparkdock and never enables a guard that is off. Until then, a Claude registration whose `PostToolUse` matcher does not include `Read` cannot record reference reads, so the guard skips the reference check with a one-time notice instead of denying every publishing call. The shared installer reports a change when either registration changes. Malformed Codex settings and malformed Claude hook objects are not overwritten.
 
 ## Diagnostics and limits
 

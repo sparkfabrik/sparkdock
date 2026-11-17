@@ -657,6 +657,22 @@ gh_gate_is_enabled() {
     python3 "${gate_script}" info 2>/dev/null | grep -q "Configured: .*enabled"
 }
 
+# A sparkdock update can change the hooks the writing guard needs, while the
+# registration in ~/.claude/settings.json keeps the old ones. Update it when the
+# guard is enabled; never enable a guard the user turned off.
+repair_writing_guard() {
+    local gate_script="${SCRIPT_DIR}/../sjust/scripts/claude-gh-gate.py"
+    [[ -f "${gate_script}" ]] || return 0
+    local output
+    if output="$(python3 "${gate_script}" repair 2>&1)"; then
+        if [[ -n "${output}" ]]; then
+            log_info "Writing guard: updated its Claude Code hook registration."
+        fi
+    else
+        log_warn "Writing guard: could not update its hook registration: ${output}"
+    fi
+}
+
 apply_skill_action() {
     local action="$1"
     local skill="$2"
@@ -1274,6 +1290,8 @@ main() {
     for tool_id in $(printf '%s\n' "${!TOOL_SKILLS_DIR[@]}" | sort); do
         ensure_tool_symlinks "${tool_id}" "${managed_names}"
     done
+
+    repair_writing_guard
 
     print_summary
 }
