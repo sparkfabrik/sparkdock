@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added reference checks to the Claude and Codex writing guards: a publishing call is denied until the session has read the `sf-writing-style` `platforms.md` reference, and a PR or MR description also needs `pr-mr-descriptions.md`
 - Added opt-in resume of Claude Code and Codex sessions in Herdr app terminals after a reboot, with `sjust herdr-agent-resume-enable`, `-disable` and `-info` (also `ajust` on Linux)
 - Added `"telemetry": false` to the Herdr app settings during provisioning, enforced on every run
 - Added a one-time herdr-core (`hc`) install during provisioning when the Herdr app is installed and `hc` is missing, from the latest release with its sha256 and Herdr signature checked, without running the upstream install script
@@ -249,6 +250,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the Codex writing guard rejecting reads of skills and references longer than Codex's output limit, which made Codex read the same file again: it now accepts a file read in parts and asks only for the missing lines
+- Fixed the writing guard skipping `gh` and `glab` commands that pass their text through a heredoc, such as `--description "$(cat <<EOF ...)"`, including calls behind `env` or `rtk proxy` and fields late in a long command, without treating a `gh` call inside quotes or a quoted heredoc as a command
+- Fixed the writing guard treating every `gh api` and `glab api` call with a field as prose, such as starting a pipeline; only body, description, note, title, message, comment, content, GraphQL and `--input` calls count, and only a write to the PR or MR itself, not its comments or notes, needs the description reference
 - Fixed Codex listing every SparkFabrik skill twice: sparkdock no longer links skills into `~/.codex/skills`, removes the links it made there, and the Codex writing guard finds skills in `~/.agents/skills`, where Codex reads them
 - Fixed Herdr app telemetry provisioning to warn about non-object settings and fail when it cannot write the enforced value
 - Kept Herdr app settings permissions, avoided repeat herdr-core installs from the app bundle, reported failed installs, and removed links to an absent skill router

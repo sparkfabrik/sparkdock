@@ -13,6 +13,14 @@ import time
 from pathlib import Path
 
 SKILLS = {"gh", "glab", "sf-writing-style"}
+# sf-writing-style references a publishing call must have read, by name. Paths are
+# relative to the skill directory.
+REFERENCES = {
+    "pr-mr-descriptions": "references/pr-mr-descriptions.md",
+    "platforms": "references/platforms.md",
+}
+# API fields that carry text a person reads.
+PROSE_FIELDS = {"body", "description", "note", "title", "message", "comment", "content"}
 MATCHER = "Bash|mcp__.*"
 REMINDER = (
     "Writing guard: this call was not blocked and its text was not evaluated. Apply "
@@ -98,13 +106,24 @@ def _writes_prose(args):
             return False
         if method in {"GET", "HEAD"}:
             return False
-        return bool(method) or any(
-            a in {"-f", "-F", "--field", "--raw-field", "--input"}
-            or a.startswith(
-                ("--method=", "--field=", "--raw-field=", "--input=", "-f", "-F", "-X")
-            )
-            for a in args[1:]
-        )
+        # Only a body, description, note, title or message is prose: starting a
+        # pipeline or setting a label sends none. --input and GraphQL queries can
+        # carry any field, so they count.
+        values = []
+        for i, a in enumerate(args[1:], start=1):
+            if a in {"-f", "-F", "--field", "--raw-field"} and i + 1 < len(args):
+                values.append(args[i + 1])
+            elif a.startswith(("--field=", "--raw-field=")):
+                values.append(a.split("=", 1)[1])
+            elif a.startswith(("-f", "-F")) and len(a) > 2:
+                values.append(a[2:])
+            elif a == "--input" or a.startswith("--input="):
+                return True
+        for value in values:
+            key = value.split("=", 1)[0].lower()
+            if key == "query" or key.split("[", 1)[0] in PROSE_FIELDS:
+                return True
+        return False
     return (
         len(args) > 1
         and args[0] in {"issue", "pr", "mr", "release", "discussion", "gist", "snippet"}
@@ -121,6 +140,89 @@ def _writes_prose(args):
     )
 
 
+# A gh or glab call where a command starts: line start, after ;, &, |, ( or $(,
+# after optional VAR=value assignments and the wrappers _commands unwraps.
+_CLI_CALL = re.compile(
+    r"(?:^|[;&|(`\n]|\$\()[ \t]*"
+    r"(?:(?:[A-Za-z_]\w*=[^\s;&|]*|env|command|--|rtk(?:[ \t]+proxy)?|rtk-run)[ \t]+['\"]?)*"
+    r"((?:[\w./-]*/)?(?:gh|glab))((?:[ \t]+[^\s;&|()<>`]+)*)"
+)
+
+# The body of a heredoc with a quoted delimiter is literal data: nothing in it
+# runs. Keep the rest of the opening line, which can hold the real command.
+_QUOTED_HEREDOC = re.compile(
+    r"<<-?[ \t]*(['\"])(\w+)\1([^\n]*)\n.*?^[ \t]*\2[ \t]*$", re.S | re.M
+)
+
+
+def _neutralize_quotes(text):
+    """Blank shell separators inside quoted strings, so quoted text never looks
+    like a command start. Command substitutions inside double quotes run, so
+    they stay as they are."""
+    separators = set(";&|()<>`\n")
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == "\\" and i + 1 < n:
+            out.append(text[i : i + 2])
+            i += 2
+        elif c == "'":
+            end = text.find("'", i + 1)
+            end = n if end < 0 else end
+            out.append(
+                "'"
+                + "".join(" " if ch in separators else ch for ch in text[i + 1 : end])
+                + "'"
+            )
+            i = end + 1
+        elif c == '"':
+            out.append('"')
+            i += 1
+            while i < n and text[i] != '"':
+                if text[i] == "\\" and i + 1 < n:
+                    out.append(text[i : i + 2])
+                    i += 2
+                elif text.startswith("$(", i):
+                    depth, j = 0, i + 1
+                    while j < n:
+                        depth += {"(": 1, ")": -1}.get(text[j], 0)
+                        if depth == 0:
+                            break
+                        j += 1
+                    out.append(text[i : j + 1])
+                    i = j + 1
+                else:
+                    out.append(" " if text[i] in separators else text[i])
+                    i += 1
+            out.append('"')
+            i += 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
+
+
+def _command_words(command):
+    """Shell commands as word lists. A heredoc or syntax the parser does not
+    handle, such as `--body "$(cat <<EOF ...)"`, is exactly how agents send a
+    description, so fall back to finding each gh or glab call in the raw text
+    instead of skipping the command."""
+    try:
+        words = list(_commands(command))
+    except ValueError:
+        words = None
+    if "<<" not in command:
+        # Other syntax the parser rejects still fails open, as before.
+        return words or []
+    flat = _QUOTED_HEREDOC.sub(r"<<'\2'\3", command).replace("\\\n", " ")
+    flat = _neutralize_quotes(flat)
+    found = []
+    for match in _CLI_CALL.finditer(flat):
+        rest = [w.strip("'\"") for w in match.group(2).split()]
+        found.append([match.group(1), *rest])
+    return (words or []) + found
+
+
 def requirements(payload):
     required = set()
     tool = payload.get("tool_name", "")
@@ -129,7 +231,7 @@ def requirements(payload):
         command = args.get("command")
         if not isinstance(command, str):
             return required
-        for words in _commands(command):
+        for words in _command_words(command):
             cli = Path(words[0]).name
             if cli in {"gh", "glab"} and shutil.which(words[0]) is not None:
                 required.add(cli)
@@ -189,14 +291,98 @@ def requirements(payload):
     return required
 
 
+# gh and glab api options that take a value, which is never the endpoint.
+_API_VALUE_OPTIONS = {
+    "-H",
+    "--header",
+    "-X",
+    "--method",
+    "--hostname",
+    "-f",
+    "-F",
+    "--field",
+    "--raw-field",
+    "-q",
+    "--jq",
+    "--input",
+    "-p",
+    "--preview",
+    "-t",
+    "--template",
+    "--cache",
+}
+
+
+def _api_endpoint(args):
+    i = 0
+    while i < len(args):
+        if args[i] in _API_VALUE_OPTIONS:
+            i += 2
+        elif args[i].startswith("-"):
+            i += 1
+        else:
+            return args[i].split("?", 1)[0]
+    return ""
+
+
+def _describes_change(args):
+    """True for a command that writes a PR or MR description."""
+    args = list(args)
+    while args and args[0].startswith("-"):
+        flag = args.pop(0)
+        if flag in {"-R", "--repo", "--hostname", "--host"} and args:
+            args.pop(0)
+    if (
+        len(args) > 1
+        and args[0] in {"pr", "mr"}
+        and args[1] in {"create", "edit", "update"}
+    ):
+        return True
+    if args and args[0] == "api":
+        # The PR or MR itself, not its comments, notes or reviews.
+        path = _api_endpoint(args[1:])
+        return bool(
+            re.search(r"(^|/)(pulls|merge_requests)(/[^/]+)?/?$", path)
+        ) and _writes_prose(args)
+    return False
+
+
+def reference_requirements(payload):
+    """Names from REFERENCES the call needs: platforms for any rendered write,
+    pr-mr-descriptions for a PR or MR description."""
+    required = requirements(payload)
+    if "sf-writing-style" not in required:
+        return set()
+    references = {"platforms"}
+    tool = payload.get("tool_name", "")
+    args = payload.get("tool_input", {})
+    if tool == "Bash" and isinstance(args.get("command"), str):
+        for words in _command_words(args["command"]):
+            if Path(words[0]).name in {"gh", "glab"} and _describes_change(words[1:]):
+                references.add("pr-mr-descriptions")
+    elif isinstance(tool, str) and tool.startswith("mcp__"):
+        operation = tool.split("__", 2)[-1].lower()
+        if re.search(r"(create|update)_(pull_request|merge_request)$", operation):
+            references.add("pr-mr-descriptions")
+    return references
+
+
 def lifecycle(payload, state):
     if payload.get("hook_event_name") == "UserPromptSubmit":
         state["reviewed"] = []
         return True
     if payload.get("hook_event_name") == "SessionStart":
         if payload.get("source") in {"startup", "clear", "compact"}:
-            for key in ("loaded", "requested", "failed", "reviewed"):
+            for key in (
+                "loaded",
+                "requested",
+                "failed",
+                "reviewed",
+                "read",
+                "ref_requests",
+            ):
                 state[key] = []
+            state["seen"] = {}
         return True
     return False
 
@@ -273,6 +459,10 @@ def run_hook(process, engine):
             ):
                 return 0
             state.setdefault("reviewed", [])
+            state.setdefault("read", [])
+            state.setdefault("ref_requests", [])
+            if not isinstance(state.setdefault("seen", {}), dict):
+                state["seen"] = {}
             result, notices, context = process(payload, state)
             if payload.get("hook_event_name") == "PreToolUse" and requirements(payload):
                 state["last_check"] = {

@@ -22,7 +22,7 @@ HOOK_COMMAND = f"python3 {shlex.quote(SCRIPT_PATH)} --hook"
 HOOKS = {
     "PreToolUse": guard.MATCHER,
     "UserPromptSubmit": "*",
-    "PostToolUse": "Skill",
+    "PostToolUse": "Skill|Read",
     "PostToolUseFailure": "Skill",
     "SessionStart": "startup|clear|compact",
 }
@@ -65,12 +65,44 @@ def _skill_available(name, cwd):
     return False
 
 
+def _reference_path(name, cwd):
+    """The installed sf-writing-style reference file, in a Claude-visible location."""
+    config = Path(os.environ.get("CLAUDE_CONFIG_DIR") or Path.home() / ".claude")
+    for root in (config, *(p / ".claude" for p in (cwd, *cwd.parents))):
+        path = root / "skills" / "sf-writing-style" / guard.REFERENCES[name]
+        if path.is_file():
+            return path
+    return None
+
+
+def _read_whole_file(tool_input, response):
+    """True when the Read returned the file from its first line to its last."""
+    file = response.get("file") if isinstance(response, dict) else None
+    keys = ("startLine", "numLines", "totalLines")
+    if isinstance(file, dict) and all(isinstance(file.get(k), int) for k in keys):
+        return file["startLine"] <= 1 and file["numLines"] >= file["totalLines"]
+    return tool_input.get("offset") in (None, 0, 1) and tool_input.get("limit") is None
+
+
+def _record_read(tool_input, response, state):
+    path = tool_input.get("file_path")
+    if not isinstance(path, str) or not _read_whole_file(tool_input, response):
+        return
+    for name, relative in guard.REFERENCES.items():
+        if path.endswith("sf-writing-style/" + relative) and name not in state["read"]:
+            state["read"].append(name)
+
+
 def _process(payload, state):
     event = payload.get("hook_event_name")
     if guard.lifecycle(payload, state):
         return 0, [], []
     tool_input = payload.get("tool_input")
     if not isinstance(tool_input, dict):
+        return 0, [], []
+    if payload.get("tool_name") == "Read":
+        if event == "PostToolUse":
+            _record_read(tool_input, payload.get("tool_response"), state)
         return 0, [], []
     if payload.get("tool_name") == "Skill":
         name = tool_input.get("skill") or tool_input.get("name")
@@ -113,7 +145,37 @@ def _process(payload, state):
             "Load these skills with the Skill tool: "
             + ", ".join(needed)
             + ". Read and apply any task-specific references required by those skills "
-            "to the prepared text, then retry this command."
+            "to the prepared text, then retry this command. Read the references with the "
+            "Read tool: a shell command such as cat does not count."
+        )
+        return 2, notices, []
+    # The skill text alone does not carry its references: a description written
+    # without them is badly shaped or badly formatted. Require the read, every
+    # time it is missing, with the exact path, so the retry is a new action.
+    missing = []
+    # Like the skills, the references fail open: when sf-writing-style did not
+    # load, there is nothing to read them against.
+    wanted = (
+        guard.reference_requirements(payload)
+        if "sf-writing-style" in state["loaded"]
+        else set()
+    )
+    for name in sorted(wanted - set(state["read"])):
+        path = _reference_path(name, Path(cwd))
+        if path is None:
+            if name not in state["warned"]:
+                notices.append(
+                    f"Writing guard: skipping the {name} reference; not installed."
+                )
+                state["warned"].append(name)
+            continue
+        missing.append(str(path))
+    if missing:
+        notices.append(
+            "Read these sf-writing-style references with the Read tool (cat in a shell does "
+            "not count) before publishing: "
+            + ", ".join(missing)
+            + ". Apply them to the prepared text, then retry this command."
         )
         return 2, notices, []
     return 0, notices, guard.reminder(required, state)
