@@ -445,6 +445,29 @@ class ClassificationTest(unittest.TestCase):
                 {"platforms", "pr-mr-descriptions"},
             ),
             "cat > notes.md <<'EOF'\ngh pr create --body example\nEOF": (set(), set()),
+            "echo \"example; gh pr create --body example\" <<'EOF'\nignored\nEOF": (
+                set(),
+                set(),
+            ),
+            "gh api --hostname github.com --method POST repos/o/r/pulls -f head=feature"
+            " -f base=master -f maintainer_can_modify=true -f title=Example"
+            " --input - <<'EOF'\n{}\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            "gh api -H 'Accept: application/vnd.github+json' --method PATCH"
+            " repos/o/r/pulls/1 -f body='Update the filter.'": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            "gh api repos/o/r/pulls/42/comments -f body='Review comment'": (
+                {"gh", "sf-writing-style"},
+                {"platforms"},
+            ),
+            "glab api projects/1/merge_requests/42/notes -f body='Review comment'": (
+                {"glab", "sf-writing-style"},
+                {"platforms"},
+            ),
         }
         with patch.object(guard.shutil, "which", return_value="/usr/bin/cli"):
             for command, (needed, references) in cases.items():

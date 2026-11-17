@@ -145,7 +145,7 @@ def _writes_prose(args):
 _CLI_CALL = re.compile(
     r"(?:^|[;&|(`\n]|\$\()[ \t]*"
     r"(?:(?:[A-Za-z_]\w*=[^\s;&|]*|env|command|--|rtk(?:[ \t]+proxy)?|rtk-run)[ \t]+['\"]?)*"
-    r"((?:[\w./-]*/)?(?:gh|glab))((?:[ \t]+[^\s;&|()<>`]+){0,12})"
+    r"((?:[\w./-]*/)?(?:gh|glab))((?:[ \t]+[^\s;&|()<>`]+)*)"
 )
 
 # The body of a heredoc with a quoted delimiter is literal data: nothing in it
@@ -153,6 +153,53 @@ _CLI_CALL = re.compile(
 _QUOTED_HEREDOC = re.compile(
     r"<<-?[ \t]*(['\"])(\w+)\1([^\n]*)\n.*?^[ \t]*\2[ \t]*$", re.S | re.M
 )
+
+
+def _neutralize_quotes(text):
+    """Blank shell separators inside quoted strings, so quoted text never looks
+    like a command start. Command substitutions inside double quotes run, so
+    they stay as they are."""
+    separators = set(";&|()<>`\n")
+    out, i, n = [], 0, len(text)
+    while i < n:
+        c = text[i]
+        if c == "\\" and i + 1 < n:
+            out.append(text[i : i + 2])
+            i += 2
+        elif c == "'":
+            end = text.find("'", i + 1)
+            end = n if end < 0 else end
+            out.append(
+                "'"
+                + "".join(" " if ch in separators else ch for ch in text[i + 1 : end])
+                + "'"
+            )
+            i = end + 1
+        elif c == '"':
+            out.append('"')
+            i += 1
+            while i < n and text[i] != '"':
+                if text[i] == "\\" and i + 1 < n:
+                    out.append(text[i : i + 2])
+                    i += 2
+                elif text.startswith("$(", i):
+                    depth, j = 0, i + 1
+                    while j < n:
+                        depth += {"(": 1, ")": -1}.get(text[j], 0)
+                        if depth == 0:
+                            break
+                        j += 1
+                    out.append(text[i : j + 1])
+                    i = j + 1
+                else:
+                    out.append(" " if text[i] in separators else text[i])
+                    i += 1
+            out.append('"')
+            i += 1
+        else:
+            out.append(c)
+            i += 1
+    return "".join(out)
 
 
 def _command_words(command):
@@ -168,6 +215,7 @@ def _command_words(command):
         # Other syntax the parser rejects still fails open, as before.
         return words or []
     flat = _QUOTED_HEREDOC.sub(r"<<'\2'\3", command).replace("\\\n", " ")
+    flat = _neutralize_quotes(flat)
     found = []
     for match in _CLI_CALL.finditer(flat):
         rest = [w.strip("'\"") for w in match.group(2).split()]
@@ -243,6 +291,40 @@ def requirements(payload):
     return required
 
 
+# gh and glab api options that take a value, which is never the endpoint.
+_API_VALUE_OPTIONS = {
+    "-H",
+    "--header",
+    "-X",
+    "--method",
+    "--hostname",
+    "-f",
+    "-F",
+    "--field",
+    "--raw-field",
+    "-q",
+    "--jq",
+    "--input",
+    "-p",
+    "--preview",
+    "-t",
+    "--template",
+    "--cache",
+}
+
+
+def _api_endpoint(args):
+    i = 0
+    while i < len(args):
+        if args[i] in _API_VALUE_OPTIONS:
+            i += 2
+        elif args[i].startswith("-"):
+            i += 1
+        else:
+            return args[i].split("?", 1)[0]
+    return ""
+
+
 def _describes_change(args):
     """True for a command that writes a PR or MR description."""
     args = list(args)
@@ -257,9 +339,10 @@ def _describes_change(args):
     ):
         return True
     if args and args[0] == "api":
-        path = next((a for a in args[1:] if not a.startswith("-") and "/" in a), "")
+        # The PR or MR itself, not its comments, notes or reviews.
+        path = _api_endpoint(args[1:])
         return bool(
-            re.search(r"(^|/)(pulls|merge_requests)(/|$)", path)
+            re.search(r"(^|/)(pulls|merge_requests)(/[^/]+)?/?$", path)
         ) and _writes_prose(args)
     return False
 
