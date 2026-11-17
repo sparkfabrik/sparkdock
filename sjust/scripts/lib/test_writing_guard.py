@@ -506,6 +506,28 @@ class ClassificationTest(unittest.TestCase):
                 {"gh", "sf-writing-style"},
                 {"platforms", "pr-mr-descriptions"},
             ),
+            # Command substitutions in an unquoted heredoc body run.
+            "cat > b.md <<EOF\n$(gh api -X PATCH repos/o/r/pulls/1 -f body='x (y)')\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            'cat > b.md <<EOF\nstatus: $(gh pr comment 1 --body "$(cat f)")\nEOF': (
+                {"gh", "sf-writing-style"},
+                {"platforms"},
+            ),
+            "cat > b.md <<EOF\nstatus: $(gh pr comment 1 --body 'a (b) c')\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms"},
+            ),
+            # A heredoc handed to a shell runs as commands.
+            "bash <<EOF\ngh pr create --title t --body x\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            "ssh host bash <<'EOF'\nglab mr create --title t --description x\nEOF": (
+                {"glab", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
             # Here-strings are not heredocs.
             "gh pr create --body-file - <<< 'x'; cat <<EOF\nx\nEOF": (
                 {"gh", "sf-writing-style"},
@@ -567,6 +589,8 @@ class ClassificationTest(unittest.TestCase):
         )
         with patch.object(guard.shutil, "which", return_value="/usr/bin/cli"):
             for command in (
+                'gh api graphql -f query="mutation(\\$i: UpdatePullRequestInput!) {'
+                ' updatePullRequest(input: \\$i) { pullRequest { id } } }" -F i[body]=new',
                 'gh api graphql --input - <<\'EOF\'\n{"query": "x"}\nEOF',
                 "gh api graphql -F query=@q.graphql",
                 'gh api /graphql -f query=\'mutation { updatePullRequest(input: {pullRequestId: "P", body: "B"}) { pullRequest { id } } }\'',
@@ -590,6 +614,14 @@ class ClassificationTest(unittest.TestCase):
                         self.assertEqual(
                             guard.reference_requirements(payload), references
                         )
+
+    def test_unterminated_heredocs_are_linear(self):
+        command = "cat <<A\n" * 8000 + "gh pr create --body x"
+        start = time.monotonic()
+        guard.reference_requirements(
+            {"tool_name": "Bash", "tool_input": {"command": command}}
+        )
+        self.assertLess(time.monotonic() - start, 1.0)
 
     def test_description_mutation_search_is_linear(self):
         query = "updatePullRequest " * 10000

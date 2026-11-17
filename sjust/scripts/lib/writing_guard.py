@@ -150,7 +150,7 @@ def _field_values(args):
 _DESCRIPTION_MUTATION = re.compile(
     r"\b(?:createPullRequest|updatePullRequest|mergeRequestCreate|mergeRequestUpdate)\b"
 )
-_DESCRIPTION_INPUT = re.compile(r"\b(?:body|description)\s*:|\binput\s*:\s*\$")
+_DESCRIPTION_INPUT = re.compile(r"\b(?:body|description)\s*:|\binput\s*:\s*\\?\$")
 
 
 def _sets_description(query):
@@ -168,24 +168,72 @@ _CLI_CALL = re.compile(
     r"((?:[\w./-]*/)?(?:gh|glab))((?:[ \t]+[^\s;&|()<>`]+)*)"
 )
 
-# The body of a heredoc with a quoted delimiter is literal data: nothing in it
-# runs. Keep the rest of the opening line, which can hold the real command.
-_QUOTED_HEREDOC = re.compile(
-    r"(?<!<)<<-?[ \t]*(['\"])(\w+)\1([^\n]*)\n.*?^[ \t]*\2[ \t]*$", re.S | re.M
-)
-
-# An unquoted heredoc body is data too, except for the command substitutions
-# the shell expands in it. Its apostrophes and # signs are text, not quotes or
-# comments, so the body is replaced by its substitutions alone.
-_UNQUOTED_HEREDOC = re.compile(
-    r"(?<!<)<<-?[ \t]*(\w+)([^\n]*)\n(.*?)^[ \t]*\1[ \t]*$", re.S | re.M
-)
-_SUBSTITUTION = re.compile(r"\$\([^()]*\)|`[^`]*`")
+# A heredoc opener (not a <<< here-string) and its delimiter, quoted or not.
+_HEREDOC_OPENER = re.compile(r"(?<!<)<<(?!<)(-?)[ \t]*(['\"]?)(\w+)\2")
+# A shell that runs the heredoc body as commands.
+_SHELL_RUNNER = re.compile(r"(?:^|[\s;&|(])(?:sh|bash|zsh|ssh)(?:\s|$)")
 
 
-def _heredoc_substitutions(match):
-    kept = _SUBSTITUTION.findall(match.group(3))
-    return f"<<{match.group(1)}{match.group(2)}\n" + "".join(k + "\n" for k in kept)
+def _substitutions(text):
+    """Every $(...) and `...` span in text, with nested parentheses kept whole."""
+    spans, i, n = [], 0, len(text)
+    while i < n:
+        if text.startswith("$(", i):
+            depth, j = 0, i + 1
+            while j < n:
+                depth += {"(": 1, ")": -1}.get(text[j], 0)
+                if depth == 0:
+                    break
+                j += 1
+            spans.append(text[i : j + 1])
+            i = j + 1
+        elif text[i] == "`":
+            j = text.find("`", i + 1)
+            j = n - 1 if j < 0 else j
+            spans.append(text[i : j + 1])
+            i = j + 1
+        else:
+            i += 1
+    return spans
+
+
+def _strip_heredocs(command):
+    """Replace heredoc bodies with what the shell runs from them, in one pass.
+
+    A body is data: a quoted delimiter keeps nothing, an unquoted one keeps its
+    command substitutions. When the opening line hands the body to a shell
+    (sh, bash, zsh or ssh), the body runs, so it stays whole."""
+    lines = command.split("\n")
+    out, pending, i = [], [], 0
+    while i < len(lines):
+        line = lines[i]
+        i += 1
+        if pending:
+            strip_tabs, quoted, runs, delimiter, body = pending[0]
+            if (line.lstrip("\t") if strip_tabs else line).strip() == delimiter:
+                kept = (
+                    body
+                    if runs
+                    else ([] if quoted else _substitutions("\n".join(body)))
+                )
+                out.extend(kept)
+                out.append(line)
+                pending.pop(0)
+            else:
+                body.append(line)
+            continue
+        out.append(line)
+        for match in _HEREDOC_OPENER.finditer(line):
+            runs = bool(_SHELL_RUNNER.search(line[: match.start()]))
+            pending.append(
+                (match.group(1) == "-", bool(match.group(2)), runs, match.group(3), [])
+            )
+    for strip_tabs, quoted, runs, delimiter, body in pending:
+        # An unterminated heredoc runs to the end of the input.
+        out.extend(
+            body if runs else ([] if quoted else _substitutions("\n".join(body)))
+        )
+    return "\n".join(out)
 
 
 def _neutralize_quotes(text):
@@ -275,8 +323,7 @@ def _command_words(command):
     if "<<" not in command:
         # Other syntax the parser rejects still fails open, as before.
         return words or []
-    flat = _QUOTED_HEREDOC.sub(r"<<'\2'\3", command)
-    flat = _UNQUOTED_HEREDOC.sub(_heredoc_substitutions, flat).replace("\\\n", " ")
+    flat = _strip_heredocs(command).replace("\\\n", " ")
     flat = _neutralize_quotes(flat)
     found = []
     for match in _CLI_CALL.finditer(flat):
