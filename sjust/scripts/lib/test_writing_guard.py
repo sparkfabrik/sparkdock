@@ -444,7 +444,6 @@ class ClassificationTest(unittest.TestCase):
             {"gh", "sf-writing-style"},
             {"platforms", "pr-mr-descriptions"},
         ),
-        "cat > notes.md <<'EOF'\ngh pr create --body example\nEOF": (set(), set()),
         "echo \"example; gh pr create --body example\" <<'EOF'\nignored\nEOF": (
             set(),
             set(),
@@ -553,19 +552,39 @@ class ClassificationTest(unittest.TestCase):
             {"gh", "sf-writing-style"},
             {"platforms", "pr-mr-descriptions"},
         ),
+        # Quote or heredoc state carried across lines never hides a publish.
+        'x="line one\nline two"\ngh pr create --title t --body-file - <<EOF\nx\nEOF': (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        'echo "see\n<<EOF here"\ngh pr create --title t --body b': (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "bash <<'EOF'\ncat > f <<'INNER'\nx\nINNER\ngh pr create --title t --body-file f\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        ". /dev/stdin <<EOF\ngh pr create --title t --body b\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "cat > f <<EOF\nx\n  EOF\nEOF\ngh pr create --title t --body-file f": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "cat > f <<END-BODY\nx\nEND-BODY\ngh pr create --title t --body-file f": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "cat > f <<\\EOF\nx\nEOF\ngh pr create --title t --body-file f": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
         # Here-strings are not heredocs.
         "gh pr create --body-file - <<< 'x'; cat <<EOF\nx\nEOF": (
             {"gh", "sf-writing-style"},
             {"platforms", "pr-mr-descriptions"},
-        ),
-        # A comment never runs.
-        "# example; gh pr create --body example\ncat > notes.md <<'EOF'\nx\nEOF": (
-            set(),
-            set(),
-        ),
-        "cat > notes.md <<'EOF' # gh pr create --body example\nx\nEOF": (
-            set(),
-            set(),
         ),
     }
 
@@ -650,6 +669,11 @@ class ClassificationTest(unittest.TestCase):
         "cat <<A\ncat <<B\n" * 3,
         "echo <<<x",
         "cat <<EOF\n$(echo (\nEOF",
+        # A gh line in heredoc data or a comment may ask for the references:
+        # a false positive costs a request, a false negative skips the check.
+        "cat > notes.md <<'EOF'\ngh pr create --body example\nEOF",
+        "# example; gh pr create --body example\ncat > notes.md <<'EOF'\nx\nEOF",
+        "cat > notes.md <<'EOF' # gh pr create --body example\nx\nEOF",
     )
 
     def test_appended_publishing_call_is_always_checked(self):

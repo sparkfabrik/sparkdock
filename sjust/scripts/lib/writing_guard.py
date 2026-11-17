@@ -168,167 +168,24 @@ _CLI_CALL = re.compile(
     r"((?:[\w./-]*/)?(?:gh|glab))((?:[ \t]+[^\s;&|()<>`]+)*)"
 )
 
-# A heredoc opener (not a <<< here-string) and its delimiter, quoted or not.
-_HEREDOC_OPENER = re.compile(r"(?<!<)<<(?!<)(-?)[ \t]*(['\"]?)(\w+)\2")
-# A shell that runs the heredoc body as commands, by name or by path.
-_SHELL_RUNNER = re.compile(
-    r"(?:^|[\s;&|(])(?:[\w./-]*/)?(?:sh|bash|zsh|ssh)(?=$|[\s;&|)])"
+# The body of a heredoc with a quoted delimiter is literal data: nothing in it
+# runs. Keep the rest of the opening line, which can hold the real command.
+_QUOTED_HEREDOC = re.compile(
+    r"<<-?[ \t]*(['\"])(\w+)\1([^\n]*)\n.*?^[ \t]*\2[ \t]*$", re.S | re.M
 )
-
-
-def _mask_line(line):
-    """The line with every place that cannot open a heredoc blanked: escapes,
-    single-quoted text, double-quoted text outside $(...), arithmetic $((...))
-    and comments. The length stays the same, so match offsets still apply."""
-    out, i, n = list(line), 0, len(line)
-
-    def blank(start, end):
-        out[start:end] = " " * (max(end, start) - start)
-
-    while i < n:
-        c = line[i]
-        if c == "\\":
-            blank(i, min(i + 2, n))
-            i += 2
-        elif line.startswith("$((", i):
-            j = line.find("))", i + 3)
-            j = n if j < 0 else j + 2
-            blank(i, j)
-            i = j
-        elif c == "'":
-            j = line.find("'", i + 1)
-            j = n if j < 0 else j + 1
-            blank(i, j)
-            i = j
-        elif c == '"':
-            start, j = i, i + 1
-            while j < n and line[j] != '"':
-                if line[j] == "\\":
-                    j += 2
-                elif line.startswith("$(", j) and not line.startswith("$((", j):
-                    # A command substitution runs and can hold a heredoc.
-                    blank(start, j)
-                    depth, k = 0, j + 1
-                    while k < n:
-                        depth += {"(": 1, ")": -1}.get(line[k], 0)
-                        if depth == 0:
-                            break
-                        k += 1
-                    j = start = k + 1
-                else:
-                    j += 1
-            blank(start, min(j + 1, n))
-            i = j + 1
-        elif c == "#" and (i == 0 or line[i - 1] in " \t;&|("):
-            blank(i, n)
-            i = n
-        else:
-            i += 1
-    return "".join(out)
-
-
-def _substitutions(text):
-    """Every $(...) and `...` span in text, with nested parentheses kept whole."""
-    spans, i, n = [], 0, len(text)
-    while i < n:
-        if text.startswith("$(", i):
-            depth, j = 0, i + 1
-            while j < n:
-                depth += {"(": 1, ")": -1}.get(text[j], 0)
-                if depth == 0:
-                    break
-                j += 1
-            spans.append(text[i : j + 1])
-            i = j + 1
-        elif text[i] == "`":
-            j = text.find("`", i + 1)
-            j = n - 1 if j < 0 else j
-            spans.append(text[i : j + 1])
-            i = j + 1
-        else:
-            i += 1
-    return spans
-
-
-def _strip_heredocs(command):
-    """Replace heredoc bodies with what the shell runs from them, in one pass.
-
-    A body is data: a quoted delimiter keeps nothing, an unquoted one keeps its
-    command substitutions. When the opening line hands the body to a shell
-    (sh, bash, zsh or ssh), the body runs, so it stays whole."""
-    lines = command.split("\n")
-    # An opener counts only when its delimiter closes it on a later line: a bit
-    # shift or a stray << with no terminator is plain text, never a body.
-    last = {line.strip(): index for index, line in enumerate(lines)}
-    out, pending, i = [], [], 0
-    while i < len(lines):
-        line = lines[i]
-        i += 1
-        if pending:
-            strip_tabs, quoted, runs, delimiter, body = pending[0]
-            if (line.lstrip("\t") if strip_tabs else line).strip() == delimiter:
-                kept = (
-                    body
-                    if runs
-                    else ([] if quoted else _substitutions("\n".join(body)))
-                )
-                out.extend(kept)
-                out.append(line)
-                pending.pop(0)
-            else:
-                body.append(line)
-            continue
-        out.append(line)
-        if "<<" not in line:
-            continue
-        masked = _mask_line(line)
-        # Match on the line itself, so a quoted delimiter stays readable, and
-        # keep only openers whose << is not quoted, commented or arithmetic.
-        openers = [
-            match
-            for match in _HEREDOC_OPENER.finditer(line)
-            if masked[match.start()] == "<" and last.get(match.group(3), -1) >= i
-        ]
-        if not openers:
-            continue
-        runs = bool(_SHELL_RUNNER.search(masked))
-        for match in openers:
-            pending.append(
-                (match.group(1) == "-", bool(match.group(2)), runs, match.group(3), [])
-            )
-    for strip_tabs, quoted, runs, delimiter, body in pending:
-        # An unterminated heredoc runs to the end of the input.
-        out.extend(
-            body if runs else ([] if quoted else _substitutions("\n".join(body)))
-        )
-    return "\n".join(out)
 
 
 def _neutralize_quotes(text):
     """Blank shell separators inside quoted strings, so quoted text never looks
-    like a command start, and drop comments outside quotes, which never run.
-    Command substitutions inside double quotes run, so they stay as they are."""
+    like a command start. Command substitutions inside double quotes run, so
+    they stay as they are."""
     separators = set(";&|()<>`\n")
     out, i, n = [], 0, len(text)
-    escaped = False
     while i < n:
         c = text[i]
-        word_start = not escaped and (i == 0 or text[i - 1] in " \t\n;&|(")
-        escaped = False
         if c == "\\" and i + 1 < n:
             out.append(text[i : i + 2])
             i += 2
-            escaped = True
-        elif text.startswith("${", i):
-            # A parameter expansion: its # and / are operators, not comments.
-            depth, j = 0, i + 1
-            while j < n:
-                depth += {"{": 1, "}": -1}.get(text[j], 0)
-                if depth == 0:
-                    break
-                j += 1
-            out.append(text[i : j + 1])
-            i = j + 1
         elif c == "'":
             end = text.find("'", i + 1)
             end = n if end < 0 else end
@@ -359,9 +216,6 @@ def _neutralize_quotes(text):
                     i += 1
             out.append('"')
             i += 1
-        elif c == "#" and word_start:
-            end = text.find("\n", i)
-            i = n if end < 0 else end
         else:
             out.append(c)
             i += 1
@@ -379,11 +233,25 @@ def _split_words(text):
     return text.split()
 
 
+def _cli_calls(text):
+    """Each gh or glab call in text, split two ways: on whitespace, and like
+    the shell, so a quoted value with spaces cannot hide the endpoint."""
+    for match in _CLI_CALL.finditer(_neutralize_quotes(text)):
+        yield [match.group(1), *(w.strip("'\"") for w in match.group(2).split())]
+        yield [match.group(1), *_split_words(match.group(2))]
+
+
 def _command_words(command):
     """Shell commands as word lists. A heredoc or syntax the parser does not
     handle, such as `--body "$(cat <<EOF ...)"`, is exactly how agents send a
     description, so fall back to finding each gh or glab call in the raw text
-    instead of skipping the command."""
+    instead of skipping the command.
+
+    The fallback only adds: it takes the calls found in the whole command, with
+    quoted heredoc bodies left out, and the calls found on every line read on
+    its own, so no heredoc or quote state carried across lines can hide one. A
+    gh line inside heredoc data can then ask for the references once more, which
+    costs less than a publish the guard never checks."""
     try:
         words = list(_commands(command))
     except ValueError:
@@ -391,12 +259,10 @@ def _command_words(command):
     if "<<" not in command:
         # Other syntax the parser rejects still fails open, as before.
         return words or []
-    flat = _strip_heredocs(command).replace("\\\n", " ")
-    flat = _neutralize_quotes(flat)
-    found = []
-    for match in _CLI_CALL.finditer(flat):
-        rest = _split_words(match.group(2))
-        found.append([match.group(1), *rest])
+    flat = command.replace("\\\n", " ")
+    found = list(_cli_calls(_QUOTED_HEREDOC.sub(r"<<'\2'\3", flat)))
+    for line in flat.split("\n"):
+        found.extend(_cli_calls(line))
     return (words or []) + found
 
 
