@@ -1246,7 +1246,10 @@ main() {
     log_info "Syncing SparkFabrik agent resources..."
 
     # Local only, so it also runs when the network or the upstream repo is down.
-    repair_writing_guard
+    # Listing categories never rewrites settings.json.
+    if [[ "${CATEGORY_ACTION}" != "list" ]]; then
+        repair_writing_guard
+    fi
 
     # Clone or update the repo
     sync_repo

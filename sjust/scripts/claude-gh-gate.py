@@ -186,8 +186,9 @@ def _process(payload, state):
         )
         return 2, notices, []
     # The skill text alone does not carry its references: a description written
-    # without them is badly shaped or badly formatted. Require the read, every
-    # time it is missing, with the exact path, so the retry is a new action.
+    # without them is badly shaped or badly formatted. Ask for a missing read
+    # with the exact path, so the retry is a new action: at most twice, and only
+    # once when no Read result has reached this hook in the session.
     missing = []
     # Like the skills, the references fail open: when sf-writing-style did not
     # load, there is nothing to read them against.

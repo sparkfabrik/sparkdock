@@ -250,7 +250,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed the Claude writing guard denying every PR, MR and comment publish when its hooks were registered by an older sparkdock: it skips a reference it cannot confirm after one request, `sf-harness-sync` updates the registration, and settings written through a symlink stay a symlink
+- Fixed the Claude writing guard denying every PR, MR and comment publish when its hooks were registered by an older sparkdock or outside the user settings: it skips a reference it cannot confirm after one request
+- Fixed `sf-harness-sync` leaving an enabled writing guard with an outdated hook registration: it now re-registers it
+- Fixed Claude settings writes replacing a symlinked `settings.json` with a regular file
 - Fixed the Codex writing guard rejecting reads of skills and references longer than Codex's output limit, which made Codex read the same file again: it now accepts a file read in parts and asks only for the missing lines
 - Fixed the writing guard skipping `gh` and `glab` commands that pass their text through a heredoc, such as `--description "$(cat <<EOF ...)"`, including calls behind `env` or `rtk proxy` and fields late in a long command, without treating a `gh` call inside quotes or a quoted heredoc as a command
 - Fixed the writing guard treating every `gh api` and `glab api` call with a field as prose, such as starting a pipeline; only body, description, note, title, message, comment, content, GraphQL and `--input` calls count, and only a write to the PR or MR itself, not its comments or notes, needs the description reference
