@@ -109,17 +109,9 @@ def _writes_prose(args):
         # Only a body, description, note, title or message is prose: starting a
         # pipeline or setting a label sends none. --input and GraphQL queries can
         # carry any field, so they count.
-        values = []
-        for i, a in enumerate(args[1:], start=1):
-            if a in {"-f", "-F", "--field", "--raw-field"} and i + 1 < len(args):
-                values.append(args[i + 1])
-            elif a.startswith(("--field=", "--raw-field=")):
-                values.append(a.split("=", 1)[1])
-            elif a.startswith(("-f", "-F")) and len(a) > 2:
-                values.append(a[2:])
-            elif a == "--input" or a.startswith("--input="):
-                return True
-        for value in values:
+        if any(a == "--input" or a.startswith("--input=") for a in args[1:]):
+            return True
+        for value in _field_values(args[1:]):
             key = value.split("=", 1)[0].lower()
             if key == "query" or key.split("[", 1)[0] in PROSE_FIELDS:
                 return True
@@ -138,6 +130,34 @@ def _writes_prose(args):
             )
         )
     )
+
+
+def _field_values(args):
+    """The key=value arguments of gh or glab api fields."""
+    values = []
+    for i, a in enumerate(args):
+        if a in {"-f", "-F", "--field", "--raw-field"} and i + 1 < len(args):
+            values.append(args[i + 1])
+        elif a.startswith(("--field=", "--raw-field=")):
+            values.append(a.split("=", 1)[1])
+        elif a.startswith(("-f", "-F")) and len(a) > 2:
+            values.append(a[2:])
+    return values
+
+
+# GraphQL mutations that create or update a PR or MR, and how they can set its
+# text: an inline body or description field, or input passed as a variable.
+_DESCRIPTION_MUTATION = re.compile(
+    r"\b(?:createPullRequest|updatePullRequest|mergeRequestCreate|mergeRequestUpdate)\b"
+)
+_DESCRIPTION_INPUT = re.compile(r"\b(?:body|description)\s*:|\binput\s*:\s*\\?\$")
+
+
+def _sets_description(query):
+    """True when a GraphQL query creates or updates a PR or MR with its text.
+    Two linear searches, so a long query stays cheap."""
+    match = _DESCRIPTION_MUTATION.search(query)
+    return bool(match and _DESCRIPTION_INPUT.search(query, match.end()))
 
 
 # A gh or glab call where a command starts: line start, after ;, &, |, ( or $(,
@@ -202,11 +222,36 @@ def _neutralize_quotes(text):
     return "".join(out)
 
 
+def _split_words(text):
+    """Split like the shell, keeping quoted arguments whole. The text can stop
+    inside a quote, such as an unfinished command substitution: close it."""
+    for suffix in ("", "'", '"'):
+        try:
+            return shlex.split(text + suffix)
+        except ValueError:
+            continue
+    return text.split()
+
+
+def _cli_calls(text):
+    """Each gh or glab call in text, split two ways: on whitespace, and like
+    the shell, so a quoted value with spaces cannot hide the endpoint."""
+    for match in _CLI_CALL.finditer(_neutralize_quotes(text)):
+        yield [match.group(1), *(w.strip("'\"") for w in match.group(2).split())]
+        yield [match.group(1), *_split_words(match.group(2))]
+
+
 def _command_words(command):
     """Shell commands as word lists. A heredoc or syntax the parser does not
     handle, such as `--body "$(cat <<EOF ...)"`, is exactly how agents send a
     description, so fall back to finding each gh or glab call in the raw text
-    instead of skipping the command."""
+    instead of skipping the command.
+
+    The fallback only adds: it takes the calls found in the whole command, with
+    quoted heredoc bodies left out, and the calls found on every line read on
+    its own, so no heredoc or quote state carried across lines can hide one. A
+    gh line inside heredoc data can then ask for the references once more, which
+    costs less than a publish the guard never checks."""
     try:
         words = list(_commands(command))
     except ValueError:
@@ -214,12 +259,10 @@ def _command_words(command):
     if "<<" not in command:
         # Other syntax the parser rejects still fails open, as before.
         return words or []
-    flat = _QUOTED_HEREDOC.sub(r"<<'\2'\3", command).replace("\\\n", " ")
-    flat = _neutralize_quotes(flat)
-    found = []
-    for match in _CLI_CALL.finditer(flat):
-        rest = [w.strip("'\"") for w in match.group(2).split()]
-        found.append([match.group(1), *rest])
+    flat = command.replace("\\\n", " ")
+    found = list(_cli_calls(_QUOTED_HEREDOC.sub(r"<<'\2'\3", flat)))
+    for line in flat.split("\n"):
+        found.extend(_cli_calls(line))
     return (words or []) + found
 
 
@@ -341,6 +384,16 @@ def _describes_change(args):
     if args and args[0] == "api":
         # The PR or MR itself, not its comments, notes or reviews.
         path = _api_endpoint(args[1:])
+        if path.strip("/") == "graphql":
+            # A query from a file or standard input cannot be read here: count
+            # it as a description write rather than let it skip the reference.
+            if any(a == "--input" or a.startswith("--input=") for a in args[1:]):
+                return True
+            return any(
+                key.strip().lower() == "query"
+                and (query.startswith("@") or _sets_description(query))
+                for key, _, query in (v.partition("=") for v in _field_values(args[1:]))
+            )
         return bool(
             re.search(r"(^|/)(pulls|merge_requests)(/[^/]+)?/?$", path)
         ) and _writes_prose(args)
