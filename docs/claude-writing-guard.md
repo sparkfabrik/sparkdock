@@ -62,7 +62,9 @@ Claude discovery checks personal and ancestor project `.claude/skills` locations
 
 Unavailable, empty, unreadable, broken-link and manual-only skills are skipped. Each skill gets at most one load request per context. If the load is not confirmed, the next attempt proceeds with a notice. Invalid input, corrupt state and inaccessible storage also fail open. A busy state lock is retried for up to one second before failing open. This is a workflow aid, not a security boundary.
 
-Installation preserves unrelated hooks and backs up existing JSON files. Re-running enable repairs partial registrations. The shared installer reports a change when either registration changes. Malformed Codex settings and malformed Claude hook objects are not overwritten.
+Installation preserves unrelated hooks and backs up existing JSON files. Re-running enable repairs partial registrations. `sf-harness-sync` runs `claude-gh-gate.py repair` first, before it fetches anything, so an offline sync still repairs. When the guard is registered in the user settings, repair completes a partial registration and resets the matchers of the guard's own entries to the current ones, including customised matchers; it never enables a guard that is off. Claude reads hook matchers at session start, so a repair takes effect in a new session.
+
+A registration whose `PostToolUse` matcher does not include `Read` cannot record reference reads. When the user settings show such a matcher, the guard skips the reference check with a one-time notice. A stale registration in project, local or managed settings, or a repair the open session has not reloaded, is caught from the session instead: when no Read result has reached the hook, a reference is requested once and the next call passes with a notice. A reference is requested at most twice per context: startup, clear and compaction reset the count. The notices say to run `claude-gh-gate-enable` and start a new Claude Code session. The shared installer reports a change when either registration changes. Malformed Codex settings and malformed Claude hook objects are not overwritten.
 
 ## Diagnostics and limits
 

@@ -383,6 +383,7 @@ def lifecycle(payload, state):
             ):
                 state[key] = []
             state["seen"] = {}
+            state["read_events"] = False
         return True
     return False
 
@@ -463,6 +464,7 @@ def run_hook(process, engine):
             state.setdefault("ref_requests", [])
             if not isinstance(state.setdefault("seen", {}), dict):
                 state["seen"] = {}
+            state.setdefault("read_events", False)
             result, notices, context = process(payload, state)
             if payload.get("hook_event_name") == "PreToolUse" and requirements(payload):
                 state["last_check"] = {

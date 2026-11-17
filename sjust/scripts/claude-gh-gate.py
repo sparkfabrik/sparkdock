@@ -28,6 +28,41 @@ HOOKS = {
 }
 
 
+def _reads_tracked():
+    """Whether Claude sends Read results to this hook.
+
+    A registration made by an older sparkdock sends only Skill results, so the
+    references could never be recorded and every publishing call would be denied.
+    Registrations outside the user settings cannot be checked and are trusted.
+    """
+    try:
+        cs = _settings_lib()
+        matchers = cs.registered_matchers(
+            cs.load(), "PostToolUse", Path(SCRIPT_PATH).name
+        )
+        if not matchers:
+            return True
+        for matcher in matchers:
+            if matcher in (None, "", "*"):
+                return True
+            if not isinstance(matcher, str):
+                continue
+            try:
+                if re.fullmatch(matcher, "Read"):
+                    return True
+            except re.error:
+                continue
+        return False
+    except Exception:
+        return False
+
+
+STALE_HINT = (
+    "Run `sjust claude-gh-gate-enable` (`ajust` on Linux), then start a new "
+    "Claude Code session."
+)
+
+
 def _settings_lib():
     sys.path.insert(0, str(Path(__file__).resolve().parent / "lib"))
     import claude_settings
@@ -102,6 +137,7 @@ def _process(payload, state):
         return 0, [], []
     if payload.get("tool_name") == "Read":
         if event == "PostToolUse":
+            state["read_events"] = True
             _record_read(tool_input, payload.get("tool_response"), state)
         return 0, [], []
     if payload.get("tool_name") == "Skill":
@@ -150,8 +186,9 @@ def _process(payload, state):
         )
         return 2, notices, []
     # The skill text alone does not carry its references: a description written
-    # without them is badly shaped or badly formatted. Require the read, every
-    # time it is missing, with the exact path, so the retry is a new action.
+    # without them is badly shaped or badly formatted. Ask for a missing read
+    # with the exact path, so the retry is a new action: at most twice, and only
+    # once when no Read result has reached this hook in the session.
     missing = []
     # Like the skills, the references fail open: when sf-writing-style did not
     # load, there is nothing to read them against.
@@ -160,6 +197,14 @@ def _process(payload, state):
         if "sf-writing-style" in state["loaded"]
         else set()
     )
+    if wanted - set(state["read"]) and not _reads_tracked():
+        if "stale-registration" not in state["warned"]:
+            notices.append(
+                "Writing guard: skipping the reference check; this hook does not "
+                "receive Read results. " + STALE_HINT
+            )
+            state["warned"].append("stale-registration")
+        wanted = set()
     for name in sorted(wanted - set(state["read"])):
         path = _reference_path(name, Path(cwd))
         if path is None:
@@ -169,6 +214,19 @@ def _process(payload, state):
                 )
                 state["warned"].append(name)
             continue
+        # A registration this hook cannot see (project, local or managed
+        # settings) or a repair Claude has not reloaded never sends Read results:
+        # ask once, then let the call through. Ask at most twice in any case.
+        asked = state["ref_requests"].count(name)
+        if asked >= 2 or (asked and not state["read_events"]):
+            if f"reference:{name}" not in state["warned"]:
+                notices.append(
+                    f"Writing guard: skipping the {name} reference; its read was not "
+                    "confirmed. If the hook registration is stale, " + STALE_HINT
+                )
+                state["warned"].append(f"reference:{name}")
+            continue
+        state["ref_requests"].append(name)
         missing.append(str(path))
     if missing:
         notices.append(
@@ -211,6 +269,17 @@ def cmd_enable():
     print(f"Skill gate enabled in {settings}. Backup: {backup}")
     print("Start a new Claude Code session. Disable with: claude-gh-gate-disable")
     return 0
+
+
+def cmd_repair():
+    """Update a stale registration; leave a disabled guard disabled."""
+    cs = _settings_lib()
+    data = cs.load()
+    if not any(cs.registered_matchers(data, event, SCRIPT_PATH) for event in HOOKS):
+        return 0
+    if _configured(data, cs):
+        return 0
+    return cmd_enable()
 
 
 def cmd_disable():
@@ -262,6 +331,7 @@ def main():
         "enable": cmd_enable,
         "disable": cmd_disable,
         "info": cmd_info,
+        "repair": cmd_repair,
     }
     if arg in actions:
         try:
@@ -269,7 +339,7 @@ def main():
         except (OSError, ValueError, TypeError) as error:
             print(f"Claude writing guard: {error}", file=sys.stderr)
             return 1
-    sys.stderr.write("Usage: claude-gh-gate.py {--hook|enable|disable|info}\n")
+    sys.stderr.write("Usage: claude-gh-gate.py {--hook|enable|disable|info|repair}\n")
     return 2
 
 

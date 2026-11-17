@@ -489,10 +489,6 @@ class GateHookTest(unittest.TestCase):
         self.assertEqual(r.returncode, 2)
         self.assertIn("pr-mr-descriptions.md", r.stderr)
         self.assertIn("platforms.md", r.stderr)
-        # A partial read does not count.
-        self.read("platforms", limit=1)
-        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
-        self.assertIn("platforms.md", r.stderr)
         # Blocks again while a reference is still unread, with only that path.
         self.read("platforms")
         r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
@@ -504,6 +500,24 @@ class GateHookTest(unittest.TestCase):
             self.run_hook(self.bash("gh pr create --body 'Add a filter.'")).returncode,
             0,
         )
+
+    def test_partial_read_does_not_count(self):
+        self.load("gh", "sf-writing-style", references=False)
+        self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+        self.read("platforms", limit=1)
+        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("platforms.md", r.stderr)
+
+    def test_requests_stop_after_two(self):
+        self.load("gh", "sf-writing-style", references=False)
+        self.read("platforms", limit=1)
+        for _ in range(2):
+            r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+            self.assertEqual(r.returncode, 2)
+        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("read was not confirmed", r.stdout)
 
     def test_issue_and_comment_need_only_platforms(self):
         self.load("glab", "sf-writing-style", references=False)
@@ -527,6 +541,73 @@ class GateHookTest(unittest.TestCase):
         r = self.run_hook(self.bash("gh pr create"))
         self.assertEqual(r.returncode, 2)
         self.assertIn("pr-mr-descriptions.md", r.stderr)
+
+    def register(self, post_matcher, path=None):
+        cs = gate._settings_lib()
+        data = {}
+        for event, matcher in gate.HOOKS.items():
+            if event == "PostToolUse":
+                matcher = post_matcher
+            cs.register_hook(data, event, matcher, gate.HOOK_COMMAND, gate.SCRIPT_PATH)
+        path = path or self.config / "settings.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(data))
+
+    def assert_passes_after_one_request(self):
+        self.load("gh", "sf-writing-style", references=False)
+        command = self.bash("gh pr create --body 'Add a filter.'")
+        self.assertEqual(self.run_hook(command).returncode, 2)
+        r = self.run_hook(command)
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("claude-gh-gate-enable", r.stdout)
+        self.assertIn("new Claude Code session", r.stdout)
+        r = self.run_hook(command)
+        self.assertEqual(
+            (r.returncode, "claude-gh-gate-enable" in r.stdout), (0, False)
+        )
+
+    def test_stale_registration_in_project_settings(self):
+        self.register("Skill", self.project / ".claude" / "settings.json")
+        self.assert_passes_after_one_request()
+
+    def test_stale_registration_in_local_settings(self):
+        self.register("Skill", self.project / ".claude" / "settings.local.json")
+        self.assert_passes_after_one_request()
+
+    def test_repair_during_a_session_passes_after_one_request(self):
+        self.register("Skill|Read")
+        self.assert_passes_after_one_request()
+
+    def test_non_string_matcher_does_not_break_the_hook(self):
+        self.register(123)
+        self.load("gh", "sf-writing-style", references=False)
+        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("claude-gh-gate-enable", r.stdout)
+
+    def test_stale_registration_skips_the_references_once(self):
+        self.register("Skill")
+        self.load("gh", "sf-writing-style", references=False)
+        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+        self.assertEqual(r.returncode, 0)
+        self.assertIn("claude-gh-gate-enable", r.stdout)
+        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+        self.assertEqual(r.returncode, 0)
+        self.assertNotIn("claude-gh-gate-enable", r.stdout)
+
+    def test_current_registration_requires_the_references(self):
+        self.register("Skill|Read")
+        self.load("gh", "sf-writing-style", references=False)
+        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("pr-mr-descriptions.md", r.stderr)
+        self.read("platforms")
+        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+        self.assertEqual(r.returncode, 2)
+        self.assertIn("pr-mr-descriptions.md", r.stderr)
+        self.read("pr-mr-descriptions")
+        r = self.run_hook(self.bash("gh pr create --body 'Add a filter.'"))
+        self.assertEqual(r.returncode, 0)
 
     def test_api_calls_without_prose_pass(self):
         self.load("gh", "glab")
@@ -590,6 +671,34 @@ class InstallerTest(unittest.TestCase):
         self.assertTrue(
             gate._configured(json.loads(self.settings.read_text()), self.cs)
         )
+
+    def test_symlinked_settings_stay_a_link(self):
+        real = Path(self.tmp.name) / "dotfiles" / "settings.json"
+        real.parent.mkdir()
+        real.write_text("{}")
+        self.settings.symlink_to(real)
+        self.assertEqual(gate.cmd_enable(), 0)
+        self.assertTrue(self.settings.is_symlink())
+        self.assertTrue(gate._configured(json.loads(real.read_text()), self.cs))
+
+    def test_repair_updates_an_enabled_guard_only(self):
+        self.assertEqual(gate.cmd_repair(), 0)
+        self.assertFalse(self.settings.exists())
+        stale = {}
+        for event, matcher in gate.HOOKS.items():
+            if event == "PostToolUse":
+                matcher = "Skill"
+            self.cs.register_hook(
+                stale, event, matcher, gate.HOOK_COMMAND, gate.SCRIPT_PATH
+            )
+        self.settings.write_text(json.dumps(stale))
+        self.assertEqual(gate.cmd_repair(), 0)
+        self.assertTrue(
+            gate._configured(json.loads(self.settings.read_text()), self.cs)
+        )
+        saved = self.settings.read_bytes()
+        self.assertEqual(gate.cmd_repair(), 0)
+        self.assertEqual(self.settings.read_bytes(), saved)
 
 
 if __name__ == "__main__":
