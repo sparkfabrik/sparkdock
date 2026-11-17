@@ -468,6 +468,21 @@ class ClassificationTest(unittest.TestCase):
                 {"glab", "sf-writing-style"},
                 {"platforms"},
             ),
+            # A quoted header keeps its spaces, so the endpoint is still found.
+            "gh api -H 'Accept: application/vnd.github+json' --method PATCH"
+            ' repos/o/r/pulls/1 --input - <<\'EOF\'\n{"body": "x"}\nEOF': (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            # A comment never runs.
+            "# example; gh pr create --body example\ncat > notes.md <<'EOF'\nx\nEOF": (
+                set(),
+                set(),
+            ),
+            "cat > notes.md <<'EOF' # gh pr create --body example\nx\nEOF": (
+                set(),
+                set(),
+            ),
         }
         with patch.object(guard.shutil, "which", return_value="/usr/bin/cli"):
             for command, (needed, references) in cases.items():
@@ -475,6 +490,46 @@ class ClassificationTest(unittest.TestCase):
                     payload = {"tool_name": "Bash", "tool_input": {"command": command}}
                     self.assertEqual(guard.requirements(payload), needed)
                     self.assertEqual(guard.reference_requirements(payload), references)
+
+    def test_graphql_description_mutations_need_the_pr_reference(self):
+        cases = {
+            'mutation { updatePullRequest(input: {pullRequestId: "PR_x", body: "New"}) { pullRequest { id } } }': {
+                "platforms",
+                "pr-mr-descriptions",
+            },
+            'mutation { createPullRequest(input: {repositoryId: "R", title: "T", body: "B"}) { pullRequest { id } } }': {
+                "platforms",
+                "pr-mr-descriptions",
+            },
+            'mutation { mergeRequestUpdate(input: {projectPath: "g/p", iid: "1", description: "D"}) { errors } }': {
+                "platforms",
+                "pr-mr-descriptions",
+            },
+            'mutation { mergeRequestCreate(input: {projectPath: "g/p", title: "T", description: "D"}) { errors } }': {
+                "platforms",
+                "pr-mr-descriptions",
+            },
+            'mutation { addComment(input: {subjectId: "PR_x", body: "Thanks"}) { clientMutationId } }': {
+                "platforms"
+            },
+            'mutation { createNote(input: {noteableId: "gid://gitlab/MergeRequest/1", body: "Done"}) { errors } }': {
+                "platforms"
+            },
+        }
+        with patch.object(guard.shutil, "which", return_value="/usr/bin/cli"):
+            for query, references in cases.items():
+                for command in (
+                    f"gh api graphql -f query='{query}'",
+                    f"gh api graphql -f query='{query}' <<'EOF'\nx\nEOF",
+                ):
+                    with self.subTest(command=command):
+                        payload = {
+                            "tool_name": "Bash",
+                            "tool_input": {"command": command},
+                        }
+                        self.assertEqual(
+                            guard.reference_requirements(payload), references
+                        )
 
     def test_api_calls_without_prose_fields_are_not_prose(self):
         for args in (

@@ -250,6 +250,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed the writing guard misreading three command shapes: a GraphQL mutation that sets a PR or MR description now needs the description reference, a quoted `gh api` header before a heredoc no longer hides the endpoint, and a shell comment no longer counts as a command
 - Fixed the Claude writing guard denying every PR, MR and comment publish when its hooks were registered by an older sparkdock or outside the user settings: it skips a reference it cannot confirm after one request
 - Fixed `sf-harness-sync` leaving an enabled writing guard with an outdated hook registration: it now re-registers it
 - Fixed Claude settings writes replacing a symlinked `settings.json` with a regular file

@@ -109,17 +109,9 @@ def _writes_prose(args):
         # Only a body, description, note, title or message is prose: starting a
         # pipeline or setting a label sends none. --input and GraphQL queries can
         # carry any field, so they count.
-        values = []
-        for i, a in enumerate(args[1:], start=1):
-            if a in {"-f", "-F", "--field", "--raw-field"} and i + 1 < len(args):
-                values.append(args[i + 1])
-            elif a.startswith(("--field=", "--raw-field=")):
-                values.append(a.split("=", 1)[1])
-            elif a.startswith(("-f", "-F")) and len(a) > 2:
-                values.append(a[2:])
-            elif a == "--input" or a.startswith("--input="):
-                return True
-        for value in values:
+        if any(a == "--input" or a.startswith("--input=") for a in args[1:]):
+            return True
+        for value in _field_values(args[1:]):
             key = value.split("=", 1)[0].lower()
             if key == "query" or key.split("[", 1)[0] in PROSE_FIELDS:
                 return True
@@ -140,6 +132,27 @@ def _writes_prose(args):
     )
 
 
+def _field_values(args):
+    """The key=value arguments of gh or glab api fields."""
+    values = []
+    for i, a in enumerate(args):
+        if a in {"-f", "-F", "--field", "--raw-field"} and i + 1 < len(args):
+            values.append(args[i + 1])
+        elif a.startswith(("--field=", "--raw-field=")):
+            values.append(a.split("=", 1)[1])
+        elif a.startswith(("-f", "-F")) and len(a) > 2:
+            values.append(a[2:])
+    return values
+
+
+# GraphQL mutations that create or update a PR or MR, when they set its text.
+_DESCRIPTION_MUTATION = re.compile(
+    r"\b(?:createPullRequest|updatePullRequest|mergeRequestCreate|mergeRequestUpdate)"
+    r"\b.*?\b(?:body|description)\s*:",
+    re.S,
+)
+
+
 # A gh or glab call where a command starts: line start, after ;, &, |, ( or $(,
 # after optional VAR=value assignments and the wrappers _commands unwraps.
 _CLI_CALL = re.compile(
@@ -157,8 +170,8 @@ _QUOTED_HEREDOC = re.compile(
 
 def _neutralize_quotes(text):
     """Blank shell separators inside quoted strings, so quoted text never looks
-    like a command start. Command substitutions inside double quotes run, so
-    they stay as they are."""
+    like a command start, and drop comments outside quotes, which never run.
+    Command substitutions inside double quotes run, so they stay as they are."""
     separators = set(";&|()<>`\n")
     out, i, n = [], 0, len(text)
     while i < n:
@@ -196,10 +209,24 @@ def _neutralize_quotes(text):
                     i += 1
             out.append('"')
             i += 1
+        elif c == "#" and (i == 0 or text[i - 1] in " \t\n;&|("):
+            end = text.find("\n", i)
+            i = n if end < 0 else end
         else:
             out.append(c)
             i += 1
     return "".join(out)
+
+
+def _split_words(text):
+    """Split like the shell, keeping quoted arguments whole. The text can stop
+    inside a quote, such as an unfinished command substitution: close it."""
+    for suffix in ("", "'", '"'):
+        try:
+            return shlex.split(text + suffix)
+        except ValueError:
+            continue
+    return text.split()
 
 
 def _command_words(command):
@@ -218,7 +245,7 @@ def _command_words(command):
     flat = _neutralize_quotes(flat)
     found = []
     for match in _CLI_CALL.finditer(flat):
-        rest = [w.strip("'\"") for w in match.group(2).split()]
+        rest = _split_words(match.group(2))
         found.append([match.group(1), *rest])
     return (words or []) + found
 
@@ -341,6 +368,11 @@ def _describes_change(args):
     if args and args[0] == "api":
         # The PR or MR itself, not its comments, notes or reviews.
         path = _api_endpoint(args[1:])
+        if path == "graphql":
+            return any(
+                key.strip().lower() == "query" and _DESCRIPTION_MUTATION.search(query)
+                for key, _, query in (v.partition("=") for v in _field_values(args[1:]))
+            )
         return bool(
             re.search(r"(^|/)(pulls|merge_requests)(/[^/]+)?/?$", path)
         ) and _writes_prose(args)
