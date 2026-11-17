@@ -145,12 +145,19 @@ def _field_values(args):
     return values
 
 
-# GraphQL mutations that create or update a PR or MR, when they set its text.
+# GraphQL mutations that create or update a PR or MR, and how they can set its
+# text: an inline body or description field, or input passed as a variable.
 _DESCRIPTION_MUTATION = re.compile(
-    r"\b(?:createPullRequest|updatePullRequest|mergeRequestCreate|mergeRequestUpdate)"
-    r"\b.*?\b(?:body|description)\s*:",
-    re.S,
+    r"\b(?:createPullRequest|updatePullRequest|mergeRequestCreate|mergeRequestUpdate)\b"
 )
+_DESCRIPTION_INPUT = re.compile(r"\b(?:body|description)\s*:|\binput\s*:\s*\$")
+
+
+def _sets_description(query):
+    """True when a GraphQL query creates or updates a PR or MR with its text.
+    Two linear searches, so a long query stays cheap."""
+    match = _DESCRIPTION_MUTATION.search(query)
+    return bool(match and _DESCRIPTION_INPUT.search(query, match.end()))
 
 
 # A gh or glab call where a command starts: line start, after ;, &, |, ( or $(,
@@ -164,8 +171,21 @@ _CLI_CALL = re.compile(
 # The body of a heredoc with a quoted delimiter is literal data: nothing in it
 # runs. Keep the rest of the opening line, which can hold the real command.
 _QUOTED_HEREDOC = re.compile(
-    r"<<-?[ \t]*(['\"])(\w+)\1([^\n]*)\n.*?^[ \t]*\2[ \t]*$", re.S | re.M
+    r"(?<!<)<<-?[ \t]*(['\"])(\w+)\1([^\n]*)\n.*?^[ \t]*\2[ \t]*$", re.S | re.M
 )
+
+# An unquoted heredoc body is data too, except for the command substitutions
+# the shell expands in it. Its apostrophes and # signs are text, not quotes or
+# comments, so the body is replaced by its substitutions alone.
+_UNQUOTED_HEREDOC = re.compile(
+    r"(?<!<)<<-?[ \t]*(\w+)([^\n]*)\n(.*?)^[ \t]*\1[ \t]*$", re.S | re.M
+)
+_SUBSTITUTION = re.compile(r"\$\([^()]*\)|`[^`]*`")
+
+
+def _heredoc_substitutions(match):
+    kept = _SUBSTITUTION.findall(match.group(3))
+    return f"<<{match.group(1)}{match.group(2)}\n" + "".join(k + "\n" for k in kept)
 
 
 def _neutralize_quotes(text):
@@ -174,11 +194,25 @@ def _neutralize_quotes(text):
     Command substitutions inside double quotes run, so they stay as they are."""
     separators = set(";&|()<>`\n")
     out, i, n = [], 0, len(text)
+    escaped = False
     while i < n:
         c = text[i]
+        word_start = not escaped and (i == 0 or text[i - 1] in " \t\n;&|(")
+        escaped = False
         if c == "\\" and i + 1 < n:
             out.append(text[i : i + 2])
             i += 2
+            escaped = True
+        elif text.startswith("${", i):
+            # A parameter expansion: its # and / are operators, not comments.
+            depth, j = 0, i + 1
+            while j < n:
+                depth += {"{": 1, "}": -1}.get(text[j], 0)
+                if depth == 0:
+                    break
+                j += 1
+            out.append(text[i : j + 1])
+            i = j + 1
         elif c == "'":
             end = text.find("'", i + 1)
             end = n if end < 0 else end
@@ -209,7 +243,7 @@ def _neutralize_quotes(text):
                     i += 1
             out.append('"')
             i += 1
-        elif c == "#" and (i == 0 or text[i - 1] in " \t\n;&|("):
+        elif c == "#" and word_start:
             end = text.find("\n", i)
             i = n if end < 0 else end
         else:
@@ -241,7 +275,8 @@ def _command_words(command):
     if "<<" not in command:
         # Other syntax the parser rejects still fails open, as before.
         return words or []
-    flat = _QUOTED_HEREDOC.sub(r"<<'\2'\3", command).replace("\\\n", " ")
+    flat = _QUOTED_HEREDOC.sub(r"<<'\2'\3", command)
+    flat = _UNQUOTED_HEREDOC.sub(_heredoc_substitutions, flat).replace("\\\n", " ")
     flat = _neutralize_quotes(flat)
     found = []
     for match in _CLI_CALL.finditer(flat):
@@ -368,9 +403,14 @@ def _describes_change(args):
     if args and args[0] == "api":
         # The PR or MR itself, not its comments, notes or reviews.
         path = _api_endpoint(args[1:])
-        if path == "graphql":
+        if path.strip("/") == "graphql":
+            # A query from a file or standard input cannot be read here: count
+            # it as a description write rather than let it skip the reference.
+            if any(a == "--input" or a.startswith("--input=") for a in args[1:]):
+                return True
             return any(
-                key.strip().lower() == "query" and _DESCRIPTION_MUTATION.search(query)
+                key.strip().lower() == "query"
+                and (query.startswith("@") or _sets_description(query))
                 for key, _, query in (v.partition("=") for v in _field_values(args[1:]))
             )
         return bool(

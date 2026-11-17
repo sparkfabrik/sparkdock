@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -474,6 +475,42 @@ class ClassificationTest(unittest.TestCase):
                 {"gh", "sf-writing-style"},
                 {"platforms", "pr-mr-descriptions"},
             ),
+            # Apostrophes and # signs in an unquoted heredoc body are text.
+            "cat > b.md <<EOF\n## What's new\n- it's x\nEOF\ngh pr create --title t --body-file b.md": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            "cat > b.md <<EOF\n## What's new\n- item\nEOF\ngh pr create --title t --body-file b.md": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            # A # after an escape or inside ${...} is not a comment.
+            "echo ${v/ #/}; gh pr create --body-file - <<EOF\nx\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            "gh api -X PATCH -H X:\\ #1 repos/o/r/pulls/1 --input - <<EOF\n{}\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            "echo $# ${#v}; gh pr create --body-file - <<EOF\nx\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            "gh api repos/o/r/issues/5#issuecomment-1 -X PATCH -f body=x <<EOF\nx\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms"},
+            ),
+            'gh api -H "Accept: application/vnd.github+json" --method PATCH'
+            " repos/o/r/pulls/1 --input - <<'EOF'\n{}\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
+            # Here-strings are not heredocs.
+            "gh pr create --body-file - <<< 'x'; cat <<EOF\nx\nEOF": (
+                {"gh", "sf-writing-style"},
+                {"platforms", "pr-mr-descriptions"},
+            ),
             # A comment never runs.
             "# example; gh pr create --body example\ncat > notes.md <<'EOF'\nx\nEOF": (
                 set(),
@@ -516,7 +553,30 @@ class ClassificationTest(unittest.TestCase):
                 "platforms"
             },
         }
+        cases.update(
+            {
+                "mutation($i: UpdatePullRequestInput!) { updatePullRequest(input: $i) { pullRequest { id } } }": {
+                    "platforms",
+                    "pr-mr-descriptions",
+                },
+                'mutation {\n  updatePullRequest(input: {\n    pullRequestId: "PR_x"\n    body: "New"\n  }) { pullRequest { id } }\n}': {
+                    "platforms",
+                    "pr-mr-descriptions",
+                },
+            }
+        )
         with patch.object(guard.shutil, "which", return_value="/usr/bin/cli"):
+            for command in (
+                'gh api graphql --input - <<\'EOF\'\n{"query": "x"}\nEOF',
+                "gh api graphql -F query=@q.graphql",
+                'gh api /graphql -f query=\'mutation { updatePullRequest(input: {pullRequestId: "P", body: "B"}) { pullRequest { id } } }\'',
+            ):
+                with self.subTest(command=command):
+                    payload = {"tool_name": "Bash", "tool_input": {"command": command}}
+                    self.assertEqual(
+                        guard.reference_requirements(payload),
+                        {"platforms", "pr-mr-descriptions"},
+                    )
             for query, references in cases.items():
                 for command in (
                     f"gh api graphql -f query='{query}'",
@@ -530,6 +590,12 @@ class ClassificationTest(unittest.TestCase):
                         self.assertEqual(
                             guard.reference_requirements(payload), references
                         )
+
+    def test_description_mutation_search_is_linear(self):
+        query = "updatePullRequest " * 10000
+        start = time.monotonic()
+        self.assertFalse(guard._sets_description(query))
+        self.assertLess(time.monotonic() - start, 0.5)
 
     def test_api_calls_without_prose_fields_are_not_prose(self):
         for args in (
