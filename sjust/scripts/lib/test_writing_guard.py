@@ -418,131 +418,159 @@ class InstallerSafetyTest(unittest.TestCase):
 
 
 class ClassificationTest(unittest.TestCase):
+    HEREDOC_CASES = {
+        "gh pr create --title t --body \"$(cat <<'EOF'\nBody\nEOF\n)\"": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        'GL_USERNAME=$(glab api user | jq -r .username)\nglab mr create --draft \\\n  --description "$(cat <<EOF\nBody\nEOF\n)"': (
+            {"glab", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        'cd x && glab issue note 4 -m "$(cat <<EOF\nhi\nEOF\n)"': (
+            {"glab", "sf-writing-style"},
+            {"platforms"},
+        ),
+        "echo glab is great <<EOF\nx\nEOF": (set(), set()),
+        "env gh pr create --body-file - <<'EOF'\nBody\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "rtk proxy gh pr create --body-file - <<'EOF'\nBody\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "cat <<'EOF' | gh pr create --body-file -\nBody\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "cat > notes.md <<'EOF'\ngh pr create --body example\nEOF": (set(), set()),
+        "echo \"example; gh pr create --body example\" <<'EOF'\nignored\nEOF": (
+            set(),
+            set(),
+        ),
+        "gh api --hostname github.com --method POST repos/o/r/pulls -f head=feature"
+        " -f base=master -f maintainer_can_modify=true -f title=Example"
+        " --input - <<'EOF'\n{}\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "gh api -H 'Accept: application/vnd.github+json' --method PATCH"
+        " repos/o/r/pulls/1 -f body='Update the filter.'": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "gh api repos/o/r/pulls/42/comments -f body='Review comment'": (
+            {"gh", "sf-writing-style"},
+            {"platforms"},
+        ),
+        "glab api projects/1/merge_requests/42/notes -f body='Review comment'": (
+            {"glab", "sf-writing-style"},
+            {"platforms"},
+        ),
+        # A quoted header keeps its spaces, so the endpoint is still found.
+        "gh api -H 'Accept: application/vnd.github+json' --method PATCH"
+        ' repos/o/r/pulls/1 --input - <<\'EOF\'\n{"body": "x"}\nEOF': (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        # Apostrophes and # signs in an unquoted heredoc body are text.
+        "cat > b.md <<EOF\n## What's new\n- it's x\nEOF\ngh pr create --title t --body-file b.md": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "cat > b.md <<EOF\n## What's new\n- item\nEOF\ngh pr create --title t --body-file b.md": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        # A # after an escape or inside ${...} is not a comment.
+        "echo ${v/ #/}; gh pr create --body-file - <<EOF\nx\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "gh api -X PATCH -H X:\\ #1 repos/o/r/pulls/1 --input - <<EOF\n{}\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "echo $# ${#v}; gh pr create --body-file - <<EOF\nx\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "gh api repos/o/r/issues/5#issuecomment-1 -X PATCH -f body=x <<EOF\nx\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms"},
+        ),
+        'gh api -H "Accept: application/vnd.github+json" --method PATCH'
+        " repos/o/r/pulls/1 --input - <<'EOF'\n{}\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        # Command substitutions in an unquoted heredoc body run.
+        "cat > b.md <<EOF\n$(gh api -X PATCH repos/o/r/pulls/1 -f body='x (y)')\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        'cat > b.md <<EOF\nstatus: $(gh pr comment 1 --body "$(cat f)")\nEOF': (
+            {"gh", "sf-writing-style"},
+            {"platforms"},
+        ),
+        "cat > b.md <<EOF\nstatus: $(gh pr comment 1 --body 'a (b) c')\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms"},
+        ),
+        # A heredoc handed to a shell runs as commands.
+        "bash <<EOF\ngh pr create --title t --body x\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "ssh host bash <<'EOF'\nglab mr create --title t --description x\nEOF": (
+            {"glab", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        # A heredoc handed to a shell by path, or piped to one, runs.
+        "/bin/bash <<EOF\ngh pr create --title t --body x\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "cat <<EOF | bash\ngh pr create --title t --body x\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        # A << that is not a heredoc never hides the commands after it.
+        "x=$((1<<4))\ngh pr create --title t --body y": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        'python3 -c "print(1<<3)"\ngh pr create --title t --body-file - <<EOF\nx\nEOF': (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "echo 'a <<b c'\ngh pr create --title t --body-file - <<EOF\nx\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        "# shift <<left\ngh pr create --title t --body-file - <<EOF\nx\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        # Here-strings are not heredocs.
+        "gh pr create --body-file - <<< 'x'; cat <<EOF\nx\nEOF": (
+            {"gh", "sf-writing-style"},
+            {"platforms", "pr-mr-descriptions"},
+        ),
+        # A comment never runs.
+        "# example; gh pr create --body example\ncat > notes.md <<'EOF'\nx\nEOF": (
+            set(),
+            set(),
+        ),
+        "cat > notes.md <<'EOF' # gh pr create --body example\nx\nEOF": (
+            set(),
+            set(),
+        ),
+    }
+
     def test_heredoc_descriptions_are_classified(self):
-        cases = {
-            "gh pr create --title t --body \"$(cat <<'EOF'\nBody\nEOF\n)\"": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            'GL_USERNAME=$(glab api user | jq -r .username)\nglab mr create --draft \\\n  --description "$(cat <<EOF\nBody\nEOF\n)"': (
-                {"glab", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            'cd x && glab issue note 4 -m "$(cat <<EOF\nhi\nEOF\n)"': (
-                {"glab", "sf-writing-style"},
-                {"platforms"},
-            ),
-            "echo glab is great <<EOF\nx\nEOF": (set(), set()),
-            "env gh pr create --body-file - <<'EOF'\nBody\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            "rtk proxy gh pr create --body-file - <<'EOF'\nBody\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            "cat <<'EOF' | gh pr create --body-file -\nBody\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            "cat > notes.md <<'EOF'\ngh pr create --body example\nEOF": (set(), set()),
-            "echo \"example; gh pr create --body example\" <<'EOF'\nignored\nEOF": (
-                set(),
-                set(),
-            ),
-            "gh api --hostname github.com --method POST repos/o/r/pulls -f head=feature"
-            " -f base=master -f maintainer_can_modify=true -f title=Example"
-            " --input - <<'EOF'\n{}\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            "gh api -H 'Accept: application/vnd.github+json' --method PATCH"
-            " repos/o/r/pulls/1 -f body='Update the filter.'": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            "gh api repos/o/r/pulls/42/comments -f body='Review comment'": (
-                {"gh", "sf-writing-style"},
-                {"platforms"},
-            ),
-            "glab api projects/1/merge_requests/42/notes -f body='Review comment'": (
-                {"glab", "sf-writing-style"},
-                {"platforms"},
-            ),
-            # A quoted header keeps its spaces, so the endpoint is still found.
-            "gh api -H 'Accept: application/vnd.github+json' --method PATCH"
-            ' repos/o/r/pulls/1 --input - <<\'EOF\'\n{"body": "x"}\nEOF': (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            # Apostrophes and # signs in an unquoted heredoc body are text.
-            "cat > b.md <<EOF\n## What's new\n- it's x\nEOF\ngh pr create --title t --body-file b.md": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            "cat > b.md <<EOF\n## What's new\n- item\nEOF\ngh pr create --title t --body-file b.md": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            # A # after an escape or inside ${...} is not a comment.
-            "echo ${v/ #/}; gh pr create --body-file - <<EOF\nx\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            "gh api -X PATCH -H X:\\ #1 repos/o/r/pulls/1 --input - <<EOF\n{}\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            "echo $# ${#v}; gh pr create --body-file - <<EOF\nx\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            "gh api repos/o/r/issues/5#issuecomment-1 -X PATCH -f body=x <<EOF\nx\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms"},
-            ),
-            'gh api -H "Accept: application/vnd.github+json" --method PATCH'
-            " repos/o/r/pulls/1 --input - <<'EOF'\n{}\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            # Command substitutions in an unquoted heredoc body run.
-            "cat > b.md <<EOF\n$(gh api -X PATCH repos/o/r/pulls/1 -f body='x (y)')\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            'cat > b.md <<EOF\nstatus: $(gh pr comment 1 --body "$(cat f)")\nEOF': (
-                {"gh", "sf-writing-style"},
-                {"platforms"},
-            ),
-            "cat > b.md <<EOF\nstatus: $(gh pr comment 1 --body 'a (b) c')\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms"},
-            ),
-            # A heredoc handed to a shell runs as commands.
-            "bash <<EOF\ngh pr create --title t --body x\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            "ssh host bash <<'EOF'\nglab mr create --title t --description x\nEOF": (
-                {"glab", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            # Here-strings are not heredocs.
-            "gh pr create --body-file - <<< 'x'; cat <<EOF\nx\nEOF": (
-                {"gh", "sf-writing-style"},
-                {"platforms", "pr-mr-descriptions"},
-            ),
-            # A comment never runs.
-            "# example; gh pr create --body example\ncat > notes.md <<'EOF'\nx\nEOF": (
-                set(),
-                set(),
-            ),
-            "cat > notes.md <<'EOF' # gh pr create --body example\nx\nEOF": (
-                set(),
-                set(),
-            ),
-        }
+        cases = self.HEREDOC_CASES
         with patch.object(guard.shutil, "which", return_value="/usr/bin/cli"):
             for command, (needed, references) in cases.items():
                 with self.subTest(command=command):
@@ -614,6 +642,38 @@ class ClassificationTest(unittest.TestCase):
                         self.assertEqual(
                             guard.reference_requirements(payload), references
                         )
+
+    # Other inputs from the reviews of the fallback scan.
+    EXTRA_COMMANDS = (
+        'gh api graphql --input - <<\'EOF\'\n{"query": "x"}\nEOF',
+        "gh api graphql -F query=@q.graphql",
+        "cat <<A\ncat <<B\n" * 3,
+        "echo <<<x",
+        "cat <<EOF\n$(echo (\nEOF",
+    )
+
+    def test_appended_publishing_call_is_always_checked(self):
+        # The fallback may only remove text that cannot run: a publishing call
+        # after any corpus command must still require the skills and references.
+        with patch.object(guard.shutil, "which", return_value="/usr/bin/cli"):
+            for command in (*self.HEREDOC_CASES, *self.EXTRA_COMMANDS):
+                full = command + "\ngh pr create --title t --body b"
+                with self.subTest(command=full):
+                    payload = {"tool_name": "Bash", "tool_input": {"command": full}}
+                    self.assertLessEqual(
+                        {"gh", "sf-writing-style"}, guard.requirements(payload)
+                    )
+                    self.assertIn(
+                        "pr-mr-descriptions", guard.reference_requirements(payload)
+                    )
+
+    def test_many_openers_on_one_line_are_linear(self):
+        command = "cat " + "<<A " * 8000 + "\nA\ngh pr create --body x"
+        start = time.monotonic()
+        guard.reference_requirements(
+            {"tool_name": "Bash", "tool_input": {"command": command}}
+        )
+        self.assertLess(time.monotonic() - start, 1.0)
 
     def test_unterminated_heredocs_are_linear(self):
         command = "cat <<A\n" * 8000 + "gh pr create --body x"

@@ -170,8 +170,61 @@ _CLI_CALL = re.compile(
 
 # A heredoc opener (not a <<< here-string) and its delimiter, quoted or not.
 _HEREDOC_OPENER = re.compile(r"(?<!<)<<(?!<)(-?)[ \t]*(['\"]?)(\w+)\2")
-# A shell that runs the heredoc body as commands.
-_SHELL_RUNNER = re.compile(r"(?:^|[\s;&|(])(?:sh|bash|zsh|ssh)(?:\s|$)")
+# A shell that runs the heredoc body as commands, by name or by path.
+_SHELL_RUNNER = re.compile(
+    r"(?:^|[\s;&|(])(?:[\w./-]*/)?(?:sh|bash|zsh|ssh)(?=$|[\s;&|)])"
+)
+
+
+def _mask_line(line):
+    """The line with every place that cannot open a heredoc blanked: escapes,
+    single-quoted text, double-quoted text outside $(...), arithmetic $((...))
+    and comments. The length stays the same, so match offsets still apply."""
+    out, i, n = list(line), 0, len(line)
+
+    def blank(start, end):
+        out[start:end] = " " * (max(end, start) - start)
+
+    while i < n:
+        c = line[i]
+        if c == "\\":
+            blank(i, min(i + 2, n))
+            i += 2
+        elif line.startswith("$((", i):
+            j = line.find("))", i + 3)
+            j = n if j < 0 else j + 2
+            blank(i, j)
+            i = j
+        elif c == "'":
+            j = line.find("'", i + 1)
+            j = n if j < 0 else j + 1
+            blank(i, j)
+            i = j
+        elif c == '"':
+            start, j = i, i + 1
+            while j < n and line[j] != '"':
+                if line[j] == "\\":
+                    j += 2
+                elif line.startswith("$(", j) and not line.startswith("$((", j):
+                    # A command substitution runs and can hold a heredoc.
+                    blank(start, j)
+                    depth, k = 0, j + 1
+                    while k < n:
+                        depth += {"(": 1, ")": -1}.get(line[k], 0)
+                        if depth == 0:
+                            break
+                        k += 1
+                    j = start = k + 1
+                else:
+                    j += 1
+            blank(start, min(j + 1, n))
+            i = j + 1
+        elif c == "#" and (i == 0 or line[i - 1] in " \t;&|("):
+            blank(i, n)
+            i = n
+        else:
+            i += 1
+    return "".join(out)
 
 
 def _substitutions(text):
@@ -204,6 +257,9 @@ def _strip_heredocs(command):
     command substitutions. When the opening line hands the body to a shell
     (sh, bash, zsh or ssh), the body runs, so it stays whole."""
     lines = command.split("\n")
+    # An opener counts only when its delimiter closes it on a later line: a bit
+    # shift or a stray << with no terminator is plain text, never a body.
+    last = {line.strip(): index for index, line in enumerate(lines)}
     out, pending, i = [], [], 0
     while i < len(lines):
         line = lines[i]
@@ -223,8 +279,20 @@ def _strip_heredocs(command):
                 body.append(line)
             continue
         out.append(line)
-        for match in _HEREDOC_OPENER.finditer(line):
-            runs = bool(_SHELL_RUNNER.search(line[: match.start()]))
+        if "<<" not in line:
+            continue
+        masked = _mask_line(line)
+        # Match on the line itself, so a quoted delimiter stays readable, and
+        # keep only openers whose << is not quoted, commented or arithmetic.
+        openers = [
+            match
+            for match in _HEREDOC_OPENER.finditer(line)
+            if masked[match.start()] == "<" and last.get(match.group(3), -1) >= i
+        ]
+        if not openers:
+            continue
+        runs = bool(_SHELL_RUNNER.search(masked))
+        for match in openers:
             pending.append(
                 (match.group(1) == "-", bool(match.group(2)), runs, match.group(3), [])
             )
