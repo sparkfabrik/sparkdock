@@ -250,6 +250,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed `sf-openspec-install-global` failing with OpenSpec 2.1: it installs the global skills with `openspec init --scope global` from `~/.local/share/sparkdock/openspec-global`, so nothing is scaffolded in the home folder
 - Fixed the writing guard missing publishing calls in commands with a heredoc: a GraphQL mutation that creates or updates a PR or MR, inline or through variables, a file or standard input, now needs the description reference, a quoted `gh api` header no longer hides the endpoint, and a `gh` or `glab` call on any line is checked whatever quotes or heredocs come before it
 - Fixed the Claude writing guard denying every PR, MR and comment publish when its hooks were registered by an older sparkdock or outside the user settings: it skips a reference it cannot confirm after one request
 - Fixed `sf-harness-sync` leaving an enabled writing guard with an outdated hook registration: it now re-registers it
