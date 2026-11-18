@@ -359,7 +359,12 @@ _render_openspec_section() {
     fi
 
     local project_state="✗ not initialized"
-    [[ -d "${HOME}/openspec" ]] && project_state="✓ ~/openspec"
+    local global_dir="${HOME}/.local/share/sparkdock/openspec-global"
+    if [[ -d "${global_dir}/openspec" ]]; then
+        project_state="✓ ${global_dir/#${HOME}/\~}"
+    elif [[ -d "${HOME}/openspec" ]]; then
+        project_state="✓ ~/openspec"
+    fi
     printf "  CLI: ✓ %s  │  Global project: %s\n" "${version}" "${project_state}"
 
     local agent

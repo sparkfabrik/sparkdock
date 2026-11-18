@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Install or update OpenSpec skills and prompt commands in the home directory
-# for the requested AI coding tools.
+# Install or update the OpenSpec skills globally for the requested AI coding
+# tools.
 #
-# OpenSpec installs skills to ~/.claude/skills/openspec-* and prompt commands to
-# ~/.claude/commands/opsx/* relative to a project root. Using ${HOME} as the
-# root makes them global for the user. The home project lives at ~/openspec.
+# OpenSpec 2.1 and later install global skills themselves with
+# `openspec init --scope global`, which must run inside a project folder: it
+# refuses the home folder and scaffolds `openspec/` where it runs. A dedicated
+# folder under the sparkdock data directory holds that scaffold, so the home
+# folder stays clean and OpenSpec registers one stable project.
+#
+# Older releases have no global scope: they install relative to a project root,
+# so ${HOME} is used as the root, with the home project in ~/openspec.
 #
 # Usage: install-global-skills.sh [tools]
 #   tools  — comma-separated tool list (default: claude); OpenSpec identifiers,
@@ -21,6 +26,23 @@ tools="${1:-claude}"
 if ! command -v openspec >/dev/null 2>&1; then
     log_error "openspec CLI not found. Install it first (brew install openspec)."
     exit 1
+fi
+
+init_help="$(openspec init --help 2>/dev/null || true)"
+if [[ "${init_help}" == *"--scope"* ]]; then
+    # A fixed path, so every caller (shell, Ansible) uses the same project.
+    global_dir="${HOME}/.local/share/sparkdock/openspec-global"
+    mkdir -p "${global_dir}"
+    log_info "Configuring global OpenSpec skills (tools: ${tools})"
+    # Additive and idempotent: tools configured earlier are kept.
+    (cd "${global_dir}" && openspec init --scope global --tools "${tools}" --force --no-animation </dev/null)
+    # Refresh the skills for the workflow profile in the global config. It
+    # needs GitHub; the skills installed above stay usable when it fails.
+    if ! (cd "${global_dir}" && openspec update --force </dev/null); then
+        log_warn "Could not refresh the OpenSpec skills; the installed ones stay in place."
+    fi
+    log_success "Global OpenSpec skills installed for: ${tools}"
+    exit 0
 fi
 
 # Ensure the requested tools are configured. Re-running init is additive and
