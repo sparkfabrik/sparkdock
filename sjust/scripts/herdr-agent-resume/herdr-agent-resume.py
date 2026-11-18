@@ -1242,6 +1242,11 @@ def forget(core, terminal, token, exclude=False):
         raw = read_marker(marker)
         if first_line(raw) != token:
             return CHANGED
+        record = get_record(terminal)  # None on a core that is not running
+        # Only an exclusion may change the files of a core that is not running:
+        # the doctor's report was made while it ran.
+        if record is None and not exclude:
+            return failed("core not running")
         try:
             if exclude:
                 session = parse_marker(raw)
@@ -1253,7 +1258,6 @@ def forget(core, terminal, token, exclude=False):
                 old.unlink(missing_ok=True)
         except OSError as error:
             return failed(str(error))
-        record = get_record(terminal)  # None on a core that is not running
         if (
             record is not None
             and labels_of(record).get(LABEL) == token

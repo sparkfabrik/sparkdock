@@ -2157,6 +2157,17 @@ class ForgetTest(SessionsEnv):
         self.assertEqual(har.parse_marker(self.marker.read_text()), new)
         self.assertEqual(self.labels()[har.LABEL], new["gen"])
 
+    def test_forget_leaves_a_core_stopped_since_the_report_untouched(self):
+        session = self.record()
+        har.write_ended(self.marker, session["gen"])
+        with patch.object(har, "get_record", return_value=None):
+            self.assertEqual(
+                har.forget(self.core, "t1", session["gen"]),
+                har.failed("core not running"),
+            )
+        self.assertTrue(self.marker.exists())
+        self.assertEqual(len(self.records()), 1)
+
     def test_exclude_keeps_the_session_privately(self):
         session = self.record()
         self.assertEqual(
