@@ -12,11 +12,16 @@ Modes:
                           clears the label of an agent that ended.
   --prune                 deletes garbage markers; started detached by the hook once a day.
   enable | disable | info management, run by the sjust recipes.
+  doctor [fix]            reports recorded sessions and purges closed ones and leftovers.
+  edit                    checklist to stop or restart resuming single sessions (TTY only).
 """
 
 import base64
 import contextlib
 import binascii
+import dataclasses
+import enum
+import functools
 import glob
 import json
 import os
@@ -443,16 +448,24 @@ def clear_label(terminal):
     return hc("label", terminal, f"{LABEL}=") is True
 
 
-def local_terminals():
+def terminal_listing():
+    """{address: ls entry (state, where)} for every local terminal, or None."""
     # --all: a finished terminal (its program exited) still exists and keeps its labels.
     listing = hc("ls", "--all", "--json")
     if not isinstance(listing, dict) or not isinstance(listing.get("terminals"), list):
         return None
-    return [
-        t["address"]
+    return {
+        t["address"]: t
         for t in listing["terminals"]
-        if isinstance(t, dict) and isinstance(t.get("address"), str) and "/" not in t["address"]
-    ]
+        if isinstance(t, dict)
+        and isinstance(t.get("address"), str)
+        and "/" not in t["address"]
+    }
+
+
+def local_terminals():
+    listing = terminal_listing()
+    return None if listing is None else list(listing)
 
 
 def in_herdr_core(env=None):
@@ -681,19 +694,38 @@ def run_hook(agent):
         # Disable removes the flag under the exclusive state lock: re-check it here.
         if not (held and enabled_file().exists()):
             return 0
-        if not set_label(terminal, session["gen"]):
+        # Excluded with the editor: compaction, clear or a manual resume of the
+        # same session must not bring it back. Another session ends the exclusion.
+        excluded = parse_marker(read_marker(skip_path(marker)))
+        if excluded and (excluded["agent"], excluded["id"]) == (agent, session["id"]):
             return 0
-        try:
-            atomic_write(marker, marker_text(session))
-        except OSError:
-            clear_label(terminal)  # never leave a label without its marker
+        # Ended records of earlier generations can never match again; one of
+        # the new generation (written since the label was set) still counts.
+        if record_session(terminal, marker, session, keep_ended=session["gen"]):
             return 0
-        # Ended records of earlier generations can never match again.
-        for old in ended_records(marker):
-            if ended_token(old) != session["gen"]:
-                old.unlink(missing_ok=True)
     maybe_prune()
     return 0
+
+
+def record_session(terminal, marker, session, keep_ended=None):
+    """Label `terminal` and write its marker for `session`, then drop the ended
+    records (except those of generation `keep_ended`) and the exclusion. The
+    caller holds the writer lock. None on success, else what failed."""
+    if not set_label(terminal, session["gen"]):
+        return "label not set"
+    try:
+        atomic_write(marker, marker_text(session))
+    except OSError as error:
+        clear_label(terminal)  # never leave a label without its marker
+        return str(error)
+    try:
+        for old in ended_records(marker):
+            if keep_ended is None or ended_token(old) != keep_ended:
+                old.unlink(missing_ok=True)
+        skip_path(marker).unlink(missing_ok=True)
+    except OSError as error:
+        return str(error)
+    return None
 
 
 # ---------------------------------------------------------------------- shell
@@ -777,12 +809,20 @@ def shell_cleanup(shell_pid, expected):
 
 def terminal_of(path):
     """The terminal a core folder file belongs to: its marker `<t>`, its ended
-    records `<t>.ended.<token>` and its writer lock `.<t>.lock`. None for the
-    folder's own dot files (`.pruned`, temp files)."""
+    records `<t>.ended.<token>`, its exclusion `<t>.skip` and its writer lock
+    `.<t>.lock`. None for the folder's own dot files (`.pruned`, temp files)."""
     name = path.name
     if name.startswith("."):
         return name[1:-5] if name.endswith(".lock") and name != ".lock" else None
+    if name.endswith(".skip"):
+        return name[:-5] or None
     return name.split(".ended.", 1)[0]
+
+
+def skip_path(marker):
+    """`<t>.skip`: the session the person excluded with the editor, in marker
+    format. Its hook records nothing while the same session id starts again."""
+    return marker.with_name(f"{marker.name}.skip")
 
 
 def moved_on(terminal, token):
@@ -811,7 +851,8 @@ def prune_markers():
             if base is None:
                 continue
             try:
-                garbage = base not in live or (
+                # A file named like a live terminal is that terminal's marker.
+                garbage = (base not in live and path.name not in live) or (
                     ".ended." in path.name
                     and time.time() - path.stat().st_mtime >= ENDED_MAX_AGE
                     and moved_on(base, ended_token(path))
@@ -852,6 +893,496 @@ def maybe_prune():
         stamp.touch()
     except OSError:
         pass
+
+
+# ------------------------------------------------------------------- sessions
+#
+# One view of every core's records, shared by info, the doctor and the editor.
+# Reading takes no lock; every purge re-checks what it read under writer_lock,
+# so a session that started after the report is never removed.
+
+STARTING_GRACE = 120  # seconds: a recovered shell may not have run --shell-startup yet
+WALK_LIMIT = 4096  # processes visited below one terminal
+ETIME_RE = re.compile(r"(?:(?:(\d+)-)?(\d+):)?(\d+):(\d+)")
+CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
+class Status(enum.Enum):
+    DONE = "done"
+    CHANGED = "changed"  # what was read changed since: kept, not a failure
+    FAILED = "failed"
+
+
+@dataclasses.dataclass(frozen=True)
+class Result:
+    """What a purge, forget or restore did; `reason` explains a failure."""
+
+    status: Status
+    reason: str = ""
+
+
+DONE, CHANGED = Result(Status.DONE), Result(Status.CHANGED)
+
+
+def failed(reason):
+    return Result(Status.FAILED, reason)
+
+
+class Purge(enum.Enum):
+    """How purge() removes a finding."""
+
+    FORGET = "forget"  # the session of the label's generation, via forget()
+    GONE = "gone"  # every file of a terminal the core no longer lists
+    OBSERVED = "observed"  # exactly what the report read, if still unchanged
+
+
+@dataclasses.dataclass
+class Row:
+    """What one terminal holds on one core: its files, and on a running core its
+    record. `label` is None when the terminal has no label (or is not listed)."""
+
+    core: str
+    socket: str
+    running: bool
+    terminal: str
+    listed: bool = False
+    readable: bool = True
+    label: object = None
+    marker_raw: object = None  # None, UNREADABLE or the marker text
+    session: object = None
+    skip: object = None
+    skip_present: bool = False
+    ended: list = dataclasses.field(default_factory=list)
+    lock: bool = False
+    state: object = None
+    where: object = None
+    title: object = None
+    pid: object = None
+
+    @property
+    def marker(self):
+        return core_dir(self.core) / self.terminal
+
+    @property
+    def matched(self):
+        return self.session is not None and self.label == self.session["gen"]
+
+
+@dataclasses.dataclass
+class CoreView:
+    core: str
+    socket: str
+    running: bool
+    rows: list
+    unreadable: list
+
+
+@dataclasses.dataclass
+class Finding:
+    """kind: keep, closed, leftover or down. `purge` says how purge() removes a
+    closed or leftover finding; the drop fields say what an observed purge removes."""
+
+    kind: str
+    reason: str
+    row: Row
+    purge: object = None  # a Purge, None for keep and down
+    drop_marker: bool = False
+    drop_label: bool = False
+    ended: tuple = ()  # ended record paths
+
+
+def collect_sessions():
+    """A CoreView per known core, with a Row per terminal that has a marker, a
+    label, an exclusion, ended records, or a lock file of a terminal not listed."""
+    views = []
+    for core, path in known_cores().items():
+        folder = core_dir(core)
+        files = {}
+        for item in sorted(folder.iterdir()) if folder.is_dir() else []:
+            base = terminal_of(item)
+            if base and marker_name(base) == base:
+                files.setdefault(base, []).append(item)
+        records, unreadable = {}, []
+        with on_core(path):
+            listing = terminal_listing()
+            for address in listing or {}:
+                record = get_record(address)
+                if record is None:
+                    unreadable.append(address)
+                else:
+                    records[address] = record
+        names = set(files) | {
+            a
+            for a, r in records.items()
+            if LABEL in labels_of(r) and marker_name(a) == a
+        }
+        rows = []
+        for name in sorted(names):
+            row = build_row(
+                core, path, listing, name, files.get(name, []), records.get(name)
+            )
+            if row is not None:
+                rows.append(row)
+        views.append(
+            CoreView(core, path, listing is not None, rows, sorted(unreadable))
+        )
+    return views
+
+
+def build_row(core, path, listing, name, paths, record):
+    row = Row(core, path, listing is not None, name)
+    for item in paths:
+        if item.name == name:
+            row.marker_raw = read_marker(item)
+        elif item.name == f".{name}.lock":
+            row.lock = True
+        elif item.name == f"{name}.skip":
+            row.skip_present = True
+            row.skip = parse_marker(read_marker(item))
+        elif item.name.startswith(f"{name}.ended."):
+            row.ended.append(item)
+    row.session = parse_marker(row.marker_raw)
+    if listing is not None:
+        row.listed = name in listing
+        row.readable = not row.listed or record is not None
+        info = dict(listing.get(name) or {}, **(record or {}))
+        row.label = labels_of(info).get(LABEL)
+        row.state, row.where, row.title = (
+            info.get("state"),
+            info.get("where"),
+            info.get("title"),
+        )
+        row.pid = info.get("pid")
+    has_data = (
+        row.marker_raw is not None
+        or row.ended
+        or row.skip_present
+        or row.label is not None
+    )
+    return row if has_data or (row.lock and not row.listed) else None
+
+
+def parse_etime(text):
+    """Seconds in a `ps -o etime` value, `[[dd-]hh:]mm:ss`, or None."""
+    match = ETIME_RE.fullmatch(text.strip()) if isinstance(text, str) else None
+    if match is None:
+        return None
+    days, hours, minutes, seconds = (int(g or 0) for g in match.groups())
+    return ((days * 24 + hours) * 60 + minutes) * 60 + seconds
+
+
+def process_age(pid):
+    """Seconds since `pid` started, or None. `etime` reads the same on BSD and
+    procps (`etimes` is procps only)."""
+    try:
+        result = subprocess.run(
+            ["ps", "-o", "etime=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            timeout=HC_TIMEOUT,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return parse_etime(result.stdout) if result.returncode == 0 else None
+
+
+def agent_alive(pid, agent, table, argv_of):
+    """True when `agent` runs at `pid` or anywhere below it. Suspended and
+    background agents count: the terminal's foreground does not tell. None when
+    the table or an argv on the way cannot be read, so the caller keeps the row."""
+    if not table or pid not in table:
+        return None
+    children = {}
+    for child, (parent, *_) in table.items():
+        children.setdefault(parent, []).append(child)
+    todo, seen, unknown = [pid], set(), False
+    while todo:
+        current = todo.pop()
+        if current in seen:
+            continue
+        seen.add(current)
+        if len(seen) > WALK_LIMIT:
+            return None
+        argv = argv_of(current)
+        if argv is None:
+            unknown = True
+        elif agent_of(argv) == agent:
+            return True
+        todo.extend(children.get(current, ()))
+    return None if unknown else False
+
+
+def leftover_drop(row):
+    """(Finding drop fields, description) of a listed terminal whose marker and
+    label do not form one session: whatever of them exists, plus its ended records."""
+    drop = {
+        "drop_marker": row.marker_raw is not None,
+        "drop_label": row.label is not None,
+        "ended": tuple(row.ended),
+    }
+    if row.marker_raw is not None and row.session is None:
+        what = ["unreadable marker"]
+    elif row.session is not None and row.label is None:
+        what = ["marker without its label"]
+    elif row.session is not None:
+        what = ["marker and label of different sessions"]
+    elif row.label is not None:
+        what = ["label without its marker"]
+    else:
+        what = []
+    if row.ended:
+        what.append(plural(len(row.ended), "ended record"))
+    return drop, ", ".join(what)
+
+
+def gone_description(row):
+    what = [
+        name
+        for name, present in (
+            ("marker", row.marker_raw is not None),
+            ("exclusion", row.skip_present),
+            ("lock file", row.lock),
+        )
+        if present
+    ]
+    if row.ended:
+        what.append(plural(len(row.ended), "ended record"))
+    return ", ".join(what) + " of a terminal that no longer exists"
+
+
+def classify(row, table, argv_of=None, age_of=None):
+    """[Finding] for one row: a pure function of the row and the probes, so it
+    is tested without real processes. Any probe that cannot answer keeps the
+    session ("not checked"); a core that does not answer never loses a record."""
+    argv_of = argv_of or process_argv
+    age_of = age_of or process_age
+    if not row.running:
+        return (
+            [Finding("down", "core not running", row)]
+            if row.marker_raw is not None
+            else []
+        )
+    if not row.listed:
+        if row.session is not None:
+            return [Finding("closed", "terminal removed", row, Purge.GONE)]
+        return [Finding("leftover", gone_description(row), row, Purge.GONE)]
+    if not row.readable:
+        return (
+            [Finding("keep", "not checked", row)] if row.marker_raw is not None else []
+        )
+    if row.state == "finished":
+        drop, what = leftover_drop(row)
+        if not any(drop.values()):
+            return []
+        if row.session is not None:
+            return [Finding("closed", "terminal finished", row, Purge.OBSERVED, **drop)]
+        return [
+            Finding(
+                "leftover",
+                f"{what} of a finished terminal",
+                row,
+                Purge.OBSERVED,
+                **drop,
+            )
+        ]
+    if not row.matched:
+        drop, what = leftover_drop(row)
+        if not any(drop.values()):
+            return []
+        return [Finding("leftover", what, row, Purge.OBSERVED, **drop)]
+    session, token = row.session, row.label
+    if any(ended_token(p) == token for p in row.ended):
+        return [Finding("closed", "ended, cleanup pending", row, Purge.FORGET)]
+    older = tuple(row.ended)  # none of them holds the label's token
+    extra = (
+        [
+            Finding(
+                "leftover",
+                plural(len(older), "older ended record"),
+                row,
+                Purge.OBSERVED,
+                ended=older,
+            )
+        ]
+        if older
+        else []
+    )
+    # A running agent is kept before its folder and transcript are looked at:
+    # Claude Code writes the transcript only on the first message.
+    age = age_of(row.pid) if isinstance(row.pid, int) and row.pid > 1 else None
+    if age is None:
+        return [Finding("keep", "not checked", row), *extra]
+    if age < STARTING_GRACE:
+        return [Finding("keep", "starting", row), *extra]
+    alive = agent_alive(row.pid, session["agent"], table, argv_of)
+    if alive:
+        return [Finding("keep", "running", row), *extra]
+    if alive is None:
+        return [Finding("keep", "not checked", row), *extra]
+    transcript = session["transcript"]
+    if not os.path.isdir(session["cwd"]) or (
+        transcript and not os.path.exists(transcript)
+    ):
+        return [Finding("closed", "nothing to resume", row, Purge.FORGET)]
+    return [Finding("closed", "agent no longer running", row, Purge.FORGET)]
+
+
+def forget(core, terminal, token, exclude=False):
+    """Stop resuming the session of generation `token` in `terminal`, only while
+    its marker still holds that generation (a session started since is never
+    touched). The marker and its ended records go first, which alone blocks a
+    resume; then the label is cleared while it still holds `token` (only on a
+    running core). With `exclude`, the session is first kept in `<t>.skip` so
+    its hook does not record it again. Returns DONE, CHANGED or a failure."""
+    marker = core_dir(core) / terminal
+    with on_core(core_socket(core)), writer_lock(marker, wait=3.0) as held:
+        if not held:
+            return failed("busy, try again")
+        raw = read_marker(marker)
+        if first_line(raw) != token:
+            return CHANGED
+        record = get_record(terminal)  # None on a core that is not running
+        # Only an exclusion may change the files of a core that is not running:
+        # the doctor's report was made while it ran.
+        if record is None and not exclude:
+            return failed("core not running")
+        try:
+            if exclude:
+                session = parse_marker(raw)
+                if session is None:
+                    return failed("unreadable marker")
+                atomic_write(skip_path(marker), marker_text(session), mode=0o600)
+            marker.unlink(missing_ok=True)
+            for old in ended_records(marker):
+                old.unlink(missing_ok=True)
+        except OSError as error:
+            return failed(str(error))
+        if (
+            record is not None
+            and labels_of(record).get(LABEL) == token
+            and not clear_label(terminal)
+        ):
+            return failed("label not cleared")
+    return DONE
+
+
+def purge_gone(row):
+    """Delete every file of a terminal while the core still answers without it
+    (no hook can run in a terminal that does not exist). Under the exclusive
+    state lock, like prune_markers: no writer holds or waits on the terminal's
+    lock file, so deleting it can never let two writers lock different files."""
+    folder = core_dir(row.core)
+    with on_core(row.socket), state_lock(exclusive=True, wait=3.0) as held:
+        if not held:
+            return failed("busy, try again")
+        if not enabled_file().exists():
+            return CHANGED  # disable ran meanwhile and removed every record
+        listed = local_terminals()
+        if listed is None:
+            return failed("core not answering")
+        if row.terminal in listed:
+            return CHANGED
+        try:
+            for path in list(folder.iterdir()) if folder.is_dir() else []:
+                if terminal_of(path) == row.terminal:
+                    path.unlink(missing_ok=True)
+        except OSError as error:
+            return failed(str(error))
+    return DONE
+
+
+def purge_observed(finding):
+    """Remove what `finding` drops (marker, label, ended records) only while the
+    marker and the label are still exactly what the report read."""
+    row = finding.row
+    with on_core(row.socket), writer_lock(row.marker, wait=3.0) as held:
+        if not held:
+            return failed("busy, try again")
+        record = get_record(row.terminal)
+        if record is None:
+            return failed("terminal not readable")
+        if (
+            read_marker(row.marker) != row.marker_raw
+            or labels_of(record).get(LABEL) != row.label
+        ):
+            return CHANGED
+        try:
+            if finding.drop_marker:
+                row.marker.unlink(missing_ok=True)
+            for path in finding.ended:
+                path.unlink(missing_ok=True)
+        except OSError as error:
+            return failed(str(error))
+        if finding.drop_label and not clear_label(row.terminal):
+            return failed("label not cleared")
+    return DONE
+
+
+def purge(finding):
+    row = finding.row
+    if finding.purge is Purge.FORGET:
+        return forget(row.core, row.terminal, row.session["gen"])
+    if finding.purge is Purge.GONE:
+        return purge_gone(row)
+    if finding.purge is Purge.OBSERVED:
+        return purge_observed(finding)
+    # RuntimeError, not ValueError: main() reports ValueError as a user error.
+    raise RuntimeError(f"no purge for {finding.kind} finding: {finding.purge!r}")
+
+
+def restore(core, terminal, observed):
+    """Record the excluded session `observed` (as the editor read it) again, as a
+    new generation so no old ended record can ever match it: only on a running
+    core, in a live terminal, while the exclusion is still `observed` and no
+    session has been recorded there since."""
+    marker = core_dir(core) / terminal
+    with on_core(core_socket(core)), writer_lock(marker, wait=3.0) as held:
+        if not held:
+            return failed("busy, try again")
+        excluded = parse_marker(read_marker(skip_path(marker)))
+        if excluded is None or excluded != observed:
+            return CHANGED
+        listing = terminal_listing()
+        if listing is None:
+            return failed("core not running")
+        record = get_record(terminal) if terminal in listing else None
+        if record is None or record.get("state") == "finished":
+            return failed("terminal not live")
+        if os.path.lexists(marker):
+            return failed("a newer session is recorded there")
+        session = new_session(
+            excluded["agent"], excluded["id"], excluded["cwd"], excluded["transcript"]
+        )
+        if session is None:
+            return failed("label not set")
+        # zsh writes ended records without the lock: one of the new generation,
+        # written once the marker is published, still counts.
+        problem = record_session(terminal, marker, session, keep_ended=session["gen"])
+        if problem:
+            return failed(problem)
+    return DONE
+
+
+def plural(count, noun):
+    return f"{count} {noun}{'' if count == 1 else 's'}"
+
+
+def clean(text):
+    """Text safe to print: titles and folders can carry terminal escape sequences."""
+    return CONTROL_RE.sub(" ", text) if isinstance(text, str) else ""
+
+
+def short_home(path):
+    home = str(Path.home())
+    return (
+        "~" + path[len(home) :] if path == home or path.startswith(home + "/") else path
+    )
+
+
+def place(row):
+    """Where a terminal is ("Space / Tab"), else its address."""
+    return clean(row.where) or row.terminal
 
 
 # ----------------------------------------------------------------- management
@@ -1248,17 +1779,61 @@ def disable_locked():
     return 0
 
 
+def view_name(view):
+    return f"{core_label(view.core)} ({view.socket})"
+
+
+def print_labels(view):
+    if not view.running:
+        print(f"Labels ({view_name(view)}): core not running")
+        return
+    labelled = [row for row in view.rows if row.label is not None]
+    print(f"Labels ({view_name(view)}): {len(labelled)}")
+    for row in labelled:
+        plan = resume_command(row.session) if row.matched else "no matching marker"
+        print(f"  {row.terminal}: {plan}")
+    if view.unreadable:
+        print(f"  not readable: {', '.join(view.unreadable)}")
+
+
+def print_view(view):
+    """The labels and the excluded sessions of one core."""
+    print_labels(view)
+    excluded = [row for row in view.rows if row.skip is not None]
+    if not excluded:
+        return
+    print(f"Excluded ({view_name(view)}): {len(excluded)}")
+    for row in excluded:
+        skip = row.skip
+        folder = clean(short_home(skip["cwd"]))
+        print(f"  {row.terminal}: {skip['agent']} {skip['id']} in {folder}")
+
+
+def prune_view(view):
+    """Prune a running core's stale markers while the feature is enabled."""
+    if not (view.running and enabled_file().exists()):
+        return
+    with on_core(view.socket):
+        removed = prune_markers()
+    if removed:
+        print(f"Markers ({view_name(view)}): pruned {removed} stale")
+
+
 def cmd_info():
     import claude_settings as cs
 
     print(f"Script: {SCRIPT_PATH}")
-    print(f"Enabled flag: {'on' if enabled_file().exists() else 'off'} ({enabled_file()})")
+    print(
+        f"Enabled flag: {'on' if enabled_file().exists() else 'off'} ({enabled_file()})"
+    )
     for agent, path, hooks in hook_files(cs):
         try:
             state = hook_state(load_json(path), hooks, agent)
         except (OSError, ValueError, TypeError) as error:
             state = f"unreadable ({error})"
-        print(f"{'Claude Code' if agent == 'claude' else 'Codex'} hooks: {state} ({path})")
+        print(
+            f"{'Claude Code' if agent == 'claude' else 'Codex'} hooks: {state} ({path})"
+        )
     print("Codex hooks need trust: open /hooks in Codex.")
     try:
         present = any(owned_line(line) for line in zshrc_lines()[1])
@@ -1266,28 +1841,12 @@ def cmd_info():
     except (OSError, ValueError) as error:
         print(f"zsh line: unreadable ({zshrc_path()}: {error})")
     print(f"hc: {shutil.which('hc') or 'not found'}")
-    cores = known_cores()
-    if not cores:
+    views = collect_sessions()
+    if not views:
         print("Labels: no core has recorded a session yet")
-    for core, path in cores.items():
-        name = f"{core_label(core)} ({path})"
-        with on_core(path):
-            result = labelled_terminals()
-            if result is None:
-                print(f"Labels ({name}): core not running")
-                continue
-            found, unreadable = result
-            print(f"Labels ({name}): {len(found)}")
-            for address, token in sorted(found.items()):
-                file = marker_name(address)
-                session = parse_marker(read_marker(core_dir(core) / file)) if file else None
-                matches = session is not None and session["gen"] == token
-                print(f"  {address}: {resume_command(session) if matches else 'no matching marker'}")
-            if unreadable:
-                print(f"  not readable: {', '.join(unreadable)}")
-            removed = prune_markers() if enabled_file().exists() else None
-        if removed:
-            print(f"Markers ({name}): pruned {removed} stale")
+    for view in views:
+        print_view(view)
+        prune_view(view)
     markers = (
         sorted(
             str(p.relative_to(markers_dir()))
@@ -1301,6 +1860,315 @@ def cmd_info():
     for warning in warnings():
         print(f"Warning: {warning}")
     return 0
+
+
+def is_tty():
+    return sys.stdin.isatty() and sys.stdout.isatty()
+
+
+def ask(prompt):
+    """One answer line, trimmed and lowercased; None at the end of input."""
+    print(prompt, end=" ", flush=True)
+    try:
+        line = sys.stdin.readline()
+    except KeyboardInterrupt:
+        print()
+        return None
+    return line.strip().lower() if line else None
+
+
+def health():
+    """(summary, problems): the flag, the hooks, the zsh line and hc. Problems
+    are what enable repairs; the doctor only reports them."""
+    import claude_settings as cs
+
+    parts = ["enabled" if enabled_file().exists() else "disabled"]
+    problems = []
+    for agent, path, hooks in hook_files(cs):
+        name = "Claude Code" if agent == "claude" else "Codex"
+        try:
+            state = hook_state(load_json(path), hooks, agent)
+        except (OSError, ValueError, TypeError):
+            state = "unreadable"
+        state = {"enabled": "ok", "partial": "stale", "disabled": "missing"}.get(
+            state, state
+        )
+        parts.append(f"{name} hooks {state}")
+        if state != "ok":
+            problems.append(f"{name} hooks {state} ({path})")
+    try:
+        ours = [line.rstrip("\r\n") for line in zshrc_lines()[1] if owned_line(line)]
+        zsh = "present" if ours == [zshrc_line()] else "stale" if ours else "missing"
+    except (OSError, ValueError):
+        zsh = "unreadable"
+    parts.append(f"zsh line {zsh}")
+    if zsh != "present":
+        problems.append(f"zsh line {zsh} ({zshrc_path()})")
+    if not shutil.which("hc"):
+        parts.append("hc not found")
+        problems.append("hc not found on PATH")
+    return ", ".join(parts), problems
+
+
+def describe(finding):
+    row = finding.row
+    if row.session is None:
+        return f"{place(row)}: {finding.reason}"
+    session = row.session
+    folder = clean(short_home(session["cwd"]))
+    return f"{place(row)}  {session['agent']}  {folder}  {finding.reason}"
+
+
+def report(views):
+    """Print every core's findings; return those that can be purged."""
+    purgeable, table = [], None
+    for view in views:
+        name = view_name(view)
+        recorded = sum(1 for row in view.rows if row.marker_raw is not None)
+        if not view.running:
+            print(
+                f"Core {name}: not running, {recorded} recorded. Open the Herdr app to check them."
+            )
+            continue
+        if table is None:
+            table = process_table()  # once, and only when a core runs
+        findings = [f for row in view.rows for f in classify(row, table)]
+        print(f"Core {name}: {recorded} recorded")
+        for kind, title in (
+            ("keep", "Keep"),
+            ("closed", "Closed"),
+            ("leftover", "Leftovers"),
+        ):
+            group = [f for f in findings if f.kind == kind]
+            if group:
+                print(f"  {title}:")
+                for finding in group:
+                    print(f"    {describe(finding)}")
+        if view.unreadable:
+            print(f"  Not readable, not checked: {', '.join(view.unreadable)}")
+        purgeable += [f for f in findings if f.kind in ("closed", "leftover")]
+    return purgeable
+
+
+def purge_all(findings):
+    """Purge each finding; 1 when any purge failed (each failure is listed)."""
+    sessions = leftovers = failures = 0
+    for finding in findings:
+        result = purge(finding)
+        if result.status is Status.DONE:
+            print(f"  Purged: {describe(finding)}")
+            if finding.kind == "closed":
+                sessions += 1
+            else:
+                leftovers += 1
+        elif result.status is Status.CHANGED:
+            print(f"  Kept, changed since the report: {describe(finding)}")
+        else:
+            print(f"  Not purged: {describe(finding)}: {result.reason}")
+            failures += 1
+    print(f"Purged: {plural(sessions, 'session')}, {plural(leftovers, 'leftover')}.")
+    if failures:
+        print(f"Failed: {failures}. Run herdr-agent-resume-doctor again.")
+    return 1 if failures else 0
+
+
+def cmd_doctor(args=()):
+    """`args`: the words after `doctor`, nothing or `fix`. An empty word counts
+    as none: the recipe always passes its optional argument, even when empty."""
+    args = [arg for arg in args if arg]
+    if args not in ([], ["fix"]):
+        print("Usage: herdr-agent-resume-doctor [fix]", file=sys.stderr)
+        return 2
+    fix = bool(args)
+    summary, problems = health()
+    print(f"Health: {summary}")
+    for warning in warnings():
+        print(f"Warning: {warning}")
+    if not enabled_file().exists():
+        print("Agent resume is disabled: nothing checked, nothing changed.")
+        return 0
+    for problem in problems:
+        print(f"Problem: {problem}")
+    if problems:
+        print("Run herdr-agent-resume-enable to repair it.")
+    code = 1 if problems else 0
+    findings = report(collect_sessions())
+    if not findings:
+        print("Nothing to purge.")
+        return code
+    count = f"{len(findings)} {'entry' if len(findings) == 1 else 'entries'}"
+    if not fix:
+        if not is_tty():
+            print(f"{count} to purge. Run herdr-agent-resume-doctor fix to purge them.")
+            return 1
+        if ask(f"Purge {count}? [y/N]") not in ("y", "yes"):
+            print("Nothing changed.")
+            return 1
+    return max(code, purge_all(findings))
+
+
+# --------------------------------------------------------------------- editor
+
+GUM_HEADER = "Checked sessions resume after a reboot. Enter applies, Esc cancels."
+FALLBACK = object()  # gum missing or failing: use the numbered prompt
+
+
+@dataclasses.dataclass
+class Entry:
+    row: Row
+    session: dict
+    checked: bool  # recorded now; unchecked means excluded
+    status: str
+
+
+def editor_entries(views, table):
+    """Recorded sessions (checked) and excluded ones (unchecked). On a running
+    core a recorded session is a marker and a label of the same generation."""
+    entries = []
+    for view in views:
+        for row in view.rows:
+            if row.session is not None and (row.matched or not view.running):
+                status = classify(row, table)[0].reason
+                entries.append(Entry(row, row.session, True, status))
+            elif row.skip is not None:
+                entries.append(Entry(row, row.skip, False, "excluded"))
+    return entries
+
+
+def entry_labels(entries):
+    """gum labels: no tab (the label delimiter), newline or comma (`--selected`
+    is comma separated), unique, and never starting with a dash."""
+
+    def label(entry, prefix):
+        row, session = entry.row, entry.session
+        parts = (
+            prefix,
+            row.where,
+            session["agent"],
+            short_home(session["cwd"]),
+            row.title,
+            entry.status,
+        )
+        return "  ".join(
+            clean(p).replace(",", " ").strip() for p in parts if clean(p).strip()
+        )
+
+    labels = [label(e, e.row.terminal) for e in entries]
+    if len(set(labels)) != len(labels):
+        labels = [
+            label(e, f"{core_label(e.row.core)}/{e.row.terminal}") for e in entries
+        ]
+    if len(set(labels)) != len(labels):
+        labels = [f"{i + 1}. {text}" for i, text in enumerate(labels)]
+    return [f"> {text}" if text.startswith("-") else text for text in labels]
+
+
+def choose_with_gum(gum, labels, checked):
+    """The indexes the person left checked, None on cancel, FALLBACK on failure.
+    Options go on stdin (gum reads keys from the tty); `--selected` matches
+    labels, the output holds the values after the tab."""
+    argv = [gum, "choose", "--no-limit", "--header", GUM_HEADER, "--label-delimiter=\t"]
+    if checked:
+        argv.append("--selected=" + ",".join(labels[i] for i in sorted(checked)))
+    options = "".join(f"{text}\t{i}\n" for i, text in enumerate(labels))
+    try:
+        result = subprocess.run(
+            argv, input=options, stdout=subprocess.PIPE, text=True, check=False
+        )
+    except KeyboardInterrupt:  # Ctrl+C reaches us too while gum runs
+        return None
+    except (OSError, subprocess.SubprocessError):
+        return FALLBACK
+    if result.returncode in (1, 130) and not result.stdout.strip():
+        return None
+    if result.returncode != 0:
+        return FALLBACK
+    picked = set()
+    for line in result.stdout.split("\n"):
+        line = line.strip()
+        if not line:
+            continue
+        if not line.isdigit() or int(line) >= len(labels):
+            return FALLBACK
+        picked.add(int(line))
+    return picked
+
+
+def choose_by_number(labels, checked):
+    """Numbered checklist: numbers toggle, Enter finishes, q cancels (None)."""
+    picked = set(checked)
+    while True:
+        for i, text in enumerate(labels):
+            print(f"  {i + 1:>2}. [{'x' if i in picked else ' '}] {text}")
+        answer = ask("Numbers to toggle, Enter to finish, q to cancel:")
+        if answer is None or answer == "q":
+            return None
+        if not answer:
+            return picked
+        numbers = answer.replace(",", " ").split()
+        if not all(n.isdigit() and 1 <= int(n) <= len(labels) for n in numbers):
+            print(f"Enter numbers from 1 to {len(labels)}.")
+            continue
+        for n in numbers:
+            picked ^= {int(n) - 1}
+
+
+def cmd_edit():
+    if not enabled_file().exists():
+        print(
+            "Agent resume is disabled: nothing to edit. Run herdr-agent-resume-enable first."
+        )
+        return 1
+    if not is_tty():
+        print(
+            "The editor needs a terminal; nothing changed. Run herdr-agent-resume-info to list the sessions."
+        )
+        return 1
+    views = collect_sessions()
+    table = process_table() if any(view.running for view in views) else {}
+    entries = editor_entries(views, table)
+    if not entries:
+        print("No recorded or excluded sessions.")
+        return 0
+    labels = entry_labels(entries)
+    checked = {i for i, entry in enumerate(entries) if entry.checked}
+    gum = shutil.which("gum")
+    picked = choose_with_gum(gum, labels, checked) if gum else FALLBACK
+    if picked is FALLBACK:
+        picked = choose_by_number(labels, checked)
+    if picked is None:
+        print("Cancelled: nothing changed.")
+        return 0
+    changes = [
+        (i, entry) for i, entry in enumerate(entries) if (i in picked) != entry.checked
+    ]
+    if not changes:
+        print("No changes.")
+        return 0
+    print("Changes:")
+    for i, entry in changes:
+        print(f"  {'Stop resuming' if entry.checked else 'Resume again'}: {labels[i]}")
+    if ask("Apply? [Y/n]") not in ("", "y", "yes"):
+        print("Nothing changed.")
+        return 0
+    failures = 0
+    for i, entry in changes:
+        row = entry.row
+        if entry.checked:
+            result = forget(row.core, row.terminal, entry.session["gen"], exclude=True)
+        else:
+            result = restore(row.core, row.terminal, entry.session)
+        if result.status is Status.DONE:
+            print(f"  Done: {labels[i]}")
+            continue
+        failures += 1
+        reason = (
+            "changed since the list"
+            if result.status is Status.CHANGED
+            else result.reason
+        )
+        print(f"  Not done: {labels[i]}: {reason}")
+    return 1 if failures else 0
 
 
 def main(argv):
@@ -1318,7 +2186,13 @@ def main(argv):
             return shell_cleanup(int(argv[2]), argv[3] if len(argv) > 3 else "")
     except BaseException:  # noqa: BLE001 - hooks and shell paths never fail loudly
         return 0
-    actions = {"enable": cmd_enable, "disable": cmd_disable, "info": cmd_info}
+    actions = {
+        "enable": cmd_enable,
+        "disable": cmd_disable,
+        "info": cmd_info,
+        "edit": cmd_edit,
+        "doctor": functools.partial(cmd_doctor, argv[2:]),
+    }
     if mode in actions:
         try:
             return actions[mode]()
@@ -1326,7 +2200,7 @@ def main(argv):
             print(f"herdr-agent-resume: {error}", file=sys.stderr)
             return 1
     print(
-        "Usage: herdr-agent-resume.py {enable|disable|info|--hook AGENT|"
+        "Usage: herdr-agent-resume.py {enable|disable|info|doctor [fix]|edit|--hook AGENT|"
         "--shell-startup PID|--shell-cleanup PID TOKEN|--prune}",
         file=sys.stderr,
     )

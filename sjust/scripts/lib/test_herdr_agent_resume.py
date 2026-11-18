@@ -54,12 +54,16 @@ FAKE_HC = textwrap.dedent(
     def save():
         json.dump(state, open(path, "w"))
     terms = state["terminals"]
+    def status(t):
+        return t.get("state", "finished" if t.get("finished") else "live")
     if args[:1] == ["get"] and args[1] in terms:
         t = dict(terms[args[1]]); t["address"] = args[1]
+        t["state"] = status(t)
         print(json.dumps(t)); save(); sys.exit(0)
     if args[:1] == ["ls"]:
         shown = [a for a in terms if "--all" in args or not terms[a].get("finished")]
-        print(json.dumps({"terminals": [{"address": a} for a in shown]})); save(); sys.exit(0)
+        entries = [{"address": a, "state": status(terms[a]), "where": terms[a].get("where")} for a in shown]
+        print(json.dumps({"terminals": entries})); save(); sys.exit(0)
     if args[:1] == ["label"] and args[1] in terms and not state.get("fail_label"):
         for kv in args[2:]:
             k, v = kv.split("=", 1)
@@ -213,6 +217,8 @@ class CoreFolderTest(unittest.TestCase):
             "t1.ended.0123456789abcdef": "t1",
             "t1.ended.garbage": "t1",
             ".t1.lock": "t1",
+            "t1.skip": "t1",
+            ".skip": None,
             ".lock": None,
             ".pruned": None,
             ".t1.ended.0123456789abcdef.x1y2z3": None,  # a temp file
@@ -1857,6 +1863,849 @@ class ZshSnippetTest(Env):
         time.sleep(1)
         self.assertEqual(self.labels().get(har.LABEL), tok(value))
 
+
+FAKE_GUM = textwrap.dedent(
+    """\
+    #!/usr/bin/env python3
+    import json, os, sys
+    path = os.environ["FAKE_GUM_STATE"]
+    state = json.load(open(path))
+    state.setdefault("calls", []).append({"argv": sys.argv[1:], "stdin": sys.stdin.read()})
+    json.dump(state, open(path, "w"))
+    sys.stdout.write(state.get("out", ""))
+    sys.exit(state.get("exit", 0))
+    """
+)
+
+GEN = "0123456789abcdef"
+
+
+# pid: (ppid, pgid, tpgid), as process_table returns
+PROBE_TABLE = {
+    100: (1, 100, 100),
+    200: (100, 200, 100),
+    300: (200, 300, 100),
+    900: (1, 900, 900),
+}
+
+
+class ProbeTest(unittest.TestCase):
+    def alive(self, argv, pid=100, agent="claude", table=None):
+        return har.agent_alive(
+            pid, agent, PROBE_TABLE if table is None else table, argv.get
+        )
+
+    def test_parse_etime(self):
+        cases = {
+            "05:03": 303,
+            " 1:02:03\n": 3723,
+            "2-01:00:00": 2 * 86400 + 3600,
+            "00:00": 0,
+        }
+        for text, expected in cases.items():
+            self.assertEqual(har.parse_etime(text), expected, text)
+        for text in ("", "garbage", "1-05:03", None):
+            self.assertIsNone(har.parse_etime(text), text)
+
+    def test_process_age_of_this_process(self):
+        age = har.process_age(os.getpid())
+        self.assertIsInstance(age, int)
+        self.assertGreaterEqual(age, 0)
+
+    def test_agent_anywhere_below_the_terminal_is_alive(self):
+        # 300 has its own process group: a suspended or background job.
+        self.assertTrue(
+            self.alive({100: ["zsh"], 200: ["bash"], 300: ["claude", "--resume", "x"]})
+        )
+
+    def test_terminal_program_itself_is_the_agent(self):
+        self.assertTrue(self.alive({100: ["codex"]}, agent="codex"))
+
+    def test_other_agent_or_agent_elsewhere_is_not_alive(self):
+        argv = {100: ["zsh"], 200: ["bash"], 300: ["vim"], 900: ["claude"]}
+        self.assertFalse(self.alive(argv))
+        self.assertFalse(
+            self.alive({100: ["zsh"], 200: ["claude"], 300: ["vim"]}, agent="codex")
+        )
+
+    def test_unreadable_argv_or_table_is_not_checked(self):
+        self.assertIsNone(self.alive({100: ["zsh"], 300: ["vim"]}))  # 200 unreadable
+        self.assertTrue(self.alive({100: ["zsh"], 300: ["claude"]}))  # found anyway
+        self.assertIsNone(self.alive({100: ["zsh"]}, table={}))
+        self.assertIsNone(self.alive({100: ["zsh"]}, pid=555))
+
+
+class ClassifyTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.cwd = tmp.name
+        self.table = {100: (1, 100, 100), 300: (100, 300, 100)}
+        self.argv = {100: ["zsh"], 300: ["claude"]}
+
+    def session(self, agent="claude", transcript=None):
+        return har.new_session(agent, SID, self.cwd, transcript, gen=GEN)
+
+    def row(self, session="default", label=GEN, **fields):
+        session = self.session() if session == "default" else session
+        values = {
+            "core": "c",
+            "socket": "/x/c.sock",
+            "running": True,
+            "terminal": "t1",
+            "listed": True,
+            "label": label,
+            "session": session,
+            "marker_raw": har.marker_text(session) if session else None,
+            "pid": 100,
+            "state": "live",
+        }
+        values.update(fields)
+        return har.Row(**values)
+
+    def classify(self, row, age=500, table=None):
+        table = self.table if table is None else table
+        return [
+            (f.kind, f.reason)
+            for f in har.classify(row, table, self.argv.get, lambda pid: age)
+        ]
+
+    def ended(self, token):
+        return Path(f"/x/t1.ended.{token}")
+
+    def test_running_session_is_kept(self):
+        self.assertEqual(self.classify(self.row()), [("keep", "running")])
+
+    def test_codex_quit_without_a_command(self):
+        row = self.row(session=self.session("codex"))
+        self.assertEqual(self.classify(row), [("closed", "agent no longer running")])
+
+    def test_terminal_still_starting_is_kept(self):
+        self.argv[300] = ["vim"]
+        self.assertEqual(self.classify(self.row(), age=30), [("keep", "starting")])
+
+    def test_probes_that_cannot_answer_keep_the_session(self):
+        self.assertEqual(self.classify(self.row(), age=None), [("keep", "not checked")])
+        self.assertEqual(self.classify(self.row(), table={}), [("keep", "not checked")])
+        del self.argv[300]
+        self.assertEqual(self.classify(self.row()), [("keep", "not checked")])
+        self.assertEqual(self.classify(self.row(pid=None)), [("keep", "not checked")])
+        self.assertEqual(
+            self.classify(self.row(readable=False, label=None)),
+            [("keep", "not checked")],
+        )
+
+    def test_core_not_running(self):
+        row = self.row(running=False, listed=False, label=None)
+        self.assertEqual(self.classify(row), [("down", "core not running")])
+
+    def test_terminal_removed_or_finished(self):
+        removed = har.classify(self.row(listed=False, label=None), self.table)
+        self.assertEqual(
+            [(f.kind, f.reason, f.purge) for f in removed],
+            [("closed", "terminal removed", har.Purge.GONE)],
+        )
+        finished = har.classify(self.row(state="finished"), self.table)
+        self.assertEqual(
+            [(f.kind, f.reason) for f in finished], [("closed", "terminal finished")]
+        )
+        self.assertEqual(
+            (finished[0].purge, finished[0].drop_marker, finished[0].drop_label),
+            (har.Purge.OBSERVED, True, True),
+        )
+
+    def test_files_of_a_removed_terminal_are_leftovers(self):
+        row = self.row(
+            session=None, label=None, listed=False, lock=True, skip_present=True
+        )
+        self.assertEqual(
+            self.classify(row),
+            [("leftover", "exclusion, lock file of a terminal that no longer exists")],
+        )
+
+    def test_ended_record_of_the_label_closes_the_session(self):
+        row = self.row(ended=[self.ended(GEN)])
+        self.assertEqual(self.classify(row), [("closed", "ended, cleanup pending")])
+
+    def test_folder_or_transcript_gone(self):
+        self.argv[300] = ["vim"]  # the agent no longer runs
+        gone = har.new_session("claude", SID, self.cwd + "/gone", None, gen=GEN)
+        self.assertEqual(
+            self.classify(self.row(session=gone)), [("closed", "nothing to resume")]
+        )
+        lost = self.session(transcript=self.cwd + "/t.jsonl")
+        self.assertEqual(
+            self.classify(self.row(session=lost)), [("closed", "nothing to resume")]
+        )
+
+    def test_running_agent_without_a_transcript_yet_is_kept(self):
+        # Claude Code writes the transcript only on the first message.
+        idle = self.session(transcript=self.cwd + "/t.jsonl")
+        self.assertEqual(self.classify(self.row(session=idle)), [("keep", "running")])
+        self.assertEqual(
+            self.classify(self.row(session=idle), age=30), [("keep", "starting")]
+        )
+        del self.argv[300]
+        self.assertEqual(
+            self.classify(self.row(session=idle)), [("keep", "not checked")]
+        )
+
+    def test_records_that_cannot_match_are_leftovers(self):
+        other = har.new_session("claude", SID, self.cwd, None, gen="fedcba9876543210")
+        cases = [
+            (self.row(label=None), "marker without its label", (True, False)),
+            (self.row(session=None), "label without its marker", (False, True)),
+            (
+                self.row(session=other),
+                "marker and label of different sessions",
+                (True, True),
+            ),
+            (
+                self.row(session=None, marker_raw=har.UNREADABLE),
+                "unreadable marker",
+                (True, True),
+            ),
+        ]
+        for row, reason, drop in cases:
+            findings = har.classify(row, self.table)
+            self.assertEqual(
+                [
+                    (f.kind, f.reason, f.purge, (f.drop_marker, f.drop_label))
+                    for f in findings
+                ],
+                [("leftover", reason, har.Purge.OBSERVED, drop)],
+            )
+
+    def test_older_ended_records_beside_a_kept_session(self):
+        old = self.ended("fedcba9876543210")
+        findings = har.classify(
+            self.row(ended=[old]), self.table, self.argv.get, lambda pid: 500
+        )
+        self.assertEqual(
+            [(f.kind, f.drop_marker, f.drop_label, f.ended) for f in findings],
+            [("keep", False, False, ()), ("leftover", False, False, (old,))],
+        )
+
+    def test_excluded_terminal_alone_is_not_a_finding(self):
+        row = self.row(session=None, label=None, skip_present=True)
+        self.assertEqual(self.classify(row), [])
+
+
+class SessionsEnv(Env):
+    """Env with helpers to record sessions on fake terminals and to stub probes."""
+
+    def setUp(self):
+        super().setUp()
+        with redirect_stdout(io.StringIO()):
+            self.assertEqual(har.main(["x", "enable"]), 0)
+        self.table = {4242: (1, 4242, 4242)}
+        self.argv = {4242: ["zsh"]}
+        self.age = 500
+        har.make_private_dir(har.core_dir(self.core))
+        for name, value in (
+            ("process_table", lambda: dict(self.table)),
+            ("process_argv", lambda pid: self.argv.get(pid)),
+            ("process_age", lambda pid: self.age),
+        ):
+            patcher = patch.object(har, name, value)
+            patcher.start()
+            self.addCleanup(patcher.stop)
+
+    def terminal(self, name, pid, **fields):
+        state = self.state()
+        state["terminals"][name] = {"pid": pid, "labels": {}, **fields}
+        self.save_state(state)
+        self.table[pid] = (1, pid, pid)
+        self.argv[pid] = ["zsh"]
+
+    def record(self, terminal="t1", agent="claude", label=True):
+        session = har.new_session(agent, SID, str(self.project), None)
+        marker = har.core_dir(self.core) / terminal
+        marker.write_text(har.marker_text(session))
+        if label:
+            self.put_label(session, terminal=terminal)
+        return session
+
+    def run_agent(self, agent="claude", pid=4242):
+        self.table[pid + 1] = (pid, pid + 1, pid)
+        self.argv[pid + 1] = [agent]
+
+    def run_main(self, *args, tty=False, answer=""):
+        stdout = io.StringIO()
+        with (
+            patch.object(har, "is_tty", return_value=tty),
+            patch.object(sys, "stdin", io.StringIO(answer)),
+            redirect_stdout(stdout),
+        ):
+            code = har.main(["x", *args])
+        return code, stdout.getvalue()
+
+
+class ForgetTest(SessionsEnv):
+    def test_forget_removes_marker_records_and_label(self):
+        session = self.record()
+        har.write_ended(self.marker, session["gen"])
+        self.assertEqual(har.forget(self.core, "t1", session["gen"]), har.DONE)
+        self.assertFalse(self.marker.exists())
+        self.assertEqual(self.records(), [])
+        self.assertEqual(self.labels(), {})
+
+    def test_forget_keeps_a_newer_session(self):
+        old = self.record()
+        new = self.record()  # a new start between the report and the purge
+        self.assertEqual(har.forget(self.core, "t1", old["gen"]), har.CHANGED)
+        self.assertEqual(har.parse_marker(self.marker.read_text()), new)
+        self.assertEqual(self.labels()[har.LABEL], new["gen"])
+
+    def test_forget_leaves_a_core_stopped_since_the_report_untouched(self):
+        session = self.record()
+        har.write_ended(self.marker, session["gen"])
+        with patch.object(har, "get_record", return_value=None):
+            self.assertEqual(
+                har.forget(self.core, "t1", session["gen"]),
+                har.failed("core not running"),
+            )
+        self.assertTrue(self.marker.exists())
+        self.assertEqual(len(self.records()), 1)
+
+    def test_exclude_keeps_the_session_privately(self):
+        session = self.record()
+        self.assertEqual(
+            har.forget(self.core, "t1", session["gen"], exclude=True), har.DONE
+        )
+        skip = har.skip_path(self.marker)
+        self.assertEqual(har.parse_marker(skip.read_text()), session)
+        self.assertEqual(oct(skip.stat().st_mode & 0o777), "0o600")
+        self.assertFalse(self.marker.exists())
+        self.assertEqual(self.labels(), {})
+
+    def test_forget_on_a_stopped_core_touches_only_local_files(self):
+        stopped = har.core_key(str(self.root / "b.sock"))
+        folder = har.core_dir(stopped)
+        folder.mkdir()
+        session = har.new_session("claude", SID, str(self.project), None)
+        (folder / "t5").write_text(har.marker_text(session))
+        self.assertEqual(
+            har.forget(stopped, "t5", session["gen"], exclude=True), har.DONE
+        )
+        self.assertFalse((folder / "t5").exists())
+        self.assertTrue((folder / "t5.skip").exists())
+        self.assertFalse(
+            Path(str(self.state_file) + ".b").exists()
+        )  # hc never ran there
+
+
+class ExclusionTest(SessionsEnv):
+    def hook(self, payload, agent="claude"):
+        with (
+            patch.object(har, "foreground_agent", return_value=True),
+            patch.object(sys, "stdin", io.StringIO(json.dumps(payload))),
+            patch.object(har, "maybe_prune"),
+        ):
+            self.assertEqual(har.main(["x", "--hook", agent]), 0)
+
+    def start(self, sid=SID, source="startup"):
+        return {
+            "hook_event_name": "SessionStart",
+            "session_id": sid,
+            "cwd": str(self.project),
+            "source": source,
+        }
+
+    def exclude(self, sid=SID, agent="claude"):
+        skip = har.skip_path(self.marker)
+        skip.write_text(
+            har.marker_text(har.new_session(agent, sid, str(self.project), None))
+        )
+        return skip
+
+    def test_excluded_session_is_not_recorded_again(self):
+        skip = self.exclude()
+        for source in ("compact", "clear", "resume"):
+            self.hook(self.start(source=source))
+        self.assertEqual(self.labels(), {})
+        self.assertFalse(self.marker.exists())
+        self.assertTrue(skip.exists())
+
+    def test_another_session_ends_the_exclusion(self):
+        skip = self.exclude(sid="11111111-2222-3333-4444-555555555555")
+        self.hook(self.start())
+        self.assertEqual(har.parse_marker(self.marker.read_text())["id"], SID)
+        self.assertFalse(skip.exists())
+
+    def test_same_id_of_the_other_agent_is_recorded(self):
+        self.exclude(agent="codex")
+        self.hook(self.start())
+        self.assertTrue(self.marker.exists())
+
+    def test_prune_removes_exclusions_of_gone_terminals_only(self):
+        kept = self.exclude()
+        gone = har.core_dir(self.core) / "t9.skip"
+        gone.write_text(kept.read_text())
+        with har.on_core(str(self.socket)):
+            har.prune_markers()
+        self.assertTrue(kept.exists())
+        self.assertFalse(gone.exists())
+
+    def test_restore_records_a_new_generation(self):
+        session = self.record()
+        har.write_ended(self.marker, session["gen"])
+        har.forget(self.core, "t1", session["gen"], exclude=True)
+        har.write_ended(
+            self.marker, session["gen"]
+        )  # a late zsh write of the old generation
+        self.assertEqual(har.restore(self.core, "t1", session), har.DONE)
+        restored = har.parse_marker(self.marker.read_text())
+        self.assertEqual((restored["agent"], restored["id"]), ("claude", SID))
+        self.assertNotEqual(restored["gen"], session["gen"])
+        self.assertEqual(self.labels()[har.LABEL], restored["gen"])
+        self.assertEqual(self.records(), [])
+        self.assertFalse(har.skip_path(self.marker).exists())
+
+    def test_restore_keeps_an_ended_record_of_the_new_generation(self):
+        session = self.record()
+        har.forget(self.core, "t1", session["gen"], exclude=True)
+        write = har.atomic_write
+
+        def write_then_zsh_ends_it(path, text, **kwargs):
+            write(path, text, **kwargs)
+            if path == self.marker:  # a command typed right after the publish
+                har.write_ended(self.marker, har.first_line(text))
+
+        with patch.object(har, "atomic_write", write_then_zsh_ends_it):
+            self.assertEqual(har.restore(self.core, "t1", session), har.DONE)
+        restored = har.parse_marker(self.marker.read_text())
+        self.assertEqual(self.records(), [har.ended_path(self.marker, restored["gen"])])
+
+    def test_restore_refuses_when_it_cannot_be_safe(self):
+        excluded = har.parse_marker(self.exclude().read_text())
+        newer = self.record()
+        self.assertEqual(
+            har.restore(self.core, "t1", excluded),
+            har.failed("a newer session is recorded there"),
+        )
+        self.assertEqual(self.labels()[har.LABEL], newer["gen"])
+        self.marker.unlink()
+        self.terminal("t1", 4242, finished=True)
+        self.assertEqual(
+            har.restore(self.core, "t1", excluded), har.failed("terminal not live")
+        )
+        self.save_state({"terminals": {}})
+        self.assertEqual(
+            har.restore(self.core, "t1", excluded), har.failed("terminal not live")
+        )
+        self.assertTrue(har.skip_path(self.marker).exists())
+
+    def test_restore_keeps_an_exclusion_replaced_since_the_list(self):
+        observed = har.parse_marker(self.exclude().read_text())
+        # Another editor excluded a newer session while this checklist was open.
+        skip = self.exclude(sid="11111111-2222-3333-4444-555555555555")
+        newer = skip.read_text()
+        self.assertEqual(har.restore(self.core, "t1", observed), har.CHANGED)
+        self.assertFalse(self.marker.exists())
+        self.assertEqual(self.labels(), {})
+        self.assertEqual(skip.read_text(), newer)
+
+    def test_info_lists_excluded_sessions(self):
+        self.exclude()
+        code, out = self.run_main("info")
+        self.assertEqual(code, 0)
+        self.assertIn(f"Excluded (default ({self.socket})): 1", out)
+        self.assertIn(f"t1: claude {SID} in {self.project}", out)
+
+
+class DoctorTest(SessionsEnv):
+    def scene(self):
+        """t1: running Claude; t2: Codex that quit; t7: lock file of a removed terminal."""
+        self.record("t1")
+        self.run_agent("claude")
+        self.terminal("t2", 5000, where="Review / mr61")
+        codex = self.record("t2", agent="codex")
+        (har.core_dir(self.core) / ".t7.lock").touch()
+        return codex
+
+    def test_non_interactive_run_only_reports(self):
+        self.scene()
+        before = sorted(p.name for p in har.core_dir(self.core).iterdir())
+        code, out = self.run_main("doctor")
+        self.assertEqual(code, 1, out)
+        self.assertIn(
+            "Health: enabled, Claude Code hooks ok, Codex hooks ok, zsh line present",
+            out,
+        )
+        self.assertIn(f"Core default ({self.socket}): 2 recorded", out)
+        self.assertIn(f"t1  claude  {self.project}  running", out)
+        self.assertIn(
+            f"Review / mr61  codex  {self.project}  agent no longer running", out
+        )
+        self.assertIn("t7: lock file of a terminal that no longer exists", out)
+        self.assertIn("2 entries to purge", out)
+        self.assertEqual(
+            sorted(p.name for p in har.core_dir(self.core).iterdir()), before
+        )
+
+    def test_nothing_to_purge(self):
+        self.record()
+        self.run_agent()
+        code, out = self.run_main("doctor")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Nothing to purge.", out)
+
+    def test_fix_purges_closed_sessions_and_leftovers(self):
+        self.scene()
+        code, out = self.run_main("doctor", "fix")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Purged: 1 session, 1 leftover.", out)
+        folder = har.core_dir(self.core)
+        self.assertTrue((folder / "t1").exists())
+        self.assertFalse((folder / "t2").exists() or (folder / ".t7.lock").exists())
+        self.assertEqual(self.labels("t2"), {})
+        self.assertIn(har.LABEL, self.labels("t1"))
+
+    def test_prompt_purges_only_on_yes(self):
+        for answer in ("", "n\n", "no\n"):
+            self.scene()
+            code, out = self.run_main("doctor", tty=True, answer=answer)
+            self.assertEqual(code, 1, answer)
+            self.assertIn("Purge 2 entries? [y/N]", out)
+            self.assertTrue((har.core_dir(self.core) / "t2").exists())
+        code, out = self.run_main("doctor", tty=True, answer="y\n")
+        self.assertEqual(code, 0, out)
+        self.assertFalse((har.core_dir(self.core) / "t2").exists())
+
+    def test_finished_terminal_and_pending_cleanup_are_closed(self):
+        self.terminal("t2", 5000, finished=True)
+        self.record("t2")
+        session = self.record("t1")
+        har.write_ended(self.marker, session["gen"])
+        code, out = self.run_main("doctor", "fix")
+        self.assertEqual(code, 0, out)
+        self.assertIn("terminal finished", out)
+        self.assertIn("ended, cleanup pending", out)
+        self.assertEqual((self.labels("t1"), self.labels("t2")), ({}, {}))
+        self.assertEqual(self.records(), [])
+
+    def test_unreadable_probes_and_starting_terminals_are_kept(self):
+        self.record()
+        self.age = 30
+        code, out = self.run_main("doctor", "fix")
+        self.assertIn("starting", out)
+        self.age = 500
+        self.table = {}
+        code, out = self.run_main("doctor", "fix")
+        self.assertEqual(code, 0, out)
+        self.assertIn("not checked", out)
+        self.assertTrue(self.marker.exists())
+
+    def test_a_session_started_after_the_report_is_kept(self):
+        self.record()  # closed: no agent runs in t1
+        self.terminal("t3", 6000)
+        self.put_label("fedcba9876543210", terminal="t3")  # a label without its marker
+        real = har.report
+        newer = {}
+
+        def report_then_start(views):
+            found = real(views)
+            newer["t1"] = self.record("t1")  # new agents start before the purge
+            newer["t3"] = self.record("t3")
+            return found
+
+        with patch.object(har, "report", report_then_start):
+            code, out = self.run_main("doctor", "fix")
+        self.assertEqual(code, 0, out)
+        self.assertEqual(out.count("Kept, changed since the report"), 2, out)
+        for name in ("t1", "t3"):
+            self.assertEqual(
+                har.parse_marker((har.core_dir(self.core) / name).read_text()),
+                newer[name],
+            )
+            self.assertEqual(self.labels(name)[har.LABEL], newer[name]["gen"])
+
+    def test_core_not_running_is_never_touched(self):
+        stopped = har.core_dir(har.core_key(str(self.root / "work.sock")))
+        stopped.mkdir()
+        (stopped / "t5").write_text(
+            har.marker_text(har.new_session("codex", SID, "/gone", None))
+        )
+        (stopped / ".t6.lock").touch()
+        code, out = self.run_main("doctor", "fix")
+        self.assertEqual(code, 0, out)
+        self.assertIn(
+            f"Core work ({self.root / 'work.sock'}): not running, 1 recorded. Open the Herdr app",
+            out,
+        )
+        self.assertEqual(sorted(p.name for p in stopped.iterdir()), [".t6.lock", "t5"])
+
+    def test_disabled_feature_changes_nothing(self):
+        self.record()
+        har.enabled_file().unlink()
+        code, out = self.run_main("doctor", "fix")
+        self.assertEqual(code, 0, out)
+        self.assertIn("disabled: nothing checked, nothing changed", out)
+        self.assertTrue(self.marker.exists())
+
+    def test_health_problem_is_reported_not_repaired(self):
+        zshrc = self.home / ".zshrc"
+        zshrc.write_text("export A=1\n")
+        code, out = self.run_main("doctor")
+        self.assertEqual(code, 1, out)
+        self.assertIn("zsh line missing", out)
+        self.assertIn("herdr-agent-resume-enable", out)
+        self.assertEqual(zshrc.read_text(), "export A=1\n")
+
+    def test_hook_and_zsh_problems_are_reported_not_repaired(self):
+        claude = self.home / ".claude" / "settings.json"
+        codex = self.home / ".codex" / "hooks.json"
+        zshrc = self.home / ".zshrc"
+        originals = {path: path.read_text() for path in (claude, codex, zshrc)}
+        self.assertIn(har.zshrc_line(), originals[zshrc])
+
+        def without_hooks(path):
+            data = json.loads(originals[path])
+            data.pop("hooks")
+            return json.dumps(data)
+
+        def stale_hook(path):
+            data = json.loads(originals[path])
+            data["hooks"]["SessionStart"][0]["hooks"][0]["command"] = (
+                har.hook_prefix("claude") + "/old/place/herdr-agent-resume.py"
+            )
+            return json.dumps(data)
+
+        stale_line = (
+            "[[ -r '/old dir/herdr-agent-resume.zsh' ]] && "
+            "source '/old dir/herdr-agent-resume.zsh'  # sparkdock herdr-agent-resume"
+        )
+        cases = [
+            (claude, without_hooks(claude), "Claude Code hooks missing"),
+            (claude, stale_hook(claude), "Claude Code hooks stale"),
+            (codex, without_hooks(codex), "Codex hooks missing"),
+            (
+                zshrc,
+                originals[zshrc].replace(har.zshrc_line(), stale_line),
+                "zsh line stale",
+            ),
+        ]
+        for path, broken, state in cases:
+            with self.subTest(state=state):
+                path.write_text(broken)
+                code, out = self.run_main("doctor")
+                self.assertEqual(code, 1, out)
+                self.assertIn(state, out.splitlines()[0])  # the Health line
+                self.assertIn(f"Problem: {state} ({path})", out)
+                self.assertIn("Run herdr-agent-resume-enable to repair it.", out)
+                self.assertEqual(path.read_text(), broken)
+                path.write_text(originals[path])
+
+    def test_fix_keeps_a_running_agent_without_a_transcript_yet(self):
+        session = har.new_session(
+            "claude", SID, str(self.project), str(self.project / "t.jsonl")
+        )
+        self.marker.write_text(har.marker_text(session))
+        self.put_label(session)
+        self.run_agent()
+        code, out = self.run_main("doctor", "fix")
+        self.assertEqual(code, 0, out)
+        self.assertIn(f"t1  claude  {self.project}  running", out)
+        self.assertIn("Nothing to purge.", out)
+        self.assertEqual(har.parse_marker(self.marker.read_text()), session)
+        self.assertEqual(self.labels()[har.LABEL], session["gen"])
+
+    def test_fix_reports_each_failed_purge(self):
+        self.scene()
+        state = self.state()
+        state["fail_label"] = True  # the closed Codex session keeps its label
+        self.save_state(state)
+        code, out = self.run_main("doctor", "fix")
+        self.assertEqual(code, 1, out)
+        self.assertIn(
+            f"  Not purged: Review / mr61  codex  {self.project}  "
+            "agent no longer running: label not cleared",
+            out,
+        )
+        self.assertIn("Purged: 0 sessions, 1 leftover.", out)
+        self.assertIn("Failed: 1. Run herdr-agent-resume-doctor again.", out)
+
+    def test_empty_argument_from_the_recipe_runs_the_report(self):
+        self.scene()
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            code, out = self.run_main("doctor", "")  # `doctor "${mode}"`, mode unset
+        self.assertEqual(code, 1, out)
+        self.assertEqual(stderr.getvalue(), "")
+        self.assertIn("2 entries to purge", out)
+        self.assertTrue((har.core_dir(self.core) / "t2").exists())
+
+    def test_leftover_of_a_parsed_session_shows_agent_and_folder(self):
+        self.record(label=False)  # a marker without its label
+        code, out = self.run_main("doctor")
+        self.assertEqual(code, 1, out)
+        self.assertIn(f"t1  claude  {self.project}  marker without its label", out)
+
+    def test_gone_terminal_is_purged_only_under_the_exclusive_lock(self):
+        self.scene()
+        folder = har.core_dir(self.core)
+        lock = folder / ".t7.lock"
+        (row,) = [
+            r for v in har.collect_sessions() for r in v.rows if r.terminal == "t7"
+        ]
+        real, modes = har.state_lock, []
+
+        def quick(exclusive, wait):
+            modes.append(exclusive)
+            return real(exclusive=exclusive, wait=min(wait, 0.3))
+
+        with (
+            patch.object(har, "state_lock", quick),
+            patch.object(har, "writer_lock", side_effect=AssertionError),
+        ):
+            with real(exclusive=False, wait=1) as held:  # a writer is active
+                self.assertTrue(held)
+                self.assertEqual(har.purge_gone(row), har.failed("busy, try again"))
+                self.assertTrue(lock.exists())
+            self.terminal("t7", 7000)  # the address came back
+            self.assertEqual(har.purge_gone(row), har.CHANGED)
+            self.assertTrue(lock.exists())
+            state = self.state()
+            del state["terminals"]["t7"]
+            self.save_state(state)
+            self.assertEqual(har.purge_gone(row), har.DONE)
+        self.assertFalse(lock.exists())
+        self.assertEqual(modes, [True, True, True])
+
+    def test_bad_argument_prints_usage(self):
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            self.assertEqual(har.main(["x", "doctor", "now"]), 2)
+            self.assertEqual(har.main(["x", "doctor", "fix", "now"]), 2)
+        self.assertIn("Usage: herdr-agent-resume-doctor [fix]", stderr.getvalue())
+
+
+class EditorTest(SessionsEnv):
+    def setUp(self):
+        super().setUp()
+        gum = self.bin / "gum"
+        gum.write_text(FAKE_GUM)
+        gum.chmod(0o755)
+        self.gum_state = self.root / "gum.json"
+        self.gum(out="")
+        patcher = patch.dict(os.environ, {"FAKE_GUM_STATE": str(self.gum_state)})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def gum(self, out="", exit=0):
+        self.gum_state.write_text(json.dumps({"out": out, "exit": exit}))
+
+    def gum_calls(self):
+        return json.loads(self.gum_state.read_text()).get("calls", [])
+
+    def edit(self, answer="\n"):
+        return self.run_main("edit", tty=True, answer=answer)
+
+    def test_no_tty_refuses(self):
+        self.record()
+        code, out = self.run_main("edit")
+        self.assertEqual(code, 1)
+        self.assertIn("herdr-agent-resume-info", out)
+        self.assertEqual(self.gum_calls(), [])
+
+    def test_disabled_feature_refuses(self):
+        har.enabled_file().unlink()
+        code, out = self.edit()
+        self.assertEqual(code, 1)
+        self.assertIn("disabled", out)
+
+    def test_uncheck_then_check_again_with_gum(self):
+        session = self.record()
+        self.run_agent()
+        self.gum(out="\n")  # everything unchecked
+        code, out = self.edit()
+        self.assertEqual(code, 0, out)
+        argv = self.gum_calls()[0]["argv"]
+        label = f"t1  claude  {self.project}  running"
+        self.assertIn(f"--selected={label}", argv)
+        self.assertEqual(self.gum_calls()[0]["stdin"], f"{label}\t0\n")
+        self.assertIn(f"Stop resuming: {label}", out)
+        self.assertFalse(self.marker.exists())
+        self.assertEqual(self.labels(), {})
+        self.assertEqual(
+            har.parse_marker(har.skip_path(self.marker).read_text()), session
+        )
+
+        self.gum(out="0\n")
+        code, out = self.edit()
+        self.assertEqual(code, 0, out)
+        self.assertFalse(
+            any(a.startswith("--selected") for a in self.gum_calls()[-1]["argv"])
+        )
+        self.assertIn(f"Resume again: t1  claude  {self.project}  excluded", out)
+        self.assertEqual(har.parse_marker(self.marker.read_text())["id"], SID)
+        self.assertFalse(har.skip_path(self.marker).exists())
+
+    def test_cancel_or_no_changes_nothing(self):
+        self.record()
+        for out, exit_code, answer in (
+            ("", 130, "\n"),
+            ("", 1, "\n"),
+            ("\n", 0, "n\n"),
+            ("\n", 0, ""),
+        ):
+            self.gum(out=out, exit=exit_code)
+            code, text = self.edit(answer=answer)
+            self.assertEqual(code, 0, text)
+            self.assertIn("othing changed", text)
+            self.assertTrue(self.marker.exists())
+            self.assertIn(har.LABEL, self.labels())
+
+    def test_failing_gum_falls_back_to_numbers(self):
+        self.record()
+        self.gum(out="", exit=2)
+        code, out = self.edit(answer="x\n1\n\n\n")
+        self.assertEqual(code, 0, out)
+        self.assertIn("Enter numbers from 1 to 1.", out)
+        self.assertIn("1. [ ]", out)
+        self.assertTrue(har.skip_path(self.marker).exists())
+
+    def test_no_gum_numbered_prompt_can_cancel(self):
+        self.record()
+        real = shutil.which
+        with patch.object(
+            har.shutil, "which", lambda name: None if name == "gum" else real(name)
+        ):
+            code, out = self.edit(answer="1\nq\n")
+        self.assertEqual(code, 0, out)
+        self.assertIn("1. [x]", out)
+        self.assertIn("Cancelled", out)
+        self.assertEqual(self.gum_calls(), [])
+        self.assertTrue(self.marker.exists())
+
+    def test_core_not_running_session_can_be_unchecked(self):
+        stopped = har.core_key(str(self.root / "work.sock"))
+        folder = har.core_dir(stopped)
+        folder.mkdir()
+        session = har.new_session("codex", SID, str(self.project), None)
+        (folder / "t5").write_text(har.marker_text(session))
+        self.gum(out="\n")
+        code, out = self.edit()
+        self.assertEqual(code, 0, out)
+        self.assertIn("core not running", out)
+        self.assertFalse((folder / "t5").exists())
+        self.assertEqual(har.parse_marker((folder / "t5.skip").read_text()), session)
+
+    def test_labels_are_safe_for_gum_and_the_terminal(self):
+        self.record()
+        self.terminal(
+            "t1", 4242, title="evil,\ttitle\x1b]0;x\x07", where="-Space / Tab"
+        )
+        self.record()
+        self.gum(out="0\n")
+        self.edit()
+        stdin = self.gum_calls()[0]["stdin"]
+        label = stdin.rsplit("\t", 1)[0]
+        self.assertTrue(label.startswith("t1  -Space / Tab  claude"), label)
+        for bad in (",", "\x1b", "\x07", "\n"):
+            self.assertNotIn(bad, label)
+        self.assertEqual(stdin.count("\t"), 1)
 
 if __name__ == "__main__":
     unittest.main()

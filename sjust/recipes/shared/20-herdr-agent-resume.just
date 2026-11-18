@@ -23,3 +23,13 @@ herdr-agent-resume-disable:
 [group('herdr')]
 herdr-agent-resume-info:
     @python3 "{{_herdr_agent_resume_py}}" info
+
+# Check recorded sessions and purge closed ones; `fix` purges without asking.
+[group('herdr')]
+herdr-agent-resume-doctor $mode="":
+    @python3 "{{_herdr_agent_resume_py}}" doctor "${mode}"
+
+# Choose which recorded sessions resume after a reboot (needs a terminal).
+[group('herdr')]
+herdr-agent-resume-editor:
+    @python3 "{{_herdr_agent_resume_py}}" edit
