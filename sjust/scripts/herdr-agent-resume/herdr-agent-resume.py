@@ -1352,7 +1352,9 @@ def restore(core, terminal, observed):
         )
         if session is None:
             return failed("label not set")
-        problem = record_session(terminal, marker, session)
+        # zsh writes ended records without the lock: one of the new generation,
+        # written once the marker is published, still counts.
+        problem = record_session(terminal, marker, session, keep_ended=session["gen"])
         if problem:
             return failed(problem)
     return DONE

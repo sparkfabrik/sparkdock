@@ -2251,6 +2251,21 @@ class ExclusionTest(SessionsEnv):
         self.assertEqual(self.records(), [])
         self.assertFalse(har.skip_path(self.marker).exists())
 
+    def test_restore_keeps_an_ended_record_of_the_new_generation(self):
+        session = self.record()
+        har.forget(self.core, "t1", session["gen"], exclude=True)
+        write = har.atomic_write
+
+        def write_then_zsh_ends_it(path, text, **kwargs):
+            write(path, text, **kwargs)
+            if path == self.marker:  # a command typed right after the publish
+                har.write_ended(self.marker, har.first_line(text))
+
+        with patch.object(har, "atomic_write", write_then_zsh_ends_it):
+            self.assertEqual(har.restore(self.core, "t1", session), har.DONE)
+        restored = har.parse_marker(self.marker.read_text())
+        self.assertEqual(self.records(), [har.ended_path(self.marker, restored["gen"])])
+
     def test_restore_refuses_when_it_cannot_be_safe(self):
         excluded = har.parse_marker(self.exclude().read_text())
         newer = self.record()
