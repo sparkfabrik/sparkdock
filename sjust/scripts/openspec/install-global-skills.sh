@@ -28,14 +28,19 @@ if ! command -v openspec >/dev/null 2>&1; then
     exit 1
 fi
 
-if openspec init --help 2>/dev/null | grep -q -- '--scope'; then
-    global_dir="${XDG_DATA_HOME:-${HOME}/.local/share}/sparkdock/openspec-global"
+init_help="$(openspec init --help 2>/dev/null || true)"
+if [[ "${init_help}" == *"--scope"* ]]; then
+    # A fixed path, so every caller (shell, Ansible) uses the same project.
+    global_dir="${HOME}/.local/share/sparkdock/openspec-global"
     mkdir -p "${global_dir}"
     log_info "Configuring global OpenSpec skills (tools: ${tools})"
     # Additive and idempotent: tools configured earlier are kept.
     (cd "${global_dir}" && openspec init --scope global --tools "${tools}" --force --no-animation </dev/null)
-    # Refresh the skills for the workflow profile in the global config.
-    (cd "${global_dir}" && openspec update --force </dev/null)
+    # Refresh the skills for the workflow profile in the global config. It
+    # needs GitHub; the skills installed above stay usable when it fails.
+    if ! (cd "${global_dir}" && openspec update --force </dev/null); then
+        log_warn "Could not refresh the OpenSpec skills; the installed ones stay in place."
+    fi
     log_success "Global OpenSpec skills installed for: ${tools}"
     exit 0
 fi

@@ -359,7 +359,7 @@ _render_openspec_section() {
     fi
 
     local project_state="✗ not initialized"
-    local global_dir="${XDG_DATA_HOME:-${HOME}/.local/share}/sparkdock/openspec-global"
+    local global_dir="${HOME}/.local/share/sparkdock/openspec-global"
     if [[ -d "${global_dir}/openspec" ]]; then
         project_state="✓ ${global_dir/#${HOME}/\~}"
     elif [[ -d "${HOME}/openspec" ]]; then
