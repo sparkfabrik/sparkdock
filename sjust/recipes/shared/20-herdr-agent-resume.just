@@ -11,25 +11,30 @@ _herdr_agent_resume_py := clean(source_directory() / "../../..") / "sjust/script
 
 # Resume Claude Code and Codex sessions in Herdr terminals after a reboot (opt-in).
 [group('herdr')]
+[no-exit-message]
 herdr-agent-resume-enable:
     @python3 "{{_herdr_agent_resume_py}}" enable
 
 # Remove the hooks, the ~/.zshrc line, the terminal labels and all local state.
 [group('herdr')]
+[no-exit-message]
 herdr-agent-resume-disable:
     @python3 "{{_herdr_agent_resume_py}}" disable
 
 # Show registration, recorded sessions and warnings.
 [group('herdr')]
+[no-exit-message]
 herdr-agent-resume-info:
     @python3 "{{_herdr_agent_resume_py}}" info
 
 # Check recorded sessions and purge closed ones; `fix` purges without asking.
 [group('herdr')]
+[no-exit-message]
 herdr-agent-resume-doctor $mode="":
     @python3 "{{_herdr_agent_resume_py}}" doctor "${mode}"
 
 # Choose which recorded sessions resume after a reboot (needs a terminal).
 [group('herdr')]
+[no-exit-message]
 herdr-agent-resume-editor:
     @python3 "{{_herdr_agent_resume_py}}" edit
