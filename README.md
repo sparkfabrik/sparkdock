@@ -67,6 +67,7 @@ Fresh setup installs one Command Line Tools package selected from Software Updat
 **Operating System:**
 
 - macOS Tahoe (26.x)
+- macOS 27.x
 - Apple Silicon only
 
 **Hardware Requirements:**

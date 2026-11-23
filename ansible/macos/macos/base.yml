@@ -284,6 +284,25 @@
       changed_when: false
       failed_when: false
 
+    # Homebrew refuses to uninstall a formula another installed package depends
+    # on (e.g. lima, needed by a user-installed colima), so keep those instead
+    # of failing the run.
+    - name: Check installed dependents of unwanted Homebrew formulae
+      tags: brew_packages
+      ansible.builtin.command:
+        argv:
+          - brew
+          - uses
+          - --installed
+          - "{{ item.item }}"
+      loop: "{{ unwanted_homebrew_formulae.results | default([]) | selectattr('rc', 'defined') | selectattr('rc', 'equalto', 0) | list }}"
+      loop_control:
+        label: "{{ item.item }}"
+      register: unwanted_homebrew_dependents
+      become: false
+      changed_when: false
+      failed_when: false
+
     - name: Remove unwanted Homebrew formulae
       tags: brew_packages
       ansible.builtin.command:
@@ -291,10 +310,24 @@
           - brew
           - uninstall
           - --formula
-          - "{{ item.item }}"
-      loop: "{{ unwanted_homebrew_formulae.results | default([]) }}"
-      when: item.rc == 0
+          - "{{ item.item.item }}"
+      loop: "{{ unwanted_homebrew_dependents.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.item }}"
+      when: item.stdout | default('') | trim | length == 0
       become: false
+
+    - name: Warn about unwanted Homebrew formulae kept for installed dependents
+      tags: brew_packages
+      ansible.builtin.debug:
+        msg: >-
+          Sparkdock no longer installs {{ item.item.item }}, but it was kept because
+          these installed packages depend on it: {{ item.stdout_lines | join(', ') }}.
+          Uninstall them first if you want it removed.
+      loop: "{{ unwanted_homebrew_dependents.results | default([]) }}"
+      loop_control:
+        label: "{{ item.item.item }}"
+      when: item.stdout | default('') | trim | length > 0
 
     - name: Install-once casks (install if absent, never reinstall a healthy app)
       tags: [cask]

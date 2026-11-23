@@ -149,6 +149,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Changed the macOS version check of `install.macos`, `sparkdock` and the Ansible playbook to accept macOS 27.x as well as macOS Tahoe (26.x)
 - Changed the herdr agent skill into a router that detects the Herdr TUI or herdr-core (`hc`) and loads the matching manual, generated from `herdr --skill`, `hc --skill` and `herdr-app --skill` for each installed runtime, with a warning to rerun `sf-herdr-skill-install` when the Herdr app is installed without herdr-core; the skill is removed when no Herdr runtime is installed
 - Changed the `drupal-org-cli` hint for a missing PHP on Linux to point to `sf-toolbox`, which installs PHP with the extensions drupalorg needs
 - Changed the removal of a deprecated Homebrew tap to reinstall its formulae and casks from Homebrew core, warning about any that are not available there
@@ -251,6 +252,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fixed provisioning failing when a formula Sparkdock removes, such as `lima`, is required by another installed package such as `colima`: the formula is now kept with a warning naming the packages that need it
 - Fixed `herdr-agent-resume` recipes printing a `just` "recipe failed" line after the command already reported the problem
 - Fixed `sf-openspec-install-global` failing with OpenSpec 2.1: it installs the global skills with `openspec init --scope global` from `~/.local/share/sparkdock/openspec-global`, so nothing is scaffolded in the home folder, and a failed skills refresh only warns
 - Fixed the writing guard missing publishing calls in commands with a heredoc: a GraphQL mutation that creates or updates a PR or MR, inline or through variables, a file or standard input, now needs the description reference, a quoted `gh api` header no longer hides the endpoint, and a `gh` or `glab` call on any line is checked whatever quotes or heredocs come before it
