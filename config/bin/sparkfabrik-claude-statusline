@@ -283,10 +283,14 @@ if [ ! -L "$cave_flag" ] && [ -f "$cave_flag" ]; then
   IFS= read -r -n 64 cave_mode < "$cave_flag" 2>/dev/null
   cave_mode="${cave_mode,,}"
   cave_mode="${cave_mode//[^a-z0-9-]/}"
+  # caveman 4.x writes the active skill id instead of the mode name:
+  # "caveman" (lite/full), "ultracave" (ultra), "megacave" (wenyan modes).
   case "$cave_mode" in
-    ''|off) ;;
-    full)   append "${C_CAVE}CAVEMAN${RST}" ;;
-    *)      append "${C_CAVE}CAVEMAN:${cave_mode^^}${RST}" ;;
+    ''|off)       ;;
+    full|caveman) append "${C_CAVE}CAVEMAN${RST}" ;;
+    ultracave)    append "${C_CAVE}CAVEMAN:ULTRA${RST}" ;;
+    megacave)     append "${C_CAVE}CAVEMAN:WENYAN${RST}" ;;
+    *)            append "${C_CAVE}CAVEMAN:${cave_mode^^}${RST}" ;;
   esac
 fi
 
