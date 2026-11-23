@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Provisioning updates an older running Codex daemon to the public stable release after package setup and reports update failures.
+
 - Added `sjust herdr-agent-resume-doctor [fix]` and `sjust herdr-agent-resume-editor` (also `ajust` on Linux) to purge closed agent resume sessions and to stop or restart resuming single sessions; `herdr-agent-resume-info` now lists excluded sessions
 - Added reference checks to the Claude and Codex writing guards: a publishing call is denied until the session has read the `sf-writing-style` `platforms.md` reference, and a PR or MR description also needs `pr-mr-descriptions.md`
 - Added opt-in resume of Claude Code and Codex sessions in Herdr app terminals after a reboot, with `sjust herdr-agent-resume-enable`, `-disable` and `-info` (also `ajust` on Linux)
