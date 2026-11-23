@@ -9,6 +9,7 @@ Please find hints and troubleshooting information on our company playbook: http:
 **Supported macOS Versions:**
 
 - macOS Tahoe (26.x)
+- macOS 27.x
 
 **Prerequisites:**
 
