@@ -317,6 +317,27 @@ class RendererTest(unittest.TestCase):
         _, out = render({"cwd": "/tmp"}, self.render_env)
         self.assertIn("CAVEMAN:ULTRA", out)
 
+    # caveman 4.x writes the active skill id, not the mode name:
+    # lite and full both map to "caveman", ultra to "ultracave", the wenyan
+    # modes to "megacave".
+    def test_caveman_4_skill_renders_without_a_mode_suffix(self):
+        (Path(self.config_dir.name) / ".caveman-active").write_text("caveman")
+        _, out = render({"cwd": "/tmp"}, self.render_env)
+        self.assertIn("CAVEMAN", out)
+        self.assertNotIn("CAVEMAN:", out)
+
+    def test_caveman_4_ultracave_renders_as_ultra(self):
+        (Path(self.config_dir.name) / ".caveman-active").write_text("ultracave")
+        _, out = render({"cwd": "/tmp"}, self.render_env)
+        self.assertIn("CAVEMAN:ULTRA", out)
+        self.assertNotIn("ULTRACAVE", out)
+
+    def test_caveman_4_megacave_renders_as_wenyan(self):
+        (Path(self.config_dir.name) / ".caveman-active").write_text("megacave")
+        _, out = render({"cwd": "/tmp"}, self.render_env)
+        self.assertIn("CAVEMAN:WENYAN", out)
+        self.assertNotIn("MEGACAVE", out)
+
     def test_caveman_off_renders_nothing(self):
         (Path(self.config_dir.name) / ".caveman-active").write_text("off")
         _, out = render({"cwd": "/tmp"}, self.render_env)
