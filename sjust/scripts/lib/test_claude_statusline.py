@@ -216,25 +216,36 @@ class RendererTest(unittest.TestCase):
             with open(os.path.join(cache, "claude-rate-limits.json")) as stream:
                 shared = json.load(stream)
             self.assertAlmostEqual(shared["updated_at"], time.time(), delta=60)
-            self.assertEqual(shared["five_hour"], {"used_percentage": 23.5, "resets_at": 2000})
-            self.assertEqual(shared["seven_day"], {"used_percentage": 41, "resets_at": 9000})
+            self.assertEqual(
+                shared["five_hour"], {"used_percentage": 23.5, "resets_at": 2000}
+            )
+            self.assertEqual(
+                shared["seven_day"], {"used_percentage": 41, "resets_at": 9000}
+            )
             self.assertEqual(os.listdir(cache), ["claude-rate-limits.json"])
 
     def test_incomplete_or_non_numeric_rate_limits_are_not_shared(self):
         for limits in (
             {"five_hour": {"used_percentage": 5, "resets_at": 1}},
             {
-                "five_hour": {"used_percentage": "5,\"x\":1", "resets_at": 1},
+                "five_hour": {"used_percentage": '5,"x":1', "resets_at": 1},
                 "seven_day": {"used_percentage": 1, "resets_at": 1},
             },
         ):
             with self.subTest(limits=limits), tempfile.TemporaryDirectory() as cache:
-                render({"cwd": "/tmp", "rate_limits": limits}, {"XDG_CACHE_HOME": cache})
+                render(
+                    {"cwd": "/tmp", "rate_limits": limits}, {"XDG_CACHE_HOME": cache}
+                )
                 self.assertEqual(os.listdir(cache), [])
 
     def test_preview_does_not_touch_the_shared_file(self):
-        with tempfile.TemporaryDirectory() as cache, unittest.mock.patch.dict(os.environ, {"XDG_CACHE_HOME": cache}):
-            self.assertIn("5h", re.sub(r"\033\[[0-9;]*m", "", claude_statusline._preview("full")))
+        with (
+            tempfile.TemporaryDirectory() as cache,
+            unittest.mock.patch.dict(os.environ, {"XDG_CACHE_HOME": cache}),
+        ):
+            self.assertIn(
+                "5h", re.sub(r"\033\[[0-9;]*m", "", claude_statusline._preview("full"))
+            )
             self.assertEqual(os.listdir(cache), [])
 
     def test_spend_limit_reports_past_one_hundred(self):
@@ -365,6 +376,84 @@ class RendererTest(unittest.TestCase):
                 bar = claude_statusline._preview(variant)
                 self.assertTrue(bar.strip())
                 self.assertNotIn("unavailable", bar)
+
+
+class SandboxSegmentTest(unittest.TestCase):
+    """The segment follows sandbox.enabled in Claude Code's settings order."""
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(tmp.name)
+        self.project = root / "project"
+        (self.project / ".claude").mkdir(parents=True)
+        self.user = root / "user"
+        self.user.mkdir()
+        self.managed = root / "managed-settings.json"
+        self.env = {
+            "CLAUDE_CONFIG_DIR": str(self.user),
+            "TMPDIR": str(root),
+            "SPARKFABRIK_STATUSLINE_MANAGED_SETTINGS": str(self.managed),
+        }
+
+    def write(self, path, value):
+        path.write_text(value if isinstance(value, str) else json.dumps(value))
+
+    def render(self):
+        payload = {
+            "workspace": {
+                "current_dir": str(self.project),
+                "project_dir": str(self.project),
+            },
+            "session_id": "s1",
+        }
+        return render(payload, self.env)
+
+    def test_enabled_in_project_local_settings_shows_the_segment(self):
+        self.write(
+            self.project / ".claude" / "settings.local.json",
+            {"sandbox": {"enabled": True}},
+        )
+        code, out = self.render()
+        self.assertEqual(code, 0)
+        self.assertIn("SANDBOX", out)
+
+    def test_project_local_false_overrides_user_true(self):
+        self.write(self.user / "settings.json", {"sandbox": {"enabled": True}})
+        self.write(
+            self.project / ".claude" / "settings.local.json",
+            {"sandbox": {"enabled": False}},
+        )
+        self.assertNotIn("SANDBOX", self.render()[1])
+
+    def test_user_true_applies_when_nothing_else_sets_it(self):
+        self.write(self.user / "settings.json", {"sandbox": {"enabled": True}})
+        self.assertIn("SANDBOX", self.render()[1])
+
+    def test_managed_false_overrides_everything(self):
+        self.write(self.managed, {"sandbox": {"enabled": False}})
+        self.write(
+            self.project / ".claude" / "settings.local.json",
+            {"sandbox": {"enabled": True}},
+        )
+        self.assertNotIn("SANDBOX", self.render()[1])
+
+    def test_absent_setting_renders_nothing(self):
+        self.write(self.user / "settings.json", {"model": "opus"})
+        self.assertNotIn("SANDBOX", self.render()[1])
+
+    def test_malformed_settings_are_skipped(self):
+        self.write(self.project / ".claude" / "settings.json", "{not json")
+        self.write(self.user / "settings.json", {"sandbox": {"enabled": True}})
+        code, out = self.render()
+        self.assertEqual(code, 0)
+        self.assertIn("SANDBOX", out)
+
+    def test_a_non_boolean_value_is_ignored(self):
+        self.write(
+            self.project / ".claude" / "settings.json", {"sandbox": {"enabled": "yes"}}
+        )
+        self.assertNotIn("SANDBOX", self.render()[1])
 
 
 if __name__ == "__main__":

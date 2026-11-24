@@ -15,12 +15,13 @@
 # Layout, left to right — every segment is conditional and appears only when
 # the payload carries it:
 #
-#    dir |  branch*↑1↓2 ⑂wt | Opus 5 ⚡high FAST | @agent | vim:NORMAL |
+#    dir |  branch*↑1↓2 ⑂wt | Opus 5 ⚡high FAST | SANDBOX | @agent | vim:NORMAL |
 #   ✎ style | CAVEMAN | ▰▰▱▱▱ 42% 1M | ❄ |
 #   5h 24% ↻2h30m · 7d 41% ↻2d · $ 137% ↻10d
 #
 # Perf: one jq pass, one git status, and a 5s cache per session_id + directory.
-# Bash handles the rest without forks.
+# The sandbox setting is read from the settings files at most every 5s per
+# project. Bash handles the rest without forks.
 # Security: payload values and the branch are stripped of control bytes.
 # The git cache is read only from a user-owned directory.
 set -uo pipefail
@@ -65,6 +66,7 @@ C_WARN=$'\033[38;5;178m'    # amber
 C_BAD=$'\033[38;5;196m'     # red — dirty, behind, saturated usage
 C_OVER=$'\033[1m'$'\033[38;5;196m'  # bold red — a window past 100%
 C_WT=$'\033[38;5;109m'
+C_SANDBOX=$'\033[38;5;43m'  # teal — Bash sandbox enabled
 SEP=" ${DIM}|${RST} "
 
 out=""
@@ -125,7 +127,7 @@ EFFORT_EXPR='(.effort.level? // .effortLevel.level? // (.effort? | strings) // (
 cur_dir=""; model=""; effort=""; fast_mode=""; agent=""; vim_mode=""; style=""
 ctx_pct=""; ctx_size=""; over200=""; cache_warm=""; cache_seen=""
 five_pct=""; five_reset=""; seven_pct=""; seven_reset=""
-spend_pct=""; spend_reset=""; worktree=""; session_id=""
+spend_pct=""; spend_reset=""; worktree=""; session_id=""; project_dir=""
 
 HAVE_JQ=""
 command -v jq >/dev/null 2>&1 && HAVE_JQ=1
@@ -134,7 +136,7 @@ if [ -n "$HAVE_JQ" ]; then
   IFS=$'\x1f' read -r cur_dir model effort fast_mode agent vim_mode style \
     ctx_pct ctx_size over200 cache_warm cache_seen \
     five_pct five_reset seven_pct seven_reset spend_pct spend_reset \
-    worktree session_id < <(jq -r 2>/dev/null '
+    worktree session_id project_dir < <(jq -r 2>/dev/null '
       def c: tostring | gsub("[[:cntrl:]]"; "");
       [ (.workspace.current_dir // .cwd // "" | c),
         (.model.display_name // "" | c),
@@ -155,7 +157,8 @@ if [ -n "$HAVE_JQ" ]; then
         (.rate_limits.spend_limit.used_percentage  // "" | c),
         (.rate_limits.spend_limit.resets_at        // "" | c),
         (.workspace.git_worktree // .worktree.name // "" | c),
-        (.session_id // "" | c)
+        (.session_id // "" | c),
+        (.workspace.project_dir // "" | c)
       ] | join("\u001f")')
 fi
 cur_dir="${cur_dir:-$PWD}"
@@ -214,16 +217,16 @@ build_git_seg() {
   printf '%s' "${C_GIT}${I_GIT} ${branch}${extra}${RST}"
 }
 
-# 5s cache keyed by session_id and directory.
-# Skip the cache when its directory is not user-owned.
+# Per-user cache directory, used only when it is user-owned.
+cache_dir="${TMPDIR:-/tmp}/sparkfabrik-claude-statusline-${UID}"
+[ -d "$cache_dir" ] || { mkdir -p "$cache_dir" 2>/dev/null && chmod 700 "$cache_dir" 2>/dev/null; }
+{ [ -d "$cache_dir" ] && [ -O "$cache_dir" ]; } || cache_dir=""
+
+# 5s git cache keyed by session_id and directory.
 cache_file=""
-if [ -n "$session_id" ]; then
-  cache_dir="${TMPDIR:-/tmp}/sparkfabrik-claude-statusline-${UID}"
-  [ -d "$cache_dir" ] || { mkdir -p "$cache_dir" 2>/dev/null && chmod 700 "$cache_dir" 2>/dev/null; }
-  if [ -d "$cache_dir" ] && [ -O "$cache_dir" ]; then
-    dir_key="${cur_dir//[^A-Za-z0-9_-]/_}"
-    cache_file="${cache_dir}/git-${session_id//[^A-Za-z0-9_-]/_}-${#cur_dir}${dir_key: -48}"
-  fi
+if [ -n "$session_id" ] && [ -n "$cache_dir" ]; then
+  dir_key="${cur_dir//[^A-Za-z0-9_-]/_}"
+  cache_file="${cache_dir}/git-${session_id//[^A-Za-z0-9_-]/_}-${#cur_dir}${dir_key: -48}"
 fi
 
 git_seg=""
@@ -262,6 +265,52 @@ if [ -n "$model" ]; then
   fi
   [ "$fast_mode" = "true" ] && model_seg="${model_seg} ${C_FAST}FAST${RST}"
   append "$model_seg"
+fi
+
+# ── Bash sandbox (sandbox.enabled in the settings files) ─────────────────────
+# The payload does not carry it, so read Claude Code's settings in its order of
+# precedence: managed, project local, project, user. The first explicit boolean
+# wins. This is the configuration, not proof that the sandbox is available.
+sandbox_enabled() {
+  local proj="${project_dir:-$cur_dir}" managed f v
+  managed="${SPARKFABRIK_STATUSLINE_MANAGED_SETTINGS:-}"
+  if [ -z "$managed" ]; then
+    case "$OSTYPE" in
+      darwin*) managed="/Library/Application Support/ClaudeCode/managed-settings.json" ;;
+      *)       managed="/etc/claude-code/managed-settings.json" ;;
+    esac
+  fi
+  for f in "$managed" "${proj}/.claude/settings.local.json" "${proj}/.claude/settings.json" "${CFG}/settings.json"; do
+    [ -f "$f" ] || continue
+    v=$(jq -r 'try (.sandbox.enabled | if type == "boolean" then tostring else empty end) catch empty' "$f" 2>/dev/null)
+    case "$v" in true|false) printf '%s' "$v"; return 0 ;; esac
+  done
+}
+
+if [ -n "$HAVE_JQ" ]; then
+  sandbox=""
+  sandbox_cache=""
+  if [ -n "$cache_dir" ]; then
+    proj_key="${project_dir:-$cur_dir}"
+    sb_key="${proj_key//[^A-Za-z0-9_-]/_}"
+    [ "${#sb_key}" -gt 120 ] && sb_key="${sb_key:${#sb_key}-120}"
+    sandbox_cache="${cache_dir}/sandbox-${#proj_key}${sb_key}"
+  fi
+  sb_at=""; sb_hit=""
+  if [ -n "$sandbox_cache" ] && [ -f "$sandbox_cache" ]; then
+    { IFS= read -r sb_at; IFS= read -r sandbox; } < "$sandbox_cache" 2>/dev/null
+    case "$sb_at" in
+      ''|*[!0-9]*) sandbox="" ;;
+      *) if [ $(( NOW - sb_at )) -lt 5 ]; then sb_hit=1; else sandbox=""; fi ;;
+    esac
+  fi
+  if [ -z "$sb_hit" ]; then
+    sandbox=$(sandbox_enabled)
+    if [ -n "$sandbox_cache" ]; then
+      { printf '%s\n%s\n' "$NOW" "$sandbox" > "${sandbox_cache}.$$" && mv -f "${sandbox_cache}.$$" "$sandbox_cache"; } 2>/dev/null
+    fi
+  fi
+  [ "$sandbox" = "true" ] && append "${C_SANDBOX}SANDBOX${RST}"
 fi
 
 # ── Custom agent (--agent / agent settings) ──────────────────────────────────

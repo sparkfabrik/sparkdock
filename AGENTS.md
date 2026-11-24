@@ -359,6 +359,8 @@ Segments are conditional: each appears only when the payload carries its field, 
 
 The caveman segment reads `~/.claude/.caveman-active`, which the caveman plugin writes as disk state rather than payload data. The `full.json` preview cannot show this segment.
 
+The `SANDBOX` segment also comes from disk: the payload has no sandbox field, so the renderer reads `sandbox.enabled` from the settings files in Claude Code's order (managed, project `settings.local.json`, project `settings.json`, user `settings.json`) and the first boolean wins. It caches the result for 5s per project under `${TMPDIR}`, and `SPARKFABRIK_STATUSLINE_MANAGED_SETTINGS` points tests at another managed settings file. It shows the configuration, not whether the sandbox could start.
+
 ## AI Coding Agents System
 
 Sparkdock syncs AI coding resources from the upstream `sf-agents-harness` repository. This covers two resource types managed by a unified sync system:
