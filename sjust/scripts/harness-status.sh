@@ -367,17 +367,39 @@ _render_openspec_section() {
     fi
     printf "  CLI: ✓ %s  │  Global project: %s\n" "${version}" "${project_state}"
 
-    local agent
-    for agent in "${AGENTS[@]}"; do
-        local count cmd_count
-        count="$(_openspec_skill_count "${OPENSPEC_TOOL_SKILLS_DIR[${agent}]}")"
-        cmd_count="$(_openspec_cmd_count "${OPENSPEC_TOOL_CMD_DIR[${agent}]}")"
-        if [[ "${count}" -gt 0 || "${cmd_count}" -gt 0 ]]; then
-            printf "    %-9s skills: %s  │  commands: %s\n" "${agent}" "${count}" "${cmd_count}"
-        else
-            printf "    %-9s —\n" "${agent}"
-        fi
-    done
+    local agent count init_help
+    init_help="$(openspec init --help 2>/dev/null || true)"
+    if [[ "${init_help}" == *"--scope"* ]]; then
+        # OpenSpec 2.1 installs global skills once in ~/.agents/skills, links
+        # them for tools that need it, and ships no commands.
+        for agent in claude copilot; do
+            count="$(_openspec_skill_count "${OPENSPEC_TOOL_SKILLS_DIR[${agent}]}")"
+            if [[ "${count}" -gt 0 ]]; then
+                printf "    %-9s skills: %s\n" "${agent}" "${count}"
+            else
+                printf "    %-9s —\n" "${agent}"
+            fi
+        done
+        count="$(_openspec_skill_count "${HOME}/.agents/skills")"
+        for agent in codex opencode; do
+            if [[ "${count}" -gt 0 ]]; then
+                printf "    %-9s skills: %s  (reads ~/.agents/skills)\n" "${agent}" "${count}"
+            else
+                printf "    %-9s —\n" "${agent}"
+            fi
+        done
+    else
+        for agent in "${AGENTS[@]}"; do
+            local cmd_count
+            count="$(_openspec_skill_count "${OPENSPEC_TOOL_SKILLS_DIR[${agent}]}")"
+            cmd_count="$(_openspec_cmd_count "${OPENSPEC_TOOL_CMD_DIR[${agent}]}")"
+            if [[ "${count}" -gt 0 || "${cmd_count}" -gt 0 ]]; then
+                printf "    %-9s skills: %s  │  commands: %s\n" "${agent}" "${count}" "${cmd_count}"
+            else
+                printf "    %-9s —\n" "${agent}"
+            fi
+        done
+    fi
 
     echo ""
     local dim='' reset=''

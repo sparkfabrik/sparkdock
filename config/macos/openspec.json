@@ -1,7 +1,6 @@
 {
   "featureFlags": {},
   "profile": "custom",
-  "delivery": "both",
   "telemetry": {
     "noticeSeen": true,
     "enabled": false
@@ -12,6 +11,7 @@
     "new",
     "continue",
     "apply",
+    "update",
     "ff",
     "sync",
     "archive",
