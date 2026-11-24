@@ -254,7 +254,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Fixed OpenSpec 1.x commands, prompts and skill copies staying in the home folder after the upgrade to OpenSpec 2.1: `sf-openspec-install-global` removes the ones OpenSpec generated and keeps anything else
+- Fixed OpenSpec 1.x commands, prompts and skill copies staying in the home folder after the upgrade to OpenSpec 2.1: `sf-openspec-install-global` removes, for the tools it configures, only the files whose name and frontmatter match what OpenSpec 1.x generated
 - Fixed the managed Claude Code statusline showing `CAVEMAN:CAVEMAN` with caveman 4.x, which writes the active skill id instead of the mode name: `caveman` now renders as `CAVEMAN`, `ultracave` as `CAVEMAN:ULTRA` and `megacave` as `CAVEMAN:WENYAN`
 - Fixed `herdr-agent-resume` recipes printing a `just` "recipe failed" line after the command already reported the problem
 - Fixed `sf-openspec-install-global` failing with OpenSpec 2.1: it installs the global skills with `openspec init --scope global` from `~/.local/share/sparkdock/openspec-global`, so nothing is scaffolded in the home folder, and a failed skills refresh only warns
