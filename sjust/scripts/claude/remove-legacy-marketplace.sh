@@ -105,12 +105,25 @@ EOF
 
 changed=0
 
+# Plugins that moved to another marketplace: reinstall them from there, in the
+# same scope, so their users keep them after the cleanup.
+reinstall_moved() {
+    local scope="$1" plugin_id="$2"
+    [[ "${plugin_id}" == "drupal-migrate@${MARKETPLACE}" ]] || return 0
+    if claude plugin install --scope "${scope}" "drupal-migrate@sf-agents-harness" >/dev/null 2>&1; then
+        echo "Reinstalled drupal-migrate from sf-agents-harness (${scope})"
+    else
+        echo "Could not reinstall drupal-migrate, run: claude plugin install drupal-migrate@sf-agents-harness"
+    fi
+}
+
 while IFS=$'\t' read -r scope project plugin_id; do
     [[ -n "${plugin_id:-}" ]] || continue
     case "${scope}" in
         user)
             if claude plugin uninstall --scope user "${plugin_id}" >/dev/null 2>&1; then
                 echo "Uninstalled ${plugin_id}"
+                reinstall_moved user "${plugin_id}"
                 changed=1
             else
                 echo "Could not uninstall ${plugin_id}, continuing"
@@ -119,6 +132,7 @@ while IFS=$'\t' read -r scope project plugin_id; do
         project | local)
             if [[ -d "${project}" ]] && (cd "${project}" && claude plugin uninstall --scope "${scope}" "${plugin_id}" >/dev/null 2>&1); then
                 echo "Uninstalled ${plugin_id} from ${project} (${scope})"
+                (cd "${project}" && reinstall_moved "${scope}" "${plugin_id}")
                 changed=1
             else
                 echo "Could not uninstall ${plugin_id} from ${project} (${scope}), continuing"
