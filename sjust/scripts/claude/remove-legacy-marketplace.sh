@@ -32,7 +32,7 @@ if ! command -v claude >/dev/null 2>&1; then
     exit 0
 fi
 
-# Print "<scope> <projectPath or -> <plugin id>" for every install of a plugin
+# Print "<scope>\t<projectPath or ->\t<plugin id>" for every install of a plugin
 # from the legacy marketplace, read from Claude Code's own registry.
 legacy_installs() {
     local registry="${PLUGINS_DIR}/installed_plugins.json"
@@ -52,7 +52,7 @@ for plugin_id, installs in plugins.items():
         if not isinstance(install, dict):
             continue
         scope = install.get("scope") or "user"
-        print(scope, install.get("projectPath") or "-", plugin_id)
+        print(scope, install.get("projectPath") or "-", plugin_id, sep="\t")
 EOF
 }
 
@@ -105,7 +105,7 @@ EOF
 
 changed=0
 
-while read -r scope project plugin_id; do
+while IFS=$'\t' read -r scope project plugin_id; do
     [[ -n "${plugin_id:-}" ]] || continue
     case "${scope}" in
         user)
