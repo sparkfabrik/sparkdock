@@ -254,6 +254,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Provisioning removes the legacy `sparkfabrik-plugins` Claude Code marketplace, its `@sparkfabrik-plugins` plugins and their cache, which failed with `Repository not found` without access to the private repository; the plugins come from the claude.ai organization sync, and `drupal-migrate` is reinstalled from the `sf-agents-harness` marketplace
 - Fixed OpenSpec 1.x commands, prompts and skill copies staying in the home folder after the upgrade to OpenSpec 2.1: `sf-openspec-install-global` removes, for the tools it configures, only the files whose name and frontmatter match what OpenSpec 1.x generated
 - Fixed the managed Claude Code statusline showing `CAVEMAN:CAVEMAN` with caveman 4.x, which writes the active skill id instead of the mode name: `caveman` now renders as `CAVEMAN`, `ultracave` as `CAVEMAN:ULTRA` and `megacave` as `CAVEMAN:WENYAN`
 - Fixed `herdr-agent-resume` recipes printing a `just` "recipe failed" line after the command already reported the problem
