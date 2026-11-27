@@ -1564,6 +1564,20 @@
           changed_when: true
           become: false
 
+    - name: Remove the legacy sparkfabrik-plugins Claude Code marketplace
+      tags:
+        - claude-plugin-cleanup
+        - ai-harness
+        - ai-harness-sync
+      block:
+        # Its plugins now come from the claude.ai organization sync; the old
+        # marketplace clones a private repository and duplicates them.
+        - name: Run the legacy marketplace cleanup script
+          command: "{{ dev_env_dir }}/sjust/scripts/claude/remove-legacy-marketplace.sh"
+          register: claude_legacy_marketplace
+          changed_when: "'Uninstalling' in claude_legacy_marketplace.stdout or 'Removing' in claude_legacy_marketplace.stdout"
+          become: false
+
     - name: Install the herdr agent skill for AI coding tools
       tags:
         - herdr
